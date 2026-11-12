@@ -397,6 +397,12 @@ type AssistantLabels = {
   regenerateImage: string
   downloadImage: string
   copyImage: string
+  /** 多图收起时最后一格上的角标文本（通常 `+N`） */
+  imageGalleryMore: (count: number) => string
+  /** 同一格的读屏名：还剩几张、点一下会发生什么 */
+  imageGalleryMoreLabel: (count: number) => string
+  /** 展开后收起多图网格的开关 */
+  imageGalleryCollapse: string
 
   // 代码 diff 卡片（code-diff）
   /** 折叠态的开关：展开正文 */
@@ -691,6 +697,9 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   regenerateImage: 'Regenerate image',
   downloadImage: 'Download image',
   copyImage: 'Copy image',
+  imageGalleryMore: (count) => '+' + count,
+  imageGalleryMoreLabel: (count) => `Show ${count} more images`,
+  imageGalleryCollapse: 'Collapse images',
 
   diffExpand: 'Expand diff',
   diffCollapse: 'Collapse diff',

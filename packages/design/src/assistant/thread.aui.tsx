@@ -41,6 +41,7 @@ import {
 import { File } from './file'
 import { ThreadFollowupSuggestions } from './follow-up-suggestions.aui'
 import { Image } from './image'
+import { MessageImageGallery } from './message-image-gallery'
 import { useAssistantLabels, type AssistantLabels } from './labels'
 import { findRunNote } from './run-status'
 import {
@@ -1360,13 +1361,11 @@ const UserFilePart: FileMessagePartComponent = (part) => (
   </div>
 )
 
-const UserImagePart: ImageMessagePartComponent = (part) => (
-  <div
-    data-slot="aui_user-message-image"
-    className="py-1">
-    <Image {...part} />
-  </div>
-)
+/**
+ * 图片不在 part 层画：一条消息里的所有图片交给 `MessageImageGallery` 统一排版
+ * （多图切网格、最后一格叠 `+N`、圆角统一）。这里返回 null，避免同一张图出现两次。
+ */
+const UserImagePart: ImageMessagePartComponent = () => null
 
 /** 已发送气泡：directive 与 composer 同款 chip，不露 `:file[...]{...}` 原文 */
 const UserTextPart: TextMessagePartComponent = function UserTextPart() {
@@ -1410,6 +1409,19 @@ const UserMessageBody: FC = () => {
   /** 滚到底就撤掉渐隐，否则最后一行永远被那 40px 盖着 */
   const [atBottom, setAtBottom] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  /** 这条消息里的图片（顺序即用户发出的顺序），交给图库统一排版 */
+  const parts = useAuiState(function (state) {
+    return state.message.parts
+  })
+  const images = useMemo(
+    function () {
+      return parts.flatMap(function (part) {
+        return part.type === 'image' ? [{ src: part.image, filename: part.filename }] : []
+      })
+    },
+    [parts]
+  )
+
   /** 正文长度：编辑过的消息要重量一次；数字选择器取值稳定，不逐字重渲染 */
   const contentLength = useAuiState(function (state) {
     let total = 0
@@ -1449,6 +1461,8 @@ const UserMessageBody: FC = () => {
             setAtBottom(node.scrollTop + node.clientHeight >= node.scrollHeight - 1)
           }}>
           <MessagePrimitive.Parts components={USER_MESSAGE_PART_COMPONENTS} />
+          {/* 图片走图库：一张一张竖着铺会把气泡拉成长卷，多图还会被 264px 封顶切掉 */}
+          <MessageImageGallery images={images} />
         </div>
         {/* 下面还有内容时压一层渐隐，滚到底自动消失 */}
         {overflowing && !atBottom ? (

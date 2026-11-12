@@ -267,6 +267,9 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   regenerateImage: '重新生成图片',
   downloadImage: '下载图片',
   copyImage: '复制图片',
+  imageGalleryMore: (count) => '+' + count,
+  imageGalleryMoreLabel: (count) => `还有 ${count} 张图片，点击展开`,
+  imageGalleryCollapse: '收起图片',
 
   diffExpand: '展开改动',
   diffCollapse: '收起改动',
