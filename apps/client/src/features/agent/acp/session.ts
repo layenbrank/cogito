@@ -58,6 +58,11 @@ import {
 } from '@/features/agent/acp/goose-providers'
 import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
 import { bindSession, readBinding, unbindSession } from '@/features/agent/acp/session-binding'
+import {
+  createLoadedSession,
+  feedLoadedSession,
+  forgetLoadedSession
+} from '@/features/agent/acp/loaded-session'
 import { isWriteTool } from '@/features/agent/approval'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
 import {
@@ -705,11 +710,24 @@ function disposeThreadSession(thread: ThreadSession) {
 }
 
 function forgetThreadSession(thread: ThreadSession) {
+  forgetLiveThreadSession(thread)
+  // 显式关会话才删绑定：这是「下次别再接回来了」的表达
+  forgetSessionMapping(thread.threadID)
+}
+
+/**
+ * 只清内存，**不动库里的绑定**。
+ *
+ * 连接断开（关应用 / 刷新 / goose 重连）不能删绑定：它是「下次打开还能接回这段对话」
+ * 的唯一凭据。以前这里直接走 `forgetThreadSession`，于是关掉应用等于亲手删掉恢复的
+ * 线索 —— 第二天打开同一个会话只能 `session/new`，goose 侧是个空会话，Agent 自然
+ * 不认识之前聊过什么。
+ */
+function forgetLiveThreadSession(thread: ThreadSession) {
   if (sessionByThread.get(thread.threadID) === thread) sessionByThread.delete(thread.threadID)
   if (sessionByAcpID.get(thread.acpSessionID) === thread) sessionByAcpID.delete(thread.acpSessionID)
   usageBaseline.delete(thread.acpSessionID)
   clearGooseUsage(thread.threadID)
-  forgetSessionMapping(thread.threadID)
 }
 
 /** goose 退出 / 重连：会话与上下文用量都得清（旧 session 已经不可用） */
@@ -721,9 +739,9 @@ function clearThreadSessions() {
     if (thread.run) thread.run.reset = true
     disposeThreadSession(thread)
     usageBaseline.delete(thread.acpSessionID)
-    // goose 已经退出：这些 ACP session 在它那边也没了，绑定必须一起清，
-    // 否则刷新后 `resumeThreadRun` 会拿死 sessionID 去 `session/load`
-    forgetSessionMapping(thread.threadID)
+    // 绑定**不在这里删**：goose 的会话是落盘的，重连后 `session/load` 还能接回来。
+    // 之前在这清掉，等于每次 goose 重启都把「这段对话聊过什么」一起丢掉。
+    // 真要断掉关系时（关会话 / 删会话）会走 `forgetThreadSession`。
   }
   sessionByThread.clear()
   sessionByAcpID.clear()
@@ -833,7 +851,13 @@ const resumeFeeds = new Map<string, ResumeFeed>()
 
 bindSessionUpdateRoute(function (notification) {
   const feed = resumeFeeds.get(notification.sessionId)
-  if (feed) feed.push(notification.update)
+  if (feed) {
+    feed.push(notification.update)
+    return
+  }
+  // 没有「恢复中回合」的订阅者时，这条会话可能是 `session/load` 接回来的：
+  // 交给它自己的队列；两边都没有就丢掉（历史由 SQLite 负责，不靠重放渲染）。
+  feedLoadedSession(notification)
 })
 
 /**
@@ -942,10 +966,10 @@ async function openThreadSession(
   rememberSessionMapping(threadID, thread.acpSessionID, cwd)
   handle.connection.closed.then(
     function () {
-      forgetThreadSession(thread)
+      forgetLiveThreadSession(thread)
     },
     function () {
-      forgetThreadSession(thread)
+      forgetLiveThreadSession(thread)
     }
   )
   try {
@@ -966,12 +990,122 @@ async function openThreadSession(
  * provider / model 变了就地 `setConfigOption`，**不重建 session** —— 重建会把上下文丢掉，
  * 用户只是换了个模型，不该把之前聊的内容清零。
  */
+/**
+ * 打开一个「goose 侧本来就有」的会话：用 `session/load` 接回来，而不是 `session/new`。
+ *
+ * 为什么需要这一步：ACP session 的上下文活在 goose 进程/它的会话存储里，UI 的历史活在
+ * SQLite 里。重启后如果只会 `session/new`，用户看到的是「历史都在、Agent 啥也不记得」——
+ * 它甚至不知道自己在这个会话里答应过什么，只能从工作区重新找线索（所以会出现
+ * 「在同一个工作区别的目录里翻 git」这种行为）。
+ *
+ * 三件事同时成立才接：① 库里有绑定；② 绑定的 cwd 与当前一致（工作区换了/目录挪了，
+ * 接回来会在旧路径上读写）；③ goose 声明了 `loadSession`。任一不成立或 load 失败都退回
+ * `session/new`，不让用户卡在打不开的会话里。
+ */
+async function resumeThreadSession(
+  threadID: string,
+  cwd: string,
+  providerID: string,
+  modelID: string | undefined
+): Promise<ThreadSession | null> {
+  const binding = await readBinding(threadID)
+  if (!binding || !binding.acpSessionId) return null
+  if (binding.cwd !== cwd) {
+    console.info('[acp/session] 绑定的工作目录与当前不一致，改开新会话:', threadID)
+    return null
+  }
+
+  const handle = await findAcpHandle()
+  if (!handle.canLoadSession) return null
+
+  let loaded: { configOptions?: SessionConfigOption[] | null } | null = null
+  try {
+    loaded = await handle.connection.agent.request(methods.agent.session.load, {
+      sessionId: binding.acpSessionId,
+      cwd,
+      // load 是「接上」不是重建：空名单沿用会话已有的扩展，不新增 MCP
+      mcpServers: []
+    })
+  } catch (error) {
+    console.warn('[acp/session] 接回旧会话失败，改开新会话:', threadID, error)
+    return null
+  }
+
+  const session = createLoadedSession({
+    connection: handle.connection,
+    sessionId: binding.acpSessionId,
+    configOptions: loaded?.configOptions ?? null
+  })
+
+  // 接回来的会话带着自己的 provider / model：goose 给了选项清单才重新对齐，
+  // 没给就沿用会话里的值 —— 这时候硬切会因为拿不到选项而抛错
+  let appliedProvider = providerID
+  let appliedModel: string | null = modelID?.trim() || null
+  let configOptions = loaded?.configOptions ?? null
+  if (configOptions && configOptions.length > 0) {
+    try {
+      const applied = await syncProviderModel(
+        handle.connection,
+        binding.acpSessionId,
+        providerID,
+        modelID,
+        configOptions
+      )
+      appliedProvider = applied.providerId
+      appliedModel = applied.modelId
+      configOptions = applied.configOptions
+      await syncModelsToStore(applied.providerId, applied.configOptions)
+    } catch (error) {
+      console.warn('[acp/session] 接回后对齐 provider/model 失败（沿用会话里的值）:', error)
+    }
+  }
+
+  const thread: ThreadSession = {
+    threadID,
+    acpSessionID: binding.acpSessionId,
+    session,
+    cwd,
+    providerID: appliedProvider,
+    modelID: appliedModel,
+    configOptions,
+    connection: handle.connection,
+    // 接回来的会话带着当时挂上的 MCP；这里保守当作挂过，工具自检会再核对
+    mountsCogito: true,
+    run: null
+  }
+  sessionByAcpID.set(thread.acpSessionID, thread)
+  rememberSessionMapping(threadID, thread.acpSessionID, cwd)
+  handle.connection.closed.then(
+    function () {
+      forgetLoadedSession(thread.acpSessionID)
+      forgetLiveThreadSession(thread)
+    },
+    function () {
+      forgetLoadedSession(thread.acpSessionID)
+      forgetLiveThreadSession(thread)
+    }
+  )
+  try {
+    await syncSessionApprovalMode(
+      handle.connection,
+      thread.acpSessionID,
+      findEffectiveApprovalMode(threadID)
+    )
+  } catch (error) {
+    console.warn('[acp/session] 接回后同步审批策略失败:', error)
+  }
+  console.info('[acp/session] 已接回旧会话（上下文保留）:', threadID)
+  return thread
+}
+
 async function ensureThreadSession(
   threadID: string,
   workspaceID: string | null,
   providerID: string,
   modelID: string | undefined,
-  workspacePath?: string | null
+  workspacePath?: string | null,
+  /** `resume: false` = 明确要一个**新**会话（上一轮卡死重建时用，别再接回同一把锁） */
+  options?: { resume?: boolean }
 ): Promise<ThreadSession> {
   await waitGooseReady()
   const [handle, cwd] = await Promise.all([
@@ -1016,6 +1150,19 @@ async function ensureThreadSession(
     if (cached.run) cached.run.reset = true
     disposeThreadSession(cached)
     forgetThreadSession(cached)
+  }
+
+  // 内存里没有、但库里存过绑定：先试着 `session/load` 接回旧会话（上下文留着），
+  // 接不回来才开新会话。顺序在「预载思考档」之前：接回来的会话本来就有自己的档位。
+  const restored =
+    options?.resume === false
+      ? null
+      : await resumeThreadSession(threadID, cwd, providerID, modelID)
+  if (restored) {
+    sessionByThread.set(threadID, restored)
+    void verifyToolSurface(restored)
+    await applyGooseThinking(threadID, restored.providerID, restored.modelID)
+    return restored
   }
 
   // 任务钉了思考强度时，全局键要在建会话**之前**落下：会话不会回溯已建好的默认值
@@ -1102,7 +1249,9 @@ async function* runThreadPrompt(
         input.workspaceID ?? null,
         input.providerID,
         input.modelID,
-        input.cwd ?? null
+        input.cwd ?? null,
+        // 上一轮没停下来：这次要的是**新**会话，别把同一把锁再接回来
+        { resume: false }
       )
     }
   }
