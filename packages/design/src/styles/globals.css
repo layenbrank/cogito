@@ -791,3 +791,22 @@
   --shimmer-color: oklch(1 0 0 / 0.85);
 }
 
+/*
+ * 长会话的开销：切会话时整条历史会一次性挂进来，离屏消息也要参与布局与绘制 ——
+ * 一条 200 条的会话就是几千个节点一起排版，这就是「切换会话卡一下」的主要来源。
+ *
+ * `content-visibility: auto` 让浏览器跳过离屏消息内部的 layout / paint；
+ * `contain-intrinsic-size: auto 160px` 记下每条消息上次的高度（`auto` 关键字），
+ * 未渲染时用最后已知高度占位，滚动条不会来回跳。
+ *
+ * 为什么不做虚拟化：消息高度不定（思考 / 工具 / diff 都能折叠），虚拟化要先量高度，
+ * 反而把「一次量大」换成「每帧量」。这一行 CSS 是同一目标下最便宜的一刀，
+ * 与现有锚点测量（thread-user-ruler 的 `auto` 记忆宽度）兼容。
+ */
+[data-slot='aui_assistant-message-root'],
+[data-slot='aui_user-message-root'] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
+}
+
+
