@@ -264,18 +264,50 @@ function findGooseMode(mode: ApprovalMode): GooseMode {
  * Goose 内置黑盒 shell（绕开右栏 TerminalHub）。
  * `app_terminal_*` 除外 —— 那是唯一允许的可见终端入口。
  */
+/**
+ * 工具名 → 去掉扩展前缀后的本体：`cogito__app_terminal_run` → `app_terminal_run`。
+ * goose 的扩展工具名形如 `<extension>__<tool>`，本地桥工具带 `app_` 前缀。
+ */
+function toolBaseName(toolName: string): string {
+  const lower = toolName.trim().toLowerCase()
+  const sep = lower.lastIndexOf('__')
+  return sep >= 0 ? lower.slice(sep + 2) : lower
+}
+
+/**
+ * Goose 内置黑盒 shell 的**精确**名单（绕开右栏 TerminalHub）。
+ *
+ * 这里必须按名字精确匹配，不能像以前那样 `includes('exec' / 'shell' / 'terminal')`：
+ * 那会把 `execute_javascript`（名字里有 exec）、`app_browser_*` 这类正常工具判成黑盒
+ * shell 并直接 `never_allow` —— goose 在 smart_approve 下对 never_allow 是**静默拒绝**，
+ * 用户看到的就是「选了询问审批，却没人问我、工具直接被拒」。
+ */
+const OPAQUE_SHELL_NAMES: ReadonlySet<string> = new Set([
+  'shell',
+  'bash',
+  'sh',
+  'zsh',
+  'pwsh',
+  'powershell',
+  'cmd',
+  'terminal',
+  'exec',
+  'execute',
+  'execute_command',
+  'run_command',
+  'kill_command',
+  'process',
+  'process_start'
+])
+
+/** 本地 `app_*` 工具一律不是黑盒：`app_terminal_*` 是唯一允许的可见终端入口 */
+function isLocalAppTool(toolName: string): boolean {
+  return toolBaseName(toolName).startsWith('app_')
+}
+
 function isOpaqueShellTool(toolName: string): boolean {
-  const lower = toolName.toLowerCase()
-  if (lower.includes('app_terminal')) return false
-  return (
-    lower === 'shell' ||
-    lower === 'bash' ||
-    lower === 'terminal' ||
-    lower.includes('shell') ||
-    lower.includes('bash') ||
-    lower.includes('terminal') ||
-    lower.includes('exec')
-  )
+  if (isLocalAppTool(toolName)) return false
+  return OPAQUE_SHELL_NAMES.has(toolBaseName(toolName))
 }
 
 /**

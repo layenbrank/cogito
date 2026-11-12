@@ -77,6 +77,11 @@ describe('审批策略 → goose 权限档', function () {
     expect(isOpaqueShellTool('shell')).toBe(true)
     expect(isOpaqueShellTool('developer__shell')).toBe(true)
     expect(isOpaqueShellTool('app_terminal_run')).toBe(false)
+    expect(isOpaqueShellTool('cogito__app_terminal_run')).toBe(false)
+    // 名字里有 exec ≠ 黑盒 shell：以前 includes('exec') 会把 execute_javascript 判成
+    // never_allow，goose 静默拒绝 —— 用户看到「询问审批」却没有任何人问他
+    expect(isOpaqueShellTool('execute_javascript')).toBe(false)
+    expect(isOpaqueShellTool('developer__execute_javascript')).toBe(false)
     expect(findToolPermissionLevel('auto', 'shell')).toBe('never_allow')
     expect(findToolPermissionLevel('ask', 'developer__shell')).toBe('never_allow')
     expect(findToolPermissionLevel('readonly', 'bash')).toBe('never_allow')
