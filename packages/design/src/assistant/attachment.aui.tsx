@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { type FC, type ReactNode, useState } from 'react'
+import { createContext, useContext, type FC, type ReactNode, useState } from 'react'
 import {
   AttachmentPrimitive,
   ComposerPrimitive,
@@ -19,6 +19,45 @@ import { AttachmentLightboxProvider, useAttachmentLightbox } from './attachment-
 import { cn } from 'cn'
 
 /**
+ * 消息里多图时的版面规格（对齐 assistant-ui 的 image gallery 元素）：
+ *
+ * - **1 张**：按比例的单张缩略图（只 contain、不裁切，保持原来的口径）
+ * - **2–3 张**：等分网格，方形格 + `object-cover`
+ * - **≥ 4 张**：只渲前 `GALLERY_MAX_VISIBLE` 格，最后一格盖 `+N`（N = 没显示的张数）；
+ *   点击进灯箱，灯箱的 medias 仍是**全量**，所以被折叠的几张一样能逐张翻到。
+ *
+ * 只在「整条消息全是图片」时启用：图片与文件芯片混排时方形格会把芯片撑成方块，
+ * 那种情形继续走 flex 流式排布（composer 侧同理，始终走 flex）。
+ */
+const GALLERY_MIN = 2
+const GALLERY_MAX_VISIBLE = 3
+
+type AttachmentGalleryState = {
+  /** 是否启用图库版面 */
+  enabled: boolean
+  /** 图片附件的 id，顺序与 `state.message.attachments` 一致 */
+  ids: readonly string[]
+  /** 整条消息一共几张图 */
+  total: number
+  /** 实际渲染几格（超出的部分折进 `+N`） */
+  visible: number
+}
+
+const EMPTY_GALLERY: AttachmentGalleryState = {
+  enabled: false,
+  ids: [],
+  total: 0,
+  visible: 0
+}
+
+const AttachmentGalleryContext = createContext<AttachmentGalleryState>(EMPTY_GALLERY)
+
+/** 当前瓦片所属的图库版面（不在图库里时是 `EMPTY_GALLERY`） */
+function useAttachmentGallery(): AttachmentGalleryState {
+  return useContext(AttachmentGalleryContext)
+}
+
+/**
  * 缩略图。
  *
  * 这里不用 `Avatar`（base-ui）：它在加载状态抖一下（`src` 短暂为空、或换了 src 重新解码）
@@ -26,7 +65,9 @@ import { cn } from 'cn'
  * 肉眼看到的「图片一直在闪」。自己拿 `<img>`：只有**真的加载失败**才退到文件图标，
  * 而且记的是「哪一串 src 失败」，换图自动复位（不需要在 effect 里 setState）。
  */
-const AttachmentThumb: FC<{ onNaturalSize?: (size: Size) => void }> = (props) => {
+const AttachmentThumb: FC<{ onNaturalSize?: (size: Size) => void; fit?: 'contain' | 'cover' }> = (
+  props
+) => {
   const labels = useAssistantLabels()
   const src = useAttachmentSrc()
   const fileName = useAuiState(function (state) {
@@ -42,7 +83,12 @@ const AttachmentThumb: FC<{ onNaturalSize?: (size: Size) => void }> = (props) =>
         <img
           src={src}
           alt={labels.attachmentPreview}
-          className="aui-attachment-tile-image size-full object-contain"
+          className={cn(
+            'aui-attachment-tile-image size-full',
+            props.fit === 'cover' ? 'object-cover' : 'object-contain'
+          )}
+          loading="lazy"
+          decoding="async"
           draggable={false}
           onLoad={function (event) {
             const image = event.currentTarget
@@ -147,6 +193,7 @@ const AttachmentImageTile: FC = () => {
   const labels = useAssistantLabels()
   const aui = useAui()
   const lightbox = useAttachmentLightbox()
+  const gallery = useAttachmentGallery()
   const isComposer = aui.attachment.source !== 'message'
   const attachmentId = useAuiState(function (state) {
     return state.attachment.id
@@ -185,23 +232,38 @@ const AttachmentImageTile: FC = () => {
     maxWidth: isComposer ? 168 : 288
   })
 
+  /** 图库版面里的位置：-1 = 不在图库里，>= visible = 折进 `+N` */
+  const galleryIndex = gallery.enabled ? gallery.ids.indexOf(attachmentId) : -1
+  const inGallery = galleryIndex >= 0 && galleryIndex < gallery.visible
+  const overflowCount =
+    inGallery && galleryIndex === gallery.visible - 1 && gallery.total > gallery.visible
+      ? gallery.total - gallery.visible
+      : 0
+
+  // 折叠掉的那几张不挂 DOM：灯箱的 medias 是全量的，点开仍能逐张翻到
+  if (gallery.enabled && !inGallery) return null
+
   return (
     <TooltipProvider>
       <Tooltip>
         <AttachmentPrimitive.Root
           className={cn(
             'aui-attachment-root relative',
-            !isComposer && 'aui-attachment-root-message'
+            !isComposer && 'aui-attachment-root-message',
+            inGallery && 'min-w-0'
           )}>
           <TooltipTrigger
             render={
               <div
                 className={cn(
-                  'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative shrink-0 overflow-hidden transition-[width,height] duration-200 rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
+                  'aui-attachment-tile bg-muted focus-visible:ring-ring/50 relative shrink-0 overflow-hidden outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
+                  inGallery
+                    ? 'aspect-square w-full rounded-xl transition-colors hover:after:bg-foreground/10 active:after:bg-foreground/20'
+                    : 'rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] transition-[width,height] duration-200 hover:after:bg-foreground/10 active:after:bg-foreground/20',
                   canPreview ? 'cursor-zoom-in' : 'cursor-default',
                   isError && 'after:ring-destructive/60 dark:after:ring-destructive/60'
                 )}
-                style={{ width: tile.width, height: tile.height }}
+                style={inGallery ? undefined : { width: tile.width, height: tile.height }}
                 role="button"
                 tabIndex={0}
                 aria-label={labels.attachmentLabel(
@@ -222,6 +284,7 @@ const AttachmentImageTile: FC = () => {
               />
             }>
             <AttachmentThumb
+              fit={inGallery ? 'cover' : 'contain'}
               onNaturalSize={function (size) {
                 if (src) updateMeasured({ src, size })
               }}
@@ -245,6 +308,15 @@ const AttachmentImageTile: FC = () => {
                   className="text-destructive size-4"
                 />
               </div>
+            ) : null}
+            {overflowCount > 0 ? (
+              <span
+                aria-hidden="true"
+                data-slot="aui-attachment-tile-more"
+                title={String(overflowCount)}
+                className="bg-foreground/55 text-background pointer-events-none absolute inset-0 grid place-items-center text-base font-medium tabular-nums backdrop-blur-[1px]">
+                {'+' + overflowCount}
+              </span>
             ) : null}
           </TooltipTrigger>
           {isComposer ? <AttachmentTileRemove /> : null}
@@ -315,6 +387,12 @@ function AttachmentStrip(props: {
   )
 }
 
+/**
+ * 消息里的附件区。
+ *
+ * 整条消息都是图片且 ≥ 2 张时切成图库网格（见 `GALLERY_MIN`）；其余情况保持
+ * 原来的 flex 流式排布 —— 单图要保留原始比例，混排要保住文件芯片的高度。
+ */
 export const UserMessageAttachments: FC = () => {
   const attachments = useAuiState(function (state) {
     return state.message.attachments ?? []
@@ -322,15 +400,44 @@ export const UserMessageAttachments: FC = () => {
 
   if (attachments.length === 0) return null
 
+  const imageIDs = attachments
+    .filter(function (item) {
+      return item.type === 'image'
+    })
+    .map(function (item) {
+      return item.id
+    })
+  const galleryEnabled = imageIDs.length === attachments.length && imageIDs.length >= GALLERY_MIN
+  const gallery: AttachmentGalleryState = galleryEnabled
+    ? {
+        enabled: true,
+        ids: imageIDs,
+        total: imageIDs.length,
+        visible: Math.min(imageIDs.length, GALLERY_MAX_VISIBLE)
+      }
+    : EMPTY_GALLERY
+
   return (
     <AttachmentStrip
       attachments={attachments}
-      className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row flex-wrap justify-end gap-2">
-      <MessagePrimitive.Attachments>
-        {function () {
-          return <AttachmentUI />
-        }}
-      </MessagePrimitive.Attachments>
+      className={
+        galleryEnabled
+          ? cn(
+              'aui-user-message-attachments-end col-span-full col-start-1 row-start-1 grid w-full justify-self-end gap-2',
+              // 格子宽度跟着气泡走（容器查询的活由 grid 自己干），不按视口断点
+              imageIDs.length === 2
+                ? 'max-w-[min(100%,24rem)] grid-cols-2'
+                : 'max-w-[min(100%,26rem)] grid-cols-3'
+            )
+          : 'aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row flex-wrap justify-end gap-2'
+      }>
+      <AttachmentGalleryContext.Provider value={gallery}>
+        <MessagePrimitive.Attachments>
+          {function () {
+            return <AttachmentUI />
+          }}
+        </MessagePrimitive.Attachments>
+      </AttachmentGalleryContext.Provider>
     </AttachmentStrip>
   )
 }
