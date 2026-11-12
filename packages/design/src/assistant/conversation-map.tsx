@@ -53,16 +53,16 @@ const RAIL_CLASS = cn(
   'max-h-[min(70vh,22rem)] overflow-y-auto overscroll-y-contain',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
-/** 刻度本体：宽度 / 高度 / 颜色都走同一条缓动，悬停时只加长、不变色 */
+/** 刻度本体：宽度 / 高度 / 颜色都走同一条缓动，悬停时只加长、不变色。`h-[2px]` 不能省：外面的 button 是 flex items-center，span 没高度会被压成 0px，整条尺子就只剩当前那根可见 */
 const BAR_CLASS =
   'w-3 rounded-full transition-[width,height,background-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none'
 /** 单根悬停：拉满到尺子宽度并加深 */
 const BAR_HOVER =
   'group-hover:bg-foreground/70 group-focus-visible:bg-foreground/70 group-hover:w-6 group-focus-visible:w-6'
-const BAR_IDLE = cn(BAR_CLASS, 'bg-foreground/15', BAR_HOVER)
+const BAR_IDLE = cn(BAR_CLASS, 'h-[2px] bg-foreground/15', BAR_HOVER)
 const BAR_VISIBLE = cn(
   BAR_CLASS,
-  'bg-foreground/50 group-hover:w-[18px] group-focus-within/rail:w-[18px]',
+  'h-[2px] bg-foreground/50 group-hover:w-[18px] group-focus-within/rail:w-[18px]',
   BAR_HOVER
 )
 /** 当前那根：更高更实，整条尺子悬停 / 有焦点时拉满 */

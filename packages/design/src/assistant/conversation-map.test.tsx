@@ -68,6 +68,12 @@ describe('ConversationMap', function () {
     expect(html).toContain('bg-foreground/15')
   })
 
+  it('非当前刻度也有高度：flex 父级不会把 span 压成 0px（否则尺子只剩一根）', function () {
+    const html = markup()
+    // 3 根默认/在视口的刻度都是 2px 高
+    expect(html.match(/h-\[2px\]/g)).toHaveLength(3)
+  })
+
   it('当前那根自己是一档：3px 高 + 90% 前景色', function () {
     const html = markup()
     expect(html).toContain('h-[3px]')
