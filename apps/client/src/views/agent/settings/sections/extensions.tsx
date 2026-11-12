@@ -6,6 +6,7 @@
  * 重新拉取（不猜 goose 侧算出来的 key）。
  */
 import type { ClientConnection } from '@agentclientprotocol/sdk'
+import { Icon } from '@iconify/react/offline'
 import { Badge } from '@cogito/design/components/badge'
 import { Button } from '@cogito/design/components/button'
 import { Spinner } from '@cogito/design/components/spinner'
@@ -168,31 +169,54 @@ function ExtensionsSection() {
   })
   const sessionKeysSet = new Set(sessionKeys)
 
+  /**
+   * 卡片语言对齐 assistant-ui `elements/mcp-config`：
+   * 一张 `rounded-2xl border p-5 shadow-sm` 的卡，上面「已接入本会话」（Connectors），
+   * 下面用一条 `border-t` 切出「自定义服务器」并放 Add server 按钮，
+   * 每个服务器一行 `rounded-xl border` 小卡（图标块 + 名称 + 状态 + 动作）。
+   * 数据仍然是本仓的扩展快照（全局配置 / 会话内），只有外壳换成元素页那套。
+   */
   return (
-    <div className="flex flex-col gap-6">
+    <div className="bg-background flex w-full max-w-lg flex-col rounded-2xl border p-5 shadow-sm">
+      <div data-slot="mcp-config-heading">
+        <h4 className="text-sm font-semibold">MCP 服务器</h4>
+        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+          把服务器接上，助手就能用它们的工具。全局配置对新会话生效；当前会话要用的，加进来才算。
+        </p>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-4">
       {warnings.length ? (
-        <ul className="flex flex-col gap-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+        <ul className="mt-4 flex flex-col gap-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
           {warnings.map(function (warning) {
             return <li key={warning}>{warning}</li>
           })}
         </ul>
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <span
-            className="text-muted-foreground cursor-help text-xs underline decoration-dotted decoration-muted-foreground/40 underline-offset-2"
-            title="全局配置对新会话生效；已开会话请在下面单独加入">
-            全局扩展
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
+      <div
+        data-slot="mcp-config-servers"
+        className="flex flex-col">
+        <div className="flex items-center justify-between gap-4">
+          <p
+            className="text-xs font-medium"
+            title="全局配置对新会话生效；当前会话要用的在下面加入">
+            自定义服务器
+          </p>
+          <button
+            type="button"
+            data-slot="mcp-config-add-server"
+            className="hover:bg-accent inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors motion-reduce:transition-none"
             onClick={function () {
               updateAdding(true)
             }}>
-            添加扩展
-          </Button>
+            <Icon
+              icon="lucide:plus"
+              aria-hidden
+              className="size-3.5"
+            />
+            添加服务器
+          </button>
         </div>
 
         {isAdding ? (
@@ -214,9 +238,16 @@ function ExtensionsSection() {
             <Spinner className="size-5" />
           </div>
         ) : entries.length === 0 ? (
-          <p className="text-muted-foreground py-2 text-sm">暂无扩展</p>
+          <div className="text-muted-foreground mt-2 flex items-center gap-2 rounded-lg border border-dashed px-3 py-3 text-xs">
+            <Icon
+              icon="lucide:plug"
+              aria-hidden
+              className="size-3.5"
+            />
+            还没有配置任何服务器
+          </div>
         ) : (
-          <ul className="flex flex-col">
+          <ul className="mt-2 flex flex-col gap-2">
             {entries.map(function (entry) {
               const key = findExtensionKey(entry)
               const busy = busyKey === key
@@ -224,24 +255,42 @@ function ExtensionsSection() {
               return (
                 <li
                   key={key}
-                  className="flex items-start justify-between gap-4 border-b border-border/60 py-3 last:border-b-0">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {findExtensionName(entry.extension)}
-                      </span>
-                      <Badge variant="secondary">{EXTENSION_TYPE_LABELS[entry.extension.type]}</Badge>
-                      {inSession ? <Badge variant="outline">会话中</Badge> : null}
-                    </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {describeExtension(entry.extension)}
-                    </div>
+                  data-slot="mcp-server-card"
+                  data-state={entry.enabled ? 'connected' : 'needs-auth'}
+                  className="border-border/60 flex flex-col gap-2 rounded-xl border px-3 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      aria-hidden
+                      className="bg-foreground/[0.05] text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+                      <Icon
+                        icon="lucide:plug"
+                        className="size-3.5"
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {findExtensionName(entry.extension)}
+                    </span>
+                    <Badge variant="secondary">{EXTENSION_TYPE_LABELS[entry.extension.type]}</Badge>
+                    {inSession ? <Badge variant="outline">会话中</Badge> : null}
+                    <Switch
+                      size="sm"
+                      aria-label={`启用 ${findExtensionName(entry.extension)}`}
+                      checked={entry.enabled}
+                      disabled={busy}
+                      onCheckedChange={function () {
+                        void toggleEnabled(entry)
+                      }}
+                    />
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <p className="text-muted-foreground truncate text-xs leading-relaxed">
+                    {describeExtension(entry.extension)}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-end gap-1">
                     {acpSessionID && !inSession ? (
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="h-7 px-2.5 text-xs font-medium"
                         disabled={busy}
                         onClick={function () {
                           void addToSession(entry)
@@ -249,17 +298,10 @@ function ExtensionsSection() {
                         加入会话
                       </Button>
                     ) : null}
-                    <Switch
-                      size="sm"
-                      checked={entry.enabled}
-                      disabled={busy}
-                      onCheckedChange={function () {
-                        void toggleEnabled(entry)
-                      }}
-                    />
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-7 px-2.5 text-xs font-medium"
                       disabled={busy}
                       onClick={function () {
                         void removeEntry(entry)
@@ -274,32 +316,56 @@ function ExtensionsSection() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <span className="text-xs text-muted-foreground">当前会话</span>
+      <div
+        data-slot="mcp-config-connectors"
+        className="border-border/60 flex flex-col border-t pt-4">
+        <p className="text-xs font-medium">已接入本会话</p>
         {!acpSessionID ? (
-          <p className="py-2 text-sm text-muted-foreground">
-            打开一个会话后才能查看和调整会话内扩展。
-          </p>
+          <div className="text-muted-foreground mt-2 flex items-center gap-2 rounded-lg border border-dashed px-3 py-3 text-xs">
+            <Icon
+              icon="lucide:plug"
+              aria-hidden
+              className="size-3.5"
+            />
+            打开一个会话后，才能把服务器接进来
+          </div>
         ) : sessionEntries.length === 0 ? (
-          <p className="py-2 text-sm text-muted-foreground">当前会话没有加载任何扩展。</p>
+          <div className="text-muted-foreground mt-2 flex items-center gap-2 rounded-lg border border-dashed px-3 py-3 text-xs">
+            <Icon
+              icon="lucide:plug"
+              aria-hidden
+              className="size-3.5"
+            />
+            本会话还没有接入任何服务器
+          </div>
         ) : (
-          <ul className="flex flex-col">
+          <ul className="mt-2 flex flex-col gap-2">
             {sessionEntries.map(function (entry) {
               return (
                 <li
                   key={entry.extensionKey}
-                  className="flex items-start justify-between gap-4 border-b border-border/60 py-3 last:border-b-0">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {findExtensionName(entry.extension)}
-                    </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {describeExtension(entry.extension)}
-                    </div>
-                  </div>
+                  data-slot="mcp-server-card"
+                  data-state="connected"
+                  className="border-border/60 flex items-center gap-2.5 rounded-xl border px-3 py-2.5">
+                  <span
+                    aria-hidden
+                    className="bg-foreground/[0.05] text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+                    <Icon
+                      icon="lucide:plug"
+                      className="size-3.5"
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {findExtensionName(entry.extension)}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="size-1.5 shrink-0 rounded-full bg-emerald-500 forced-color-adjust-none"
+                  />
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="h-7 px-2.5 text-xs font-medium"
                     disabled={busyKey === entry.extensionKey}
                     onClick={function () {
                       void removeFromSession(entry)
@@ -311,6 +377,7 @@ function ExtensionsSection() {
             })}
           </ul>
         )}
+      </div>
       </div>
     </div>
   )
