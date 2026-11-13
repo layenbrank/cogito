@@ -9,6 +9,7 @@ import AutoImport from 'unplugin-auto-import/vite'
 import { defineConfig, loadEnv, type ConfigEnv, type UserConfig } from 'vite'
 import { compression } from 'vite-plugin-compression2'
 import { chunks } from './vite.chunk.ts'
+import { chunkReport } from './vite.chunk.report.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -56,6 +57,8 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
   return {
     envDir: resolve(fileURLToPath(new URL('.', import.meta.url))),
     plugins: [
+      // 体检开关：COGITO_CHUNK_REPORT=1 时把每个 chunk 的构成写到 dist/chunk-report.txt
+      chunkReport(),
       tailwindcss(),
       React({
         // jsxRuntime: 'automatic',
