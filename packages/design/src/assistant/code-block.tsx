@@ -13,8 +13,13 @@ import {
   useRef,
   useState
 } from 'react'
-import type { BundledLanguage, BundledTheme, HighlighterGeneric, ThemedToken } from 'shiki'
-import { createHighlighter } from 'shiki'
+import type { BundledLanguage, ThemedToken } from 'shiki'
+// 高亮器按需装配：全量 `shiki` 入口会把 347 种语法 + 全部主题静态打进产物
+// （实测 8.95 MB，占整个 JS 的三分之一），而对话里真正常用的不到二十种。
+// 这里换成 core + 逐语言动态 import：只有真的出现某种代码块，才去拿那份语法。
+import githubDark from '@shikijs/themes/github-dark'
+import githubLight from '@shikijs/themes/github-light'
+import { createHighlighterCore, type HighlighterCore } from 'shiki/core'
 
 // Shiki uses bitflags for font styles: 1=italic, 2=bold, 4=underline
 // oxlint-disable-next-line eslint(no-bitwise)
@@ -122,11 +127,117 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
   code: ''
 })
 
-// Highlighter cache (singleton per language)
-const highlighterCache = new Map<
-  string,
-  Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
->()
+interface ResolvedLanguage {
+  highlighter: HighlighterCore
+  /** 实际拿去分词的语言 id；不认识的语法回落成 `text` */
+  lang: string
+}
+
+type CodeToTokensLang = Parameters<HighlighterCore['codeToTokens']>[1]['lang']
+type LoadLanguageInput = Parameters<HighlighterCore['loadLanguage']>[0]
+
+// 只收录「对话里真会出现」的语言：键名就是 `@shikijs/langs/<键>`，
+// 别名（ts / js / yml …）在包里各有独立导出，直接各自懒加载即可，不用另维护别名表。
+// 没收录的语言一律按纯文本渲染 —— 以前全量包里「有没有这个语法」是碰运气，
+// 现在缺哪个补哪一行，代价只是多一个几 KB 的 chunk。
+const LANG_LOADERS: Record<string, () => Promise<{ default: unknown }>> = {
+  typescript: () => import('@shikijs/langs/typescript'),
+  ts: () => import('@shikijs/langs/ts'),
+  tsx: () => import('@shikijs/langs/tsx'),
+  javascript: () => import('@shikijs/langs/javascript'),
+  js: () => import('@shikijs/langs/js'),
+  jsx: () => import('@shikijs/langs/jsx'),
+  json: () => import('@shikijs/langs/json'),
+  jsonc: () => import('@shikijs/langs/jsonc'),
+  yaml: () => import('@shikijs/langs/yaml'),
+  yml: () => import('@shikijs/langs/yml'),
+  toml: () => import('@shikijs/langs/toml'),
+  ini: () => import('@shikijs/langs/ini'),
+  dotenv: () => import('@shikijs/langs/dotenv'),
+  csv: () => import('@shikijs/langs/csv'),
+  shellscript: () => import('@shikijs/langs/shellscript'),
+  bash: () => import('@shikijs/langs/bash'),
+  sh: () => import('@shikijs/langs/sh'),
+  zsh: () => import('@shikijs/langs/zsh'),
+  fish: () => import('@shikijs/langs/fish'),
+  console: () => import('@shikijs/langs/console'),
+  powershell: () => import('@shikijs/langs/powershell'),
+  ps1: () => import('@shikijs/langs/ps1'),
+  batch: () => import('@shikijs/langs/batch'),
+  bat: () => import('@shikijs/langs/bat'),
+  cmd: () => import('@shikijs/langs/cmd'),
+  python: () => import('@shikijs/langs/python'),
+  py: () => import('@shikijs/langs/py'),
+  rust: () => import('@shikijs/langs/rust'),
+  rs: () => import('@shikijs/langs/rs'),
+  go: () => import('@shikijs/langs/go'),
+  java: () => import('@shikijs/langs/java'),
+  kotlin: () => import('@shikijs/langs/kotlin'),
+  kt: () => import('@shikijs/langs/kt'),
+  scala: () => import('@shikijs/langs/scala'),
+  swift: () => import('@shikijs/langs/swift'),
+  c: () => import('@shikijs/langs/c'),
+  cpp: () => import('@shikijs/langs/cpp'),
+  csharp: () => import('@shikijs/langs/csharp'),
+  cs: () => import('@shikijs/langs/cs'),
+  php: () => import('@shikijs/langs/php'),
+  ruby: () => import('@shikijs/langs/ruby'),
+  rb: () => import('@shikijs/langs/rb'),
+  lua: () => import('@shikijs/langs/lua'),
+  dart: () => import('@shikijs/langs/dart'),
+  r: () => import('@shikijs/langs/r'),
+  perl: () => import('@shikijs/langs/perl'),
+  'objective-c': () => import('@shikijs/langs/objective-c'),
+  objc: () => import('@shikijs/langs/objc'),
+  elixir: () => import('@shikijs/langs/elixir'),
+  haskell: () => import('@shikijs/langs/haskell'),
+  clojure: () => import('@shikijs/langs/clojure'),
+  zig: () => import('@shikijs/langs/zig'),
+  julia: () => import('@shikijs/langs/julia'),
+  solidity: () => import('@shikijs/langs/solidity'),
+  html: () => import('@shikijs/langs/html'),
+  css: () => import('@shikijs/langs/css'),
+  scss: () => import('@shikijs/langs/scss'),
+  sass: () => import('@shikijs/langs/sass'),
+  less: () => import('@shikijs/langs/less'),
+  vue: () => import('@shikijs/langs/vue'),
+  svelte: () => import('@shikijs/langs/svelte'),
+  astro: () => import('@shikijs/langs/astro'),
+  xml: () => import('@shikijs/langs/xml'),
+  sql: () => import('@shikijs/langs/sql'),
+  graphql: () => import('@shikijs/langs/graphql'),
+  gql: () => import('@shikijs/langs/gql'),
+  prisma: () => import('@shikijs/langs/prisma'),
+  protobuf: () => import('@shikijs/langs/protobuf'),
+  proto: () => import('@shikijs/langs/proto'),
+  markdown: () => import('@shikijs/langs/markdown'),
+  md: () => import('@shikijs/langs/md'),
+  mdx: () => import('@shikijs/langs/mdx'),
+  diff: () => import('@shikijs/langs/diff'),
+  tex: () => import('@shikijs/langs/tex'),
+  latex: () => import('@shikijs/langs/latex'),
+  dockerfile: () => import('@shikijs/langs/dockerfile'),
+  docker: () => import('@shikijs/langs/docker'),
+  makefile: () => import('@shikijs/langs/makefile'),
+  make: () => import('@shikijs/langs/make'),
+  cmake: () => import('@shikijs/langs/cmake'),
+  nginx: () => import('@shikijs/langs/nginx'),
+  hcl: () => import('@shikijs/langs/hcl'),
+  terraform: () => import('@shikijs/langs/terraform'),
+  tf: () => import('@shikijs/langs/tf'),
+  nix: () => import('@shikijs/langs/nix'),
+  'git-commit': () => import('@shikijs/langs/git-commit'),
+  'git-rebase': () => import('@shikijs/langs/git-rebase'),
+  http: () => import('@shikijs/langs/http'),
+  regex: () => import('@shikijs/langs/regex')
+}
+
+// 同一个 core 高亮器，语法按需挂上去
+const highlighterCache = new Map<string, Promise<ResolvedLanguage>>()
+
+let coreHighlighter: Promise<HighlighterCore> | null = null
+// 语法串行挂载：并发 loadLanguage 会各自解析内嵌依赖，串起来更稳
+let langChain: Promise<unknown> = Promise.resolve()
 
 // Token cache
 const tokensCache = new Map<string, TokenizedCode>()
@@ -140,21 +251,53 @@ const getTokensCacheKey = (code: string, language: BundledLanguage) => {
   return `${language}:${code.length}:${start}:${end}`
 }
 
-const getHighlighter = (
-  language: BundledLanguage
-): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
-  const cached = highlighterCache.get(language)
+// core 高亮器只装配一次：引擎（oniguruma wasm）与双主题，语法随后按语言挂上去。
+// 引擎本身也走动态 import —— 它的 wasm 有 0.6 MB，首屏不该为「可能出现的代码块」付这笔钱。
+function getCoreHighlighter(): Promise<HighlighterCore> {
+  coreHighlighter ??= import('shiki/engine/oniguruma').then(({ createOnigurumaEngine }) =>
+    createHighlighterCore({
+      themes: [githubLight, githubDark],
+      langs: [],
+      engine: createOnigurumaEngine(import('shiki/wasm'))
+    })
+  )
+  return coreHighlighter
+}
+
+const getHighlighter = (language: BundledLanguage): Promise<ResolvedLanguage> => {
+  const key = String(language || 'text').toLowerCase()
+  const cached = highlighterCache.get(key)
   if (cached) {
     return cached
   }
 
-  const highlighterPromise = createHighlighter({
-    langs: [language],
-    themes: ['github-light', 'github-dark']
-  })
+  const promise = getCoreHighlighter()
+    .then(async (highlighter) => {
+      const load = LANG_LOADERS[key]
+      if (!load) {
+        return { highlighter, lang: 'text' }
+      }
+      try {
+        const grammar = (await load()).default as LoadLanguageInput
+        const attach = () => highlighter.loadLanguage(grammar)
+        // 上一份语法失败不该拖住这一份：两个分支都跑 attach，链本身不会变毒
+        langChain = langChain.then(attach, attach)
+        await langChain
+        return { highlighter, lang: key }
+      } catch (error) {
+        // 语法包拉不下来就退回纯文本：代码块照样能读，只是没有颜色
+        console.warn('[code-block] 语法加载失败，按纯文本渲染:', key, error)
+        return { highlighter, lang: 'text' }
+      }
+    })
+    .catch((error) => {
+      // 高亮器本身都没装配起来（wasm 拉不到）就别把这个失败记进缓存
+      highlighterCache.delete(key)
+      throw error
+    })
 
-  highlighterCache.set(language, highlighterPromise)
-  return highlighterPromise
+  highlighterCache.set(key, promise)
+  return promise
 }
 
 // Create raw tokens for immediate display while highlighting loads
@@ -199,12 +342,9 @@ export const highlightCode = (
   // Start highlighting in background - fire-and-forget async pattern
   getHighlighter(language)
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
-    .then((highlighter) => {
-      const availableLangs = highlighter.getLoadedLanguages()
-      const langToUse = availableLangs.includes(language) ? language : 'text'
-
+    .then(({ highlighter, lang }) => {
       const result = highlighter.codeToTokens(code, {
-        lang: langToUse,
+        lang: lang as CodeToTokensLang,
         themes: {
           dark: 'github-dark',
           light: 'github-light'

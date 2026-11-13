@@ -439,6 +439,16 @@ export const chunks: CodeSplitting[] = [
     }
   },
   {
+    // shiki 的语法引擎（oniguruma + wasm，约 0.6 MB）只在第一次渲染代码块时才需要，
+    // 独立成块，避免被兜底组拖进「随入口一起加载」的大块
+    name: 'vendor-shiki-engine',
+    priority: 95,
+    test(id) {
+      if (/[\\/]node_modules[\\/]@shikijs[\\/]engine-oniguruma[\\/]/.test(id)) return true
+      return /[\\/]node_modules[\\/]shiki[\\/]dist[\\/]wasm\.mjs$/.test(id)
+    }
+  },
+  {
     name: 'utils-datetime',
     priority: 50,
     test(id) {
@@ -562,6 +572,9 @@ export const chunks: CodeSplitting[] = [
     name: 'unknown-deps',
     priority: 0,
     test(id) {
+      // shiki 的语法包必须保持「一个语言一个 chunk」：它们各自只被一条动态 import 引用，
+      // 一旦落进兜底组又会被合成一个几 MB 的大块，等于没拆（见 packages/design 的 code-block.tsx）
+      if (/[\\/]@shikijs[\\/]langs[\\/]/.test(id)) return false
       // 原配置中为空数组，这里显式限定为 node_modules 兜底，防止业务代码意外掉入
       const patterns = [/[\\/]node_modules[\\/]/]
       return patterns.some((pattern) => pattern.test(id))
