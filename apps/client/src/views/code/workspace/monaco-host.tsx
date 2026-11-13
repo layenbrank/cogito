@@ -1,33 +1,22 @@
 import { cn } from 'cn'
-import * as monaco from 'monaco-editor'
-// 0.56+ 起导出映射为 ./esm/vs/*.js，子路径不再带 esm/vs 前缀；
-// 根入口已注册全部 basic-languages 与语言特性，无需逐个 import contribution。
-import editorWorker from 'monaco-editor/editor/editor.worker?worker'
-import cssWorker from 'monaco-editor/language/css/css.worker?worker'
-import htmlWorker from 'monaco-editor/language/html/html.worker?worker'
-import jsonWorker from 'monaco-editor/language/json/json.worker?worker'
-import tsWorker from 'monaco-editor/language/typescript/ts.worker?worker'
+import * as monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef } from 'react'
 
+// 贡献（查找框 / 格式化 / 补全 / TS·JSON 语言服务）与 worker 装配：都静态引入，
+// 赶在首个 editor 创建之前生效 —— monaco 的注册表是「创建时快照」，晚到的贡献不会回放。
+// 这里特意不用根入口 `monaco-editor`（editor.main）：它会连带静态打进 ~60 种语言定义、
+// 我们用不到的 standalone 命令与 lsp 客户端，而语言定义本来就按扩展名动态加载（monaco-language）
+import '@/lib/monaco-contribs.ts'
+import '@/lib/monaco-environment.ts'
+import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { useCodeStore } from '@/stores/code'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { pushProblemCounts } from '@/views/code/lib/monaco-markers.ts'
-import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib/monaco-models.ts'
 
-// 这里是静态拉的全量入口（代码页要立刻可用）：把它登记给懒加载方，
-// 免得两边各 import 一份内核 —— monaco-models / monaco-theme 现在只认 findMonaco()
+// 代码页静态拉的是编辑器内核：登记给懒加载方（monaco-models / monaco-theme 只认 findMonaco），
+// 免得右栏 diff 与代码页各 import 一份内核
 adoptMonaco(monaco)
-
-self.MonacoEnvironment = {
-  getWorker(_: unknown, label: string): Worker {
-    if (label === 'json') return new jsonWorker()
-    if (label === 'css' || label === 'scss' || label === 'less') return new cssWorker()
-    if (label === 'html' || label === 'handlebars' || label === 'razor') return new htmlWorker()
-    if (label === 'typescript' || label === 'javascript') return new tsWorker()
-    return new editorWorker()
-  }
-}
 
 const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
   theme: 'vs-dark',
