@@ -1,24 +1,30 @@
 /**
  * Monaco model 注册表：多 tab 共享单 editor，按 path 复用 ITextModel。
+ *
+ * 对 monaco 只留类型引用，运行时统一走 `findMonaco()` 取已加载的内核 ——
+ * 一个静态 `import * as monaco` 就足以把整个编辑器内核（≈2 MB）拽进
+ * 任何引用本模块的 chunk，右栏 diff 所在的对话页会白背一份。
  */
-import * as monaco from 'monaco-editor/editor/editor.api'
+import type * as Monaco from 'monaco-editor/editor/editor.api'
 
 import { createLanguageModel } from '@/lib/monaco-language.ts'
+import { findMonaco } from '@/lib/monaco-loader.ts'
 import { findLanguageId } from '@/views/code/lib/language.ts'
 
-const modelsByPath = new Map<string, monaco.editor.ITextModel>()
-const pathByModel = new WeakMap<monaco.editor.ITextModel, string>()
+const modelsByPath = new Map<string, Monaco.editor.ITextModel>()
+const pathByModel = new WeakMap<Monaco.editor.ITextModel, string>()
 
-function pathToUri(path: string): monaco.Uri {
+function pathToUri(path: string): Monaco.Uri {
   const normalized = path.replace(/\\/g, '/')
-  return monaco.Uri.file(normalized)
+  return findMonaco().Uri.file(normalized)
 }
 
 function findOrCreateModel(
   path: string,
   value: string,
   options: { force?: boolean } = {}
-): monaco.editor.ITextModel {
+): Monaco.editor.ITextModel {
+  const monaco = findMonaco()
   const existing = modelsByPath.get(path)
   if (existing && !existing.isDisposed()) {
     // 默认不覆盖缓冲区：点开已打开且有未保存改动的文件时，磁盘内容不能顶掉内存
@@ -48,7 +54,7 @@ function findOrCreateModel(
   return model
 }
 
-function findModel(path: string): monaco.editor.ITextModel | null {
+function findModel(path: string): Monaco.editor.ITextModel | null {
   const model = modelsByPath.get(path)
   if (!model || model.isDisposed()) {
     modelsByPath.delete(path)
@@ -57,7 +63,7 @@ function findModel(path: string): monaco.editor.ITextModel | null {
   return model
 }
 
-function findPathForModel(model: monaco.editor.ITextModel): string | null {
+function findPathForModel(model: Monaco.editor.ITextModel): string | null {
   return pathByModel.get(model) ?? null
 }
 
@@ -69,7 +75,7 @@ function disposeModel(path: string): void {
 }
 
 /** 重命名后迁移 model：复制内容到新 URI，销毁旧 model */
-function relocateModel(fromPath: string, toPath: string): monaco.editor.ITextModel | null {
+function relocateModel(fromPath: string, toPath: string): Monaco.editor.ITextModel | null {
   const existing = findModel(fromPath)
   if (!existing) return null
   const value = existing.getValue()

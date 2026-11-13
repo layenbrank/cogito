@@ -3,9 +3,13 @@ import * as monaco from 'monaco-editor/editor/editor.api'
 
 import { cn } from 'cn'
 
+import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 // worker 装配只有一份，见 lib/monaco-environment.ts
 import '@/lib/monaco-environment.ts'
+
+// 这里静态拉的是编辑器内核：登记给懒加载方，主题与 model 注册表才认得到它
+adoptMonaco(monaco)
 
 interface SourceEditorProps {
   value: string

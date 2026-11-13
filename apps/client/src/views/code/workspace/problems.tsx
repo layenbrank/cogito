@@ -3,10 +3,14 @@ import { Button } from '@cogito/design/components/button'
 import * as monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useState } from 'react'
 
+import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { useCodeStore } from '@/stores/code'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
 import { findModelMarkers } from '@/views/code/lib/monaco-markers.ts'
 import { revealLocation } from '@/views/code/lib/open-file.ts'
+
+// 与 monaco-host 同源：静态拉的内核登记给懒加载方（monaco-models 走 findMonaco()）
+adoptMonaco(monaco)
 
 interface ProblemRow {
   message: string

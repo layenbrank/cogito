@@ -26,6 +26,11 @@ function findMonaco(): MonacoModule {
   return cached
 }
 
+/** 内核是否已就绪：给「有就顺手换一下、没有就算了」的旁路用（主题同步） */
+function isMonacoReady(): boolean {
+  return cached !== null
+}
+
 /** 内核之外的贡献（查找框、格式化、TS/JSON 语言服务），只注册一次 */
 function loadMonacoContribs(): Promise<void> {
   if (!contribsTask) {
@@ -55,4 +60,4 @@ function adoptMonaco(module: MonacoModule): void {
 }
 
 export type { Monaco, MonacoModule }
-export { adoptMonaco, findMonaco, importMonaco, loadMonacoContribs }
+export { adoptMonaco, findMonaco, importMonaco, isMonacoReady, loadMonacoContribs }

@@ -12,7 +12,12 @@ import { useEffect, useRef } from 'react'
 import { useCodeStore } from '@/stores/code'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { pushProblemCounts } from '@/views/code/lib/monaco-markers.ts'
+import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib/monaco-models.ts'
+
+// 这里是静态拉的全量入口（代码页要立刻可用）：把它登记给懒加载方，
+// 免得两边各 import 一份内核 —— monaco-models / monaco-theme 现在只认 findMonaco()
+adoptMonaco(monaco)
 
 self.MonacoEnvironment = {
   getWorker(_: unknown, label: string): Worker {

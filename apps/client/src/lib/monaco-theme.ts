@@ -7,7 +7,9 @@
  *   避免留下两套可能过期的配色
  * - 主色跟随 `--primary`（用户可在外观设置里改），语法高亮用固定色板保证可读性
  */
-import * as monaco from 'monaco-editor/editor/editor.api'
+import type * as Monaco from 'monaco-editor/editor/editor.api'
+
+import { findMonaco, isMonacoReady, type MonacoModule } from '@/lib/monaco-loader.ts'
 
 import {
   flattenColor,
@@ -20,7 +22,7 @@ import {
 const CODE_THEME = 'cogito-code'
 
 /** 语法色板：浅色 / 深色各一套，色相与应用主色族（蓝紫 + 青绿）对齐。 */
-const SYNTAX_LIGHT: monaco.editor.ITokenThemeRule[] = [
+const SYNTAX_LIGHT: Monaco.editor.ITokenThemeRule[] = [
   { token: 'comment', foreground: '#8b94a3', fontStyle: 'italic' },
   { token: 'keyword', foreground: '#7c3aed' },
   { token: 'keyword.control', foreground: '#7c3aed' },
@@ -47,7 +49,7 @@ const SYNTAX_LIGHT: monaco.editor.ITokenThemeRule[] = [
   { token: 'emphasis', fontStyle: 'italic' }
 ]
 
-const SYNTAX_DARK: monaco.editor.ITokenThemeRule[] = [
+const SYNTAX_DARK: Monaco.editor.ITokenThemeRule[] = [
   { token: 'comment', foreground: '#7d8590', fontStyle: 'italic' },
   { token: 'keyword', foreground: '#a78bfa' },
   { token: 'keyword.control', foreground: '#a78bfa' },
@@ -124,7 +126,7 @@ function readPalette(): CodePalette {
  * 专有 token：CSS / JSON / HTML / Markdown。Monaco 内置 tokenizer 产出的
  * `attribute.value.unit.css` 等默认落到 vs / vs-dark 的继承色，观感偏淡。
  */
-function buildSpecificTokens(isDark: boolean): monaco.editor.ITokenThemeRule[] {
+function buildSpecificTokens(isDark: boolean): Monaco.editor.ITokenThemeRule[] {
   const key = isDark ? '#7aa2f7' : '#1d4ed8'
   const string = isDark ? '#5ccf92' : '#0f7b4f'
   const number = isDark ? '#e8b26a' : '#b45309'
@@ -338,6 +340,12 @@ function buildBracketColors(palette: CodePalette): Record<string, string> {
  * 需要在 DOM 挂载后执行（要读 `:root` / `.dark` 上的 token）。
  */
 function syncCodeTheme(): void {
+  // 主题只是「给已经加载好的 Monaco 换色」：内核还没来（首屏还没开过编辑器）就跳过，
+  // 装载方（importMonaco / 静态入口 adoptMonaco）加载完会自己再调一次 ——
+  // 这样主题模块就不用静态拽着 monaco 内核，agent 对话页也不会因此拖进几 MB。
+  if (!isMonacoReady()) return
+  const monaco: MonacoModule = findMonaco()
+
   try {
     const palette = readPalette()
     monaco.editor.defineTheme(CODE_THEME, {
