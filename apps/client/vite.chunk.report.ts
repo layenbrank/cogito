@@ -31,6 +31,14 @@ function packageOf(id: string): string {
   return src ? `~src/${src[1].replace(/[\\/]/g, '/')}` : '~other'
 }
 
+/** 模块 id 缩短：去掉 node_modules（含 .pnpm 铺平层）与 monaco 的 esm/vs 前缀，只留包内路径 */
+function shortId(id: string): string {
+  return id
+    .replace(/\\/g, '/')
+    .replace(/^.*?node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?/, '')
+    .replace(/^monaco-editor\/esm\/vs\//, 'monaco/')
+}
+
 function sizeOf(module: RenderedModule): number {
   if (typeof module.renderedLength === 'number') return module.renderedLength
   return typeof module.code === 'string' ? module.code.length : 0
@@ -49,6 +57,7 @@ function pct(part: number, whole: number): string {
 const MIN_CHUNK_BYTES = 150 * 1024
 const TOP_PER_CHUNK = 14
 const TOP_OVERALL = 45
+const TOP_MODULES = 30
 
 export function chunkReport(): Plugin {
   let outDir = ''
@@ -91,6 +100,18 @@ export function chunkReport(): Plugin {
         }
         if (perPackage.size > TOP_PER_CHUNK) {
           lines.push(`  ... 另有 ${perPackage.size - TOP_PER_CHUNK} 个包`)
+        }
+        // 包级汇总只能告诉你「谁占地方」，拆不动的时候还得看具体是哪个模块：
+        // COGITO_CHUNK_DETAIL=1 时再列一层模块明细（默认关，免得报告被刷屏）
+        if (process.env.COGITO_CHUNK_DETAIL) {
+          const modules = Object.entries(chunk.modules ?? {})
+            .map(([id, module]) => [shortId(id), sizeOf(module)] as [string, number])
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, TOP_MODULES)
+          lines.push('  · 模块明细：')
+          for (const [id, size] of modules) {
+            lines.push(`    ${mb(size).padStart(9)}  ${id}`)
+          }
         }
         lines.push('')
       }
