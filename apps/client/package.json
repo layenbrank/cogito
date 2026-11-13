@@ -8,6 +8,7 @@
     "build:core": "run-p type-check lint \"build-only {@}\" --",
     "icons": "node scripts/build-icon-subset.ts",
     "build-only": "vite build",
+    "size": "node scripts/size.ts",
     "check:cargo": "cargo check --manifest-path src-tauri/Cargo.toml",
     "check:tauri": "pnpm run check:cargo",
     "coverage": "vitest run --coverage",
