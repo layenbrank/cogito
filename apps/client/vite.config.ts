@@ -57,7 +57,7 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
   return {
     envDir: resolve(fileURLToPath(new URL('.', import.meta.url))),
     plugins: [
-      // 体检开关：COGITO_CHUNK_REPORT=1 时把每个 chunk 的构成写到 dist/chunk-report.txt
+      // 构建体检：首屏关键路径 + 各 chunk 构成 + 体积预算断言 → dist/bundle-report.{txt,json}
       chunkReport(),
       tailwindcss(),
       React({
@@ -79,13 +79,18 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
           }
         ]
       }),
-      compression({
-        include: /\.(js|mjs|json|css|less|scss|html)$/i,
-        threshold: 10240,
-        deleteOriginalAssets: false,
-        algorithms: ['gzip'],
-        logLevel: 'info'
-      })
+      // 桌面端不生成 gzip：dist 会被编进可执行文件、走本地协议读取，
+      // 多出来的 .gz 只是白占安装包体积与打包时间（实测 dist 里会多出一份同量级的副本）。
+      // 只有在真要部署成网站时才开 COGITO_WEB_BUILD=1。
+      process.env.COGITO_WEB_BUILD
+        ? compression({
+            include: /\.(js|mjs|json|css|less|scss|html)$/i,
+            threshold: 10240,
+            deleteOriginalAssets: false,
+            algorithms: ['gzip'],
+            logLevel: 'info'
+          })
+        : null
     ],
     resolve: {
       tsconfigPaths: true,
@@ -98,12 +103,18 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
       exclude: ['node_modules']
     },
     build: {
+      // WebView2 是 evergreen Chromium：直接出 esnext，别为老浏览器降级语法
       target: 'esnext',
       emptyOutDir: true,
-      minify: 'terser',
+      // oxc（rolldown 自带）压缩，比 terser 快一个量级；要复现历史产物体积时
+      // 用 COGITO_MINIFY=terser 临时切回
+      minify: process.env.COGITO_MINIFY === 'terser' ? 'terser' : 'oxc',
       cssCodeSplit: true,
       cssMinify: 'lightningcss',
       sourcemap: mode === 'development' ? true : false,
+      // 体积警告交给 vite.chunk.report.ts 的预算表（按首屏/单块/总量分别判），
+      // 这里把 Vite 自带的 500 KB 单块阈值调到几乎不响，避免两套口径互相打架
+      chunkSizeWarningLimit: 4096,
       // 输出到包内 dist，便于 Turbo outputs 匹配
       outDir: resolve(fileURLToPath(new URL('.', import.meta.url)), 'dist'),
       assetsInlineLimit(filePath) {
