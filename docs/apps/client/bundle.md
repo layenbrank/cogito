@@ -19,8 +19,10 @@ Tauri 把 `dist` 编进可执行文件，前端资源走本地协议读取 —�
 
 - **首屏（入口 + 静态 import 闭包）**：目标 **≤ 2.2 MB**，超过这个数量级，冷启动会明显变慢
 - **单个懒加载 chunk**：**≤ 4 MB**。它只在进入那一页时付一次，容忍度高；monaco 是唯一的例外
-- **总量**：**20~25 MB 属于正常水位**。它不影响启动（不加载就不解析），只影响安装包，
-  所以只用来发现「不知不觉多了一个大依赖」
+- **总量**：**30 MB 左右属于正常水位**。它不影响启动（不加载就不解析），只影响安装包，
+  所以只用来发现「不知不觉多了一个大依赖」。口径是磁盘上全部 `.js` —— 含
+  `new Worker(new URL(...))` 产出的独立资源（monaco 的 ts/css/html/json worker 合计 9 MB，
+  它们在进代码页时才加载，但同样要装进安装包、同样会被解析）
 
 换句话说：**没有「最佳 MB 数」，只有「首屏解析字节」这条硬指标。** 一个 25 MB 的桌面应用
 如果首屏只有 1.5 MB，启动会比一个 8 MB、首屏 6 MB 的应用快得多。
@@ -33,13 +35,13 @@ Tauri 把 `dist` 编进可执行文件，前端资源走本地协议读取 —�
 | `apps/client/vite.chunk.report.ts` | 构建期体检：算首屏静态闭包、裁掉多余的 modulepreload、写 `dist/bundle-report.{txt,json}`、按预算断言 |
 | `apps/client/scripts/size.ts` | `pnpm size`：带 `COGITO_BUNDLE_STRICT=1` 的构建 + 摘要 |
 
-### 三个指标，按代价排序
+### 指标口径，按代价排序
 
 1. **首屏关键路径** = 入口 chunk + 它在产物代码里**真的静态 import** 的闭包。
    实现上直接扫产物里的 `from"./x.js"`，**不用** rolldown 的 `chunk.imports` —— 后者把动态
    import 的预加载依赖也算进去，会把 lazy 路由全部算成首屏，指标就废了。
 2. **单块上限**：每个 chunk 与预算比，已知重块走 `allow`（要求写 `reason`）。
-3. **总量**：防呆。
+3. **总量**：防呆。口径是磁盘上全部 `.js`：chunk 之外还有 `assets/*.worker-*.js` 这类独立资源，报告里单列一段并计入总量 —— 漏掉它们等于少记 30%。
 4. **首屏预加载**：`index.html` 里那些 `<link rel="modulepreload">` 的字节数。本地协议
    没有网络开销，但 modulepreload 会真的把文件读进来并编译 —— 它的代价和首屏是同一份。
    报告按首屏闭包裁掉多余的 link（在 `writeBundle` 阶段做，因为 `generateBundle` 时 html
@@ -73,6 +75,13 @@ pnpm --filter @cogito/client size         # 构建 + 体检 + 严格断言（提
 
 同一份报告里还能看到 **首屏预加载 ≈ 14.4 MB**：`index.html` 的 25 个 modulepreload link
 全部落在首屏闭包里，一个也裁不掉 —— 这正是上面这条债在启动时的真实账单。
+
+总量口径下现在是这样（`pnpm size` 的输出）：
+
+```
+chunks=131 + 独立 JS 6（9.03 MB）  js=29.98 MB（预算 32.00 MB）
+首屏=14.43 MB（预算 15.00 MB）
+```
 
 **根因不是「有人写了错误的 import」，而是分包粒度和目录结构打架：**
 

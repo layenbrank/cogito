@@ -12,7 +12,9 @@
  * 2. `chunk`：单个动态 chunk 的软上限。它只在用户进入对应页面时才付费，容忍度高得多，
  *    但超过这条线说明「这一页的解析时间已经能感觉到」，需要拆或写进 allow 说明理由。
  * 3. `total`：总量防呆。桌面端总量不影响启动（不加载就不解析），只影响安装包体积，
- *    所以放宽，仅用来发现「不知不觉多了一个大依赖」。
+ *    所以放宽，仅用来发现「不知不觉多了一个大依赖」。口径是**磁盘上全部 .js**，
+ *    包含 `new Worker(new URL(...))` 产出的独立资源（monaco 的 ts/css/json worker
+ *    就占了约 9 MB）—— 漏掉它们等于少记 30%，预算就形同虚设。
  *
  * `forbiddenInCriticalPath` 是这套预算里最有价值的一条：它拦的不是「大」，而是
  * 「本该懒加载的东西被静态 import 拖上了首屏」。monaco / mermaid / shiki 这些库
@@ -39,7 +41,7 @@ interface BundleBudget {
   criticalPathTarget: number
   /** 单个 chunk 的软上限 */
   chunk: number
-  /** 全站 JS 总量（只影响安装包，不影响启动） */
+  /** 全站 JS 总量（含 worker 这类独立 JS 资源；只影响安装包，不影响启动） */
   total: number
   /** 首屏里绝不该出现的包：它们必须走动态 import */
   forbiddenInCriticalPath: readonly string[]
@@ -55,8 +57,11 @@ const budget: BundleBudget = {
   criticalPath: 15 * MB,
   criticalPathTarget: 2.2 * MB,
   chunk: 4.2 * MB,
-  // 21 MB 上下是「桌面应用的正常水位」，留一点呼吸空间，只用来发现异常增长
-  total: 24 * MB,
+  // 30 MB 上下是「桌面应用的正常水位」，只用来发现异常增长。
+  // 其中约 9 MB 是 monaco 的 worker（ts.worker 6.6 MB + css/html/json/editor），
+  // 它们是独立资源、只在该语言服务真的用起来时才加载，但确实要装进安装包、
+  // 也确实会被解析 —— 所以算进总量，不算进首屏。
+  total: 32 * MB,
   forbiddenInCriticalPath: [
     'monaco-editor',
     'mermaid',

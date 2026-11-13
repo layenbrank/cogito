@@ -19,7 +19,7 @@ interface ChunkRow {
 }
 
 interface BundleReport {
-  totals: { chunks: number; js: number }
+  totals: { chunks: number; loose: number; looseBytes: number; js: number }
   criticalPath: { bytes: number }
   budget: { passed: boolean; violations: string[] }
   chunks: ChunkRow[]
@@ -41,7 +41,9 @@ if (result.status !== 0) process.exit(result.status ?? 1)
 const report = JSON.parse(readFileSync(REPORT, 'utf8')) as BundleReport
 console.log('')
 console.log(`首屏关键路径  ${mb(report.criticalPath.bytes)}`)
-console.log(`JS 总量       ${mb(report.totals.js)}（${report.totals.chunks} 个 chunk）`)
+console.log(
+  `JS 总量       ${mb(report.totals.js)}（${report.totals.chunks} 个 chunk + ${report.totals.loose} 个独立 JS，后者 ${mb(report.totals.looseBytes)}）`
+)
 console.log('最大的可懒加载块：')
 for (const chunk of report.chunks
   .filter((item) => !item.onCriticalPath)

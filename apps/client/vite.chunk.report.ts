@@ -40,6 +40,8 @@ interface ChunkLike {
 interface ReportState {
   lines: string[]
   chunks: ChunkLike[]
+  looseJs: { fileName: string; bytes: number }[]
+  looseTotal: number
   bytesOf: Map<string, number>
   critical: string[]
   onCriticalPath: Set<string>
@@ -153,7 +155,9 @@ function summaryLines(state: ReportState, budget: BundleBudget): string[] {
   const lines: string[] = []
   const { preload, total, criticalBytes, violations, debt } = state
   lines.push('========== 汇总 ==========')
-  lines.push(`chunks=${state.chunks.length}  js=${mb(total)}（预算 ${mb(budget.total)}）`)
+  lines.push(
+    `chunks=${state.chunks.length} + 独立 JS ${state.looseJs.length}（${mb(state.looseTotal)}）  js=${mb(total)}（预算 ${mb(budget.total)}）`
+  )
   lines.push(`首屏=${mb(criticalBytes)}（预算 ${mb(budget.criticalPath)}）`)
   lines.push(
     `首屏预加载=${mb(preload.kept)}${preload.droppedLinks.length
@@ -178,7 +182,7 @@ function reportJson(state: ReportState, budget: BundleBudget): unknown {
   const { chunks, bytesOf, critical, criticalBytes, total, violations, debt, preload } = state
   return {
     generatedAt: new Date().toISOString(),
-    totals: { chunks: chunks.length, js: total },
+    totals: { chunks: chunks.length, loose: state.looseJs.length, looseBytes: state.looseTotal, js: total },
     criticalPath: { bytes: criticalBytes, chunks: critical },
     preload: {
       kept: preload.kept,
@@ -232,7 +236,20 @@ export function chunkReport(budget: BundleBudget = defaultBudget): Plugin {
 
       const bytesOf = new Map<string, number>()
       for (const chunk of chunks) bytesOf.set(chunk.fileName, Buffer.byteLength(chunk.code))
-      const total = chunks.reduce((sum, chunk) => sum + (bytesOf.get(chunk.fileName) ?? 0), 0)
+      // chunk 之外的 JS：monaco worker 这类由 `new Worker(new URL(...), { type: 'module' })`
+      // 产出的独立资源不在 chunk 列表里，但同样是会被解析的字节 —— 漏掉它们等于少记 30% 总量。
+      const looseJs: { fileName: string; bytes: number }[] = []
+      for (const item of Object.values(bundle)) {
+        if (item.type !== 'asset' || !item.fileName.endsWith('.js')) continue
+        const source = item.source
+        const bytes = typeof source === 'string' ? Buffer.byteLength(source) : source.byteLength
+        looseJs.push({ fileName: item.fileName, bytes })
+        bytesOf.set(item.fileName, bytes)
+      }
+      looseJs.sort((a, b) => b.bytes - a.bytes)
+      const looseTotal = looseJs.reduce((sum, item) => sum + item.bytes, 0)
+
+      const total = chunks.reduce((sum, chunk) => sum + (bytesOf.get(chunk.fileName) ?? 0), 0) + looseTotal
 
       // 首屏 = 入口 + 它在**产物代码里真的静态 import** 的闭包。
       //
@@ -329,6 +346,16 @@ export function chunkReport(budget: BundleBudget = defaultBudget): Plugin {
         lines.push('')
       }
 
+      if (looseJs.length > 0) {
+        lines.push('========== 独立的 JS 资源（worker 等，不计入 chunk） ==========')
+        for (const item of looseJs) {
+          if (item.bytes < MIN_CHUNK_BYTES) continue
+          lines.push(`${mb(item.bytes).padStart(9)}  ${item.fileName}`)
+        }
+        lines.push(`${mb(looseTotal).padStart(9)}  合计（已计入 JS 总量）`)
+        lines.push('')
+      }
+
       if (total > budget.total) {
         violations.push(`JS 总量 ${mb(total)} 超过预算 ${mb(budget.total)}`)
       }
@@ -337,6 +364,8 @@ export function chunkReport(budget: BundleBudget = defaultBudget): Plugin {
       pending = {
         lines,
         chunks,
+        looseJs,
+        looseTotal,
         bytesOf,
         critical,
         onCriticalPath: seen,
