@@ -1,10 +1,9 @@
 /**
  * 输入框下方：左工作区 · 右本机运行 / 分支 / 上下文用量。
  */
-import { Icon } from '@iconify/react/offline'
-import { useAui, useAuiState } from '@assistant-ui/react'
+import { useAui } from '@assistant-ui/react'
+import { ComposerContext } from '@cogito/design/assistant/composer-context'
 import { Button } from '@cogito/design/components/button'
-import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,23 +13,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
-import { ComposerContext } from '@cogito/design/assistant/composer-context'
+import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useSyncExternalStore } from 'react'
+import { toast } from 'sonner'
 
 import { CONTEXT_SEGMENT_META } from '@/features/agent/context-breakdown'
 import { readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
+import { useGoalRecord } from '@/features/agent/plan-store'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { checkoutNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
-import { useGoalRecord } from '@/features/agent/plan-store'
 import { useAgentStore } from '@/stores/agent.ts'
-import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
+import { useContextUsageSnapshot } from '@/views/agent/chat/components/use-context-usage.ts'
 import {
   buildFolderLabels,
   findBaseName,
   findFolderLabel
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
-import { useContextUsageSnapshot } from '@/views/agent/chat/components/use-context-usage.ts'
+import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
+
 import {
   buildContinuePrompt,
   GOAL_BUDGET_OPTIONS,
@@ -42,6 +43,7 @@ import {
   useGoalRun,
   writeNextGoalBudget
 } from '@/features/agent/goal-run'
+import { useSessionThreadID } from './use-session-thread-id'
 
 /**
  * footer 右侧用量：一个环。
@@ -234,9 +236,8 @@ function GoalTurnControl() {
   const aui = useAui()
   const mode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
   const budget = useSyncExternalStore(subscribeGoalBudget, readNextGoalBudget, readNextGoalBudget)
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 目标档案按库内 id 存：用草稿 id 读会让「推进中」看起来永久丢失
+  const threadID = useSessionThreadID()
   const run = useGoalRun(threadID)
   /** 结束后的三态（已完成 / 已暂停 / 已用尽）来自档案，不能再靠内存里的 run */
   const record = useGoalRecord(threadID)
@@ -258,12 +259,19 @@ function GoalTurnControl() {
                 label: `已暂停 · ${record.used}/${record.budget} 轮`,
                 tone: 'text-amber-700 dark:text-amber-300'
               }
-            : {
-                icon: 'lucide:circle-slash',
-                label: `已用尽 · ${record.used}/${record.budget} 轮`,
-                tone: 'text-muted-foreground'
-              }
-      const canResume = record.status === 'paused' || record.status === 'exhausted'
+            : record.status === 'interrupted'
+              ? {
+                  // 崩溃自愈写成 interrupted：这是可继续的中断态，不是「用尽」也不是终态
+                  icon: 'lucide:triangle-alert',
+                  label: `已中断 · ${record.used}/${record.budget} 轮`,
+                  tone: 'text-muted-foreground'
+                }
+              : {
+                  icon: 'lucide:circle-slash',
+                  label: `已用尽 · ${record.used}/${record.budget} 轮`,
+                  tone: 'text-muted-foreground'
+                }
+      const canResume = record.status !== 'done'
       return (
         <div className="border-border/60 bg-muted/40 flex h-7 shrink-0 items-center gap-1 rounded-md border px-1.5">
           <Icon

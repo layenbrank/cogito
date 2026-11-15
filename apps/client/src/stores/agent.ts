@@ -79,6 +79,14 @@ interface SessionSlice {
 
   toReadSessions: () => Promise<Session[]>
   toReadSession: (key: string) => Session | null
+  /**
+   * 只改「当前会话」指针，不读消息、不发事件。
+   *
+   * 给聊天运行时用：主线程切换时同步过来，设置页（工具权限 / 扩展 / 诊断 / 用量）不在
+   * AUI Provider 树里，只能靠这个指针知道「现在是哪个会话」—— 以前它只在启动取首项与
+   * 命令面板打开会话时更新，侧栏切会话后设置页一直指着别的会话。
+   */
+  toSyncActiveSession: (key: string | null) => void
   toWriteSession: (values: Session[]) => Promise<void>
   toUpdateSession: (values: Partial<Session>[]) => Promise<void>
   toRemoveSession: (keys: string[]) => Promise<void>
@@ -231,6 +239,17 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
         )
         return []
       }
+    },
+
+    toSyncActiveSession(key: string | null) {
+      if (getters().activeSessionID === key) return
+      setters(
+        function (state) {
+          state.activeSessionID = key
+        },
+        false,
+        'toSyncActiveSession'
+      )
     },
 
     toReadSession(key: string) {

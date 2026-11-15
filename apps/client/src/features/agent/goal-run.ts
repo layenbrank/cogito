@@ -16,7 +16,8 @@
 import type { ThreadMessage } from '@assistant-ui/react'
 import { useCallback, useSyncExternalStore } from 'react'
 
-import { readApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import { findApprovalPolicy, readApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import { findRunSnapshot } from '@/features/agent/acp/run-state'
 import { readAgentMode, readAgentModeFor, writeAgentModeFor } from '@/features/agent/mode'
 import type { GoalRecord, GoalStatus } from '@/features/agent/plan-store'
 import {
@@ -279,8 +280,11 @@ function advanceGoal(
  */
 function recoverInterruptedGoals(records: readonly GoalRecord[], now = Date.now()): number {
   let fixed = 0
+  // 本进程内仍在跑的会话不是崩溃残留：长任务超过租约 TTL 也会走到这里，不能把它归一成中断
+  const liveRuns = new Set(findRunSnapshot())
   for (const record of records) {
     if (record.status !== 'running') continue
+    if (liveRuns.has(record.sessionID)) continue
     if (isTurnLeaseLive(record, now)) continue
     saveGoal({
       sessionID: record.sessionID,
@@ -353,6 +357,9 @@ function ensureGoalApproval(threadID: string): ApprovalMode | null {
     pushThreadApproval(threadID, 'auto')
     return null
   }
+  // 「只读」不抬级：那是用户明确关掉的写能力，目标推进不能把它顶掉。
+  // 目标在只读下跑不动写操作（预期行为），由调用方提示用户先切档。
+  if (current === 'readonly') return null
   writeApprovalModeFor(threadID, 'auto')
   pushThreadApproval(threadID, 'auto')
   return current
@@ -361,6 +368,9 @@ function ensureGoalApproval(threadID: string): ApprovalMode | null {
 /** 只恢复这个会话；用户中途自己改过就不动 —— “他说了算”更重要 */
 function restoreGoalApproval(threadID: string, before: string | null): void {
   if (!before) return
+  // 库里的旧值/脏值不写回：非法档位会被 `findGooseMode` 当成 smart_approve、
+  // 写工具落 never_allow，而开关 UI 又显示「询问审批」—— 两边对不上
+  if (!findApprovalPolicy(before)) return
   if (readApprovalModeFor(threadID) !== 'auto') return
   writeApprovalModeFor(threadID, before as ApprovalMode)
   pushThreadApproval(threadID, before as ApprovalMode)
@@ -430,7 +440,14 @@ function resumeGoalRun(threadID: string): GoalRun | null {
   const id = threadID.trim()
   const record = readGoal(id)
   if (!record) return null
-  if (record.status !== 'paused' && record.status !== 'exhausted') return null
+  if (
+    record.status !== 'paused' &&
+    record.status !== 'exhausted' &&
+    // 崩溃自愈写成 interrupted 的目标也要能继续，否则用户只能重新发一条
+    record.status !== 'interrupted'
+  ) {
+    return null
+  }
   const before = ensureGoalApproval(id)
   saveGoal({
     sessionID: id,
@@ -677,6 +694,7 @@ export {
   readGoalGeneration,
   readGoalPrompt,
   readGoalRun,
+  readMessageText,
   recoverInterruptedGoals,
   renewGoalTurn,
   readNextGoalBudget,

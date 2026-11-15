@@ -19,6 +19,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useSyncExternalStore } from 'react'
 
 import type { PlanDraft } from '@/features/agent/plan-draft'
+import { isDraftSessionKey } from '@/features/agent/port/session-key'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 
@@ -344,34 +345,73 @@ function rollbackGoal(threadID: string): void {
 }
 
 /**
+ * 早期版本把草稿槽 id（`__LOCALID_…`）当持久化键落过档。
+ *
+ * 那些行重启后按库内 id 永远读不回来（草稿 id 落库后不会变成 remoteId），留着只是垃圾，
+ * 所以启动时按 `sessionID` 删一次。**只在启动那次全量 hydrate 做**：切会话时的定向
+ * hydrate 只带当前会话的 id，看不到孤儿行。
+ */
+async function pruneDraftRows(
+  planRows: readonly PlanRow[],
+  goalRows: readonly GoalRow[]
+): Promise<void> {
+  const planKeys = planRows
+    .map(function (row) {
+      return row.sessionID
+    })
+    .filter(isDraftSessionKey)
+  const goalKeys = goalRows
+    .map(function (row) {
+      return row.sessionID
+    })
+    .filter(isDraftSessionKey)
+  if (planKeys.length > 0) {
+    await invoke<string[]>(CHANNELS.AGENT_PLAN.TO_REMOVE, { params: planKeys })
+  }
+  if (goalKeys.length > 0) {
+    await invoke<string[]>(CHANNELS.AGENT_GOAL.TO_REMOVE, { params: goalKeys })
+  }
+}
+
+/**
  * 把库里的档案灌进 cache。
  * 启动时读全量（一次 IPC）；切线程时只读该会话。
  */
 async function hydrate(threadIDs?: readonly string[]): Promise<void> {
   if (!canPersist()) return
-  const planParams = threadIDs?.length
-    ? threadIDs.map(function (id) {
+  const isFull = !threadIDs?.length
+  const planParams = isFull
+    ? { includeBody: true }
+    : threadIDs.map(function (id) {
         return { sessionID: id, includeBody: true }
       })
-    : { includeBody: true }
-  const goalParams = threadIDs?.length
-    ? threadIDs.map(function (id) {
+  const goalParams = isFull
+    ? {}
+    : threadIDs.map(function (id) {
         return { sessionID: id }
       })
-    : {}
   try {
     const [planRows, goalRows] = await Promise.all([
       invoke<PlanRow[]>(CHANNELS.AGENT_PLAN.TO_READ, { params: planParams }),
       invoke<GoalRow[]>(CHANNELS.AGENT_GOAL.TO_READ, { params: goalParams })
     ])
-    for (const row of planRows) {
+    const livePlans = planRows.filter(function (row) {
+      return !isDraftSessionKey(row.sessionID)
+    })
+    const liveGoals = goalRows.filter(function (row) {
+      return !isDraftSessionKey(row.sessionID)
+    })
+    if (isFull && (livePlans.length !== planRows.length || liveGoals.length !== goalRows.length)) {
+      await pruneDraftRows(planRows, goalRows)
+    }
+    for (const row of livePlans) {
       // 本地还有没落库的改动时以本地为准，避免 hydrate 把用户刚做的事抹掉
       if (pendingPlans.has(row.sessionID)) continue
       const record = toPlanRecord(row)
       plans.set(record.sessionID, record)
       persistedPlans.set(record.sessionID, record)
     }
-    for (const row of goalRows) {
+    for (const row of liveGoals) {
       if (pendingGoals.has(row.sessionID)) continue
       const record = toGoalRecord(row)
       goals.set(record.sessionID, record)
@@ -379,7 +419,7 @@ async function hydrate(threadIDs?: readonly string[]): Promise<void> {
     }
     // 启动自愈：`running` 却没有活租约 = 上一进程崩了（或被强杀）。归一到 `interrupted`
     // 并把审批档 / 模式还原 —— 否则界面一直显示「推进中」，审批档也停在 auto。
-    goalRecovery?.(goalRows.map(toGoalRecord), Date.now())
+    goalRecovery?.(liveGoals.map(toGoalRecord), Date.now())
     notify()
   } catch (error) {
     reportCaught('agent-plan-store.hydrate', error)
@@ -487,7 +527,10 @@ function setPlanStatus(threadID: string, status: PlanStatus): PlanRecord | null 
 /**
  * 正文/文件变了：`revision + 1`。
  *
- * - `running` → 回落 `draft`（这份计划已经对不上正在跑的东西了）；
+ * - `draft` → 保持 `draft`；
+ * - `running` → **保持 `running`**：这一轮还在跑，改版只让 `revision` 前进
+ *   （`revision > executedRevision` 已经足以表达「这份计划改过了」）；
+ *   回落 `draft` 会让收尾钩子以为「没在跑」，终态永远落不下来；
  * - `done` / `interrupted` → 归档成 `superseded`，并记 `supersededBy = 新 revision`。
  *   以前这里是「保持 done，只多显示一个已过期」，结果上一份跑过的计划既没被标成
  *   过期、也不拦重复执行 —— 用户一点「开始执行」就又跑一遍旧计划（白烧 token）；
@@ -503,9 +546,17 @@ function bumpRevision(
   const now = Date.now()
   const body = patch?.body ?? record.body
   const nextRevision = record.revision + 1
-  // 跑过的版本（done / interrupted / 已归档）在改版时归档；草稿与正在跑的只回落 draft
-  const keepRunning = record.status === 'running' || record.status === 'draft'
-  const nextStatus: PlanStatus = keepRunning ? 'draft' : 'superseded'
+  /*
+   * 状态怎么走：
+   * - `draft` → 还是草稿（改的就是草稿本身）；
+   * - `running` → **保持 running**：这一轮还在跑，改版只让 revision 前进。
+   *   以前这里把它打回 `draft`，于是 `plan-run-finish` 那句
+   *   「`status !== 'running'` 就返回」提前命中 —— 这一轮的终态永远落不下来；
+   * - 跑过的版本（done / interrupted / 已归档）→ 归档成 `superseded`。
+   */
+  const nextStatus: PlanStatus =
+    record.status === 'draft' ? 'draft' : record.status === 'running' ? 'running' : 'superseded'
+  const superseded = nextStatus === 'superseded'
   const next: PlanRecord = {
     ...record,
     title: patch?.title ?? record.title,
@@ -516,7 +567,7 @@ function bumpRevision(
     digest,
     revision: nextRevision,
     status: nextStatus,
-    supersededBy: keepRunning ? record.supersededBy : nextRevision,
+    supersededBy: superseded ? nextRevision : record.supersededBy,
     updatedAt: now
   }
   plans.set(next.sessionID, next)

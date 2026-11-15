@@ -97,7 +97,9 @@ function AgentPlan({
 }: AgentPlanProps) {
   const labels = useAssistantLabels()
   const items = toPlanSteps(steps)
-  const progress = findPlanProgress(items.length, activeIndex, idle)
+  // `activeIndex === -1` 就是「还没开始」：宿主拿三态数据换算时全待办会给这个值
+  const isIdle = idle === true || activeIndex === -1
+  const progress = findPlanProgress(items.length, activeIndex, isIdle)
   const listId = useId()
 
   // 折叠是宿主点开的（collapseAfter 给了才算数）；步数没超就不出现开关
@@ -127,7 +129,7 @@ function AgentPlan({
   return (
     <div
       data-slot="agent-plan"
-      data-status={idle ? 'idle' : progress.allDone ? 'complete' : 'running'}
+      data-status={isIdle ? 'idle' : progress.allDone ? 'complete' : 'running'}
       data-folded={folded ? '' : undefined}
       className={cn('flex w-full flex-col gap-3', className)}>
       <div

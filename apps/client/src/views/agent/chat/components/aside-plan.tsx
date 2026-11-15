@@ -18,8 +18,8 @@
  *
  * 调整计划请回对话里说 —— 右栏不提供输入框，避免两处改计划打架。
  */
-import { Icon } from '@iconify/react/offline'
 import { useAui, useAuiState } from '@assistant-ui/react'
+import type { ChatPlanEntry } from '@cogito/chat/ports'
 import { AgentPlan } from '@cogito/design/assistant/agent-plan'
 import { MarkdownContent } from '@cogito/design/assistant/markdown-text'
 import { Button } from '@cogito/design/components/button'
@@ -31,22 +31,23 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
-import type { ChatPlanEntry } from '@cogito/chat/ports'
+import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
+import { readNextGoalBudget, subscribeGoalBudget, useGoalRun } from '@/features/agent/goal-run'
+import { findLatestPlan } from '@/features/agent/plan'
+import { findPlanDraft } from '@/features/agent/plan-draft'
 import {
   listPlanFiles,
   readPlanFile,
   savePlanToWorkspace,
   type PlanFileEntry
 } from '@/features/agent/plan-file'
-import { readNextGoalBudget, subscribeGoalBudget, useGoalRun } from '@/features/agent/goal-run'
-import { findPlanDraft } from '@/features/agent/plan-draft'
-import { findLatestPlan } from '@/features/agent/plan'
 import {
   isPlanStale,
+  digestPlan,
   savePlan,
   setPlanStatus,
   usePlanRecord,
@@ -56,6 +57,7 @@ import {
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 
 import { toActiveIndex, toPlanSteps } from './plan-steps'
+import { useSessionThreadID } from './use-session-thread-id'
 
 interface AsidePlanProps {
   isPlanMode: boolean
@@ -91,19 +93,41 @@ function findPlanDigest(messages: Parameters<typeof findLatestPlan>[0]): string 
   return digest
 }
 
+/**
+ * 草稿指纹：**不解析计划**，只取最后一条助手正文的长度 + 尾部。
+ *
+ * 以前选择器里直接调 `findPlanDraft`（整段正则 + `JSON.parse`），而 `useAuiState`
+ * 的选择器在每次状态变化都会重跑 —— 一轮流式输出就是上千次解析，且每遇到普通代码块
+ * 都会打一条「结构化计划解析失败」。真正的解析留给下面的 `useMemo`。
+ */
+function findDraftDigest(messages: Parameters<typeof findLatestPlan>[0]): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'assistant') continue
+    const text = message.content
+      .filter(function (part) {
+        return part.type === 'text'
+      })
+      .map(function (part) {
+        return part.type === 'text' ? part.text : ''
+      })
+      .join('\n')
+      .trim()
+    if (!text) continue
+    return `${text.length}\0${text.slice(-64)}`
+  }
+  return ''
+}
+
 function AsidePlan(props: AsidePlanProps) {
   const aui = useAui()
   const planDigest = useAuiState(function (state) {
     return findPlanDigest(state.thread.messages)
   })
   const draftDigest = useAuiState(function (state) {
-    const next = findPlanDraft(state.thread.messages)
-    if (!next) return ''
-    return `${next.title}\0${next.overview}\0${next.body}\0${next.steps.join('\n')}`
+    return findDraftDigest(state.thread.messages)
   })
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  const threadID = useSessionThreadID()
   const record = usePlanRecord(threadID)
   const goal = useGoalRun(threadID)
   /** 轮次是「每次发送」的输入项：这里只读，修改入口在 composer 下方的目标轮次 */
@@ -151,17 +175,40 @@ function AsidePlan(props: AsidePlanProps) {
       return
     }
     if (!threadID) return
+    const steps = entries.map(function (entry) {
+      return entry.content
+    })
     try {
       const relative = await savePlanToWorkspace(rootPath, {
         title: draft?.title || workspace?.title || '计划',
         overview: draft?.overview ?? '',
-        steps: entries.map(function (entry) {
-          return entry.content
-        }),
+        steps,
         body: draft?.body ?? ''
       })
+      /*
+       * 同步档案要用**写盘后读回来**的那份正文：`PlanFileSync` 每 1.5s 读的就是它，
+       * 而 `buildPlanMarkdown` 会补 `# 标题` 与生成说明，跟内存里的草稿不是一个字符串。
+       * 以前只传 filePath，档案里的 body/digest 还是旧的 —— 轮询一看「不一样」，
+       * 立刻 bumpRevision，弹一句「计划已更新到 rN」，看上去像别人改过。
+       */
+      let stored = { title: draft?.title || '', overview: draft?.overview ?? '', body: draft?.body ?? '' }
+      try {
+        const file = await readPlanFile(rootPath, relative)
+        stored = { title: file.title, overview: file.overview, body: file.body }
+      } catch (error) {
+        console.warn('[agent/aside-plan] 读回刚保存的计划失败，按内存草稿同步:', error)
+      }
       // 保存即绑定：之后「从文件载入」与执行都用同一份文档
-      savePlan({ sessionID: threadID, source: 'file', filePath: relative })
+      savePlan({
+        sessionID: threadID,
+        source: 'file',
+        filePath: relative,
+        title: stored.title || draft?.title,
+        overview: stored.overview,
+        steps,
+        body: stored.body,
+        digest: digestPlan(stored.body)
+      })
       toast.success(`计划已保存到 ${relative}`)
     } catch (error) {
       console.warn('[agent/aside-plan] 保存计划失败:', error)
@@ -282,7 +329,10 @@ function AsidePlan(props: AsidePlanProps) {
                   ? '这份计划已被新版取代，只读'
                   : statusMeta.label
             }>
-            <Icon icon={statusMeta.icon} className="size-3" />
+            <Icon
+              icon={statusMeta.icon}
+              className="size-3"
+            />
             {isStale ? '已更新' : statusMeta.label}
           </span>
         </div>
@@ -293,8 +343,13 @@ function AsidePlan(props: AsidePlanProps) {
         ) : null}
         {stored?.filePath || (stored && stored.revision > 1) ? (
           <div className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-xs">
-            <Icon icon="lucide:file-text" className="size-3 shrink-0" />
-            <span className="min-w-0 truncate font-mono" title={stored?.filePath ?? undefined}>
+            <Icon
+              icon="lucide:file-text"
+              className="size-3 shrink-0"
+            />
+            <span
+              className="min-w-0 truncate font-mono"
+              title={stored?.filePath ?? undefined}>
               {stored?.filePath ?? '未绑定文件'}
             </span>
             {stored && stored.revision > 1 ? (
@@ -327,7 +382,10 @@ function AsidePlan(props: AsidePlanProps) {
         {draft.body ? (
           <div className="border-border/60 mt-3 border-t px-3 pt-2.5 pb-4">
             <div className="text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium">
-              <Icon icon="lucide:align-left" className="size-3" />
+              <Icon
+                icon="lucide:align-left"
+                className="size-3"
+              />
               完整计划
             </div>
             <MarkdownContent
@@ -341,7 +399,10 @@ function AsidePlan(props: AsidePlanProps) {
 
       {goal ? (
         <div className="border-border/60 text-muted-foreground flex shrink-0 items-center gap-1.5 border-t px-3 py-1.5 text-xs">
-          <Icon icon="lucide:target" className="text-primary size-3.5 shrink-0" />
+          <Icon
+            icon="lucide:target"
+            className="text-primary size-3.5 shrink-0"
+          />
           <span className="truncate">
             {goal.status === 'exhausted'
               ? `目标推进已用尽 · ${goal.used}/${goal.budget} 轮`
@@ -426,7 +487,10 @@ function AsidePlan(props: AsidePlanProps) {
                 disabled={!rootPath || isListing}
               />
             }>
-            <Icon icon="lucide:folder-open" className="size-3.5" />
+            <Icon
+              icon="lucide:folder-open"
+              className="size-3.5"
+            />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -476,7 +540,10 @@ function PlanIconButton(props: {
       disabled={props.disabled}
       className="text-muted-foreground hover:text-foreground"
       onClick={props.onClick}>
-      <Icon icon={props.icon} className="size-3.5" />
+      <Icon
+        icon={props.icon}
+        className="size-3.5"
+      />
     </Button>
   )
 }
@@ -520,7 +587,10 @@ function LoadFileItems(props: {
             onClick={function () {
               props.onPick(entry.relative)
             }}>
-            <Icon icon="lucide:file-text" className="text-muted-foreground size-3.5 shrink-0" />
+            <Icon
+              icon="lucide:file-text"
+              className="text-muted-foreground size-3.5 shrink-0"
+            />
             <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
             <span className="text-muted-foreground shrink-0 text-[10px] tabular-nums">
               {entry.modifiedAt > 0

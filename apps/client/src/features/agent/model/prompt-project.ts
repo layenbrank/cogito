@@ -44,7 +44,7 @@ function joinPath(dir: string, name: string): string {
 /**
  * 当前 agent 该读哪个目录的约定：活跃会话的工作区 → 该工作区第一个目录。
  *
- * 与 `app_workspace_list` / 代码窗的「根」同一口径：一个工作区可能有多个目录，
+ * 与 `cogito_workspace_list` / 代码窗的「根」同一口径：一个工作区可能有多个目录，
  * 约定只认第一个（`sort` 最小），避免同一会话里两套规则打架。
  *
  * @param workspaceID 后台续跑等场景可显式指定工作区；不传就用当前活跃会话 / 工作区

@@ -16,6 +16,7 @@ import {
   startGoalRun,
   stopGoalRun
 } from '@/features/agent/goal-run'
+import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { readGoal, resetPlanStore, saveGoal } from '@/features/agent/plan-store'
 describe('目标推进', function () {
   beforeEach(function () {
@@ -220,5 +221,31 @@ describe('目标推进', function () {
     // 「第 2/4 轮」里的分数不能当成进度
     expect(parseGoalProgress('继续推进目标（第 2/4 轮）')).toBeNull()
     expect(parseGoalProgress('达成 6/5')).toBeNull()
+  })
+
+  it('自愈成 interrupted 的目标也能继续（以前只能重新发一条）', function () {
+    startGoalRun('t8', 'x', 3)
+    saveGoal({ sessionID: 't8', status: 'interrupted', leaseRunID: null, leaseUntil: null })
+    expect(readGoalRun('t8')).toBeNull()
+    const resumed = resumeGoalRun('t8')
+    expect(resumed?.status).toBe('running')
+    expect(resumed?.used).toBe(0)
+    stopGoalRun('t8')
+  })
+
+  it('本进程内有活跃 run 时，启动自愈不会把目标打成 interrupted', function () {
+    startGoalRun('t7', 'x', 3)
+    // 租约过期 = 跑了超过 TTL 且还没续上；此刻进程内仍有 active run，不能当崩溃残留
+    saveGoal({ sessionID: 't7', leaseUntil: Date.now() - 1 })
+    markRunStarted('t7')
+    try {
+      recoverInterruptedGoals([readGoal('t7')!])
+      expect(readGoal('t7')?.status).toBe('running')
+    } finally {
+      markRunFinished('t7')
+    }
+    // 没有活跃 run 时才归一成中断
+    recoverInterruptedGoals([readGoal('t7')!])
+    expect(readGoal('t7')?.status).toBe('interrupted')
   })
 })

@@ -19,6 +19,7 @@ import {
   setPlanStatus,
   subscribePlanStore
 } from '@/features/agent/plan-store'
+import { useSessionThreadID } from './use-session-thread-id'
 
 function findPlanTailDigest(
   messages: Parameters<typeof findLastAssistant>[0],
@@ -33,9 +34,8 @@ function findPlanTailDigest(
 
 function PlanRunFinish() {
   const aui = useAui()
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 档案按**库内** id 存，与 `plan-recorder` / `goal-auto-advance` 同一把键
+  const threadID = useSessionThreadID()
   const plan = useSyncExternalStore(
     subscribePlanStore,
     function () {

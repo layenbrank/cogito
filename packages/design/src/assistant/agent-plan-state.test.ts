@@ -16,9 +16,10 @@ describe('resolveActiveIndex', function () {
     expect(resolveActiveIndex(Number.NaN, 5)).toBe(0)
   })
 
-  it('向下取整，负数钳到 0', function () {
+  it('向下取整，负数是「还没开始」不被钳成 0', function () {
     expect(resolveActiveIndex(2.9, 5)).toBe(2)
-    expect(resolveActiveIndex(-3, 5)).toBe(0)
+    expect(resolveActiveIndex(-1, 5)).toBe(-1)
+    expect(resolveActiveIndex(-3, 5)).toBe(-1)
   })
 
   it('越界钳到 total（等于 total 表示全部完成）', function () {
@@ -28,6 +29,14 @@ describe('resolveActiveIndex', function () {
 
   it('空列表怎么传都是 0', function () {
     expect(resolveActiveIndex(3, 0)).toBe(0)
+  })
+})
+
+describe('findPlanProgress', function () {
+  it('activeIndex = -1：一步都没开始，没有进行中的那一步', function () {
+    const progress = findPlanProgress(3, -1)
+    expect(progress).toEqual({ total: 3, completed: 0, activeIndex: -1, percent: 0, allDone: false })
+    expect(findStepStatus(0, progress)).toBe('ahead')
   })
 })
 

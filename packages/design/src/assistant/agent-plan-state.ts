@@ -40,10 +40,15 @@ type PlanLabels = Pick<AssistantLabels, 'planCount'>
 /**
  * `activeIndex` 钳进 `0…total`：向下取整，`NaN` / 不传当成 0。
  * 越界不报错也不截断列表 —— 传 `total` 或更大就是「全部做完了」。
+ *
+ * **负数照传**（`-1` = 还没开始）：全待办的计划不能把第一步画成「进行中」——
+ * 那会让人以为模型已经在动第一项了。
  */
 function resolveActiveIndex(activeIndex: number | undefined, total: number): number {
   if (activeIndex === undefined || !Number.isFinite(activeIndex)) return 0
-  return Math.max(0, Math.min(Math.floor(activeIndex), Math.max(0, total)))
+  const floored = Math.floor(activeIndex)
+  if (floored < 0) return -1
+  return Math.min(floored, Math.max(0, total))
 }
 
 /** 字符串 → 对象步；对象原样保留（id 缺了补下标） */
@@ -63,9 +68,9 @@ function findPlanProgress(
   activeIndex: number | undefined,
   idle = false
 ): PlanProgress {
-  // 「还没开始」：一步都没做完，也没有正在做的那一步（用 -1 表示没人 active）
-  if (idle) return { total, completed: 0, activeIndex: -1, percent: 0, allDone: false }
   const clamped = resolveActiveIndex(activeIndex, total)
+  // 「还没开始」：一步都没做完，也没有正在做的那一步（用 -1 表示没人 active）
+  if (idle || clamped < 0) return { total, completed: 0, activeIndex: -1, percent: 0, allDone: false }
   return {
     total,
     completed: clamped,

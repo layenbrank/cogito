@@ -12,7 +12,7 @@ import { ContextBreakdown } from '@cogito/design/assistant/context-breakdown'
 import { useAssistantLabels } from '@cogito/design/assistant/labels'
 import { useAuiState } from '@assistant-ui/react'
 import { clsx } from 'clsx'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AUTO_COMPACT_THRESHOLD } from '@/features/agent/acp/goose-providers'
@@ -25,7 +25,7 @@ import {
 
 import { AsideSection } from './aside-section'
 import { ThinkingEffort } from './thinking-effort'
-import { subscribeAsideContext } from './open-aside-context'
+import { subscribeAsideContext, takeAsideContextExpand } from './open-aside-context'
 import { useContextUsageSnapshot } from './use-context-usage.ts'
 import { useSessionThreadID } from './use-session-thread-id'
 
@@ -88,16 +88,34 @@ function AsideContextSection() {
     [breakdown, labels, used]
   )
 
-  /** 气泡「查看详情」：展开卡片并滚到它（同一张卡，不再切页签） */
-  useEffect(function () {
-    return subscribeAsideContext(function () {
-      updateOpen(true)
-      // 展开是下一帧才改高度：等它落定再滚，否则滚到的是收起时的高度
-      window.requestAnimationFrame(function () {
-        sectionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      })
+  /** 展开卡片并滚到它（同一张卡，不再切页签） */
+  const reveal = useCallback(function () {
+    updateOpen(true)
+    // 展开是下一帧才改高度：等它落定再滚，否则滚到的是收起时的高度
+    window.requestAnimationFrame(function () {
+      sectionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     })
   }, [])
+
+  // 挂载时补一次：气泡派发事件与 aside 切页签是同一 tick，
+  // 本组件往往是在切页签之后的新一轮渲染里才挂上 —— 订阅那一刻事件已经过去了
+  useEffect(
+    function () {
+      if (takeAsideContextExpand()) reveal()
+    },
+    [reveal]
+  )
+
+  useEffect(
+    function () {
+      return subscribeAsideContext(function () {
+        // 事件已经送到，标记没必要再留着（否则下次挂载会重复展开一次）
+        takeAsideContextExpand()
+        reveal()
+      })
+    },
+    [reveal]
+  )
 
   return (
     <div ref={sectionRef}>
@@ -138,7 +156,7 @@ function AsideContextSection() {
           used > 0 ? (
             <ContextBreakdown
               // 元素自带的卡片外观在这里多余：标题与数字上面已经有了，只取色条与图例
-              className="max-w-none gap-2.5 rounded-none border-0 bg-transparent p-0 [&>[data-slot=context-breakdown-header]]:hidden"
+              className="max-w-none gap-2.5 rounded-none border-0 bg-transparent p-0 *:data-[slot=context-breakdown-header]:hidden"
               segments={cardSegments}
               limit={max}
             />

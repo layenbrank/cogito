@@ -24,10 +24,13 @@ import {
   parseGoalProgress,
   readAssistantText,
   readGoalPrompt,
+  readMessageText,
   setGoalProgress,
   useGoalRun
 } from '@/features/agent/goal-run'
 import { isPlanStale, readPlan } from '@/features/agent/plan-store'
+
+import { useSessionThreadID } from './use-session-thread-id'
 
 /**
  * 只订阅「最后一条助手消息」的收尾指纹，避免整份 messages 每 token 抬升本组件。
@@ -37,20 +40,38 @@ function findGoalTailDigest(messages: Parameters<typeof findLastAssistant>[0], i
   if (isRunning) return ''
   const last = findLastAssistant(messages)
   if (!last) return ''
-  const text = readAssistantText(last)
-  const aborted = isAbortedRun(last) ? '1' : '0'
-  return `${last.id}\0${aborted}\0${text}`
+  // 指纹只认消息 id：正文不再参与（以前全文进指纹，每 token 都让选择器重算）
+  return `${last.id}\0${isAbortedRun(last) ? '1' : '0'}`
 }
 
 function normalizePrompt(text: string | null): string {
   return (text ?? '').replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * 本轮起点：最后一条「我们发出去的那条提示」在消息里的下标；找不到返回 -1。
+ *
+ * 这是「这一轮是不是目标轮」的**唯一凭据**。`startGoalRun` / `resumeGoalRun` 都在
+ * `send()` **之前**就把记录置成 running，那一刻消息里还没有这条 user 消息 —— 找不到
+ * 就说明本轮还没真正开始，不能拿上一轮的 assistant 当收尾。
+ */
+function findTurnStartIndex(
+  messages: Parameters<typeof findLastAssistant>[0],
+  expected: string
+): number {
+  if (!expected) return -1
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'user') continue
+    if (normalizePrompt(readMessageText(message)) === expected) return index
+  }
+  return -1
+}
+
 function GoalAutoAdvance() {
   const aui = useAui()
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 目标档案按库内 id 存（`startGoalRun` 在 port 层用的就是 remoteId）
+  const threadID = useSessionThreadID()
   const goal = useGoalRun(threadID)
   const tailDigest = useAuiState(function (state) {
     return findGoalTailDigest(state.thread.messages, state.thread.isRunning)
@@ -65,11 +86,33 @@ function GoalAutoAdvance() {
       handled.current = tailDigest
 
       const messages = aui.thread.getState().messages
+      const expected = normalizePrompt(readGoalPrompt(threadID))
+      /** 我们发的那条提示在消息里的位置；`-1` = 本轮还没真正开始 */
+      const turnStart = findTurnStartIndex(messages, expected)
+      if (expected && turnStart < 0) return
+
+      const lastMessage = messages[messages.length - 1]
+      if (!lastMessage) return
+
+      // 最后一条是 user：要么用户插话，要么排队消息刚落库 —— 两种都不能继续自动推进
+      if (lastMessage.role === 'user') {
+        if (isUserInterjection(messages)) {
+          toast.info('检测到你发了新消息，目标推进已暂停')
+          advanceGoal(threadID, 'interjection')
+        }
+        return
+      }
+
       const last = findLastAssistant(messages)
-      if (!last) return
+      if (!last || last.id !== lastMessage.id) return
+      if (turnStart >= 0 && messages.length - 1 <= turnStart) return
 
       if (isAbortedRun(last)) {
-        // 用户「停止」/ 出错：这一轮不是模型自己跑完的，不能当成「未达成」继续
+        // 用户「停止」与「异常中断」不能再混为一谈：前者是预期暂停，后者要说出来
+        const reason = last.status?.type === 'incomplete' ? last.status.reason : undefined
+        if (reason !== 'cancelled') {
+          toast.error('上一轮异常中断，目标推进已暂停；可点「继续」重试')
+        }
         advanceGoal(threadID, 'aborted')
         return
       }
@@ -92,23 +135,19 @@ function GoalAutoAdvance() {
       }
 
       /**
-       * 本轮归属：首轮由用户发出（不做归属校验），后续轮必须是自动续跑那一条。
-       * 用户插话后 user 消息就不再是我们发的 prompt —— 命中即停，而不是当成「未达成」。
+       * 本轮归属：用户插话后 user 消息就不再是我们发的 prompt —— 命中即停，
+       * 而不是当成「未达成」。首轮没有历史可比时以 `used` 为界。
        */
-      const expected = normalizePrompt(readGoalPrompt(threadID))
       const lastUser = normalizePrompt(findLastUserText(messages))
       if (goal.used > 0 && expected && lastUser !== expected) {
         toast.info('检测到你插话了，目标推进已暂停')
         advanceGoal(threadID, 'interjection')
         return
       }
-      if (isUserInterjection(messages)) {
-        toast.info('检测到你发了新消息，目标推进已暂停')
-        advanceGoal(threadID, 'interjection')
-        return
-      }
 
-      if (aui.composer.getState().text.trim()) {
+      // composer 里的文字只算「用户在输入」—— 我们自己刚写进去的续跑提示不算
+      const composerText = normalizePrompt(aui.composer.getState().text)
+      if (composerText && composerText !== expected) {
         toast.info('检测到你在输入，已暂停目标自动推进')
         advanceGoal(threadID, 'typing')
         return
@@ -119,9 +158,7 @@ function GoalAutoAdvance() {
        * 继续自动续跑只会拿旧计划反复烧 token（用户看到的「计划重复执行」）。
        */
       if (isPlanStale(readPlan(threadID))) {
-        toast.info(
-          '计划已更新，目标推进已暂停：确认后请按新计划重新开始（不会拿旧版继续跑）'
-        )
+        toast.info('计划已更新，目标推进已暂停：确认后请按新计划重新开始（不会拿旧版继续跑）')
         advanceGoal(threadID, 'plan-stale')
         return
       }

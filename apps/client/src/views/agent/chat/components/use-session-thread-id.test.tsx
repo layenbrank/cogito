@@ -41,10 +41,10 @@ describe('useSessionThreadID', function () {
     expect(screen.getByTestId('thread-id')).toHaveTextContent('remote-1')
   })
 
-  it('还没落库（草稿）时退回列表项 id，而不是 null', function () {
+  it('还没落库（草稿）时是 null：草稿 id 写进档案永远读不回来', function () {
     state.threads.threadItems = [{ id: 'local-1', remoteId: null }]
     render(<Probe />)
-    expect(screen.getByTestId('thread-id')).toHaveTextContent('local-1')
+    expect(screen.getByTestId('thread-id')).toHaveTextContent('null')
   })
 
   it('没有当前会话时是 null', function () {

@@ -12,7 +12,7 @@
  * 再点一次执行（这正是计划重复执行的来源之一）。
  */
 import { Icon } from '@iconify/react/offline'
-import { makeAssistantDataUI, useAuiState, type DataMessagePartProps } from '@assistant-ui/react'
+import { makeAssistantDataUI, type DataMessagePartProps } from '@assistant-ui/react'
 import { PLAN_PART_NAME } from '@cogito/chat/adapters/chat-model'
 import type { ChatPlanEntry } from '@cogito/chat/ports'
 import { AgentPlan } from '@cogito/design/assistant/agent-plan'
@@ -21,6 +21,7 @@ import { useAssistantLabels } from '@cogito/design/assistant/labels'
 import { usePlanRecord } from '@/features/agent/plan-store'
 
 import { toActiveIndex, toPlanSteps } from './plan-steps'
+import { useSessionThreadID } from './use-session-thread-id'
 
 interface ChatPlanPartData {
   entries: readonly ChatPlanEntry[]
@@ -30,10 +31,7 @@ function PlanPartRender(props: DataMessagePartProps<ChatPlanPartData>) {
   // assistant-ui 的 DataMessagePartProps<T> 与 MessagePartState 交叉后 data 退化为 any，这里收回类型
   const labels = useAssistantLabels()
   const entries = (props.data as ChatPlanPartData).entries ?? []
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
-  const record = usePlanRecord(threadID)
+  const record = usePlanRecord(useSessionThreadID())
 
   if (entries.length === 0) return null
 

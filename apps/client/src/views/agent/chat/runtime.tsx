@@ -31,8 +31,10 @@ import { hydrate } from '@/features/agent/plan-store'
 import { buildThreadHistoryAdapter } from '@/features/agent/port/thread-history'
 import { AgentElicitationDataUI } from '@/views/agent/chat/components/elicitation-data-ui'
 import { AgentPlanDataUI } from '@/views/agent/chat/components/plan-data-ui'
+import { findSessionKey, useResolvedSessionID } from '@/views/agent/chat/components/use-session-thread-id'
 import { parseWebSources } from '@/views/agent/chat/components/parse-tool-result'
 import { createLocalSuggestionAdapter } from '@/views/agent/chat/suggestions'
+import { useAgentStore } from '@/stores/agent'
 
 /**
  * 内联引用角标的数据源：从本条消息的工具结果里聚合 web 来源，按出现顺序去重。
@@ -238,16 +240,26 @@ function RestoreRunningThread() {
   const threadItems = useAuiState(function (state) {
     return state.threads.threadItems
   })
-  const mainThreadId = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
   const runningIDs = useRunningThreads()
   const restored = useRef(false)
+  /**
+   * 挂载时 assistant-ui 会先播一个**草稿**主线程 —— `mainThreadId` 从第一帧起就非空，
+   * 所以「用户是否已选中会话」不能看它是否为空，要看当前主线程是否**已经落库**。
+   * 旧实现判空 → 首帧必命中早退 → 刷新后永远回不到在跑的会话。
+   */
+  const isDraftThread = useAuiState(function (state) {
+    const id = state.threads.mainThreadId
+    if (!id) return true
+    const item = state.threads.threadItems.find(function (entry) {
+      return entry.id === id
+    })
+    return !item?.remoteId
+  })
 
   useEffect(
     function () {
       if (restored.current) return
-      if (mainThreadId) {
+      if (!isDraftThread) {
         // 已经选中了会话（例如用户点过）：不抢焦点
         restored.current = true
         return
@@ -263,7 +275,7 @@ function RestoreRunningThread() {
         aui.threads.switchToThread(runningItem.id)
       }
     },
-    [threadItems, mainThreadId, runningIDs, aui]
+    [threadItems, isDraftThread, runningIDs, aui]
   )
 
   return null
@@ -272,22 +284,31 @@ function RestoreRunningThread() {
 /**
  * 自动化开泵后切到对应会话：先 `threads.reload` 再 switch，
  * 让 history.load 看到 `hasRunningBackgroundTurn` → `unstable_resume` 接上流式。
- * 已在该会话（目标多轮）时同样 reload，否则新泵开了 UI 不会自动再 resume。
+ *
+ * 已在该会话时必须走 `reloadMainThread()`：`threads.reload()` 只刷列表，
+ * `switchToThread(同一条)` 在 `isSameThread` 处直接返回空 Promise —— 目标多轮时会
+ * 「泵在跑、界面一动不动」。
  */
 function FocusAutomationSession() {
   const aui = useAui()
   useEffect(
     function () {
+      async function focus(sessionId: string) {
+        // 当前会话的库内 id：与自动化事件里的 `sessionId` 同一把键
+        const current = findSessionKey(aui.threads.getState())
+        if (current && current === sessionId) {
+          await aui.threads.reloadMainThread()
+          return
+        }
+        await aui.threads.reload()
+        // `switchToThread` 在客户端作用域里是同步派发（返回 void），不用 await
+        aui.threads.switchToThread(sessionId)
+      }
       return subscribeAutomationLife(function (event) {
         if (event.kind !== 'stream') return
-        void aui.threads
-          .reload()
-          .then(function () {
-            aui.threads.switchToThread(event.sessionId)
-          })
-          .catch(function (error: unknown) {
-            console.warn('[agent/runtime] 切到自动化会话失败:', error)
-          })
+        void focus(event.sessionId).catch(function (error: unknown) {
+          console.warn('[agent/runtime] 切到自动化会话失败:', error)
+        })
       })
     },
     [aui]
@@ -296,16 +317,24 @@ function FocusAutomationSession() {
 }
 
 /**
- * 模式是**会话级**的：把当前 `mainThreadId` 同步给 `mode.ts`，
+ * 模式是**会话级**的：把当前会话的**库内 id** 同步给 `mode.ts`，
  * 让 composer、详情页与系统提示读到的都是本会话的模式（新会话回落全局默认）。
+ *
+ * 必须用 `remoteId`：`mainThreadId` 是列表项 id（草稿期是 `__LOCALID_…`），而 ACP / 审批
+ * 执行侧一律按库内 id 读 —— 用草稿 id 写等于「写进了一个永远没人读的键」。
  */
 function AgentModeThreadSync() {
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  const threadID = useResolvedSessionID()
   useEffect(
     function () {
       setAgentModeThread(threadID ?? null)
+      /*
+       * 同一个 id 也要写给 `agent` store：设置页（工具权限 / 扩展 / 诊断 / 用量）是 chat 的
+       * **兄弟路由**，不在 `AssistantRuntimeProvider` 里，拿不到 `useAuiState`。
+       * 以前那个指针只在启动取首项、命令面板打开会话时更新，侧栏切会话后设置页一直
+       * 指着别的会话（权限写到错的 ACP 会话、工具面/诊断看的是旧会话）。
+       */
+      useAgentStore.getState().toSyncActiveSession(threadID ?? null)
     },
     [threadID]
   )
@@ -317,9 +346,7 @@ function AgentModeThreadSync() {
  * 启动读全量（一行一个会话，量级 < 千行）；切会话再补读该会话。
  */
 function PlanStoreSync() {
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  const threadID = useResolvedSessionID()
 
   useEffect(function () {
     void hydrate()

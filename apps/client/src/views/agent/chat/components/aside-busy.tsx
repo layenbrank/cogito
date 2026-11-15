@@ -24,6 +24,7 @@ import { clsx } from 'clsx'
 import { AsideSection } from './aside-section'
 import { AsideContextSection } from './aside-context'
 import { openAsideBrowser } from './open-aside-browser'
+import { useSessionThreadID } from './use-session-thread-id'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
@@ -947,9 +948,8 @@ function AsideBusy(props: AsideBusyProps) {
   const approval = findApprovalPolicy(readApprovalMode())
   const agentModeKey = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
   const agentMode = findAgentMode(agentModeKey)
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 目标 / 用量 / 计划档案都按**库内**会话 id 存，这里跟着折一次
+  const threadID = useSessionThreadID()
   const goalRun = useGoalRun(threadID)
   const goalTurnLabel =
     goalRun !== null
@@ -1025,9 +1025,7 @@ function AsideBusy(props: AsideBusyProps) {
       return command.status === 'running'
     }) ?? null
   const gitSnapshot = useWorkspaceGitSnapshot(rootPath)
-  const mainThreadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  const mainThreadID = useSessionThreadID()
   const usage = useSyncExternalStore(
     subscribeGooseUsage,
     function () {

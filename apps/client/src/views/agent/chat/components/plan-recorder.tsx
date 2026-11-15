@@ -18,10 +18,11 @@ import { useEffect, useRef } from 'react'
 import { findLastAssistantText, isPlanDocument, parsePlanText } from '@/features/agent/plan-draft'
 import { bumpRevision, digestPlan, readPlan, savePlan } from '@/features/agent/plan-store'
 
+import { useSessionThreadID } from './use-session-thread-id'
+
 function PlanRecorder() {
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 计划档案的持久化键必须是库内 id：草稿 id 写进去重启后 `readPlan(remoteId)` 恒为 null
+  const threadID = useSessionThreadID()
   const tail = useAuiState(function (state) {
     // 跑的时候正文还在长：等这一轮结束再判定，避免把半截计划录进去
     if (state.thread.isRunning) return ''

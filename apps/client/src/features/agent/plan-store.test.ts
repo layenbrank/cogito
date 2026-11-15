@@ -112,7 +112,7 @@ describe('计划 / 目标档案仓储', function () {
     expect(done?.executedAt).toBe(running?.executedAt)
   })
 
-  it('digest 变化才自增 revision，且 running 回落 draft', function () {
+  it('digest 变化才自增 revision，执行中改版仍保持 running', function () {
     savePlan({ sessionID: 't1', body: 'v1', steps: ['a'] })
     setPlanStatus('t1', 'running')
 
@@ -123,8 +123,11 @@ describe('计划 / 目标档案仓储', function () {
     expect(bumpRevision('t1', 'd2', { body: 'v2', steps: ['a', 'b'] })).toBe(true)
     const record = readPlan('t1')
     expect(record?.revision).toBe(2)
-    expect(record?.status).toBe('draft')
+    // 这一轮还在跑：回落 draft 会让收尾钩子以为没在跑，终态永远写不进去
+    expect(record?.status).toBe('running')
     expect(record?.body).toBe('v2')
+    // 「改过版」由 revision > executedRevision 表达
+    expect(isPlanStale(record)).toBe(true)
   })
 
   it('执行时锁住 executedRevision，改版后 stale 为真且旧值不清', function () {
@@ -193,5 +196,28 @@ describe('计划 / 目标档案仓储', function () {
     savePlan({ sessionID: 't1', body: 'x' })
     await flush()
     expect(invokeMock).toHaveBeenCalled()
+  })
+
+  it('启动 hydrate 清掉草稿 id（__LOCALID_）的历史行，且不进 cache', async function () {
+    invokeMock.mockImplementation(function (channel: string) {
+      if (channel === CHANNELS.AGENT_PLAN.TO_READ) {
+        return Promise.resolve([
+          planRow({ id: 'p1', sessionID: '__LOCALID_abc' }),
+          planRow({ id: 'p2', sessionID: 't1' })
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    await hydrate()
+
+    // 草稿 id 落库后不会变成 remoteId，这些行永远读不回来 —— 只清一次，别再往 cache 里灌
+    expect(readPlan('__LOCALID_abc')).toBeNull()
+    expect(readPlan('t1')?.id).toBe('p2')
+    const removals = invokeMock.mock.calls.filter(function (call) {
+      return call[0] === CHANNELS.AGENT_PLAN.TO_REMOVE
+    })
+    expect(removals).toHaveLength(1)
+    expect((removals[0][1] as { params: string[] }).params).toEqual(['__LOCALID_abc'])
   })
 })

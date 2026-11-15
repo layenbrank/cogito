@@ -7,13 +7,13 @@
  *
  * 做法：`source = 'file'` 时按 `stat` 的 `mtime + size` 轮询（1.5s，只读 stat，
  * 不读正文），变了才 `readPlanFile` 取回正文、算 digest，与档案 digest 不同就
- * `bumpRevision`（`running` 回落 `draft`，`done` / `interrupted` 归档成 `superseded`；
- * `executedRevision` 不动，于是右栏能显示「上次执行基于 rN」）。轮询而不是
+ * `bumpRevision`（`draft` / `running` 保持原状态、只让 revision 前进，
+ * `done` / `interrupted` 归档成 `superseded`；`executedRevision` 不动，于是右栏能显示
+ * 「上次执行基于 rN」）。轮询而不是
  * `watch`：仓库已有 `readDir/stat` 权限，不需要新增 fs 能力。
  *
  * 对话里的回声不会覆盖文件：`plan-recorder` 对 `source = 'file'` 直接跳过。
  */
-import { useAuiState } from '@assistant-ui/react'
 import { join } from '@tauri-apps/api/path'
 import { stat } from '@tauri-apps/plugin-fs'
 import { useEffect } from 'react'
@@ -23,14 +23,14 @@ import { parsePlanText } from '@/features/agent/plan-draft'
 import { readPlanFile } from '@/features/agent/plan-file'
 import { bumpRevision, digestPlan, readPlan, usePlanRecord } from '@/features/agent/plan-store'
 import { reportCaught } from '@/utils/exception-report'
+import { useSessionThreadID } from './use-session-thread-id'
 
 /** 只 stat 不读正文，1.5s 一次足够跟上手工编辑 */
 const POLL_INTERVAL = 1500
 
 function PlanFileSync() {
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 档案按**库内** id 存：草稿槽 id 落库后不会变，用它写进去的行重启后读不回来
+  const threadID = useSessionThreadID()
   const record = usePlanRecord(threadID)
   const { rootPath } = useActiveWorkspace()
   const filePath = record?.source === 'file' ? record.filePath : null

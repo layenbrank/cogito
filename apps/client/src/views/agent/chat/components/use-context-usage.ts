@@ -92,8 +92,8 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
     return findGooseUsage(threadID)
   })
   const mode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
-  // 估算不看正文：按结构订阅，流式时 composer 不再逐 token 重渲染
-  const messages = useThrottledValue(useStructuralThreadMessages(), 200)
+  // 估算要看正文长度（否则流式期间停在上一轮快照），但按 400 字符分档，不逐 token 重渲染
+  const messages = useThrottledValue(useStructuralThreadMessages({ withTextLength: true }), 200)
 
   const systemText = useMemo(
     function () {

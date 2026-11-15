@@ -119,13 +119,36 @@ const PLAN_DOCUMENT_MIN_CHARS = 200
 /** 计划文档的硬标识：H1 标题，或明确说了「实施步骤 / 方案 / 计划」 */
 const PLAN_DOCUMENT_HEADING = /^#{1,6}\s*(?:.*(?:实施步骤|方案|计划).*)$/im
 
-/** 模型按约定给出结构化计划时直接用它（比任何启发式都准） */
-const JSON_BLOCK = /```(?:json)?\s*\n([\s\S]*?)```/g
+/**
+ * 模型按约定给出结构化计划时直接用它（比任何启发式都准）。
+ *
+ * 只认**标明 json 的围栏**：以前 `(?:json)?` 让任意代码块（包括 `chunks=131`、`src/utils/...`
+ * 这种普通围栏）都进 `JSON.parse`，于是每篇带代码块的回答都把控制台刷成一片告警。
+ */
+const JSON_BLOCK = /```json[ \t]*\r?\n([\s\S]*?)```/gi
+
+/** 同一段正文的结构化步骤只解一次（aside 的选择器会在每次状态变化时重入） */
+const STEP_CACHE_LIMIT = 32
+const stepCache = new Map<string, string[] | null>()
 
 function findStructuredSteps(text: string): string[] | null {
+  const cached = stepCache.get(text)
+  if (cached !== undefined) return cached
+  const found = parseStructuredSteps(text)
+  if (stepCache.size >= STEP_CACHE_LIMIT) {
+    const oldest = stepCache.keys().next().value
+    if (oldest !== undefined) stepCache.delete(oldest)
+  }
+  stepCache.set(text, found)
+  return found
+}
+
+function parseStructuredSteps(text: string): string[] | null {
   const blocks = [...text.matchAll(JSON_BLOCK)]
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
-    const payload = blocks[index][1] ?? ''
+    const payload = (blocks[index][1] ?? '').trim()
+    // 不是对象/数组就不是计划 JSON：跳过，不进 JSON.parse（也不再告警）
+    if (!payload.startsWith('{') && !payload.startsWith('[')) continue
     try {
       const parsed = JSON.parse(payload) as { steps?: unknown }
       if (!Array.isArray(parsed.steps)) continue
@@ -144,8 +167,11 @@ function findStructuredSteps(text: string): string[] | null {
         })
       if (steps.length >= 2) return steps
     } catch (error) {
-      // 不是合法 JSON：继续找上一个代码块
-      console.warn('[agent/plan-draft] 结构化计划解析失败，回退启发式:', error)
+      // 合法围栏但不是合法 JSON：属于正常降级（模型把代码块标成了 json），
+      // 只在 DEV 留一条 debug，别再刷成 warn
+      if (import.meta.env.DEV) {
+        console.debug('[agent/plan-draft] 跳过非 JSON 的 json 围栏:', error)
+      }
     }
   }
   return null
