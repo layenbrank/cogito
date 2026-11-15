@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use std::time::Duration;
+
+use crate::utils::agentd::{self, AgentdEndpoint, AgentdState};
 use crate::utils::goose_serve::{self, GooseConnection, GooseServeState};
 use crate::utils::ipc;
 use crate::utils::sidecar::{self, SIDECAR_SHUTDOWN_TIMEOUT, SidecarState};
@@ -133,6 +136,51 @@ pub async fn goose_shutdown(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command(rename = "goose:restart")]
 pub async fn goose_restart(app: tauri::AppHandle) -> Result<(), String> {
     goose_serve::restart(&app).await
+}
+
+/// agentd 状态：`None` = 启动中；`Some(true/false)` = 已结束。
+///
+/// 与 `goose:ready` 同构：前端 `waitAgentdReady` 拿它做兜底轮询（事件可能早于订阅）。
+#[tauri::command(rename = "agentd:ready")]
+pub fn agentd_ready(state: tauri::State<'_, AgentdState>) -> Option<bool> {
+    state.status()
+}
+
+/// 连 agentd 需要的 baseUrl / token / pid / version。
+///
+/// 令牌只经这条 IPC 交给渲染进程（它要自己发 HTTP/SSE）；不再像 goose 那样带在 url 里。
+#[tauri::command(rename = "agentd:endpoint")]
+pub fn agentd_endpoint(state: tauri::State<'_, AgentdState>) -> Result<AgentdEndpoint, String> {
+    state.endpoint().ok_or_else(|| "agentd 未就绪".to_string())
+}
+
+/// 已发生的自动重启次数（诊断页展示，用来判断是不是在反复崩）。
+#[tauri::command(rename = "agentd:restarts")]
+pub fn agentd_restarts(state: tauri::State<'_, AgentdState>) -> u32 {
+    state.restarts()
+}
+
+/// 整体重启 agentd（计数清零）。
+#[tauri::command(rename = "agentd:restart")]
+pub async fn agentd_restart(app: tauri::AppHandle) -> Result<(), String> {
+    agentd::restart(&app).await
+}
+
+/// 只重启 agentd 内层的 goose（换 provider / 换模型后用）。
+#[tauri::command(rename = "agentd:restart-goose")]
+pub async fn agentd_restart_goose(app: tauri::AppHandle) -> Result<(), String> {
+    agentd::restart_goose(&app).await
+}
+
+/// 安装更新前停止 agentd（含内层 goose），并等进程真正退出。
+#[tauri::command(rename = "agentd:shutdown")]
+pub async fn agentd_shutdown(app: tauri::AppHandle) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let _ = agentd::shutdown_and_wait(&app, Duration::from_secs(5));
+    })
+    .await
+    .map_err(|error| format!("agentd shutdown 线程异常: {error}"))?;
+    Ok(())
 }
 
 #[tauri::command(rename = "secret:get")]

@@ -126,7 +126,8 @@
       "binaries/corex-daemon",
       "binaries/corex-mcp",
       "binaries/cogito-mcp",
-      "binaries/goose"
+      "binaries/goose",
+      "binaries/agentd"
     ],
     "icon": [
       "icons/32x32.png",
@@ -192,7 +193,7 @@
       "tsp": false,
       "webviewInstallMode": {
         "silent": true,
-        "type": "offlineInstaller"
+        "type": "embedBootstrapper"
       },
       "wix": {
         "language": ["zh-CN", "en-US"]

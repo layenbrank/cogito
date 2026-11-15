@@ -14,6 +14,7 @@ use crate::{
     ui::tray,
     utils::{
         agent_cache,
+        agentd::{self, AgentdState},
         goose_acp::GooseAcpHub,
         goose_serve::{self, GooseServeState},
         goose_tls, log_retention,
@@ -84,6 +85,7 @@ impl Bootstrap {
                 }
                 app.manage(bridge_state);
                 app.manage(SidecarState::new());
+                app.manage(AgentdState::new());
                 app.manage(GooseServeState::new());
                 app.manage(GooseAcpHub::new());
                 app.manage(TerminalHub::new());
@@ -200,6 +202,9 @@ impl Bootstrap {
                     if !skip_sidecar {
                         #[cfg(windows)]
                         sidecar::spawn_and_watch(app.handle(), Duration::from_secs(20));
+                        // agentd 是编排层宿主，自己会拉起 goose（stdio ACP）；
+                        // goose_serve 的 wss 直连是旧路径，P4 切完前端后删。
+                        agentd::spawn_and_watch(app.handle());
                         goose_serve::spawn_and_watch(app.handle(), Duration::from_secs(30));
                     }
                 }
@@ -259,6 +264,8 @@ impl Bootstrap {
                     // 先落盘再拆子进程：即便后面某步 panic，也留下了「正常退出」的结论
                     crate::utils::diagnostics::mark_clean_exit();
                     tracing::info!("应用退出，开始回收 sidecar");
+                    // agentd 要排在 goose_serve 前面：它自己 fail-fast 收掉内层 goose
+                    agentd::shutdown(app);
                     goose_serve::shutdown(app);
                     sidecar::shutdown(app);
                     crate::utils::terminal::shutdown(app);

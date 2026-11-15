@@ -42,7 +42,7 @@ const LOG_PREFIX = '[prepare-binaries]'
 const SIDECAR_SCHEMA_VERSION = 2
 
 /** 两个档位都必带的侧车（externalBin） */
-const ALWAYS_BINARIES = ['corex-daemon', 'corex-mcp', 'cogito-mcp', 'goose'] as const
+const ALWAYS_BINARIES = ['corex-daemon', 'corex-mcp', 'cogito-mcp', 'goose', 'agentd'] as const
 /** 两个档位都必带的资源 */
 const ALWAYS_RESOURCES: Record<string, string> = {
   'icons/': 'icons/',
