@@ -119,6 +119,7 @@
 | [durable-execution-engine.md](./decisions/durable-execution-engine.md)  | cogito 可靠执行引擎：duroxide 而非 pg_durable   |
 | [approval-channel.md](./decisions/approval-channel.md)                  | cogito agent 写操作的人工审批通道：闸门在编排、决定走邮箱 |
 | [no-langchain.md](./decisions/no-langchain.md)                          | compute agent 运行时：自持薄层，不引入 LangChain / LangGraph |
+| [agent-orchestration-langgraph.md](./decisions/agent-orchestration-langgraph.md) | 桌面端 agent 编排：循环宿主搬到 agentd（LangGraph.js + Agent Protocol）；supersede 上一条的适用范围 |
 
 ## 调试入口
 
