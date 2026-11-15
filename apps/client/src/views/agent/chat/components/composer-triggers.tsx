@@ -15,7 +15,7 @@
  * 所以主文件夹内给相对路径，其他文件夹给绝对路径。
  *
  * 浏览器 chip：展示页标题（`:browser[标题]{name=browser-<uuid>}`），
- * `name/id` 才是 app_browser_* 的 tab 参数。
+ * `name/id` 才是 cogito_browser_* 的 tab 参数。
  */
 import {
   useComposerTrigger,
@@ -629,6 +629,9 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
         <TooltipProvider delay={360}>
           <div
             ref={listRef}
+            id={`${match.trigger.id}-candidates`}
+            role="listbox"
+            aria-label={isMention ? '候选项' : '指令'}
             className={styles.list}>
             {items.map(function (item, index) {
               const mentionData = findMentionData(item)
@@ -657,6 +660,9 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
                     render={
                       <button
                         type="button"
+                        id={`${match.trigger.id}-candidate-${index}`}
+                        role="option"
+                        aria-selected={index === activeIndex}
                         data-highlighted={index === activeIndex ? 'true' : undefined}
                         className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none"
                         onMouseEnter={function () {

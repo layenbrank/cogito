@@ -740,7 +740,8 @@ function ComposerInput(props: ComposerInputProps) {
       if (event.key !== 'Enter' || event.shiftKey) return
 
       if (submitMode === 'ctrlEnter' && !event.ctrlKey && !event.metaKey) return
-      if (submitMode === 'enter' && (event.ctrlKey || event.metaKey)) return
+      // 注意：`submitMode === 'enter'` 下带修饰键的 Enter **不能**早退 —— 那正是「立即转向」。
+      // 以前这里有一行早退，结果 Ctrl+Enter 既不入队也不转向，只往草稿里塞一个换行。
 
       const thread = aui.thread.getState()
       const composer = aui.composer.getState()
@@ -839,6 +840,17 @@ function ComposerInput(props: ComposerInputProps) {
   // 去空白后为空才算空：几个空格不该让占位符消失、也不该让发送亮起来
   const isEmpty = text.trim().length === 0
 
+  /**
+   * 候选面板的无障碍语义：输入区要声明「我控制哪个 listbox、当前高亮哪一项」。
+   * 只画不标的话，屏幕阅读器读到的就是「一个普通输入框」，↑↓ 选了什么完全无声。
+   * id 规则与面板保持一致（`${trigger.id}-candidates` / `-candidate-${index}`）。
+   */
+  const triggerID = trigger?.match ? trigger.match.trigger.id : null
+  const isListOpen = Boolean(trigger?.match) && (trigger?.items.length ?? 0) > 0
+  const listboxID = triggerID ? `${triggerID}-candidates` : undefined
+  const activeOptionID =
+    triggerID && isListOpen ? `${triggerID}-candidate-${trigger?.activeIndex ?? 0}` : undefined
+
   return (
     <div
       ref={editorRef}
@@ -846,6 +858,10 @@ function ComposerInput(props: ComposerInputProps) {
       aria-multiline="true"
       aria-label={ariaLabel ?? placeholder}
       aria-disabled={isDisabled}
+      aria-autocomplete={triggerID ? 'list' : undefined}
+      aria-expanded={triggerID ? isListOpen : undefined}
+      aria-controls={isListOpen ? listboxID : undefined}
+      aria-activedescendant={activeOptionID}
       title={isDisabled ? labels.composerDisabledHint : undefined}
       aria-placeholder={placeholder}
       data-placeholder={placeholder}

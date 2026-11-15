@@ -16,13 +16,22 @@ import { useAui, useAuiState } from '@assistant-ui/react'
 import type { ThreadMessage } from '@assistant-ui/react'
 import { useMemo } from 'react'
 
+/** 正文每长这么多字符才换一次指纹：估算要跟着长，但不能逐 token 重渲染 */
+const TEXT_STEP_CHARS = 400
+
 /**
- * 结构指纹：消息 id / 角色 / part 数量 / part 类型 / 工具调用状态 / 附件名。
+ * 结构指纹：消息 id / 角色 / part 数量 / part 类型 / 工具调用状态 / 附件名 / data part 内容。
  *
- * 刻意**不含正文长度**：流式正文增长被排除在外，正是这个钩子的意义。
+ * 默认**不含正文长度**：流式正文增长被排除在外，正是这个钩子的意义。
  * `result === undefined` 只取布尔，不序列化结果本身（工具结果可能有几 MB）。
+ *
+ * `withTextLength` 是给 token 估算用的：它必须跟着正文长，但又不能逐 token 重渲染，
+ * 所以按 `TEXT_STEP_CHARS` 分档 —— 每长一档才换一次指纹。
  */
-function threadStructureKey(messages: readonly ThreadMessage[]): string {
+function threadStructureKey(
+  messages: readonly ThreadMessage[],
+  options: { readonly withTextLength?: boolean } = {}
+): string {
   const chunks: string[] = [String(messages.length)]
   for (const message of messages) {
     chunks.push(`${message.id}:${message.role}:${message.content.length}`)
@@ -42,16 +51,37 @@ function threadStructureKey(messages: readonly ThreadMessage[]): string {
         chunks.push(`${part.type}:${String('filename' in part ? (part.filename ?? '') : '')}`)
         continue
       }
+      if (part.type === 'data') {
+        /*
+         * data part（计划条目、来源清单…）的内容不在正文里：以前只记类型，于是
+         * 「待办 → 进行中 → 完成」这类状态变化进不了指纹，卡片永远停在第一次的样子。
+         * 小对象直接进指纹，大对象退化成长度（同一次数据量不变的状态照样能区分）。
+         */
+        const json = JSON.stringify(part.data ?? null) ?? ''
+        chunks.push(`d:${part.name}:${json.length <= 512 ? json : `#${json.length}`}`)
+        continue
+      }
+      if (part.type === 'text') {
+        chunks.push(
+          options.withTextLength
+            ? `text:${Math.floor(part.text.length / TEXT_STEP_CHARS)}`
+            : 'text'
+        )
+        continue
+      }
       chunks.push(part.type)
     }
   }
   return chunks.join('|')
 }
 
-function useStructuralThreadMessages(): readonly ThreadMessage[] {
+function useStructuralThreadMessages(
+  options: { readonly withTextLength?: boolean } = {}
+): readonly ThreadMessage[] {
   const aui = useAui()
+  const withTextLength = options.withTextLength === true
   const key = useAuiState(function (state) {
-    return threadStructureKey(state.thread.messages)
+    return threadStructureKey(state.thread.messages, { withTextLength })
   })
 
   return useMemo(

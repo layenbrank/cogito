@@ -64,4 +64,31 @@ describe('threadStructureKey', function () {
   it('tolerates an empty list', function () {
     expect(threadStructureKey([])).toBe('0')
   })
+
+  it('tracks data part content（计划条目状态变化要进指纹）', function () {
+    function plan(status: string) {
+      return {
+        type: 'data' as const,
+        name: 'plan',
+        data: { entries: [{ content: 'a', status }] }
+      }
+    }
+    const pending = threadStructureKey([message('m1', [plan('pending')])])
+    const running = threadStructureKey([message('m1', [plan('running')])])
+    expect(running).not.toBe(pending)
+  })
+
+  it('withTextLength：正文长一档才换指纹，不再逐 token 抖动', function () {
+    const short = threadStructureKey([message('m1', [textPart('a'.repeat(10))])], {
+      withTextLength: true
+    })
+    const sameBucket = threadStructureKey([message('m1', [textPart('a'.repeat(200))])], {
+      withTextLength: true
+    })
+    const nextBucket = threadStructureKey([message('m1', [textPart('a'.repeat(500))])], {
+      withTextLength: true
+    })
+    expect(sameBucket).toBe(short)
+    expect(nextBucket).not.toBe(short)
+  })
 })
