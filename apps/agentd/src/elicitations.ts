@@ -75,7 +75,7 @@ interface Waiter {
   timer: ReturnType<typeof setTimeout>
 }
 
-function createElicitationHub(): ElicitationHub {
+function createElicitationHub(options?: { onTimeout?: () => void }): ElicitationHub {
   const waiters = new Map<string, Waiter>()
   const listeners = new Set<(event: ElicitationEvent) => void>()
 
@@ -112,6 +112,8 @@ function createElicitationHub(): ElicitationHub {
     }
     return new Promise<ElicitationDecision>(function (resolve) {
       const timer = setTimeout(function () {
+        // 先告诉外部「这是超时」再结案：`cancel` 本身分不出「用户点取消」与「没人理」
+        options?.onTimeout?.()
         // 无人回执时按 cancel 结案：与 UI 里点「取消」同义，goose 会当作「用户不填」
         settle(request.requestId, { action: 'cancel' })
       }, ELICITATION_TIMEOUT_MS)

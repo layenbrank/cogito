@@ -473,6 +473,30 @@ async function main() {
       assertEqual(res.body.cancelled, false, '无活跃轮时 cancelled 应为 false')
     })
 
+    // ── 5.1 计数器 ────────────────────────────────────────────────────────
+    await step('/metrics 需要鉴权', async function () {
+      const res = await json(base, '/metrics')
+      assertEqual(res.status, 401, '/metrics 不该免鉴权')
+    })
+
+    await step('/metrics 的计数与刚才发生的事对得上', async function () {
+      const res = await json(base, '/metrics', { headers: headers() })
+      assertEqual(res.status, 200, '/metrics 不可用')
+      const counters = res.body.counters ?? {}
+      // 前面已经发过两轮（第一轮 + 断流补齐那一轮）
+      assert(counters['runs.started'] >= 2, `runs.started 应 >= 2，实际 ${counters['runs.started']}`)
+      assert(
+        counters['events.sse.connections'] >= 1,
+        `SSE 连接没有计数（${counters['events.sse.connections']}）`
+      )
+      // 补发是「断流后重连」的直接证据：这一轮里我们刻意断了一次
+      assert(
+        counters['events.cursor.replays'] >= 1,
+        `游标补发没有计数（${counters['events.cursor.replays']}）`
+      )
+      return `runs=${counters['runs.started']} sse=${counters['events.sse.connections']} replay=${counters['events.cursor.replays']}`
+    })
+
     // ── 6. 有 goose：真跑一轮 ─────────────────────────────────────────────
     let gooseSessionId = null
     if (runGoose) {

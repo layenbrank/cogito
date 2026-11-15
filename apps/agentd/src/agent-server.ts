@@ -22,6 +22,7 @@ import type { Express, Request, Response } from 'express'
 import type { ApprovalHub } from './approvals'
 import type { ElicitationDecision, ElicitationHub } from './elicitations'
 import type { EventHub } from './events'
+import type { Metrics } from './observability'
 import { isAllowedGooseMethod } from './goose/allowlist'
 
 const GRAPH_NAME = 'agent'
@@ -52,6 +53,10 @@ interface AgentServerOptions {
   elicitations?: ElicitationHub | null
   /** 会话事件流（`session/update` 与审批）；为 null 时 `/threads/:id/events` 一律 503 */
   events?: EventHub | null
+  /** 计数器（runs / approvals / sse）；为 null 时只是不计数，行为不变 */
+  metrics?: Metrics | null
+  /** 结构化日志（`AGENTD_EVENT` 一行一条）；为 null 时退化成不打 */
+  logEvent?: ((name: string, fields?: Record<string, unknown>) => void) | null
 }
 
 interface GooseQueryPort {
@@ -115,9 +120,18 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   const approvals = options.approvals ?? null
   const elicitations = options.elicitations ?? null
   const events = options.events ?? null
+  const metrics = options.metrics ?? null
+  const logEvent = options.logEvent ?? null
 
   // 审批与追问都汇进同一条流：前端只消费 `/threads/:id/events` 一个通道
   approvals?.subscribe(function (event) {
+    if (event.type === 'approval_requested') metrics?.inc('approvals.requested')
+    else metrics?.inc('approvals.settled')
+    logEvent?.('approval', {
+      threadID: event.approval.threadID,
+      status: event.type === 'approval_settled' ? 'settled' : 'requested',
+      gooseSessionId: event.approval.sessionId
+    })
     events?.emit(
       event.approval.threadID,
       event.type === 'approval_requested' ? 'approval' : 'status',
@@ -125,6 +139,13 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     )
   })
   elicitations?.subscribe(function (event) {
+    if (event.type === 'elicitation_requested') metrics?.inc('elicitations.requested')
+    else metrics?.inc('elicitations.settled')
+    logEvent?.('elicitation', {
+      threadID: event.elicitation.threadID,
+      status: event.type === 'elicitation_settled' ? 'settled' : 'requested',
+      gooseSessionId: event.elicitation.sessionId
+    })
     events?.emit(
       event.elicitation.threadID,
       event.type === 'elicitation_requested' ? 'elicitation' : 'status',
@@ -180,6 +201,8 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   async function preempt(threadID: string): Promise<void> {
     const active = activeRuns.get(threadID)
     if (!active) return
+    metrics?.inc('runs.preempted')
+    logEvent?.('run.preempt', { threadID, runID: active.runID })
     const sessionID = await readSessionID(threadID)
     if (sessionID && options.goose) {
       try {
@@ -208,7 +231,10 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   ): Promise<{ runID: string; status: 'success' | 'error'; message?: string }> {
     const runID = presetRunID ?? randomUUID()
     const controller = new AbortController()
-    activeRuns.set(threadID, { runID, controller, startedAt: Date.now() })
+    const startedAt = Date.now()
+    activeRuns.set(threadID, { runID, controller, startedAt })
+    metrics?.inc('runs.started')
+    logEvent?.('run.started', { threadID, runID, node: graphName })
     events?.emit(threadID, 'status', { phase: 'running', runID })
 
     let status: 'success' | 'error' = 'success'
@@ -240,6 +266,15 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       message = error instanceof Error ? error.message : String(error)
     } finally {
       activeRuns.delete(threadID)
+      const durationMs = Date.now() - startedAt
+      // 三种结局分开计数：`status=error` 里还要把「用户取消」拆出去，否则失败率永远偏高
+      if (status === 'error') {
+        if (/abort/i.test(message ?? '')) metrics?.inc('runs.cancelled')
+        else metrics?.inc('runs.failed')
+      } else {
+        metrics?.inc('runs.settled')
+      }
+      logEvent?.('run.settled', { threadID, runID, status, durationMs, node: graphName })
       const thread = threads.get(threadID)
       if (thread) thread.updated_at = nowIso()
       // 回合已结束却还有待审批/待追问 → 这次不会再有人回执，按取消结掉避免永久挂起
@@ -653,6 +688,8 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       const rawAfter = Number(req.query.after)
       const after = Number.isFinite(rawAfter) ? rawAfter : undefined
 
+      metrics?.inc('events.sse.connections')
+
       res.status(200)
       res.setHeader('content-type', 'text/event-stream; charset=utf-8')
       res.setHeader('cache-control', 'no-cache, no-transform')
@@ -660,7 +697,13 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       res.flushHeaders()
 
       // 先按游标补发，再发一份「现状」：审批请求可能发生在连上来之前
-      for (const event of events.since(threadID, after)) {
+      const missed = events.since(threadID, after)
+      if (after !== undefined && missed.length > 0) {
+        // 「补发了几次」是断流频率的直接度量：值高说明前端在反复重连，而不是网络偶发
+        metrics?.inc('events.cursor.replays')
+        logEvent?.('events.replay', { threadID, from: after, count: missed.length })
+      }
+      for (const event of missed) {
         writeSse(res, 'run', event)
       }
       writeSse(res, 'sync', {

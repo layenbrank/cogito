@@ -36,6 +36,8 @@ interface ServerDeps {
   onShutdown: () => void
   /** 重启内层 goose（`/admin/goose/restart`）；未托管 goose 时不挂该路由 */
   restartGoose?: () => Promise<void>
+  /** 计数器快照（`GET /metrics`）；为 null 时不挂该路由 */
+  metrics?: () => unknown
   /** 管理面之后挂 Agent Protocol 路由（skeinRouter 等） */
   mount?: (app: Express) => void
 }
@@ -70,6 +72,15 @@ function createApp(deps: ServerDeps): Express {
   })
 
   app.use(bearerAuth(deps.token))
+
+  // 计数快照：形状故意是扁平 JSON（`{counters:{…},lastAt:{…},uptimeMs}`），
+  // 不做 Prometheus 文本一一 agentd 是单进程侧车，读它的只有本机的诊断页与 e2e。
+  if (deps.metrics) {
+    const metrics = deps.metrics
+    app.get('/metrics', function (_req: Request, res: Response) {
+      res.json(metrics())
+    })
+  }
 
   app.post('/admin/shutdown', function (_req: Request, res: Response) {
     res.status(202).json({ ok: true })

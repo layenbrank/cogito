@@ -14,6 +14,7 @@ import { createElicitationHub } from './elicitations'
 import { createEventHub } from './events'
 import { createGooseGraph } from './graph'
 import { createGooseSupervisor } from './goose/supervisor'
+import { createObservability } from './observability'
 import { SERVICE_NAME, createApp } from './server'
 import type { AgentdStatus } from './server'
 
@@ -93,10 +94,21 @@ async function bootstrap(): Promise<void> {
     await supervisor.start()
   }
 
+  // 计数器 + 结构化日志：单进程侧车，自己数一会儿就够了，不引 OTel
+  const observability = createObservability()
+
   // 工具审批闸门：goose 的 `session/request_permission` 挂在这里等用户回执
-  const approvals = createApprovalHub()
+  const approvals = createApprovalHub({
+    onTimeout: function () {
+      observability.metrics.inc('approvals.timeout')
+    }
+  })
   // 结构化追问（`elicitation/create`）：与审批同构，但回执是 `{action, content?}`
-  const elicitations = createElicitationHub()
+  const elicitations = createElicitationHub({
+    onTimeout: function () {
+      observability.metrics.inc('elicitations.timeout')
+    }
+  })
   // 会话事件流：前端靠它渲染正文与工具卡（`/runs/stream` 只吐图状态）
   const events = createEventHub()
 
@@ -111,6 +123,8 @@ async function bootstrap(): Promise<void> {
     approvals,
     elicitations,
     events,
+    metrics: observability.metrics,
+    logEvent: observability.event,
     // goose 查询面（P4-a）：前端把 providers/extensions/diagnostics 这类读操作交给 agentd，
     // 不再自己连 ACP。未托管 goose 时为 null → 这些路由回 503。
     goose: {
@@ -183,9 +197,18 @@ async function bootstrap(): Promise<void> {
     onShutdown: function () {
       shutdown('admin')
     },
+    // 包一层而不是直接传 `observability.metrics.snapshot`：后者脱离了 metrics 对象，
+    // 传引用会触发 unbound-method
+    metrics: function () {
+      return observability.metrics.snapshot()
+    },
     restartGoose: config.goosePathRoot
       ? function () {
-          return supervisor.restart()
+          return supervisor.restart().then(function () {
+            observability.metrics.inc('goose.restarts')
+            // supervisor 自己也数，但那是「本进程内的重启次数」；指标要能跨重启累计
+            return undefined
+          })
         }
       : undefined,
     mount: function (target) {

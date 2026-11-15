@@ -68,7 +68,7 @@ interface Waiter {
   timer: ReturnType<typeof setTimeout>
 }
 
-function createApprovalHub(): ApprovalHub {
+function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
   const waiters = new Map<string, Waiter>()
   const listeners = new Set<(event: ApprovalEvent) => void>()
 
@@ -107,6 +107,8 @@ function createApprovalHub(): ApprovalHub {
     }
     return new Promise<PermissionDecision>(function (resolve) {
       const timer = setTimeout(function () {
+        // 先告诉外部「这是超时」再结案：只靠 optionId=null 分不出「用户拒绝」与「没人理」
+        options?.onTimeout?.()
         settle(request.requestId, null)
       }, APPROVAL_TIMEOUT_MS)
       // 不让人等死：定时器不该单独把进程撑活

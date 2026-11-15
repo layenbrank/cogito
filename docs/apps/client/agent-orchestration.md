@@ -75,7 +75,31 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
 | 宿主等 agentd 优雅退出 | 800 ms，然后 `taskkill /T /F` | `utils/agentd.rs` `shutdown_and_wait` | 强杀进程树 |
 | agentd 自身关停兜底 | 5 s | `main.ts` `SHUTDOWN_TIMEOUT_MS` | 强制 `process.exit` |
 
-## 4. 出问题看哪里
+## 4. 可观测
+
+两个端点，都不引 OpenTelemetry（agentd 是单进程侧车，现在没有可推的后端）：
+
+- `GET /health`（免鉴权）：`service` / `version` / `pid` / `goose` / `restarts` / `uptimeMs`
+- `GET /metrics`（**需 bearer**）：`{ counters, lastAt, uptimeMs }`
+
+计数器（全在 `apps/agentd/src/observability.ts` 的 `METRIC_NAMES` 里登记，只增不减）：
+
+| 名 | 含义 | 何时该看它 |
+| --- | --- | --- |
+| `runs.started` / `runs.settled` / `runs.failed` / `runs.cancelled` | 回合结局 | `failed/started` 偏高 = 上游或 goose 出问题；四个数加不齐 = 有回合卡住 |
+| `runs.preempted` | 同线程被新一轮挤掉 | 偏高説明前端在频繁重发 |
+| `approvals.requested` / `settled` / `timeout` | 审批闸门 | `timeout > 0` = 有人放着审批卡不管（或 UI 没渲染） |
+| `elicitations.requested` / `settled` / `timeout` | 追问闸门 | 同上 |
+| `events.sse.connections` | SSE 连接数 | 远大于回合数 = 前端在反复重连 |
+| `events.cursor.replays` | 带 `?after=` 且真的补发了的次数 | 这是「断流频率」的直接度量 |
+| `goose.restarts` | 内层 goose 重启 | 与 `/health` 的 `restarts` 不同：后者是本进程内，前者跨重启累计 |
+
+结构化日志一行一条：`AGENTD_EVENT {"event":"…","at":"…","threadID":"…","runID":"…",…}`。
+字段**全部平铺**（不嵌套），所以 `jq 'select(.event=="run.settled")'` 与
+`Select-String 'run.settled'` 都直接可用。常见事件：`run.started` / `run.settled` /
+`run.preempt` / `approval` / `elicitation` / `events.replay`。
+
+## 5. 出问题看哪里
 
 | 症状 | 先看 | 常见根因 |
 | --- | --- | --- |
@@ -86,7 +110,7 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
 | 切了权限档但行为没变 | 是否走了 `session/set_config_option` | `session/set_mode` 是**假的**：返回 `{}` 但不改状态 |
 | 审批请求被当成通知丢掉 | JSON-RPC `id` 类型 | `id` 允许 **string**，只认 number 会把 `request_permission` 漏掉 |
 
-## 5. 打包与部署
+## 6. 打包与部署
 
 - **桌面端**：`apps/agentd` 用 rolldown 打成自包含 CJS，再由 `scripts/build-sea.mjs` 注入成单文件
   `agentd-<triple>[.exe]`，与其它侧车同目录同命名（`apps/client/src-tauri/binaries/`）。
