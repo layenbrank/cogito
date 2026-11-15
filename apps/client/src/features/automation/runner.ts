@@ -21,7 +21,7 @@ import {
 import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
-import { clearApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import { applyTransientApproval, clearApprovalModeFor } from '@/features/agent/approval'
 import { clearThinkingLevelFor, writeThinkingLevelFor } from '@/features/agent/thinking-level'
 import { advanceGoal, beginGoalTurn, findGoalSignal, startGoalRun } from '@/features/agent/goal-run'
 import { writeAgentModeFor } from '@/features/agent/mode'
@@ -470,7 +470,8 @@ async function runAgentOrPlanPhase(input: {
 }): Promise<string> {
   // 计划阶段强制只读：流水线第一段不该动手改文件
   const effectiveApproval: AutomationApproval = input.phase === 'plan' ? 'readonly' : input.approval
-  writeApprovalModeFor(input.threadID, effectiveApproval)
+  // 任务档只放运行期：写进 `agent.json` 会覆写用户给这个会话选过的档位（跑完再清掉就永久丢了）
+  applyTransientApproval(input.threadID, effectiveApproval)
   await writeAgentModeFor(input.threadID, input.phase)
   await appendChatMessage(input.threadID, 'user', input.prompt)
   const content = await runOnePrompt(
@@ -505,7 +506,8 @@ async function runGoalPhase(input: {
   workdir: string | null
   streamHost: PromptStreamHost
 }): Promise<string> {
-  writeApprovalModeFor(input.threadID, input.approval)
+  // 同 agent 阶段：运行期覆盖，不碰用户的会话偏好
+  applyTransientApproval(input.threadID, input.approval)
   await writeAgentModeFor(input.threadID, 'goal')
   const summary = input.prompt.slice(0, 120)
   startGoalRun(input.threadID, { summary, detail: input.prompt }, input.budget, input.prompt)

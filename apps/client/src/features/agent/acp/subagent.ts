@@ -29,6 +29,7 @@ import {
   runThreadPrompt
 } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
+import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
 import { readGoalRun } from '@/features/agent/goal-run'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { buildSystemPrompt } from '@/features/agent/model/prompt-project'
@@ -136,9 +137,15 @@ async function runSubagentTurn(input: {
   const workspaceID = parent?.workspaceID ?? store.activeWorkspaceID
   const cwd = job.cwd ?? null
   const providerID = resolveProviderKind(parent?.providerID ?? null)
-  // 父会话在目标模式（无人值守）时，子任务的审批跟着自动放行：
-  // 子任务本来就是父目标的一部分，一律拒绝等于让长任务在子任务里必然缺一块。
-  const isUnattended = job.parentSession ? readGoalRun(job.parentSession) !== null : false
+  // 子会话**继承父会话的有效档**：不提权、也不无下限地降级。
+  // - 父会话是 `auto` → 放行（否则子任务必然缺一块）；
+  // - 父会话被目标推进占着（无人值守）→ 同 auto；
+  // - `ask` / `readonly` → 一律拒绝：子会话没人看卡片，挂票据等于让长任务卡死。
+  const parentApproval = job.parentSession
+    ? findEffectiveApprovalMode(job.parentSession)
+    : 'ask'
+  const isUnattended =
+    parentApproval === 'auto' || (job.parentSession ? readGoalRun(job.parentSession) !== null : false)
   const systemText = await buildSystemPrompt('general', buildPromptContext(), { cwd })
   const streamContext: AcpStreamContext = {
     blockID: function (messageId, kind) {

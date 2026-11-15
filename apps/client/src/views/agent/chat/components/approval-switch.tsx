@@ -10,9 +10,7 @@ import { useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
 import styles from './approval-switch.module.scss'
-import { findAcpHandle } from '@/features/agent/acp/connection'
-import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
-import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { syncApprovalForThread } from '@/features/agent/acp/sync-thread-approval'
 import {
   APPROVAL_POLICIES,
   findApprovalPolicy,
@@ -21,32 +19,37 @@ import {
   writeApprovalMode,
   type ApprovalMode
 } from '@/features/agent/approval.ts'
-import { useAgentStore } from '@/stores/agent'
+import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
+import { readAgentModeFor } from '@/features/agent/mode'
+import { readScopeThread } from '@/features/agent/thread-scope'
 
 /** 输入区审批策略（Qoder 风格：图标 + 标题 + 说明 + 勾选） */
 function ApprovalSwitch() {
+  const snap = useSyncExternalStore(subscribeApproval, readScopeThread, readScopeThread)
   // 会话级状态：切会话后必须跟着刷新，否则显示的会是上一个会话的档位
   const mode = useSyncExternalStore(subscribeApproval, readApprovalMode, readApprovalMode)
-  const activeSessionID = useAgentStore(function (state) {
-    return state.activeSessionID
-  })
+  /**
+   * 显示的是**有效档**而不是原始偏好：计划模式强制只读，偏好是「询问」也不该那么写。
+   * 以前这里还拿 `store.activeSessionID` 去定位 ACP 会话 —— 那个指针只跟随启动时的
+   * 列表首项，切会话后不更新，结果是「改 A 会话的档、推给 B 会话」。
+   */
+  const isPlanMode = snap ? readAgentModeFor(snap) === 'plan' : false
+  const effective = snap ? findEffectiveApprovalMode(snap) : mode
 
-  const current = findApprovalPolicy(mode)
+  const current = findApprovalPolicy(effective)
 
   async function writeMode(next: ApprovalMode) {
     writeApprovalMode(next)
 
-    const acpSessionID = activeSessionID ? findThreadAcpSessionID(activeSessionID) : null
-    if (!acpSessionID) {
-      // 还没有 ACP 会话：档位已生效（界面立刻是对的），推给 goose 要等这轮会话建起来
+    if (!snap) {
+      // 还没有会话：档位已生效（界面立刻是对的），推给 goose 要等这轮会话建起来
       toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」（发送消息后生效）`)
       return
     }
 
     try {
-      await waitGooseReady()
-      const handle = await findAcpHandle()
-      await syncSessionApprovalMode(handle.connection, acpSessionID, next)
+      // 统一走「有效档」同步：计划模式下这里会把它改回只读
+      await syncApprovalForThread(snap)
       toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」`)
     } catch (error) {
       console.warn('[approval-switch] 写入工具权限失败:', error)
@@ -71,7 +74,7 @@ function ApprovalSwitch() {
           icon={current?.icon ?? 'lucide:shield'}
           className="size-3.5 shrink-0"
         />
-        <span className="hidden min-w-0 max-w-[6rem] truncate @min-[29rem]:inline @min-[42rem]:max-w-none">
+        <span className="hidden min-w-0 max-w-24 truncate @min-[29rem]:inline @min-[42rem]:max-w-none">
           {current?.label ?? '询问审批'}
         </span>
         <Icon
@@ -85,11 +88,14 @@ function ApprovalSwitch() {
         sideOffset={8}
         className={styles.surface}>
         {APPROVAL_POLICIES.map(function (policy) {
-          const isCurrent = policy.value === mode
+          const isCurrent = policy.value === effective
           const isReadonly = policy.value === 'readonly'
+          // 计划模式强制只读：其它两档点了也会被 `findEffectiveApprovalMode` 改回去，直接禁掉并说明
+          const disabled = isPlanMode && policy.value !== 'readonly'
           return (
             <DropdownMenuItem
               key={policy.value}
+              disabled={disabled}
               className={`${styles.row} ${isReadonly ? styles.rowReadonly : ''}`}
               onClick={function () {
                 void writeMode(policy.value)
@@ -102,7 +108,9 @@ function ApprovalSwitch() {
                 <span className={`${styles.label} ${isReadonly ? styles.labelMuted : ''}`}>
                   {policy.label}
                 </span>
-                <span className={styles.hint}>{policy.hint}</span>
+                <span className={styles.hint}>{
+                  disabled ? '计划模式强制只读（切到执行/问答模式后可改）' : policy.hint
+                }</span>
               </span>
               {isCurrent ? (
                 <Icon
