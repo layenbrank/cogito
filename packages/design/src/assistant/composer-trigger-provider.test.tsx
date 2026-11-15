@@ -7,6 +7,7 @@
  */
 import { act, createElement, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { useEffect } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { ComposerTriggerProvider, useComposerTrigger } from './composer-trigger'
@@ -22,8 +23,17 @@ let handle: ComposerTriggerHandle | null = null
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function Probe() {
-  handle = useComposerTrigger()
+/**
+ * 把句柄交出来的探针。
+ *
+ * 写成 `handle = useComposerTrigger()` 会在渲染期写外部变量（渲染必须是纯的，
+ * 而且并发渲染下可能写到一个被丢弃的结果上）；放到 effect 里才是“挂载后再交给测试”。
+ */
+function Probe(props: { onReady: (next: ComposerTriggerHandle | null) => void }) {
+  const api = useComposerTrigger()
+  useEffect(function () {
+    props.onReady(api)
+  })
   return createElement('div')
 }
 
@@ -47,7 +57,11 @@ async function mount(trigger: ComposerTrigger) {
   root = createRoot(container)
   const element = createElement(ComposerTriggerProvider, {
     triggers: [trigger],
-    children: createElement(Probe)
+    children: createElement(Probe, {
+      onReady: function (next) {
+        handle = next
+      }
+    })
   })
   await act(async function () {
     root?.render(element as ReactElement)

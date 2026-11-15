@@ -47,7 +47,9 @@ function collectFiles(dir: string, out: string[]) {
   let entries: string[]
   try {
     entries = readdirSync(dir)
-  } catch {
+  } catch (error) {
+    // 目录不存在 = 该源码目录本就没写图标引用；写错路径则会漏收图标，所以要吭一声
+    console.warn('[icons] 跳过无法读取的目录 ' + dir + '：' + String(error))
     return
   }
   for (const name of entries) {
@@ -73,7 +75,9 @@ function collectRefs(): Map<string, Set<string>> {
     let text: string
     try {
       text = readFileSync(file, 'utf8')
-    } catch {
+    } catch (error) {
+      // 收集与读取之间的竞态（文件被删）：跳过即可，但别静默
+      console.debug('[icons] 跳过无法读取的文件 ' + file + '：' + String(error))
       continue
     }
     let match = ICON_REF.exec(text)

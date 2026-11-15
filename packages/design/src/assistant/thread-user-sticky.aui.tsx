@@ -141,8 +141,16 @@ const ThreadUserMessageSticky: FC = () => {
   useEffect(
     function bindScrollAndObserver() {
       if (marks.length === 0) {
-        commitActive('')
-        return
+        // 没有用户气泡可贴：撤销贴住状态即可。
+        // 不在这里同步 setState —— 那会触发级联渲染（react-hooks/set-state-in-effect），
+        // 而且渲染期的 activeMark 已经是 null，排到下一拍不会多显示一帧内容。
+        if (!isPinnedRef.current) return
+        const timer = window.setTimeout(function () {
+          commitActive('')
+        }, 0)
+        return function () {
+          window.clearTimeout(timer)
+        }
       }
 
       const viewport = viewportRef.current
