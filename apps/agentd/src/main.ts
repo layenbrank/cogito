@@ -10,6 +10,7 @@ import { createApprovalHub } from './approvals'
 import { createSqliteSaver } from './checkpointer'
 import { readConfig } from './config'
 import { openDb } from './db'
+import { createElicitationHub } from './elicitations'
 import { createEventHub } from './events'
 import { createGooseGraph } from './graph'
 import { createGooseSupervisor } from './goose/supervisor'
@@ -94,6 +95,8 @@ async function bootstrap(): Promise<void> {
 
   // 工具审批闸门：goose 的 `session/request_permission` 挂在这里等用户回执
   const approvals = createApprovalHub()
+  // 结构化追问（`elicitation/create`）：与审批同构，但回执是 `{action, content?}`
+  const elicitations = createElicitationHub()
   // 会话事件流：前端靠它渲染正文与工具卡（`/runs/stream` 只吐图状态）
   const events = createEventHub()
 
@@ -102,9 +105,11 @@ async function bootstrap(): Promise<void> {
       supervisor,
       checkpointer: createSqliteSaver(db),
       approvals,
+      elicitations,
       events
     }),
     approvals,
+    elicitations,
     events,
     // goose 查询面（P4-a）：前端把 providers/extensions/diagnostics 这类读操作交给 agentd，
     // 不再自己连 ACP。未托管 goose 时为 null → 这些路由回 503。
@@ -136,8 +141,9 @@ async function bootstrap(): Promise<void> {
   }
 
   async function disposeAll(): Promise<void> {
-    // 先把待审批全部按取消结掉，免得有请求挂在半空
+    // 先把待审批/待追问全部结掉，免得有请求挂在半空
     approvals.cancelAll()
+    elicitations.cancelAll()
     try {
       await supervisor.stop()
     } catch {

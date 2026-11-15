@@ -39,7 +39,12 @@ import type {
   ChatToolApproval
 } from '@cogito/chat/ports'
 
-import { parseAcpApprovalRequest, parseAcpStreamEvent } from '@/features/agent/acp/stream'
+import {
+  parseAcpApprovalRequest,
+  parseAcpElicitationRequest,
+  parseAcpElicitationResponse,
+  parseAcpStreamEvent
+} from '@/features/agent/acp/stream'
 import type { AcpStreamContext } from '@/features/agent/acp/stream'
 import { writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { bindSession } from '@/features/agent/acp/session-binding'
@@ -659,6 +664,8 @@ function decideApproval(threadID: string, payload: ApprovalPayload): string | nu
 
 /** 待审批票据：`toolCallId → { requestId, options }` */
 const pendingApprovals = new Map<string, { requestId: string; options: string[] }>()
+/** 待追问票据：`elicitationId → { threadID, requestId }`（回执只有 elicitationId，要靠它定位线程） */
+const pendingElicitations = new Map<string, { threadID: string; requestId: string }>()
 const settledApprovals = new Map<string, boolean>()
 const SETTLED_APPROVALS_CAP = 256
 
@@ -688,6 +695,24 @@ async function settleRemoteApproval(
     return response.ok
   } catch (error) {
     reportCaught('agent.session.approval', error, 'warning')
+    return false
+  }
+}
+
+/** 把追问回执写回 agentd；`action` 原样透传（accept 要带 content）。 */
+async function settleRemoteElicitation(
+  threadID: string,
+  requestId: string,
+  decision: CreateElicitationResponse
+): Promise<boolean> {
+  try {
+    const response = await callAgentd(
+      `${EVENTS_PATH}/${encodeURIComponent(threadID)}/elicitations/${encodeURIComponent(requestId)}`,
+      { method: 'POST', body: JSON.stringify(decision) }
+    )
+    return response.ok
+  } catch (error) {
+    reportCaught('agent.session.elicitation', error, 'warning')
     return false
   }
 }
@@ -723,9 +748,13 @@ function respondToApproval(approval: ChatToolApproval): boolean {
   return false
 }
 
-function respondToElicitation(_response: ChatElicitationResponse): boolean {
-  // agentd 尚未实现 `elicitation/create` 的反向请求（见 findings §12.4）
-  return false
+function respondToElicitation(response: ChatElicitationResponse): boolean {
+  const ticket = pendingElicitations.get(response.elicitationId)
+  if (!ticket) return false
+  pendingElicitations.delete(response.elicitationId)
+  const decision = parseAcpElicitationResponse(response)
+  void settleRemoteElicitation(ticket.threadID, ticket.requestId, decision)
+  return true
 }
 
 function requestThreadElicitation(
@@ -922,6 +951,47 @@ async function* runThreadPrompt(
         continue
       }
 
+      if (kind === 'elicitation') {
+        // 结构化追问：goose 想让人填一张表。`requestId` 直接当 `elicitationId` 用 ——
+        // 回执只需要一个稳定 id，而 agentd 那边本来就按 requestId 定位。
+        const ticket = payload as unknown as {
+          elicitation: {
+            requestId: string
+            sessionId: string
+            mode: string
+            message: string
+            requestedSchema: unknown
+          }
+        }
+        const request = ticket.elicitation
+        const parsed = parseAcpElicitationRequest({
+          mode: 'form',
+          sessionId: request.sessionId,
+          requestedSchema: request.requestedSchema
+        } as CreateElicitationRequest)
+        if (!parsed) {
+          // 我们只有 form 模式的渲染面：其余模式直接 decline，别让 goose 干等
+          void settleRemoteElicitation(key, request.requestId, { action: 'decline' })
+          continue
+        }
+        pendingElicitations.set(request.requestId, { threadID: key, requestId: request.requestId })
+        yield {
+          kind: 'elicitation',
+          event: {
+            kind: 'elicitation-request',
+            elicitationId: request.requestId,
+            schema: parsed.schema,
+            ...(parsed.prompt ? { prompt: parsed.prompt } : {})
+          },
+          params: {
+            mode: 'form',
+            sessionId: request.sessionId,
+            requestedSchema: request.requestedSchema
+          } as unknown as CreateElicitationRequest
+        }
+        continue
+      }
+
       if (kind === 'status') {
         const phase = payload.phase
         if (phase === 'settled') {
@@ -1008,6 +1078,60 @@ async function* resumeThreadRun(
         if (event) yield event
         continue
       }
+      if (frame.data.kind === 'approval') {
+        // 恢复时也可能有**还没回执**的审批：补发的事件里带着它，必须交给 UI，
+        // 否则用户刷新页面后这张卡就永远消失了（而 goose 还在等）
+        const approval = frame.data.payload as ApprovalPayload
+        const ticket = approval.approval
+        const toolCallId = (ticket.toolCall as { toolCallId?: string }).toolCallId ?? ''
+        if (toolCallId) {
+          pendingApprovals.set(toolCallId, {
+            requestId: ticket.requestId,
+            options: ticket.options.map(function (option) {
+              return option.optionId
+            })
+          })
+        }
+        const params = {
+          sessionId: ticket.sessionId,
+          toolCall: ticket.toolCall,
+          options: ticket.options
+        } as unknown as RequestPermissionRequest
+        const event = parseAcpApprovalRequest(params)
+        if (event) yield event
+        continue
+      }
+
+      if (frame.data.kind === 'elicitation') {
+        const request = (
+          frame.data.payload as {
+            elicitation: {
+              requestId: string
+              sessionId: string
+              message: string
+              requestedSchema: unknown
+            }
+          }
+        ).elicitation
+        const parsed = parseAcpElicitationRequest({
+          mode: 'form',
+          sessionId: request.sessionId,
+          requestedSchema: request.requestedSchema
+        } as CreateElicitationRequest)
+        if (!parsed) {
+          void settleRemoteElicitation(key, request.requestId, { action: 'decline' })
+          continue
+        }
+        pendingElicitations.set(request.requestId, { threadID: key, requestId: request.requestId })
+        yield {
+          kind: 'elicitation-request',
+          elicitationId: request.requestId,
+          schema: parsed.schema,
+          ...(parsed.prompt ? { prompt: parsed.prompt } : {})
+        }
+        continue
+      }
+
       if (frame.data.kind === 'status') {
         const payload = frame.data.payload as { phase?: string; status?: string; message?: string }
         if (payload.phase !== 'settled') continue

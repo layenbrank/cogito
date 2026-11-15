@@ -20,6 +20,7 @@ import { Command } from '@langchain/langgraph'
 import type { Express, Request, Response } from 'express'
 
 import type { ApprovalHub } from './approvals'
+import type { ElicitationDecision, ElicitationHub } from './elicitations'
 import type { EventHub } from './events'
 import { isAllowedGooseMethod } from './goose/allowlist'
 
@@ -47,6 +48,8 @@ interface AgentServerOptions {
   goose?: GooseQueryPort | null
   /** 工具审批闸门；为 null 时 `/threads/:id/approvals` 一律 503 */
   approvals?: ApprovalHub | null
+  /** 结构化追问闸门；为 null 时 `/threads/:id/elicitations` 一律 503 */
+  elicitations?: ElicitationHub | null
   /** 会话事件流（`session/update` 与审批）；为 null 时 `/threads/:id/events` 一律 503 */
   events?: EventHub | null
 }
@@ -110,13 +113,21 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   const threads = new Map<string, ThreadRecord>()
   const activeRuns = new Map<string, ActiveRun>()
   const approvals = options.approvals ?? null
+  const elicitations = options.elicitations ?? null
   const events = options.events ?? null
 
-  // 审批事件汇进同一条流：前端只消费 `/threads/:id/events` 一个通道
+  // 审批与追问都汇进同一条流：前端只消费 `/threads/:id/events` 一个通道
   approvals?.subscribe(function (event) {
     events?.emit(
       event.approval.threadID,
       event.type === 'approval_requested' ? 'approval' : 'status',
+      event
+    )
+  })
+  elicitations?.subscribe(function (event) {
+    events?.emit(
+      event.elicitation.threadID,
+      event.type === 'elicitation_requested' ? 'elicitation' : 'status',
       event
     )
   })
@@ -231,8 +242,9 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       activeRuns.delete(threadID)
       const thread = threads.get(threadID)
       if (thread) thread.updated_at = nowIso()
-      // 回合已结束却还有待审批 → 这次不会再有人回执，按取消结掉避免永久挂起
+      // 回合已结束却还有待审批/待追问 → 这次不会再有人回执，按取消结掉避免永久挂起
       approvals?.cancelThread(threadID)
+      elicitations?.cancelThread(threadID)
       const statusEvent: { phase: string; runID: string; status: string; message?: string } = {
         phase: 'settled',
         runID,
@@ -595,6 +607,37 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       res.json({ ok: true, optionId })
     })
 
+    // 结构化追问（`elicitation/create`）：与审批同一套「停下来等人」，只是回执形状不同。
+    // 前端把表单填好后 POST 回来；`action` 只能是 accept / decline / cancel。
+    app.get('/threads/:threadId/elicitations', function (req: Request, res: Response) {
+      if (!elicitations) {
+        res.status(503).json({ error: 'elicitations_unavailable' })
+        return
+      }
+      res.json({ elicitations: elicitations.pending(readThreadID(req)) })
+    })
+
+    app.post('/threads/:threadId/elicitations/:requestId', function (req: Request, res: Response) {
+      if (!elicitations) {
+        res.status(503).json({ error: 'elicitations_unavailable' })
+        return
+      }
+      const body = (req.body ?? {}) as {
+        action?: unknown
+        content?: Record<string, unknown>
+      }
+      const action =
+        body.action === 'accept' || body.action === 'cancel' ? body.action : 'decline'
+      const decision: ElicitationDecision =
+        action === 'accept' ? { action: 'accept', content: body.content ?? {} } : { action }
+      const settled = elicitations.settle(readParam(req, 'requestId'), decision)
+      if (!settled) {
+        res.status(404).json({ error: 'elicitation_not_found' })
+        return
+      }
+      res.json({ ok: true, action })
+    })
+
     /** 审批等事件的实时通道（SSE）。`/runs/stream` 只吐图状态，装不下这类外部事件。 */
     app.get('/threads/:threadId/events', function (req: Request, res: Response) {
       if (!events) {
@@ -622,6 +665,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       }
       writeSse(res, 'sync', {
         approvals: approvals ? approvals.pending(threadID) : [],
+        elicitations: elicitations ? elicitations.pending(threadID) : [],
         lastSeq: events.since(threadID).at(-1)?.seq ?? 0
       })
 

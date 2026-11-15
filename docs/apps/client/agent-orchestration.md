@@ -35,7 +35,7 @@ P5 逐项对照了被删掉的 `acp/session.ts`（2400+ 行），每项只有两
 | --- | --- | --- |
 | 工具审批（一工具一票） | ✅ 已实现 | agentd `approvals.ts`；判定规则在 `@cogito/agent-protocol/policy`，client 与 agentd 同一份代码 |
 | 审批超时 | ✅ 已实现 | `APPROVAL_TIMEOUT_MS = 300_000`（与旧 `TICKET_TIMEOUT_MS` 同值），超时按取消结案 |
-| 提问追问 `elicitation/create` | ⚠️ 显式降级 | agentd 还没实现该反向请求 → `respondToElicitation` 恒 `false`，UI 按「取消」处理 |
+| 提问追问 `elicitation/create` | ✅ 已实现 | agentd `elicitations.ts` 挂住 ACP 回包，`/threads/:id/elicitations/:requestId` 回执；未注册处理器/超时按 `decline`/`cancel` 结案。URL 模式（浏览器交互）仍不支持，直接 decline |
 | 刷新后接着看进行中的回合 | ✅ 已实现 | `/threads/:id/events?after=<seq>` 游标续传 + `acp/session-binding.ts` 落库 |
 | 后台回合（切走再回来） | ✅ 已实现 | agentd 常驻，回合本来就跑在进程外；`background-turn.ts` 只负责前端侧的泵与回放 |
 | 上下文用量条 | ✅ 已实现 | `usage_update` → `writeGooseUsage(threadID, used, size)` |
@@ -68,6 +68,7 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
 | 用户在 UI 点停止 | 立即 | `port/session.ts` → `POST /threads/:id/cancel` | ACP `session/cancel` + abort 图 |
 | agentd 让位给新回合 | 1500 ms 等待，50 ms 轮询 | `agent-server.ts` `PREEMPT_WAIT_MS` | 等不到也继续（不能因旧回合赖着而拒绝新回合） |
 | 审批票据 | 300 s | `approvals.ts` `APPROVAL_TIMEOUT_MS` | 按 `cancelled` 结案（fail-closed） |
+| 追问票据 | 300 s | `elicitations.ts` `ELICITATION_TIMEOUT_MS` | 按 `cancel` 结案（与 UI 里点「取消」同义） |
 | goose 单次 JSON-RPC 请求 | 60 s | `goose/client.ts` `DEFAULT_REQUEST_TIMEOUT_MS` | 抛错，由节点决定是否重开会话 |
 | 前端等 agentd 就绪 | 30 s | `port/session.ts` `READY_TIMEOUT_MS` | 报「编排层未就绪」并给诊断入口 |
 | 一轮最长空闲 | 60 min | `port/session.ts` `RUN_IDLE_TIMEOUT_MS` | 断开 SSE 并报超时 |

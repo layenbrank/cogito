@@ -16,6 +16,7 @@ import type { BaseCheckpointSaver } from '@langchain/langgraph'
 import type { GooseAcpClient } from './goose/client'
 import type { GooseSupervisor } from './goose/supervisor'
 import type { ApprovalHub } from './approvals'
+import type { ElicitationHub } from './elicitations'
 import type { EventHub } from './events'
 
 const OrchestrationState = Annotation.Root({
@@ -137,12 +138,14 @@ interface GooseGraphOptions {
   supervisor: GooseSupervisor
   checkpointer?: BaseCheckpointSaver
   approvals?: ApprovalHub
+  /** 结构化追问（`elicitation/create`）：与审批同构，但回执形状不同 */
+  elicitations?: ElicitationHub
   /** 把 goose 的 `session/update` 原样送去 `/threads/:id/events` */
   events?: EventHub
 }
 
 function createGooseGraph(options: GooseGraphOptions) {
-  const { supervisor, checkpointer, approvals, events } = options
+  const { supervisor, checkpointer, approvals, elicitations, events } = options
   /** sessionId → threadID：审批请求只带 sessionId，得靠这张表回到线程。 */
   const sessionThreads = new Map<string, string>()
 
@@ -150,17 +153,31 @@ function createGooseGraph(options: GooseGraphOptions) {
    * 每次拿到 client 都重新注册（goose 重启后 client 是新的）。
    * 同一个函数重复注册无副作用：它只读 `sessionThreads`。
    */
-  function bindApprovals(client: GooseAcpClient): void {
-    if (!approvals) return
-    client.onPermissionRequest(function (prompt) {
-      const threadID = sessionThreads.get(prompt.sessionId) ?? prompt.sessionId
-      return approvals.ask({
-        threadID,
-        sessionId: prompt.sessionId,
-        toolCall: prompt.toolCall,
-        options: prompt.options
+  function bindIncoming(client: GooseAcpClient): void {
+    if (approvals) {
+      client.onPermissionRequest(function (prompt) {
+        const threadID = sessionThreads.get(prompt.sessionId) ?? prompt.sessionId
+        return approvals.ask({
+          threadID,
+          sessionId: prompt.sessionId,
+          toolCall: prompt.toolCall,
+          options: prompt.options
+        })
       })
-    })
+    }
+    if (elicitations) {
+      client.onElicitationRequest(function (prompt) {
+        const threadID = sessionThreads.get(prompt.sessionId) ?? prompt.sessionId
+        return elicitations.ask({
+          threadID,
+          sessionId: prompt.sessionId,
+          mode: prompt.mode,
+          message: prompt.message,
+          requestedSchema: prompt.requestedSchema,
+          ...(prompt.url ? { url: prompt.url } : {})
+        })
+      })
+    }
   }
 
   /**
@@ -234,7 +251,7 @@ function createGooseGraph(options: GooseGraphOptions) {
     if (!client) {
       throw new Error('goose 未就绪（/health 的 goose 字段可查状态）')
     }
-    bindApprovals(client)
+    bindIncoming(client)
 
     if (state.sessionId) {
       try {

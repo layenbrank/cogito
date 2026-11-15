@@ -62,6 +62,12 @@ interface GooseAcpClient {
    * **未注册 = 一律取消**（fail-closed）：审批是安全闸门，没有人在听时宁可不执行。
    */
   onPermissionRequest(listener: PermissionRequestHandler | null): void
+  /**
+   * `elicitation/create` 的处理器（结构化追问）。
+   *
+   * **未注册 = 一律 decline**（fail-closed）：没人在听时不要让 goose 卡在等人填表上。
+   */
+  onElicitationRequest(listener: ElicitationRequestHandler | null): void
   close(): void
 }
 
@@ -81,6 +87,22 @@ interface PermissionPrompt {
 type PermissionDecision = { optionId: string } | null
 
 type PermissionRequestHandler = (prompt: PermissionPrompt) => Promise<PermissionDecision>
+
+/** `elicitation/create` 的参数（form 模式）。 */
+interface ElicitationPrompt {
+  sessionId: string
+  mode: 'form' | 'url'
+  message: string
+  requestedSchema: unknown
+  url?: string
+}
+
+type ElicitationDecision =
+  | { action: 'accept'; content?: Record<string, unknown> }
+  | { action: 'decline' }
+  | { action: 'cancel' }
+
+type ElicitationRequestHandler = (prompt: ElicitationPrompt) => Promise<ElicitationDecision>
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -112,6 +134,7 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
   const updateListeners = new Set<(sessionId: string, update: unknown) => void>()
   const splitter = createLineSplitter()
   let permissionHandler: PermissionRequestHandler | null = null
+  let elicitationHandler: ElicitationRequestHandler | null = null
   let nextId = 1
   let closed = false
 
@@ -125,11 +148,66 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: requestId, result })}\n`)
   }
 
+  /**
+   * `elicitation/create`：goose 想让人填一张表。
+   *
+   * 与审批的关键区别是**回执形状**：审批回 `{outcome:{outcome,optionId}}`，追问回
+   * `{action, content?}`。未注册处理器时按 `decline` 结案（不是 `cancel`）：decline 表示
+   * 「这次不填，你自己想办法」，cancel 更像「用户主动中止」，前者对长任务更友好。
+   */
+  async function handleElicitation(id: JsonRpcId, params: unknown): Promise<void> {
+    const record = (typeof params === 'object' && params !== null ? params : {}) as Record<
+      string,
+      unknown
+    >
+    const sessionId = typeof record.sessionId === 'string' ? record.sessionId : ''
+    const mode = record.mode === 'url' ? 'url' : 'form'
+    const message = typeof record.message === 'string' ? record.message : ''
+
+    function respond(decision: ElicitationDecision): void {
+      if (closed) return
+      // `accept` 必须带 `content`（哪怕空对象），否则 goose 侧解析会把它当非法结果
+      const result =
+        decision.action === 'accept'
+          ? { action: 'accept', content: decision.content ?? {} }
+          : { action: decision.action }
+      console.log(`[acp] 追问回执 id=${id} → ${decision.action}`)
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`)
+    }
+
+    if (!elicitationHandler || mode !== 'form') {
+      // url 模式我们还不支持（没有浏览器交互面）：直接 decline，别让 goose 干等
+      console.log(`[acp] elicitation/create 未处理（mode=${mode}）→ decline`)
+      respond({ action: 'decline' })
+      return
+    }
+
+    console.log(`[acp] elicitation/create id=${id} session=${sessionId}`)
+    try {
+      const decision = await elicitationHandler({
+        sessionId,
+        mode,
+        message,
+        requestedSchema: record.requestedSchema,
+        ...(typeof record.url === 'string' ? { url: record.url } : {})
+      })
+      respond(decision)
+    } catch (error) {
+      console.warn(`[acp] 追问处理器出错，按 decline 结案：${String(error)}`)
+      respond({ action: 'decline' })
+    }
+  }
+
   async function handleIncomingRequest(
     method: string,
     id: JsonRpcId,
     params: unknown
   ): Promise<void> {
+    if (method === 'elicitation/create') {
+      await handleElicitation(id, params)
+      return
+    }
+
     if (method !== 'session/request_permission') {
       // 未实现的反向请求必须回错，不能让它悬着
       child.stdin.write(
@@ -311,6 +389,9 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
     onPermissionRequest: function (listener: PermissionRequestHandler | null): void {
       permissionHandler = listener
     },
+    onElicitationRequest: function (listener: ElicitationRequestHandler | null): void {
+      elicitationHandler = listener
+    },
     close: function (): void {
       closed = true
       try {
@@ -326,6 +407,9 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
 export { spawnGooseAcp }
 export type {
   AgentCapabilities,
+  ElicitationDecision,
+  ElicitationPrompt,
+  ElicitationRequestHandler,
   GooseAcpClient,
   GooseAcpOptions,
   InitializeResult,
