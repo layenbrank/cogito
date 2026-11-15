@@ -77,6 +77,33 @@ const OrchestrationState = Annotation.Root({
     default: function () {
       return ''
     }
+  }),
+  /**
+   * `session/new` 的 MCP 服务器（cogito-mcp / corex 等）。
+   *
+   * 只在**建会话**时生效；会话复用时必须与上次一致，否则工具面会静默地少一批
+   * （goose 不会因为 mcpServers 变了而重挂）。前端总是全量给出，这里不合并。
+   */
+  mcpServers: Annotation<readonly unknown[]>({
+    reducer: function (_prev, next) {
+      return next
+    },
+    default: function (): readonly unknown[] {
+      return []
+    }
+  }),
+  /**
+   * 附加到会话上的系统提示（`append` 模式，key=`cogito`）。
+   *
+   * 必须由 agentd 写：session 是在它内部建的，前端拿不到「刚建好」那个时机。
+   */
+  systemText: Annotation<string>({
+    reducer: function (_prev, next) {
+      return next
+    },
+    default: function () {
+      return ''
+    }
   })
 })
 
@@ -169,8 +196,7 @@ function createGooseGraph(options: GooseGraphOptions) {
     return collectText(chunks)
   }
 
-  /**
-   * 设置本会话的权限档；空值不改（沿用 goose 当前档）。
+  /** 设置本会话的权限档；空值不改（沿用 goose 当前档）。
    *
    * **不是** `session/set_mode`：goose 对那个方法宽容返回 `{}` 但不改状态（实测：
    * 设 approve 后 write 仍直接执行）。真正的开关在 `configOptions` 里的 `mode` 项。
@@ -184,6 +210,25 @@ function createGooseGraph(options: GooseGraphOptions) {
     })
   }
 
+  /** 把本轮的附加系统提示挂到会话上；失败不拦这一轮（软参数）。 */
+  async function applySystemText(
+    client: GooseAcpClient,
+    sessionId: string,
+    text: string
+  ): Promise<void> {
+    if (!text.trim()) return
+    try {
+      await client.request('_goose/unstable/session/system-prompt/set', {
+        sessionId,
+        mode: 'append',
+        key: 'cogito',
+        text: text.trim()
+      })
+    } catch (error) {
+      console.warn(`[agent] 设置 system prompt 失败（本轮继续）：${String(error)}`)
+    }
+  }
+
   async function gooseNode(state: typeof OrchestrationState.State): Promise<TurnResult> {
     const client = supervisor.client()
     if (!client) {
@@ -194,6 +239,8 @@ function createGooseGraph(options: GooseGraphOptions) {
     if (state.sessionId) {
       try {
         await applyMode(client, state.sessionId, state.mode)
+        // 复用会话也要重挂：同一 thread 的不同轮次可能带不同场景的系统提示
+        await applySystemText(client, state.sessionId, state.systemText)
         return {
           reply: await runTurn(client, state.sessionId, state.prompt, state.threadID),
           sessionId: state.sessionId
@@ -204,9 +251,10 @@ function createGooseGraph(options: GooseGraphOptions) {
       }
     }
 
-    const session = await client.newSession({ cwd: state.cwd })
+    const session = await client.newSession({ cwd: state.cwd, mcpServers: state.mcpServers })
     sessionThreads.set(session.sessionId, state.threadID)
     await applyMode(client, session.sessionId, state.mode)
+    await applySystemText(client, session.sessionId, state.systemText)
     const reply = await runTurn(client, session.sessionId, state.prompt, state.threadID)
     return { reply, sessionId: session.sessionId }
   }
