@@ -294,7 +294,12 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   /** 把请求体折成图的入参（`command.resume` 要包成 Command 实例）。 */
   function readRunPayload(req: Request, threadID: string): unknown {
     const body = (req.body ?? {}) as { input?: unknown; command?: Record<string, unknown> }
-    // resume 必须传 **Command 实例**：直接透传普通对象会被当成 input 更新，于是再次 interrupt
+    // resume 必须传 **Command 实例**：直接透传普通对象会被当成 input 更新，于是再次 interrupt。
+    //
+    // 注意这条分支在当前产品路径上是**预留**：`graph.ts` 只有一个 goose 节点、没有 `interrupt`，
+    // 前端也从不发 `command`。它由 `checkpointer.test.ts` / `agent-server.sdk.test.ts` 用
+    // `@langchain/langgraph-sdk` 的 `command: { resume }` 覆盖，保证「哪天加了 humanGate」时
+    // 协议形状是对的。改动这里请同步那两个测试。
     return body.command !== undefined
       ? new Command(body.command as never)
       : withThreadID(body.input, threadID)

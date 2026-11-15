@@ -200,25 +200,39 @@ function useThreadRuntime(): AssistantRuntime {
   const suggestion = useMemo(function () {
     return createLocalSuggestionAdapter()
   }, [])
+  // hook 必须在顶层调用：原来它内联在 `useLocalRuntime` 的选项字面量里，
+  // 能跑只是因为每次 render 调用顺序恰好一致 —— 一旦有人加个条件分支就会炸
+  const history = useThreadHistory(identity)
 
-  return useLocalRuntime(
-    createChatModelAdapter(chatModelPort, {
-      // 运行也要权威会话 id：控制器按它定位会话与票据，读空值会另起一个 goose 会话
-      findHost: async function (target) {
-        return findHostOptions(target, await identity.ensure())
-      }
-    }),
-    {
-      // 运行中发送进 composer.queue，当前轮次结束后再 FIFO 开新 turn（每线程独立 runtime）
-      unstable_enableMessageQueue: true,
-      // 停止只中断当前这一轮：队列里的消息稍后照发（产品口径，2026-11）
-      unstable_queueClearOnCancel: false,
-      adapters: {
-        history: useThreadHistory(identity),
-        suggestion
-      }
-    }
+  // adapter 与 options 都要**稳定引用**：它们每次 render 都新建对象时，
+  // `useLocalRuntime` 内部即便用 ref 兜住，也会让「换 adapter」这类语义变得不可推理。
+  // `identity` / `history` / `suggestion` 本身都是 useMemo 稳定值，所以这两个不会频繁失效。
+  const adapter = useMemo(
+    function () {
+      return createChatModelAdapter(chatModelPort, {
+        // 运行也要权威会话 id：控制器按它定位会话与票据，读空值会另起一个 goose 会话
+        findHost: async function (target) {
+          return findHostOptions(target, await identity.ensure())
+        }
+      })
+    },
+    [identity]
   )
+
+  const options = useMemo(
+    function () {
+      return {
+        // 运行中发送进 composer.queue，当前轮次结束后再 FIFO 开新 turn（每线程独立 runtime）
+        unstable_enableMessageQueue: true,
+        // 停止只中断当前这一轮：队列里的消息稍后照发（产品口径，2026-11）
+        unstable_queueClearOnCancel: false,
+        adapters: { history, suggestion }
+      }
+    },
+    [history, suggestion]
+  )
+
+  return useLocalRuntime(adapter, options)
 }
 
 /**

@@ -153,4 +153,62 @@ describe('SqliteSaver + interrupt/resume', function () {
     expect(values.answer).toBe('yes')
     db2.close()
   })
+
+  /**
+   * LangGraph 的 saver 只 INSERT 不 DELETE：不裁的话 `lg_checkpoints` 会随使用线性膨胀，
+   * 而历史除了 `list()` 没人读。这里直接压 300 条，断言旧行与它们的 writes 都被清掉、
+   * 最新的仍可读。
+   */
+  it('超出保留上限的旧 checkpoint 会被裁掉（连带 writes）', async function () {
+    const db = openDb(tempDbPath())
+    const saver = createSqliteSaver(db)
+    const threadID = 'prune-thread'
+    const config = { configurable: { thread_id: threadID, checkpoint_ns: '' } }
+
+    // 每条都带一条 write，验证孤儿清理
+    for (let index = 0; index < 300; index += 1) {
+      const checkpointId = `cp-${String(index).padStart(4, '0')}`
+      await saver.put(
+        config,
+        {
+          v: 1,
+          id: checkpointId,
+          ts: new Date().toISOString(),
+          channel_values: { n: index },
+          channel_versions: {},
+          versions_seen: {}
+        },
+        { source: 'loop', step: index, parents: {} },
+        {}
+      )
+      await saver.putWrites(
+        { configurable: { thread_id: threadID, checkpoint_ns: '', checkpoint_id: checkpointId } },
+        [['answer', index]],
+        `task-${index}`
+      )
+    }
+
+    const count = db.get<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM lg_checkpoints WHERE thread_id = ?',
+      threadID
+    )
+    // 200 保留 + 32 冗余窗口：裁到不高于这个水位
+    expect(count?.n ?? 0).toBeLessThanOrEqual(232)
+    // 裁过之后不该一条没留
+    expect(count?.n ?? 0).toBeGreaterThan(0)
+
+    // 最新那条必须仍在（`getTuple` 精确查，不依赖链）
+    const latest = await saver.getTuple({
+      configurable: { thread_id: threadID, checkpoint_ns: '', checkpoint_id: 'cp-0299' }
+    })
+    expect(latest?.checkpoint.channel_values).toEqual({ n: 299 })
+
+    // 孤儿 writes 必须跟着走：留下的 writes 数量不能超过留下的 checkpoint 数量
+    const writes = db.get<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM lg_writes WHERE thread_id = ?',
+      threadID
+    )
+    expect(writes?.n ?? 0).toBeLessThanOrEqual(count?.n ?? 0)
+    db.close()
+  })
 })

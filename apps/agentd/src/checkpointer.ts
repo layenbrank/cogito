@@ -46,6 +46,20 @@ interface WriteRow {
   value: Uint8Array
 }
 
+/**
+ * 每个线程保留的 checkpoint 条数上限。
+ *
+ * **LangGraph 的 saver 只 INSERT 不 DELETE**：单节点图每轮至少写 2 条（进入 + 结束），
+ * 每条都是整个 state 的序列化。不裁的话这张表会随使用线性膨胀 —— 而它的历史除了
+ * `list()` 没人读（我们只用 `getTuple` 拿最新或指定的那一条）。
+ *
+ * 200 条 ≈ 50 轮以上，足够覆盖 `list()` 的默认 `limit(100)` 与任何回看需求。
+ */
+const RETAIN_CHECKPOINTS = 200
+
+/** 超过「上限 + 这批冗余」才真的动 DELETE：`put` 是每轮热路径，不每次都 COUNT。 */
+const PRUNE_SLACK = 32
+
 function readConfigurable(config: unknown): { threadID: string; checkpointNs: string; checkpointID: string | null } {
   const record = (config ?? {}) as { configurable?: Record<string, unknown> }
   const configurable = record.configurable ?? {}
@@ -174,6 +188,10 @@ class SqliteSaver extends BaseCheckpointSaver {
       new Date().toISOString()
     )
 
+    // 写入后按线程裁一次。历史链（`parent_checkpoint_id`）会因此变短，但 `list()` 是
+    // 按 `checkpoint_id DESC` 直接查的、`getTuple` 也是精确查，都不依赖链的完整性。
+    this.pruneThread(threadID, checkpointNs)
+
     return {
       configurable: {
         thread_id: threadID,
@@ -181,6 +199,47 @@ class SqliteSaver extends BaseCheckpointSaver {
         checkpoint_id: checkpoint.id
       }
     }
+  }
+
+  /**
+   * 裁掉超出上限的旧 checkpoint（连带它们的 writes）。
+   *
+   * 顺序很重要：先删 writes —— 它的 `NOT IN` 子查询要靠还没被删的 checkpoints 来界定
+   * 「哪些是保留的」；反过来先删 checkpoints 就再也找不到孤儿了。
+   */
+  private pruneThread(threadID: string, checkpointNs: string): void {
+    const row = this.db.get<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM lg_checkpoints WHERE thread_id = ? AND checkpoint_ns = ?',
+      threadID,
+      checkpointNs
+    )
+    if (!row || row.n <= RETAIN_CHECKPOINTS + PRUNE_SLACK) return
+
+    this.db.run(
+      `DELETE FROM lg_writes
+        WHERE thread_id = ? AND checkpoint_ns = ?
+          AND checkpoint_id NOT IN (
+            SELECT checkpoint_id FROM lg_checkpoints
+             WHERE thread_id = ? AND checkpoint_ns = ?
+             ORDER BY rowid DESC LIMIT ?
+          )`,
+      threadID,
+      checkpointNs,
+      threadID,
+      checkpointNs,
+      RETAIN_CHECKPOINTS
+    )
+    this.db.run(
+      `DELETE FROM lg_checkpoints
+        WHERE rowid IN (
+          SELECT rowid FROM lg_checkpoints
+           WHERE thread_id = ? AND checkpoint_ns = ?
+           ORDER BY rowid DESC LIMIT -1 OFFSET ?
+        )`,
+      threadID,
+      checkpointNs,
+      RETAIN_CHECKPOINTS
+    )
   }
 
   async putWrites(
