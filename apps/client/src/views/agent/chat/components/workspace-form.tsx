@@ -12,7 +12,7 @@ import {
   DialogTitle
 } from '@cogito/design/components/dialog'
 import { open as dialogOpen } from '@/shared/ipc/dialog'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as UUIDV4 } from 'uuid'
 
 import styles from './workspace-form.module.scss'
@@ -92,11 +92,45 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
     })
   })
   const [saving, updateSaving] = useState(false)
+  /**
+   * 文件夹是异步读的（`toReadWorkspaceFolders`）。
+   * 编辑态初始 draft 必然是空的 —— 数据还没回来就点保存，
+   * `toReplaceWorkspaceFolders(id, [])` 会把这个工作区的文件夹绑定全删。
+   * 所以：没读完不让保存；读回来且用户没动过 draft 就回填。
+   */
+  const [isLoadingFolders, updateLoadingFolders] = useState(isEdit)
+  /** 用户是否已经手动改过 draft（改过就不再被回填覆盖） */
+  const isDraftTouchedRef = useRef(false)
 
   useEffect(
     function () {
-      if (!props.workspaceID) return
-      void useAgentStore.getState().toReadWorkspaceFolders(props.workspaceID)
+      const workspaceID = props.workspaceID
+      if (!workspaceID) return
+      let cancelled = false
+      void useAgentStore
+        .getState()
+        .toReadWorkspaceFolders(workspaceID)
+        .catch(function (error: unknown) {
+          console.warn('[workspace-form] 读取工作区文件夹失败:', error)
+        })
+        .finally(function () {
+          if (cancelled) return
+          updateDraftFolders(function (prev) {
+            if (isDraftTouchedRef.current) return prev
+            const store = useAgentStore.getState()
+            return store.workspaceFolders
+              .filter(function (item) {
+                return item.workspaceID === workspaceID
+              })
+              .map(function (folder) {
+                return { id: folder.id, path: folder.path }
+              })
+          })
+          updateLoadingFolders(false)
+        })
+      return function () {
+        cancelled = true
+      }
     },
     [props.workspaceID]
   )
@@ -109,6 +143,7 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
     })
     if (!selected) return
     const paths = Array.isArray(selected) ? selected : [selected]
+    isDraftTouchedRef.current = true
     updateDraftFolders(function (prev) {
       const next = [...prev]
       for (const path of paths) {
@@ -129,6 +164,7 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
   }
 
   function handleRemoveFolder(id: string) {
+    isDraftTouchedRef.current = true
     updateDraftFolders(function (prev) {
       return prev.filter(function (item) {
         return item.id !== id
@@ -166,7 +202,8 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
     }
   }
 
-  const canSubmit = title.trim().length > 0
+  // 文件夹没读完就保存 = 用空数组全量替换；宁可先禁用
+  const canSubmit = title.trim().length > 0 && !isLoadingFolders
 
   return (
     <>
@@ -176,6 +213,16 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
       </DialogHeader>
 
       <div className={styles.body}>
+        {isLoadingFolders ? (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Icon
+              icon="lucide:loader-circle"
+              aria-hidden
+              className="size-3.5 animate-spin"
+            />
+            正在读取文件夹…
+          </p>
+        ) : null}
         <WorkspaceFormFolders
           folders={draftFolders}
           onAdd={function () {

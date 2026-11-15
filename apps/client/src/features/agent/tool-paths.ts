@@ -44,7 +44,28 @@ function findArgPath(args: unknown): string | null {
   return null
 }
 
-/** 绝对路径压成相对；已是相对则只统一斜杠 */
+/**
+ * 把相对路径里的 `.` / `..` 折叠掉。
+ *
+ * 不折叠的话，`a/../../b.ts` 会原样留给调用方去拼绝对路径 —— 拼出来落在工作区外，
+ * 或者干脆读盘失败。折叠后仍以 `..` 开头的，说明它确实跳出了工作区，
+ * 交给调用方按「不在工作区」处理（返回 null）。
+ */
+function collapseSegments(path: string): string | null {
+  const out: string[] = []
+  for (const segment of path.split('/')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      if (out.length === 0) return null
+      out.pop()
+      continue
+    }
+    out.push(segment)
+  }
+  return out.length === 0 ? null : out.join('/')
+}
+
+/** 绝对路径压成相对；已是相对则统一斜杠并折叠 `..` */
 function normalizeToolPath(raw: string, rootPath: string | null): string | null {
   const normalized = raw.replace(/\\/g, '/')
   if (!normalized || normalized === '.' || normalized.endsWith('/')) return null
@@ -52,10 +73,10 @@ function normalizeToolPath(raw: string, rootPath: string | null): string | null 
   if (rootPath && (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized))) {
     const relative = findWorkspaceRelative(normalized, rootPath)
     if (!relative || relative === '.') return null
-    return relative
+    return collapseSegments(relative)
   }
 
-  return normalized.replace(/^\.\//, '')
+  return collapseSegments(normalized.replace(/^\.\//, ''))
 }
 
 /**

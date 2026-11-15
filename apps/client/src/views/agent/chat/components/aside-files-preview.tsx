@@ -8,10 +8,10 @@
  * 三种预览各自是一个组件（而不是在同一个组件里分支）：Monaco 只在文本预览里挂载，
  * 看图片时不会白建一个编辑器。
  */
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { openPath } from '@tauri-apps/plugin-opener'
-import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -23,7 +23,8 @@ import {
   findBaseName,
   findParentRelative
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
-import { writeCodeFile } from '@/views/code/lib/fs.ts'
+import { isSameText } from '@/views/agent/chat/components/write-review'
+import { readCodeFile, writeCodeFile } from '@/views/code/lib/fs.ts'
 
 type SaveStatus = 'idle' | 'saving' | 'saved'
 
@@ -146,6 +147,7 @@ function AsideTextPreview(props: {
 
   const editorApiRef = useRef<{
     findValue: () => string
+    findSavedValue: () => string
     markSaved: (value: string) => void
     formatDocument: () => void
   } | null>(null)
@@ -157,7 +159,7 @@ function AsideTextPreview(props: {
     [props.previewRelative, props.absolutePath]
   )
 
-  function save() {
+  async function save() {
     const absolute = savePathRef.current
     const api = editorApiRef.current
     if (!absolute || !api) return
@@ -167,18 +169,28 @@ function AsideTextPreview(props: {
     }
     const value = api.findValue()
     updateSaveStatus('saving')
-    void writeCodeFile(absolute, value)
-      .then(function () {
-        api.markSaved(value)
-        bumpWorkspaceRevision()
-        updateSaveStatus('saved')
-        toast.success('已保存')
-      })
-      .catch(function (cause: unknown) {
-        console.warn('[agent/aside-files] 保存失败:', cause)
+    try {
+      /*
+       * 落盘前先看一眼磁盘：基线之后被改过（agent 写了文件 / 别的编辑器保存）
+       * 就不写 —— 否则这一步会把别人刚写进去的内容整段回滚，
+       * 而且界面上只留下一个「已保存」的成功提示。
+       */
+      const disk = await readCodeFile(absolute)
+      if (!isSameText(disk, api.findSavedValue())) {
         updateSaveStatus('idle')
-        toast.error(cause instanceof Error ? cause.message : '保存失败')
-      })
+        toast.error('文件已被改动，请先在提示条上选择「载入磁盘版本」或「保留我的修改」')
+        return
+      }
+      await writeCodeFile(absolute, value)
+      api.markSaved(value)
+      bumpWorkspaceRevision()
+      updateSaveStatus('saved')
+      toast.success('已保存')
+    } catch (cause) {
+      console.warn('[agent/aside-files] 保存失败:', cause)
+      updateSaveStatus('idle')
+      toast.error(cause instanceof Error ? cause.message : '保存失败')
+    }
   }
 
   const editor = useAsideFilesEditor({
@@ -188,10 +200,13 @@ function AsideTextPreview(props: {
     content: props.content,
     isPending: props.isPending,
     isReadonly: props.isReadonly,
-    onSave: save
+    onSave: function () {
+      void save()
+    }
   })
   editorApiRef.current = {
     findValue: editor.findValue,
+    findSavedValue: editor.findSavedValue,
     markSaved: editor.markSaved,
     formatDocument: editor.formatDocument
   }
@@ -218,7 +233,10 @@ function AsideTextPreview(props: {
       : editor.isDirty
         ? { label: '未保存', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' }
         : canEdit
-          ? { label: '已保存', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
+          ? {
+              label: '已保存',
+              className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+            }
           : null
 
   return (
@@ -276,6 +294,35 @@ function AsideTextPreview(props: {
       ) : null}
 
       {props.error ? <p className="text-destructive p-3 text-xs">{props.error}</p> : null}
+
+      {editor.conflict !== null ? (
+        <div
+          data-slot="aside-files-conflict"
+          className="flex flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+          <Icon
+            icon="lucide:file-warning"
+            aria-hidden
+            className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+          />
+          <span className="min-w-0 flex-1">文件在编辑器之外被改动过，你这边还有没保存的修改</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2.5 text-xs"
+            onClick={editor.acceptDisk}>
+            载入磁盘版本
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2.5 text-xs"
+            onClick={editor.keepLocalEdits}>
+            保留我的修改
+          </Button>
+        </div>
+      ) : null}
 
       <div
         ref={editor.hostRef}

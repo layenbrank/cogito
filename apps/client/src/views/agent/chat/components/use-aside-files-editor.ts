@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { ensureMonacoLanguage } from '@/lib/monaco-language.ts'
 import { importMonaco } from '@/lib/monaco-loader.ts'
+import { planDiskUpdate } from '@/views/agent/chat/components/aside-files-disk-update'
 import { setAsideFindEditor } from '@/views/agent/chat/components/aside-editor-find.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import '@/lib/monaco-environment.ts'
@@ -161,6 +162,8 @@ function useAsideFilesEditor(options: {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
   const pathRef = useRef<string | null>(null)
   const savedValueRef = useRef('')
+  /** 磁盘被外部改动、而缓冲区还有未保存编辑时，这里放磁盘上的新内容 */
+  const [conflict, updateConflict] = useState<string | null>(null)
   const [isEditorReady, updateEditorReady] = useState(false)
   const [isDirty, updateDirty] = useState(false)
   const onSaveRef = useRef(options.onSave)
@@ -270,17 +273,51 @@ function useAsideFilesEditor(options: {
           pathRef.current = null
         }
         updateDirty(false)
+        updateConflict(null)
         return
       }
 
       const previousPath = pathRef.current
-      if (previousPath && !isSamePath(previousPath, options.absolutePath)) {
+      const isSameFile = previousPath !== null && isSamePath(previousPath, options.absolutePath)
+      if (previousPath && !isSameFile) {
         releaseAsideModel(previousPath)
       }
 
-      const model = findOrCreateModel(options.absolutePath, options.content)
+      /*
+       * 磁盘内容变了（agent 写了文件 / 切分支 / 外部编辑器保存）时要分清两件事：
+       * - 缓冲区没有未保存改动 → 直接跟着磁盘走（force）；
+       * - 缓冲区有未保存改动 → **不能**把磁盘内容塞进去（用户的改动会没），
+       *   也**不能**把基线改成新内容：那样按一次保存就会把旧内容写回磁盘，
+       *   把 agent 刚改的东西全部回滚（这正是这条缺陷的旧形态）。
+       * 冲突交给 UI：要么载入磁盘版本，要么明确「保留我的修改」。
+       */
+      const existing = isSameFile ? findModel(options.absolutePath) : null
+      const bufferValue = existing && !existing.isDisposed() ? existing.getValue() : null
+      const plan = planDiskUpdate({
+        isSameFile,
+        bufferValue,
+        savedValue: savedValueRef.current,
+        diskContent: options.content
+      })
+
+      let model: Monaco.editor.ITextModel
+      if (plan === 'create') {
+        model = findOrCreateModel(options.absolutePath, options.content)
+      } else if (plan === 'conflict') {
+        model = existing as Monaco.editor.ITextModel
+      } else {
+        model = findOrCreateModel(options.absolutePath, options.content, {
+          force: plan === 'follow-disk'
+        })
+      }
+
       pathRef.current = options.absolutePath
-      savedValueRef.current = options.content
+      if (plan === 'follow-disk' || plan === 'create') {
+        savedValueRef.current = options.content
+        updateConflict(null)
+      } else {
+        updateConflict(plan === 'conflict' ? options.content : null)
+      }
       editor.setModel(model)
       // 模型挂上之后再灌类型：工程里没有 TS/JS 模型时同步会直接跳过（见 monaco-types）
       if (options.rootPath) {
@@ -345,6 +382,34 @@ function useAsideFilesEditor(options: {
   function markSaved(value: string) {
     savedValueRef.current = value
     updateDirty(false)
+    updateConflict(null)
+  }
+
+  /** 基线（最后一次与磁盘一致的内容）：保存前用它判断磁盘是不是被别人改过 */
+  function findSavedValue() {
+    return savedValueRef.current
+  }
+
+  /** 冲突选择一：扔掉本地编辑，用磁盘上的版本重新载入 */
+  function acceptDisk() {
+    const path = pathRef.current
+    if (!path || conflict === null) return
+    const model = findOrCreateModel(path, conflict, { force: true })
+    savedValueRef.current = conflict
+    editorRef.current?.setModel(model)
+    updateDirty(false)
+    updateConflict(null)
+  }
+
+  /**
+   * 冲突选择二：保留本地编辑。基线改成磁盘内容 ——
+   * 此刻缓冲区相对磁盘确实「未保存」，下一次保存是用户明确的覆盖动作。
+   */
+  function keepLocalEdits() {
+    if (conflict === null) return
+    savedValueRef.current = conflict
+    updateDirty(editorRef.current?.getValue() !== conflict)
+    updateConflict(null)
   }
 
   function formatDocument() {
@@ -353,7 +418,17 @@ function useAsideFilesEditor(options: {
     void editor.getAction('editor.action.formatDocument')?.run()
   }
 
-  return { hostRef, isDirty, findValue, markSaved, formatDocument }
+  return {
+    hostRef,
+    isDirty,
+    conflict,
+    acceptDisk,
+    keepLocalEdits,
+    findValue,
+    findSavedValue,
+    markSaved,
+    formatDocument
+  }
 }
 
 export { useAsideFilesEditor }

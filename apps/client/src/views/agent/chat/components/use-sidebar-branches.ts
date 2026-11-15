@@ -10,6 +10,7 @@ import {
 } from './thread-items.ts'
 import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
+import { DRAFT_THREAD_PREFIX } from '@/features/agent/port/session-key'
 import { markSessionUnread } from '@/features/agent/session-unread'
 import { useAgentStore, type Session } from '@/stores/agent.ts'
 
@@ -48,9 +49,6 @@ interface SidebarSession {
   /** 有未读回复（列 `agent_session.unread`）：跑完一轮但用户还没打开过 */
   unread: boolean
 }
-
-/** assistant-ui 给「还没落库的新会话」的列表项 id 前缀（`initialize()` 之后才有 remoteId） */
-const DRAFT_THREAD_PREFIX = '__LOCALID_'
 
 /**
  * 是不是草稿（未落库）。
@@ -233,6 +231,21 @@ function useSidebarBranches() {
           sessions: orderSessions(sessionsByWorkspace.get(workspace.id) ?? [])
         }
       })
+
+      /*
+       * 指向「已归档 / 还没加载」工作区的会话：桶没被任何分支消费，在这里并进「未分组」。
+       * 以前这些会话直接消失 —— 搜索页却按同一口径把它们算成「未分组」，
+       * 于是同一个会话「搜得到、左栏里没有」，看上去像丢了。
+       */
+      const consumed = new Set(
+        sortedWorkspaces.map(function (workspace) {
+          return workspace.id
+        })
+      )
+      for (const [workspaceID, bucket] of sessionsByWorkspace) {
+        if (consumed.has(workspaceID)) continue
+        for (const session of bucket) ungrouped.push(session)
+      }
 
       if (ungrouped.length > 0) {
         result.push({

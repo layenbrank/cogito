@@ -168,12 +168,17 @@ function AsideFilesTree(props: AsideFilesTreeProps) {
     })
   }, [])
 
-  /** 搜索命中里的目录：清掉搜索，回到树上展开它 */
+  /** 搜索命中里的目录：清掉搜索，回到树上展开它（连同祖先，否则它挂在折叠的父节点下面） */
   const handleEnterDirectory = useCallback(
     function (relative: string) {
       updateQuery('')
-      expand([relative])
-      void loadChildren(relative)
+      const ancestors = findAncestors(relative)
+      expand([...ancestors, relative])
+      void (async function () {
+        for (const dir of [...ancestors, relative]) {
+          await loadChildren(dir)
+        }
+      })()
     },
     [expand, loadChildren]
   )

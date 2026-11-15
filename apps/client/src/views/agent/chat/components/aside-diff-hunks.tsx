@@ -89,6 +89,21 @@ function AsideHunks(props: {
     [hasMore, isLoading, onMore]
   )
 
+  /**
+   * 一次加载完还得再确认一次「填满屏没有」：补完一页后如果仍停在底部
+   * （内容比一屏短，不会再有 scroll 事件），光靠 scroll 就永远续不上。
+   */
+  useEffect(
+    function () {
+      const node = scrollRef.current
+      if (!node || isLoading || !hasMore) return
+      const remain = node.scrollHeight - node.scrollTop - node.clientHeight
+      if (remain < 240) onMore()
+    },
+    // `props.hunks` 的长度变化 = 上一页真的到了，这时才值得再试一次
+    [hasMore, isLoading, onMore, props.hunks.length]
+  )
+
   return (
     <div
       ref={scrollRef}

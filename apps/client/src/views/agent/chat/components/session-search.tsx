@@ -99,6 +99,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
   const hits: SessionSearchHit[] = useMemo(
     function () {
       const lower = keyword.trim().toLowerCase()
+      // 只匹配标题：以前 placeholder 写着「或会话内容」，但这里从来没读过消息正文
       const filtered = sessions
         .filter(function (session) {
           if (!lower) return true
@@ -216,7 +217,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
             <Input
               ref={inputRef}
               value={keyword}
-              placeholder="搜索会话标题或会话内容..."
+              placeholder="搜索会话标题…"
               className={styles.input}
               onChange={function (event) {
                 updateKeyword(event.target.value)

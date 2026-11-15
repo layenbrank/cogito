@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react'
 import { WorkspaceFiles, type DirEntry } from '@/lib/workspace-files.ts'
 import type { PickerEntry } from '@/views/agent/chat/components/workspace-file-picker-list'
 
+/** 搜索防抖：每敲一个字就搜一次会把磁盘打满，列表也跟着闪 */
+const SEARCH_DEBOUNCE_MS = 180
+
 function useWorkspaceFilePickerEntries(
   active: boolean,
   rootPath: string | null,
@@ -30,33 +33,40 @@ function useWorkspaceFilePickerEntries(
 
       updatePending(true)
 
-      const rowsPromise =
-        needle.length > 0
-          ? WorkspaceFiles.search([root], needle, 40).then(function (result) {
-              return result.hits.map(function (hit) {
-                return { name: hit.name, kind: hit.kind, relative: hit.relative }
+      function run() {
+        const rowsPromise =
+          needle.length > 0
+            ? WorkspaceFiles.search([root], needle, 40).then(function (result) {
+                return result.hits.map(function (hit) {
+                  return { name: hit.name, kind: hit.kind, relative: hit.relative }
+                })
               })
-            })
-          : WorkspaceFiles.listDir(root, relative).then(function (rows: DirEntry[]) {
-              return rows.map(function (row) {
-                return { name: row.name, kind: row.kind, relative: row.relative }
+            : WorkspaceFiles.listDir(root, relative).then(function (rows: DirEntry[]) {
+                return rows.map(function (row) {
+                  return { name: row.name, kind: row.kind, relative: row.relative }
+                })
               })
-            })
 
-      rowsPromise
-        .then(function (rows) {
-          if (!cancelled) updateEntries(rows)
-        })
-        .catch(function (error) {
-          console.warn('[workspace-file-picker] 列目录/搜索失败:', error)
-          if (!cancelled) updateEntries([])
-        })
-        .finally(function () {
-          if (!cancelled) updatePending(false)
-        })
+        rowsPromise
+          .then(function (rows) {
+            if (!cancelled) updateEntries(rows)
+          })
+          .catch(function (error) {
+            console.warn('[workspace-file-picker] 列目录/搜索失败:', error)
+            if (!cancelled) updateEntries([])
+          })
+          .finally(function () {
+            if (!cancelled) updatePending(false)
+          })
+      }
+
+      // 列目录是「打开就一次」，立即跑；搜索才需要等用户停手
+      const timer = needle.length > 0 ? window.setTimeout(run, SEARCH_DEBOUNCE_MS) : undefined
+      if (timer === undefined) run()
 
       return function () {
         cancelled = true
+        if (timer !== undefined) window.clearTimeout(timer)
       }
     },
     [active, rootPath, relative, query, revision]

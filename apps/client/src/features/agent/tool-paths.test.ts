@@ -45,6 +45,16 @@ describe('findArgPath / normalizeToolPath', function () {
       )
     ).toBe('apps/client/src/a.ts')
   })
+
+  it('折叠 `.` / `..`：跳出工作区的相对路径直接判无效', function () {
+    expect(normalizeToolPath('./src/a.ts', '/repo')).toBe('src/a.ts')
+    expect(normalizeToolPath('src/./a.ts', '/repo')).toBe('src/a.ts')
+    // 折叠后仍在工作区内
+    expect(normalizeToolPath('src/../b.ts', '/repo')).toBe('b.ts')
+    // 折叠后跑到工作区外：以前会原样返回，拼出来的绝对路径落在工作区外
+    expect(normalizeToolPath('../outside.ts', '/repo')).toBe(null)
+    expect(normalizeToolPath('a/../../b.ts', '/repo')).toBe(null)
+  })
 })
 
 describe('collectToolPaths', function () {

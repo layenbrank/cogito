@@ -13,6 +13,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore
 } from 'react'
@@ -157,19 +158,36 @@ function AgentAside(props: AsideProps) {
     },
     [isEmbedded]
   )
+  const threadID = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
   /**
-   * 「从产出点进某个文件」的定向焦点。焦点**带根**：它只在当时的文件夹里成立，
-   * 用户在别处切了文件夹就自动失效 —— 不用 effect 去清，也就不会和
-   * 「先 selectRoot 再设焦点」的批量更新抢顺序。
+   * 「从产出点进某个文件」的定向焦点。焦点**带根、带会话**：它只在当时的文件夹与会话里成立，
+   * 用户在别处切了文件夹 / 切了会话就自动失效 —— 不用 effect 去清，也就不会和
+   * 「先 selectRoot 再设焦点」的批量更新抢顺序，更不会让新会话头一帧闪出上一个会话的预览
+   *（effect 是在绘制之后才清的）。
    */
   const [focus, updateFocus] = useState<{
     root: string | null
     relative: string | null
+    threadID: string | null
   } | null>(null)
-  const focusRelative = focus && focus.root === rootPath ? focus.relative : null
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  /** 焦点只在它自己的文件夹 / 会话里成立：任一不同就当作没有焦点 */
+  const focusRelative =
+    focus && focus.root === rootPath && focus.threadID === threadID ? focus.relative : null
+  /**
+   * 当前工作区根目录的**最新值**。
+   *
+   * `openTerminal` 被塞进 `[]` 依赖的订阅里（函数每次渲染都是新的，订阅反复解绑更差），
+   * 于是它会一直吃住**首帧**那次渲染的 `rootPath` —— 工作区是异步加载的，
+   * 首帧往往是 null，结果就是「去看输出」永远回一句「先添加工作区」。
+   */
+  const rootPathRef = useRef(rootPath)
+  rootPathRef.current = rootPath
+
+  /** 「开始执行」的重入锁：见 `startImplement` 的注释 */
+  const startingRef = useRef(false)
+
   const agentMode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
   /**
    * 换会话或换文件夹都重挂面板：展开态 / diff / 浏览位置只对一个目录成立。
@@ -188,6 +206,22 @@ function AgentAside(props: AsideProps) {
    * 文件级细节与验证步骤全被丢掉 —— 这是「计划执行不完整」的根因。
    */
   async function startImplement(target: 'agent' | 'goal', budget?: number) {
+    /*
+     * 重入保护：从点击到 `send()` 之间串着 `await writeAgentMode` / `startGoalRun`，
+     * 窗口里再点一次就会发**两份**计划正文（第二份还会把预算吃掉一轮）。
+     * 状态变量是异步的，挡不住同一 tick 的两次点击，所以用 ref 首行短路。
+     */
+    if (startingRef.current) return
+    startingRef.current = true
+    try {
+      await runImplement(target, budget)
+    } finally {
+      startingRef.current = false
+    }
+  }
+
+  /** 真正的执行体（重入保护在 `startImplement` 里） */
+  async function runImplement(target: 'agent' | 'goal', budget?: number) {
     // 新会话还没有落库 id：连「这一轮聊了什么」都没有，不能执行
     if (!threadID) {
       toast.error('先完成一轮对话再执行计划')
@@ -277,7 +311,7 @@ function AgentAside(props: AsideProps) {
       return
     }
     if (target.root && target.root !== rootPath) selectRoot(target.root)
-    updateFocus({ root: target.root ?? rootPath, relative: target.relative })
+    updateFocus({ root: target.root ?? rootPath, relative: target.relative, threadID })
     updateMode('files')
   }
 
@@ -290,10 +324,10 @@ function AgentAside(props: AsideProps) {
         return
       }
       if (target.root && target.root !== rootPath) selectRoot(target.root)
-      updateFocus({ root: target.root ?? rootPath, relative: target.relative })
+      updateFocus({ root: target.root ?? rootPath, relative: target.relative, threadID })
       updateMode('review')
     },
-    [locateTarget, rootPath, selectRoot]
+    [locateTarget, rootPath, selectRoot, threadID]
   )
 
   /**
@@ -369,7 +403,7 @@ function AgentAside(props: AsideProps) {
       useTerminalStore.getState().writeActive(target.id)
       return
     }
-    if (!rootPath) {
+    if (!rootPathRef.current) {
       toast.info(
         source === 'external'
           ? '这条命令不在嵌入式终端里；先添加工作区才能打开终端'
@@ -377,7 +411,7 @@ function AgentAside(props: AsideProps) {
       )
       return
     }
-    await ensureTerminalTab(rootPath)
+    await ensureTerminalTab(rootPathRef.current)
     const store = useTerminalStore.getState()
     if (!store.activeId && store.tabs.length > 0) {
       store.writeActive(store.tabs[0].id)
@@ -448,9 +482,8 @@ function AgentAside(props: AsideProps) {
         void openTerminal(detail.command ?? '', detail.workdir ?? null)
       })
     },
-    // `openTerminal` 每次渲染都是新函数，按命令/目录订阅会反复解绑；它内部只读 store，
-    // 用首次引用即可（与 `subscribeAsideBrowser` 同一处理）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `openTerminal` 每次渲染都是新函数，按引用订阅会反复解绑；它读的是 store 与
+    // `rootPathRef`（都是最新值），所以用首次引用是安全的
     []
   )
 
@@ -520,7 +553,7 @@ function AgentAside(props: AsideProps) {
               {tab.id === 'terminal' && liveTerminalCount > 0 ? (
                 <span
                   aria-hidden
-                  className="bg-primary text-primary-foreground absolute -top-0.5 -end-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold tabular-nums">
+                  className="bg-primary text-primary-foreground absolute -top-0.5 -inset-e-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold tabular-nums">
                   {liveTerminalCount > 9 ? '9+' : liveTerminalCount}
                 </span>
               ) : null}

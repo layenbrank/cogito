@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   WorkspaceGit,
@@ -28,6 +28,14 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
   const oldOid = revs?.oldOid ?? null
   const newOid = revs?.newOid ?? null
   const side_ = revs?.side
+
+  /**
+   * 这一页数据属于哪一次请求。分页是异步的：等结果的时候用户可能已经切了文件，
+   * 直接 `concat` 就把上一个文件的 hunks 接进来了，计数也变成了旧值。
+   */
+  const requestKey = `${rootPath}|${relative}|${oldOid ?? ''}|${newOid ?? ''}|${side_ ?? ''}`
+  const requestKeyRef = useRef(requestKey)
+  requestKeyRef.current = requestKey
 
   useEffect(
     function () {
@@ -90,6 +98,7 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
         : { oldOid: oldOid ?? undefined, newOid: newOid ?? undefined, side: side_ }
     updateHunksLoading(true)
     try {
+      const expected = requestKeyRef.current
       const page = await WorkspaceGit.diffHunks(
         rootPath,
         relative,
@@ -97,6 +106,8 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
         HUNK_PAGE,
         nextRevs
       )
+      // 结果回来时已经切到别的文件 / 别的对比口径：丢掉，别污染新文件的 hunks
+      if (requestKeyRef.current !== expected) return
       updateHunks(function (prev) {
         return prev.concat(page.hunks)
       })
