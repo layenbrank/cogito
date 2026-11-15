@@ -51,7 +51,7 @@ env:
 jobs:
   # 契约与逻辑：单测 + 类型 + lint + rolldown bundle。
   # 这里不碰 goose —— agentd 对「没有 goose」是显式降级（supervisor 不启动），
-  # 所以 goose 相关的真实链路由 scripts/probe-run.mjs 在有 provider 的机器上验。
+  # 所以 goose 相关的真实链路由 scripts/probe-run.ts 在有 provider 的机器上验。
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20

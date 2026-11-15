@@ -8,15 +8,32 @@
  * 用法（先按 README 起一个 agentd，再）：
  *
  *   AGENTD_BASE=http://127.0.0.1:<port> AGENTD_TOKEN=<token> \
- *     node scripts/probe-run.mjs --prompt "Reply with exactly: hello" 
+ *     node scripts/probe-run.ts --prompt "Reply with exactly: hello"
  *
  *   # 触发并自动放行工具审批（会真的执行工具）
- *   node scripts/probe-run.mjs --approve --mode smart_approve \
+ *   node scripts/probe-run.ts --approve --mode smart_approve \
  *     --prompt "Create a file /tmp/probe.txt containing ok"
  *
  * 注意：审批能不能触发取决于 goose 的 `permission.yaml`。若 `user.always_allow`
  * 里已经包含该工具，goose 会直接放行、**不会**发审批请求。
  */
+
+interface PermissionOption {
+  optionId: string
+  kind: string
+}
+
+interface ApprovalPayload {
+  requestId: string
+  toolCall: unknown
+  options?: PermissionOption[]
+}
+
+interface RunEvent {
+  seq: number
+  kind: string
+  payload: any
+}
 
 const base = process.env.AGENTD_BASE
 const token = process.env.AGENTD_TOKEN
@@ -25,7 +42,7 @@ if (!base || !token) {
   process.exit(2)
 }
 
-function readArg(name, fallback) {
+function readArg(name: string, fallback: string): string {
   const index = process.argv.indexOf(`--${name}`)
   if (index < 0) return fallback
   const value = process.argv[index + 1]
@@ -38,20 +55,23 @@ const cwd = readArg('cwd', process.cwd().replace(/\\/g, '/'))
 const autoApprove = process.argv.includes('--approve')
 const timeoutMs = Number(readArg('timeout', '120000'))
 
-const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+const headers: Record<string, string> = {
+  authorization: `Bearer ${token}`,
+  'content-type': 'application/json'
+}
 
-function log(line) {
+function log(line: string): void {
   console.log(line)
 }
 
-const created = await (
+const created = (await (
   await fetch(`${base}/threads`, { method: 'POST', headers, body: '{}' })
-).json()
+).json()) as { thread_id: string }
 const thread = created.thread_id
 log(`thread=${thread}`)
 
 const sse = await fetch(`${base}/threads/${thread}/events`, { headers })
-if (!sse.ok) {
+if (!sse.ok || !sse.body) {
   console.error(`事件流不可用：${sse.status}`)
   process.exit(1)
 }
@@ -68,19 +88,30 @@ const decoder = new TextDecoder()
 let buffer = ''
 let settled = false
 let approvals = 0
-let unsettled = false
 const deadline = Date.now() + timeoutMs
 
-function handleApproval(approval) {
+function handleApproval(approval: ApprovalPayload): void {
   approvals += 1
   const options = approval.options ?? []
   log(`APPROVAL toolCall=${JSON.stringify(approval.toolCall).slice(0, 200)}`)
-  log(`APPROVAL options=${options.map(function (o) { return `${o.kind}:${o.optionId}` }).join(',')}`)
+  log(
+    `APPROVAL options=${options
+      .map(function (option) {
+        return `${option.kind}:${option.optionId}`
+      })
+      .join(',')}`
+  )
   if (!autoApprove) {
     log('APPROVAL 未带 --approve，保持挂起（可另行 POST /threads/:id/approvals/:requestId）')
     return
   }
-  const allow = options.find(function (o) { return o.kind === 'allow_once' }) ?? options[0]
+  const allow = options.find(function (option) {
+    return option.kind === 'allow_once'
+  }) ?? options[0]
+  if (!allow) {
+    log('APPROVAL 没有任何可选 option，跳过')
+    return
+  }
   void fetch(`${base}/threads/${thread}/approvals/${approval.requestId}`, {
     method: 'POST',
     headers,
@@ -90,28 +121,29 @@ function handleApproval(approval) {
   })
 }
 
-function handleFrame(frame) {
+function handleFrame(frame: string): void {
   const eventMatch = /^event: (.+)$/m.exec(frame)
   const dataMatch = /^data: (.+)$/m.exec(frame)
   if (!eventMatch || !dataMatch) return
-  let data
+  let data: RunEvent
   try {
-    data = JSON.parse(dataMatch[1])
+    data = JSON.parse(dataMatch[1]) as RunEvent
   } catch {
     return
   }
   if (eventMatch[1] === 'sync') {
-    log(`sync approvals=${data.approvals?.length ?? 0} lastSeq=${data.lastSeq}`)
+    const sync = data as unknown as { approvals?: unknown[]; lastSeq: number }
+    log(`sync approvals=${sync.approvals?.length ?? 0} lastSeq=${sync.lastSeq}`)
     return
   }
   if (data.kind === 'approval') {
-    handleApproval(data.payload.approval)
+    handleApproval(data.payload.approval as ApprovalPayload)
     return
   }
   if (data.kind === 'update') {
     const name = data.payload.sessionUpdate
     if (name === 'agent_message_chunk' && data.payload.content?.type === 'text') {
-      process.stdout.write(data.payload.content.text)
+      process.stdout.write(String(data.payload.content.text))
       return
     }
     if (name === 'tool_call' || name === 'tool_call_update') {
@@ -136,6 +168,6 @@ while (!settled && Date.now() < deadline) {
     index = buffer.indexOf('\n\n')
   }
 }
-unsettled = !settled
+const unsettled = !settled
 log(`\ndone settled=${settled} approvals=${approvals}`)
 process.exit(unsettled ? 1 : 0)

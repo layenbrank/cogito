@@ -112,7 +112,7 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
 
 ## 6. 打包与部署
 
-- **桌面端**：`apps/agentd` 用 rolldown 打成自包含 CJS，再由 `scripts/build-sea.mjs` 注入成单文件
+- **桌面端**：`apps/agentd` 用 rolldown 打成自包含 CJS，再由 `scripts/build-sea.ts` 注入成单文件
   `agentd-<triple>[.exe]`，与其它侧车同目录同命名（`apps/client/src-tauri/binaries/`）。
   `build.rs` 与 `tauri.conf.json` 的 `externalBin` 两边都必须列它，漏一边只会在打包阶段才报错。
 - **容器**：`docker/agentd/Dockerfile` 只服务 CI 与「容器内验协议」，**不做第二个产品形态**。
@@ -124,5 +124,5 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
   in a way forbidden by its access permissions` —— 看着像权限问题，实际是端口保留。
 - **校验和**：`binaries/checksums.json` 的语义是「**远端** staged 产物的 sha256」，agentd 是本地
   构建产物，不进那份清单。它的产物校验靠三件事：`--version` 能自报（在 `readConfig` 之前早退，
-  所以不需要 token）、CI 三平台各自运行一遍、`apps/agentd/scripts/probe-run.mjs` 在有 provider 的
+  所以不需要 token）、CI 三平台各自运行一遍、`apps/agentd/scripts/probe-run.ts` 在有 provider 的
   机器上跑真一轮。

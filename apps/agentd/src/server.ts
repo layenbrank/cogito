@@ -58,7 +58,7 @@ function sameSecret(actual: string, expected: string): boolean {
  * 浏览器直接判为跳源失败，前端只看到一句 `Failed to fetch`。
  *
  * 更阴的是：**Node 侧的单测与 e2e 都复现不出来** —— Node 的 `fetch` 不做 CORS 检查。
- * 所以 e2e 里必须显式断言预检的响应头（见 `scripts/e2e.mjs`）。
+ * 所以 e2e 里必须显式断言预检的响应头（见 `scripts/e2e.ts`）。
  *
  * 回显 `Origin` 而不是写死名单：agentd 的端口是内核挑的，dev 的 vite 端口也不固定，
  * 再加上 Tauri 生产环境的 origin 是 `tauri://localhost` / `http://tauri.localhost`。

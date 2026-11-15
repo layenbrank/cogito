@@ -18,7 +18,7 @@
  *
  * 用法：
  *   pnpm --filter @cogito/agentd build:sea        # 完整构建（rolldown + blob + 注入）
- *   node scripts/build-sea.mjs --out <dir>        # 自定义落盘目录
+ *   node scripts/build-sea.ts --out <dir>         # 自定义落盘目录
  */
 
 import { execFileSync } from 'node:child_process'
@@ -39,7 +39,7 @@ const SENTINEL = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'
 const LOG_PREFIX = '[agentd:sea]'
 
 /** 当前构建目标的 Rust triple（与 `prepare-binaries.ts` 的 hostTriple 同规则）。 */
-function hostTriple() {
+function hostTriple(): string {
   const override =
     process.env.TAURI_ENV_TARGET_TRIPLE?.trim() || process.env.CARGO_BUILD_TARGET?.trim()
   if (override) return override
@@ -50,7 +50,7 @@ function hostTriple() {
 }
 
 /** 包的安装目录（从入口向上找到最近的 package.json）。 */
-function packageRootDir(name) {
+function packageRootDir(name: string): string {
   let dir = path.dirname(require.resolve(name))
   for (;;) {
     if (existsSync(path.join(dir, 'package.json'))) return dir
@@ -60,25 +60,28 @@ function packageRootDir(name) {
   }
 }
 
-/** 包内的 CLI 脚本。
+/**
+ * 包内的 CLI 脚本。
  *
  * **不要**用 `node_modules/.bin/*.cmd`：Windows 上 `.cmd` 不能被 execFileSync 直接执行，
  * 非得绕一层 shell；而 `require.resolve('pkg/bin/x.mjs')` 又被 `exports` 挡住。
  */
-function packageCli(name, relative) {
+function packageCli(name: string, relative: string): string {
   const resolved = path.join(packageRootDir(name), relative)
   if (!existsSync(resolved)) throw new Error(`${LOG_PREFIX} 找不到 ${name}/${relative}`)
   return resolved
 }
 
-function parseOutDir() {
-  const index = process.argv.indexOf('--out')
-  const raw = index >= 0 ? process.argv[index + 1] : undefined
-  return raw ? path.resolve(raw) : path.join(WORKSPACE_DIR, 'apps', 'client', 'src-tauri', 'binaries')
+function parseOutDir(argv: readonly string[]): string {
+  const index = argv.indexOf('--out')
+  const raw = index >= 0 ? argv[index + 1] : undefined
+  return raw
+    ? path.resolve(raw)
+    : path.join(WORKSPACE_DIR, 'apps', 'client', 'src-tauri', 'binaries')
 }
 
 /** ① rolldown 出 CJS bundle */
-function bundle() {
+function bundle(): void {
   console.log(`${LOG_PREFIX} 打包 dist/main.cjs`)
   execFileSync(
     process.execPath,
@@ -98,7 +101,7 @@ function bundle() {
 }
 
 /** ② `node --experimental-sea-config` 出注入用 blob */
-function buildBlob() {
+function buildBlob(): void {
   if (existsSync(BLOB)) rmSync(BLOB)
   console.log(`${LOG_PREFIX} 生成 SEA blob`)
   execFileSync(process.execPath, ['--experimental-sea-config', SEA_CONFIG], {
@@ -108,9 +111,16 @@ function buildBlob() {
   if (!existsSync(BLOB)) throw new Error(`${LOG_PREFIX} 未生成 ${BLOB}`)
 }
 
+/** 从任意抛出来的东西里取 errno（`unknown` 收窄，别用 `as any`）。 */
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : undefined
+}
+
 /** `binaries/agentd-*` 正被运行中的应用占用时，给一句能照做的话而不是一个 errno。 */
-function explainLocked(error, outFile) {
-  const code = error && typeof error === 'object' ? error.code : undefined
+function explainLocked(error: unknown, outFile: string): unknown {
+  const code = errorCode(error)
   if (code !== 'EBUSY' && code !== 'EPERM' && code !== 'EACCES') return error
   return new Error(
     `${LOG_PREFIX} 无法写入 ${outFile}：文件正被占用。\n` +
@@ -121,7 +131,7 @@ function explainLocked(error, outFile) {
 }
 
 /** ③ 复制 node 自身 + postject 注入 */
-function inject(outFile) {
+function inject(outFile: string): void {
   console.log(`${LOG_PREFIX} 注入 blob → ${outFile}`)
   try {
     copyFileSync(process.execPath, outFile)
@@ -129,7 +139,7 @@ function inject(outFile) {
     throw explainLocked(error, outFile)
   }
   // macOS 的 node 是**签名过**的：复制 + 改段之后签名失效，内核直接 SIGKILL（arm64 更严）。
-  // 必须先摘签名再注入。注入完的 ad-hoc 重签放在 main() 里做。
+  // 必须先摘签名再注入。注入完的 ad-hoc 重签放在后面做。
   if (process.platform === 'darwin') {
     execFileSync('codesign', ['--remove-signature', outFile], { stdio: 'inherit' })
   }
@@ -157,10 +167,10 @@ function inject(outFile) {
   }
 }
 
-function main() {
+function main(): void {
   const triple = hostTriple()
   const suffix = process.platform === 'win32' ? '.exe' : ''
-  const outDir = parseOutDir()
+  const outDir = parseOutDir(process.argv)
   const outFile = path.join(outDir, `agentd-${triple}${suffix}`)
 
   mkdirSync(outDir, { recursive: true })

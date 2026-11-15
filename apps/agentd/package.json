@@ -6,7 +6,7 @@
   "description": "cogito 桌面端 agent 循环宿主：goose(ACP/stdio) + LangGraph + Agent Protocol(HTTP/SSE)，由 Tauri 以 sidecar 管理",
   "scripts": {
     "build": "rolldown src/main.ts -o dist/main.cjs -f cjs --platform node",
-    "build:sea": "node scripts/build-sea.mjs",
+    "build:sea": "node scripts/build-sea.ts",
     "dev": "pnpm run build && node dist/main.cjs",
     "sea": "node --experimental-sea-config sea-config.json",
     "type-check": "tsc --noEmit",
@@ -15,8 +15,8 @@
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "test:unit": "vitest",
     "unit": "vitest run",
-    "e2e": "node scripts/e2e.mjs",
-    "probe": "node scripts/probe-run.mjs"
+    "e2e": "node scripts/e2e.ts",
+    "probe": "node scripts/probe-run.ts"
   },
   "dependencies": {
     "@cogito/agent-protocol": "workspace:*",

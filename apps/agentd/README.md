@@ -60,11 +60,11 @@ pnpm --filter @cogito/agentd build:sea    # 打单文件 SEA → apps/client/src
 
 ```bash
 # 先起一个 agentd（见上），然后：
-AGENTD_BASE=http://127.0.0.1:<port> AGENTD_TOKEN=<token> node scripts/probe-run.mjs \
+AGENTD_BASE=http://127.0.0.1:<port> AGENTD_TOKEN=<token> node scripts/probe-run.ts \
   --prompt "Reply with exactly: hello"
 
 # 触发并自动放行工具审批（会真的执行工具）
-node scripts/probe-run.mjs --approve --mode smart_approve \
+node scripts/probe-run.ts --approve --mode smart_approve \
   --prompt "Create a file /tmp/probe.txt containing ok"
 ```
 

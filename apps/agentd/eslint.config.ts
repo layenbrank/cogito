@@ -56,27 +56,5 @@ export default defineConfig([
         }
       ]
     }
-  },
-
-  // 构建脚本是 `.mjs` 且不在 tsconfig 的 include 里：开 projectService 会报
-  // 「was not found by the project service」，这里只做语法级检查。
-  {
-    files: ['**/*.mjs'],
-    languageOptions: {
-      ecmaVersion: 2025,
-      sourceType: 'module',
-      globals: NODE_GLOBALS
-    },
-    rules: {
-      eqeqeq: 'error',
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: 'ArrowFunctionExpression',
-          message:
-            'Arrow functions are not allowed. Use function declarations or function expressions.'
-        }
-      ]
-    }
   }
 ])
