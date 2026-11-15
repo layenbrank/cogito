@@ -108,27 +108,28 @@ impl Bootstrap {
                 app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
                 app.manage(CaptureHandshake::default());
-                // 浮层窗口常驻映射（hide/show 会让 WebView2 挂起合成，下次首帧要等一次点击）：
-                // 启动即铺满整屏（含任务栏）+ 置顶 + 穿透，避免透明窗挡住桌面
-                if app
-                    .get_webview_window(crate::overlay::command::OVERLAY_LABEL)
-                    .is_some()
+                // 浮层窗口**常驻映射**（hide/show 会让 WebView2 挂起合成，下次首帧要等一次点击）：
+                // 启动就铺满整屏（含任务栏）+ 置顶 + 穿透 + show。config 里写的是
+                // `visible: false`，这里必须真的 show 一次 —— 首次截屏才 `show()` 的话，
+                // 抓帧期间页面一直停在 hidden，遮罩和窗口吸附都要等一次点击才出来。
+                if let Err(error) =
+                    crate::overlay::command::ensure_overlay_visible(app.handle())
                 {
-                    if let Err(error) = crate::overlay::command::apply_bounds(app.handle()) {
-                        tracing::warn!("overlay 初始化 bounds 失败: {error}");
-                    }
-                    if let Some(overlay) =
-                        app.get_webview_window(crate::overlay::command::OVERLAY_LABEL)
-                    {
-                        let _ = overlay.set_ignore_cursor_events(true);
-                    }
+                    tracing::warn!("overlay 初始化失败: {error}");
+                }
+                if let Some(overlay) =
+                    app.get_webview_window(crate::overlay::command::OVERLAY_LABEL)
+                {
+                    let _ = overlay.set_ignore_cursor_events(true);
                 } else {
                     // config 窗口可能晚于 setup 创建：稍后再校准一次
                     let handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(Duration::from_millis(1_200)).await;
-                        if let Err(error) = crate::overlay::command::apply_bounds(&handle) {
-                            tracing::warn!("overlay 延迟 bounds 失败: {error}");
+                        if let Err(error) =
+                            crate::overlay::command::ensure_overlay_visible(&handle)
+                        {
+                            tracing::warn!("overlay 延迟显示失败: {error}");
                         }
                     });
                 }

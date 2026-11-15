@@ -124,9 +124,12 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 | 约束 | 原因 | 违反后的现象 |
 |------|------|--------------|
 | overlay 窗口**常驻映射**（启动即显示），`overlay:hide` 只藏 DOM + 切穿透 | `hide()`/`show()` 会让 WebView2 挂起合成 | 按快捷键后没有遮罩、没有吸附，点一下鼠标才出来 |
+| `tauri.conf.json` 里 overlay 是 `visible: false`，所以**启动时（`bootstrap`）必须真的 `ensure_overlay_visible` 一次** | 首次截屏才 `show()` 的话，抓帧期间页面一直是 `hidden`（rAF 不跑、Konva 不绘） | 第一次按快捷键只看到桌面：没有暗罩、没有窗口吸附，点一下才恢复 |
+| 进截屏态必须**前台化 + 复位置顶**（`ui::foreground::force_foreground`：`SetWindowPos(HWND_TOPMOST)` + `AttachThreadInput` + `SetForegroundWindow`） | 热键从后台进程触发，`set_focus()` 的 `SetForegroundWindow` 会被前台锁静默拒绝；任务栏同为 topmost，不重抬就会被它压住 | 浮层拿不到激活 → 合成不恢复（没遮罩）；贴底工具栏跑到任务栏后面 |
+| 工具栏边界用 `capture:viewport` 给的**工作区**（整屏扣掉任务栏），不能用 `innerHeight` | 浮层铺满整屏（含任务栏那条），任务栏永远压在浮层上 | 整屏选区时工具栏钻进任务栏后面；任务栏自动隐藏时又被探出的那条盖住 |
 | 尺寸必须按监视器**物理矩形**铺满（`apply_bounds`），不能用 `maximized` | 最大化只覆盖工作区 | 遮罩漏掉任务栏那条，且启动时窗口停在默认 800×600 |
 | 真隐藏只走 `overlay:park`（渲染进程异常 / 退出） | 坏窗口不能一直吃点击 | 白屏浮层卡住桌面 |
-| 出图顺序：ensure → 抓帧 → **发布 pending** → 切模式 → 首帧 ack（`capture:ready`）→ reveal | reveal 早于首帧会露出实时桌面 | 截屏瞬间闪一下桌面 |
+| 出图顺序：ensure → conceal → 抓帧 → **发布 pending** → 切模式 → 首帧 ack（`capture:ready`）→ reveal | reveal 早于首帧会露出实时桌面；conceal 早于 show 时页面还不跑 rAF，确认不了 | 截屏瞬间闪一下桌面 / park 之后的新图里带着旧磁贴 |
 | pending 必须在切模式**之前**写好（`capture_once` 内） | 前端一收到 `overlay://mode: screenshot` 就挂载截屏 UI 并立刻 `capture:take-pending` | 取到空值 → 「未找到预截图」；首帧 ack 也必然超时，白等 400ms |
 | 截屏态下再按快捷键**不刷新 UI** | `capture:open` 会重抓一帧写进 pending，但已挂载的截屏 UI 不会重新取（否则误触会丢掉标注） | 按了像没反应 —— 重拍请用「重新截图」（`capture:refresh`）或错误面板上的「重试」 |
 | `capture:open` 单飞 | 连按会覆盖 pending、并把遮罩拍进新图 | 出了怪图 / 按几次才有反应 |
@@ -273,6 +276,11 @@ apps/client/src/features/capture/
 4. **透明窗口**  
    - 勿为「更锐」改回 HTML 底图；若必须试替代渲染路径，先在本机验证指针事件。
 
+5. **焦点 / 任务栏**  
+   - 冷启动后**第一次**按热键（焦点先在别的应用里）：应立即出现暗罩与窗口吸附。  
+   - 任务栏设为「总在最前」且**不**自动隐藏：整屏选区的工具栏不能被任务栏压住。  
+   - 任务栏设为自动隐藏：工具栏不能落在任务栏探出的那条上。
+
 ---
 
 ## 12. 设计约束（产品 / 架构）
@@ -292,3 +300,4 @@ apps/client/src/features/capture/
 | 2026-11-05 | 截屏链路加固：单飞闸门改 RAII（`PendingGuard`）+ 截屏态短路；热键下沉 Rust 原生注册；加载期用冻结帧铺底、首帧上限 400→800ms；新增 `capture:cursor` 在 ready 后种一次悬停；候选窗口加覆盖网格（48px / 15%）、`IsHungAppWindow` 过滤、子控件按窗配额；悬停文案去重 / 拖拽 rAF 合并 / 滚轮兜底 / 阶段切换 cancel 探针；标注默认样式持久化到 `Setting.Capture.style`（新增 §7–§9）。 |
 | 2026-11-05 | 修 §7 的判定顺序回归：`region.rs` 原先在枚举子控件**之前**就 `cover()` 父窗，导致子控件（必在父窗内）可见比例恒为 0、滚轮细化不到控件；改为「先子控件、后父窗」，并抽出 `occlusion::is_visible_enough` 统一阈值 + 单测锁顺序。 |
 | 2026-11-05 | 加 `capture` 的两行线上观测（候选构成 / 首帧 ack 用时）+ debug-only 演练入口 `COGITO_DEV_CAPTURE_MS`，并补 §9.1 真机演练开关与实测记录。 |
+| 2026-11-16 | 修「快捷键有概率没遮罩 / 没窗口吸附」：config 里 overlay 是 `visible: false`，启动从不 `show`，首次截屏才显示导致页面一直 `hidden`；改为启动即 `ensure_overlay_visible`，并把 `set_focus()` 换成 `ui::foreground::force_foreground`（复位置顶 + 前台锁绕行）。同时修整屏选区时工具栏被任务栏压住：新增 `capture:viewport` 下发工作区，`use-position.ts` 按工作区夹边并改用 `offset*` 量尺寸；`capture_once` 的 ensure/conceal 顺序修正（先 show 再 conceal）。 |

@@ -105,6 +105,7 @@ export const CHANNELS = {
     PRUNE: 'capture:prune',
     HOTKEY: 'capture:hotkey',
     CURSOR: 'capture:cursor',
+    VIEWPORT: 'capture:viewport',
     SAVE_PNG: 'capture:savePng',
     PIN_TEXTURE: 'capture:pinTexture'
   },

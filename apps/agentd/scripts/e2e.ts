@@ -626,6 +626,52 @@ async function main(): Promise<void> {
         gooseSessionId = sessionId
         return `正文 ${joined.length} 字，sessionId=${sessionId}`
       })
+
+      // 「停止」必须真的让 agentd 停下，而不是只断前端那条 SSE。
+      // 不验这条，前端点停止后 UI 显示已停止、agentd 还在跑完 —— 最难查的那类不一致。
+      await step('cancel 能真正中断在跑的轮（并发 settled 回执）', async function () {
+        const before = lastSeq
+        await json(base, `/threads/${threadID}/runs`, {
+          method: 'POST',
+          headers: headers(),
+          body: JSON.stringify({
+            input: { prompt: '从 1 数到 200，每行一个数字', cwd: process.cwd() }
+          })
+        })
+        // 给它一点时间真正开始（否则可能 cancel 早于 running）
+        await sleep(1_500)
+
+        const cancel = await json(base, `/threads/${threadID}/cancel`, {
+          method: 'POST',
+          headers: headers()
+        })
+        assertEqual(cancel.status, 202, '有活跃轮时 cancel 应当 202')
+        assertEqual(cancel.body.cancelled, true, 'cancel 没有报告 cancelled=true')
+
+        const controller = new AbortController()
+        const deadline = Date.now() + 20_000
+        let status = ''
+        try {
+          for await (const frame of readSse(
+            `${base}/threads/${threadID}/events?after=${before}`,
+            { headers: headers(), signal: controller.signal }
+          )) {
+            if (Date.now() > deadline) throw new Error('cancel 之后 20s 内没有 settled')
+            if (frame.event !== 'run') continue
+            const payload = frame.data.payload ?? {}
+            if (payload.phase !== 'settled') continue
+            status = String(payload.status)
+            lastSeq = frame.data.seq
+            break
+          }
+        } finally {
+          controller.abort()
+        }
+        assert(status !== '', 'cancel 之后 20s 内没有 settled（说明它还在跑）')
+        // 被 abort 的轮按 error 收尾，message 里带 abort —— 前端据此翻成「已取消」
+        assertEqual(status, 'error', `cancel 后应当是 error+abort，实际 ${status}`)
+        return `settled status=${status}`
+      })
     } else {
       console.log(`${LOG_PREFIX} - 跳过真模型回合（未开 --with-goose）`)
     }

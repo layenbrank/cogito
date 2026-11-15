@@ -5,10 +5,13 @@
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
 use crate::capture::occlusion::{Box2, CoverageGrid, is_visible_enough};
-use crate::capture::schema::{CaptureRegion, RegionKind};
+use crate::capture::schema::{CaptureRect, CaptureRegion, RegionKind};
 use crate::overlay::command::OVERLAY_LABEL;
 
 const MIN_SIDE_PX: i32 = 8;
+
+/// 工作区小于这个尺寸就当读失败，退回整屏（宁可贴边，也不给前端一个负数矩形）
+const MIN_WORK_SIDE_PX: i32 = 120;
 
 /// NVIDIA overlay + 桌面宿主（Progman/WorkerW）+ 无意义 Button
 const IGNORE_CLASSES: &[&str] = &["CEF-OSC-WIDGET", "Progman", "WorkerW", "Button"];
@@ -43,6 +46,8 @@ pub struct RegionMeta {
 pub struct OverlayFrame {
     origin: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
+    /// 主显示器工作区（扣掉任务栏），物理虚拟桌面坐标
+    work: ScreenBox,
     scale: f64,
     /// 浮层自身窗口句柄：枚举候选时要忽略自己
     pub hwnd: Option<isize>,
@@ -53,9 +58,18 @@ impl OverlayFrame {
         let window = app.get_webview_window(OVERLAY_LABEL)?;
         let monitor = app.primary_monitor().ok()??;
         let scale = window.scale_factor().unwrap_or(1.0).max(0.01);
+        let work = monitor.work_area();
+        let work_left = work.position.x;
+        let work_top = work.position.y;
         Some(Self {
             origin: *monitor.position(),
             size: *monitor.size(),
+            work: ScreenBox {
+                left: work_left,
+                top: work_top,
+                right: work_left.saturating_add(work.size.width as i32),
+                bottom: work_top.saturating_add(work.size.height as i32),
+            },
             scale,
             hwnd: {
                 #[cfg(windows)]
@@ -75,6 +89,35 @@ impl OverlayFrame {
         self.hwnd
             .filter(|hwnd| *hwnd != 0)
             .map(|hwnd| format!("{hwnd:x}"))
+    }
+
+    /// 主显示器工作区（扣掉任务栏）→ overlay 局部逻辑像素。
+    ///
+    /// 浮层按监视器**物理矩形**铺满（含任务栏那条），但工具栏不能落在任务栏上：
+    /// Windows 任务栏常驻 topmost，会把浮层那一块压住（任务栏贴左/上时同理）。
+    /// 读不到或退化到不合理的尺寸时退回整屏 —— 宁可贴边，也别给出负数矩形。
+    pub fn work_area(&self) -> CaptureRect {
+        let full = CaptureRect {
+            x: 0.0,
+            y: 0.0,
+            w: f64::from(self.size.width) / self.scale,
+            h: f64::from(self.size.height) / self.scale,
+        };
+        let right_edge = self.origin.x.saturating_add(self.size.width as i32);
+        let bottom_edge = self.origin.y.saturating_add(self.size.height as i32);
+        let left = self.work.left.max(self.origin.x);
+        let top = self.work.top.max(self.origin.y);
+        let right = self.work.right.min(right_edge);
+        let bottom = self.work.bottom.min(bottom_edge);
+        if right - left < MIN_WORK_SIDE_PX || bottom - top < MIN_WORK_SIDE_PX {
+            return full;
+        }
+        CaptureRect {
+            x: f64::from(left - self.origin.x) / self.scale,
+            y: f64::from(top - self.origin.y) / self.scale,
+            w: f64::from(right - left) / self.scale,
+            h: f64::from(bottom - top) / self.scale,
+        }
     }
 
     /// 物理屏幕坐标 → overlay 局部逻辑坐标
@@ -122,8 +165,13 @@ impl OverlayFrame {
     }
 }
 
-pub fn find_overlay_regions(app: &AppHandle) -> Vec<CaptureRegion> {
-    let Some(frame) = OverlayFrame::find(app) else {
+/// 浮层局部逻辑像素里的「可用矩形」（整屏扣掉任务栏）；读不到返回 None。
+/// 前端工具栏据此避让任务栏，不靠写死 DPI / 任务栏高度。
+pub fn find_overlay_work_area(app: &AppHandle) -> Option<CaptureRect> {
+    OverlayFrame::find(app).map(|frame| frame.work_area())
+}
+
+pub fn find_overlay_regions(app: &AppHandle) -> Vec<CaptureRegion> {    let Some(frame) = OverlayFrame::find(app) else {
         return Vec::new();
     };
 

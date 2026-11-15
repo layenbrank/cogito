@@ -12,8 +12,8 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::oneshot;
 
-use crate::capture::region::{OverlayFrame, find_overlay_regions};
-use crate::capture::schema::{CaptureRegion, ScreenshotResult};
+use crate::capture::region::{OverlayFrame, find_overlay_regions, find_overlay_work_area};
+use crate::capture::schema::{CaptureRect, CaptureRegion, ScreenshotResult};
 use crate::capture::state::{CaptureHandshake, CapturePending};
 use crate::overlay::command::{OVERLAY_LABEL, overlay_ensure, overlay_update_mode};
 use crate::through::ThroughState;
@@ -205,9 +205,10 @@ async fn wait_ready(ready: Option<oneshot::Receiver<()>>) {
 }
 
 /// 一次完整抓屏：
-/// conceal（藏旧 UI）→ 摆好浮层 → 枚举选区窗口 → 抓帧 → **发布 pending** → 切截屏态 → 等首帧 → reveal。
+/// 摆好浮层 → conceal（藏旧 UI）→ 枚举选区窗口 → 抓帧 → **发布 pending** → 切截屏态 → 等首帧 → reveal。
 ///
 /// 顺序是硬约束：`find_overlay_regions` 需要浮层自己的 hwnd 与 scale factor；
+/// conceal 必须在浮层**可见之后**（隐藏态页面不跑 rAF，确认不了）；
 /// reveal 必须晚于前端把冻结帧画上屏，否则会露出实时桌面。
 ///
 /// `publish`：能拿到 `CapturePending` 时，帧必须在**切模式之前**写进去 ——
@@ -221,8 +222,10 @@ async fn capture_once(
     await_first_frame: bool,
     publish: Option<&CapturePending>,
 ) -> Result<ScreenshotResult, String> {
-    let concealed = conceal_overlay_visuals(app).await;
+    // 先摆好浮层再 conceal：窗口若被 `overlay:park` 真隐藏过，隐藏态下 conceal 根本
+    // 确认不了（页面 rAF 不跑），先 conceal 再 show 会把上一次的磁贴拍进新图。
     overlay_ensure(app.clone()).await?;
+    let concealed = conceal_overlay_visuals(app).await;
 
     let regions = find_overlay_regions(app);
     let mut shot = match grab_screenshot(app).await {
@@ -264,8 +267,8 @@ async fn capture_once(
 /// 截取主显示器（corex PNG），返回路径与尺寸
 #[tauri::command(rename = "capture:screenshot")]
 pub async fn capture_screenshot(app: AppHandle) -> Result<ScreenshotResult, String> {
-    let concealed = conceal_overlay_visuals(&app).await;
     overlay_ensure(app.clone()).await?;
+    let concealed = conceal_overlay_visuals(&app).await;
     let regions = find_overlay_regions(&app);
     let result = grab_screenshot(&app).await;
     if concealed {
@@ -453,6 +456,16 @@ pub async fn capture_cursor(app: AppHandle) -> Result<Option<CursorPoint>, Strin
     };
     let (x, y) = frame.to_logical(px, py);
     Ok(Some(CursorPoint { x, y }))
+}
+
+/// 读可用矩形（overlay 局部逻辑像素，扣掉任务栏）。
+///
+/// 用途：工具栏避让任务栏。浮层铺满**整屏**（含任务栏那条），所以整屏选区时
+/// 工具栏贴底就会被任务栏压住 —— 前端不能拿 `innerHeight` 当边界。
+/// 读不到（多屏切换瞬间 / 窗口还没建）返回 None，前端退回整屏。
+#[tauri::command(rename = "capture:viewport")]
+pub async fn capture_viewport(app: AppHandle) -> Result<Option<CaptureRect>, String> {
+    Ok(find_overlay_work_area(&app))
 }
 
 /// 选择器元素级探测的入参（overlay 局部逻辑像素）

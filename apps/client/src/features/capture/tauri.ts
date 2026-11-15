@@ -22,6 +22,14 @@ interface ScreenshotResult {
   regions?: CaptureRegion[]
 }
 
+/** 矩形（overlay 局部逻辑像素） */
+interface CaptureRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 interface MountOverlayOptions extends Partial<MarkerLayout>, SurfaceStyleInput {
   title?: string
   mark?: string | null
@@ -69,6 +77,17 @@ async function notifyCaptureReady(): Promise<void> {
 /** 光标位置（overlay 局部逻辑像素）；进入截屏态后种首次悬停用 */
 async function readCursorPoint(): Promise<{ x: number; y: number } | null> {
   return invoke<{ x: number; y: number } | null>(CHANNELS.CAPTURE.CURSOR)
+}
+
+/**
+ * 可用矩形（overlay 局部逻辑像素，扣掉任务栏）。读不到返回 null。
+ *
+ * 浮层铺满**整屏**（含任务栏那条），所以工具栏不能拿 `innerHeight` 当边界：
+ * 任务栏是 topmost，会把贴底那一块压住。任务栏自动隐藏时它等于整屏，
+ * 前端仍按 GAP 内缩，避免刚好落在任务栏的探出条上。
+ */
+async function readWorkArea(): Promise<CaptureRect | null> {
+  return invoke<CaptureRect | null>(CHANNELS.CAPTURE.VIEWPORT)
 }
 
 /** 光标下的元素级候选（overlay 逻辑像素入参） */
@@ -150,10 +169,11 @@ export {
   parkOverlay,
   probeElements,
   readCursorPoint,
+  readWorkArea,
   refreshCapture,
   removeOverlayTile,
   takePendingScreenshot,
   takeScreenshot,
   updateOverlayMode
 }
-export type { CaptureRegion, MountOverlayOptions, ScreenshotResult }
+export type { CaptureRect, CaptureRegion, MountOverlayOptions, ScreenshotResult }

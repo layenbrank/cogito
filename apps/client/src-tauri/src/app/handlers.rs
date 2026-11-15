@@ -135,6 +135,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         capture::command::overlay_report_content,
         capture::command::overlay_concealed,
         capture::command::capture_cursor,
+        capture::command::capture_viewport,
         capture::hotkey::capture_set_hotkey,
         crate::media::import::media_stat,
         crate::media::import::media_scan_dir,

@@ -51,3 +51,15 @@ pub struct ScreenshotResult {
     #[serde(default)]
     pub regions: Vec<CaptureRegion>,
 }
+
+/// 普通矩形（overlay 局部逻辑像素）。
+///
+/// 目前只有「工作区」用它：浮层铺满**整屏**（含任务栏那条），而工具栏不能落在
+/// 任务栏上 —— Windows 任务栏是 topmost，会把浮层里那一块压住。
+#[derive(Debug, Serialize, Clone, Copy)]
+pub struct CaptureRect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}

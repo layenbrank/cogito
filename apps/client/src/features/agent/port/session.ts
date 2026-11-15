@@ -47,7 +47,7 @@ import {
 } from '@/features/agent/acp/stream'
 import type { AcpStreamContext } from '@/features/agent/acp/stream'
 import { writeGooseUsage } from '@/features/agent/acp/goose-usage'
-import { bindSession } from '@/features/agent/acp/session-binding'
+import { bindSession, recallBinding } from '@/features/agent/acp/session-binding'
 import { callAgentd, callAgentdJson, forgetEndpoint, invokeGoose } from './agentd-rpc'
 import { humanizeRunError } from '@/features/agent/acp/run-error'
 import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
@@ -296,12 +296,17 @@ function readGooseStatus(): AgentdStatus | null {
 function ensureRecord(threadID: string): ThreadSession {
   const existing = sessionByThread.get(threadID)
   if (existing) return existing
+  // 刷新（WebView reload）后模块级的 `seqByThread` 是空的，但库里存着上一轮的游标。
+  // 不读它，`runThreadPrompt` 会拿 `after=0` 去订阅 —— agentd 会把整段环形缓冲重放，
+  // 里面**上一轮的 `settled` / `error` 事件会被当成本轮的终态**：新一轮立刻「结束」甚至报错。
+  const bound = recallBinding(threadID)
   const record: ThreadSession = {
     threadID,
-    sessionId: null,
+    // 会话 id 一并恢复：`bindSession` 每轮都写，库里就是最新值
+    sessionId: bound?.acpSessionId ?? null,
     mcpServers: [],
     run: null,
-    lastSeq: seqByThread.get(threadID) ?? 0
+    lastSeq: seqByThread.get(threadID) ?? bound?.lastSeq ?? 0
   }
   sessionByThread.set(threadID, record)
   return record
@@ -315,8 +320,31 @@ function hasThreadSession(threadID: string): boolean {
   return sessionByThread.has(threadID)
 }
 
+/**
+ * 让 agentd 停掉这个线程上正在跑的那一轮。
+ *
+ * **只 abort 本地 SSE 是不够的**：agentd 的图还在跑、goose 还在执行工具、checkpoint 还在写。
+ * UI 说「已停止」而进程还在动，是最难查的那类不一致。ACP 的 `session/cancel` 是唯一能真正
+ * 收住长工具的信号。
+ *
+ * 幂等：没有活跃轮时 agentd 回 200（`{cancelled:false}`），重复调用无害。
+ */
+function requestThreadCancel(threadID: string): void {
+  const key = threadID.trim()
+  if (!key) return
+  void callAgentd(`${EVENTS_PATH}/${encodeURIComponent(key)}/cancel`, { method: 'POST' }).catch(
+    function (error: unknown) {
+      reportCaught('agent.session.cancel', error, 'warning')
+    }
+  )
+}
+
 function clearThreadSessions(): void {
-  for (const thread of sessionByThread.values()) thread.run?.controller.abort()
+  for (const thread of sessionByThread.values()) {
+    thread.run?.controller.abort()
+    // 停全部也要告诉 agentd，否则被切走的会话会在后台继续跑完
+    requestThreadCancel(thread.threadID)
+  }
   sessionByThread.clear()
   seqByThread.clear()
 }
@@ -328,11 +356,8 @@ function closeThreadSession(threadID: string): void {
   record.run?.controller.abort()
   sessionByThread.delete(key)
   seqByThread.delete(key)
-  void callAgentd(`${EVENTS_PATH}/${encodeURIComponent(key)}/cancel`, { method: 'POST' }).catch(
-    function () {
-      // 没有活跃轮时 agentd 返回 200；网络失败也不该抛给调用方
-    }
-  )
+  // 没有活跃轮时 agentd 返回 200；网络失败也不该抛给调用方
+  requestThreadCancel(key)
 }
 
 /** 幂等建线程：`thread_id` 就是本地会话 id，agentd 重启后仍能对上 checkpoint。 */
@@ -662,8 +687,19 @@ function decideApproval(threadID: string, payload: ApprovalPayload): string | nu
   return null
 }
 
-/** 待审批票据：`toolCallId → { requestId, options }` */
-const pendingApprovals = new Map<string, { requestId: string; options: string[] }>()
+/**
+ * 待审批票据：`toolCallId → { threadID, requestId, options }`。
+ *
+ * **必须带 threadID**：审批卡属于「那一轮」，而用户点的时候当前会话可能已经切走了
+ * （或者会话记录已经被关掉）。靠遍历 `sessionByThread` 去找票据，一旦记录不在表里
+ * 就永远返回 `false`，UI 只能报「已失效」—— 而 agentd 那边的票据还挂着 300s。
+ */
+interface ApprovalTicket {
+  threadID: string
+  requestId: string
+  options: string[]
+}
+const pendingApprovals = new Map<string, ApprovalTicket>()
 /** 待追问票据：`elicitationId → { threadID, requestId }`（回执只有 elicitationId，要靠它定位线程） */
 const pendingElicitations = new Map<string, { threadID: string; requestId: string }>()
 const settledApprovals = new Map<string, boolean>()
@@ -725,27 +761,25 @@ async function settleRemoteElicitation(
  * 告诉用户「已失效」，而不是假报成功。
  */
 function respondToApproval(approval: ChatToolApproval): boolean {
-  for (const thread of sessionByThread.values()) {
-    const ticket = pendingApprovals.get(approval.toolCallId)
-    if (!ticket) continue
-    pendingApprovals.delete(approval.toolCallId)
-    const derived =
-      approval.optionId ??
-      ticket.options.find(function (optionId) {
-        return approval.approved ? /allow/.test(optionId) : /reject/.test(optionId)
-      }) ??
-      null
-    rememberSettled(approval.toolCallId, approval.approved)
-    // 立刻把「已拍板」推回事件流：否则消息要等到 `tool-result` 才离开 requires-action，
-    // 而工具可能跑几分钟 —— 用户看到的就是「点了审批没反应」。
-    thread.run?.inject({
-      kind: 'event',
-      event: { kind: 'tool-approval-settled', toolCallId: approval.toolCallId, approved: approval.approved }
-    })
-    void settleRemoteApproval(thread.threadID, ticket.requestId, derived)
-    return true
-  }
-  return false
+  const ticket = pendingApprovals.get(approval.toolCallId)
+  if (!ticket) return false
+  pendingApprovals.delete(approval.toolCallId)
+  const derived =
+    approval.optionId ??
+    ticket.options.find(function (optionId) {
+      return approval.approved ? /allow/.test(optionId) : /reject/.test(optionId)
+    }) ??
+    null
+  rememberSettled(approval.toolCallId, approval.approved)
+  // 立刻把「已拍板」推回事件流：否则消息要等到 `tool-result` 才离开 requires-action，
+  // 而工具可能跑几分钟 —— 用户看到的就是「点了审批没反应」。
+  // 注入到**票据所属的线程**（可能就是后台那个），不是「当前会话」。
+  sessionByThread.get(ticket.threadID)?.run?.inject({
+    kind: 'event',
+    event: { kind: 'tool-approval-settled', toolCallId: approval.toolCallId, approved: approval.approved }
+  })
+  void settleRemoteApproval(ticket.threadID, ticket.requestId, derived)
+  return true
 }
 
 function respondToElicitation(response: ChatElicitationResponse): boolean {
@@ -832,12 +866,24 @@ async function* runThreadPrompt(
   }
   record.run = run
 
-  if (input.signal) {
-    const onAbort = function () {
-      controller.abort()
-    }
-    if (input.signal.aborted) onAbort()
-    else input.signal.addEventListener('abort', onAbort, { once: true })
+  /**
+   * 外部取消（用户点「停止」/ 切走会话）要**同时**做两件事：
+   * ① 让 agentd 停 —— ACP `session/cancel` 是唯一能收住长工具的信号；
+   * ② 断本地 SSE。
+   *
+   * 只做 ② 的话，UI 显示「已停止」而 agentd 还在跑：图继续推进、工具继续执行、
+   * checkpoint 继续写，下一轮打开会看到「我明明停了它却做完了」。
+   *
+   * 注意 `detach`（离开页面）不该走到这里 —— `background-turn` 已经把它过滤掉了。
+   */
+  const externalSignal = input.signal
+  const onAbort = function () {
+    requestThreadCancel(key)
+    controller.abort()
+  }
+  if (externalSignal) {
+    if (externalSignal.aborted) onAbort()
+    else externalSignal.addEventListener('abort', onAbort, { once: true })
   }
 
   const after = record.lastSeq
@@ -936,6 +982,7 @@ async function* runThreadPrompt(
         }
         const toolCallId = (approval.approval.toolCall as { toolCallId: string }).toolCallId
         pendingApprovals.set(toolCallId, {
+          threadID: key,
           requestId: approval.approval.requestId,
           options: approval.approval.options.map(function (option) {
             return option.optionId
@@ -1031,6 +1078,9 @@ async function* runThreadPrompt(
     throw humanizeRunError(error instanceof Error ? error : new Error(String(error)), false)
   } finally {
     record.run = null
+    // 摘掉外部监听：`{ once: true }` 只在真的触发时移除；正常结束的回合如果一直不摘，
+    // 之后这个 signal 被 abort 会再发一次 cancel 到 agentd（可能误杀别人那一轮）
+    externalSignal?.removeEventListener('abort', onAbort)
     controller.abort()
   }
 }
@@ -1086,6 +1136,7 @@ async function* resumeThreadRun(
         const toolCallId = (ticket.toolCall as { toolCallId?: string }).toolCallId ?? ''
         if (toolCallId) {
           pendingApprovals.set(toolCallId, {
+            threadID: key,
             requestId: ticket.requestId,
             options: ticket.options.map(function (option) {
               return option.optionId
@@ -1145,6 +1196,11 @@ async function* resumeThreadRun(
     }
     yield { kind: 'aborted', usage: {} }
   } finally {
+    // 恢复过程同样在推进游标。不落库的话，下次刷新又会从旧位置重放一遍，
+    // 而重放的旧 `settled` 会把下一轮当场判成结束。
+    if (record.sessionId && record.lastSeq > 0) {
+      void bindSession(key, { acpSessionId: record.sessionId, lastSeq: record.lastSeq })
+    }
     controller.abort()
     signal?.removeEventListener('abort', forwardAbort)
   }

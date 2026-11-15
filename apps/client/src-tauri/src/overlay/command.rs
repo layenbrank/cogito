@@ -179,12 +179,15 @@ fn reload_stale_overlay(app: &AppHandle, reason: &str) {
 /// 常驻映射：浮层窗口自应用启动起就一直 `show`，隐藏只走 DOM（`overlay://conceal`）。
 /// 一旦 `hide()`，WebView2 会挂起渲染进程的合成，再次 `show()` 后必须等一次窗口激活
 /// （用户点击）才恢复绘制 —— 表现为「按了快捷键没有遮罩、点一下才出来」。
-fn ensure_overlay_visible(app: &AppHandle) -> Result<(), String> {
+pub(crate) fn ensure_overlay_visible(app: &AppHandle) -> Result<(), String> {
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
         return build_overlay_window(app);
     };
     // 每次都校准：分辨率/缩放/任务栏变化后仍要铺满整屏
     let _ = apply_bounds(app);
+    if window.is_minimized().unwrap_or(false) {
+        let _ = window.unminimize();
+    }
     if !window.is_visible().unwrap_or(false) {
         let _ = window.show();
         // `skip_taskbar` 只在 build 时下发一次；走过 hide()/show() 之后任务栏按钮会回来。
@@ -194,6 +197,31 @@ fn ensure_overlay_visible(app: &AppHandle) -> Result<(), String> {
         let _ = window.set_ignore_cursor_events(true);
     }
     Ok(())
+}
+
+/// 进入截屏态前的前台化：显示 → 复位置顶 → 抢前台。
+///
+/// 不抢前台会同时坏两件事：① WebView2 只在窗口被激活后才恢复合成，页面停在 hidden
+/// 就没有遮罩、没有窗口吸附；② 键盘（Esc / 撤销 / 字号输入）根本到不了浮层。
+/// 失败只记日志（不能因此把这次截屏判死），下一次热键会再试一遍。
+pub(crate) fn activate_overlay(app: &AppHandle) {
+    if let Err(error) = ensure_overlay_visible(app) {
+        tracing::warn!(target: "overlay", "进入截屏态：浮层显示失败: {error}");
+        return;
+    }
+    let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
+        return;
+    };
+    if !crate::ui::foreground::force_foreground(&window) {
+        // 再兜一次 Tauri 自己的 set_focus（某些 Shell 状态下上面那条被锁挡住）
+        let _ = window.set_focus();
+        if !window.is_focused().unwrap_or(false) {
+            tracing::warn!(
+                target: "overlay",
+                "进入截屏态：浮层未取得前台焦点，首帧可能要等一次点击才恢复绘制"
+            );
+        }
+    }
 }
 
 /// Create (or show) the single always-on-top overlay window covering the primary monitor.
@@ -312,8 +340,10 @@ pub async fn overlay_update_mode(app: AppHandle, mode: String) -> Result<(), Str
         if let Some(health) = app.try_state::<OverlayHealth>() {
             health.mark_ping(now_ms());
         }
+        // 抓帧已经结束，这里再前台化：`force_foreground` 同时会重放置顶，
+        // 免得任务栏在这中间把自己又抬上来（贴底的工具栏就会跑到它后面）
+        activate_overlay(&app);
         if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-            let _ = window.set_focus();
             let _ = window.set_ignore_cursor_events(false);
         }
     } else if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {

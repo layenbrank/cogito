@@ -48,6 +48,8 @@ pub mod security;
 
 pub mod ui {
     pub mod contextmenu;
+    /// 前台化 / 置顶（Windows 前台锁绕行）
+    pub mod foreground;
     pub mod native_find;
     pub mod tray;
 }
