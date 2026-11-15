@@ -16,6 +16,7 @@ import type { BaseCheckpointSaver } from '@langchain/langgraph'
 import type { GooseAcpClient } from './goose/client'
 import type { GooseSupervisor } from './goose/supervisor'
 import type { ApprovalHub } from './approvals'
+import type { EventHub } from './events'
 
 const OrchestrationState = Annotation.Root({
   /** 客户端 `agent_session.id` */
@@ -90,11 +91,17 @@ function collectText(chunks: TextChunk[]): string {
     .join('')
 }
 
-function createGooseGraph(
-  supervisor: GooseSupervisor,
-  checkpointer?: BaseCheckpointSaver,
+/** 依赖多了就不该再堆位置参数（`createGooseGraph(a, b, c, d)` 可读性为零）。 */
+interface GooseGraphOptions {
+  supervisor: GooseSupervisor
+  checkpointer?: BaseCheckpointSaver
   approvals?: ApprovalHub
-) {
+  /** 把 goose 的 `session/update` 原样送去 `/threads/:id/events` */
+  events?: EventHub
+}
+
+function createGooseGraph(options: GooseGraphOptions) {
+  const { supervisor, checkpointer, approvals, events } = options
   /** sessionId → threadID：审批请求只带 sessionId，得靠这张表回到线程。 */
   const sessionThreads = new Map<string, string>()
 
@@ -115,12 +122,23 @@ function createGooseGraph(
     })
   }
 
-  /** 在一个已知 session 上跑一轮；只收集本会话的 `agent_message_chunk`。 */
-  async function runTurn(client: GooseAcpClient, sessionId: string, prompt: string): Promise<string> {
+  /**
+   * 在一个已知 session 上跑一轮：
+   * - 每条 `session/update` 原样发到事件流（前端靠它渲染正文与工具卡）；
+   * - 同时只聚合 `agent_message_chunk` 的正文（写回 state，供 `/state` 与审计用）。
+   */
+  async function runTurn(
+    client: GooseAcpClient,
+    sessionId: string,
+    prompt: string,
+    threadID: string
+  ): Promise<string> {
     const chunks: TextChunk[] = []
     const unsubscribe = client.onSessionUpdate(function (updatedSessionId, update) {
       if (updatedSessionId !== sessionId) return
       if (typeof update !== 'object' || update === null) return
+      // 事件流是**原始形状**：前端的 ACP 解析器按 session/update 的字段读，不再抄一遍
+      events?.emit(threadID, 'update', update)
       const record = update as Record<string, unknown>
       if (record.sessionUpdate !== 'agent_message_chunk') return
       const content = record.content
@@ -147,7 +165,7 @@ function createGooseGraph(
     if (state.sessionId) {
       try {
         return {
-          reply: await runTurn(client, state.sessionId, state.prompt),
+          reply: await runTurn(client, state.sessionId, state.prompt, state.threadID),
           sessionId: state.sessionId
         }
       } catch (error) {
@@ -158,7 +176,7 @@ function createGooseGraph(
 
     const session = await client.newSession({ cwd: state.cwd })
     sessionThreads.set(session.sessionId, state.threadID)
-    const reply = await runTurn(client, session.sessionId, state.prompt)
+    const reply = await runTurn(client, session.sessionId, state.prompt, state.threadID)
     return { reply, sessionId: session.sessionId }
   }
 
@@ -172,3 +190,4 @@ function createGooseGraph(
 }
 
 export { OrchestrationState, collectText, createGooseGraph, isStaleSession }
+export type { GooseGraphOptions }

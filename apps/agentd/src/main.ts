@@ -10,6 +10,7 @@ import { createApprovalHub } from './approvals'
 import { createSqliteSaver } from './checkpointer'
 import { readConfig } from './config'
 import { openDb } from './db'
+import { createEventHub } from './events'
 import { createGooseGraph } from './graph'
 import { createGooseSupervisor } from './goose/supervisor'
 import { SERVICE_NAME, createApp } from './server'
@@ -52,10 +53,18 @@ async function bootstrap(): Promise<void> {
 
   // 工具审批闸门：goose 的 `session/request_permission` 挂在这里等用户回执
   const approvals = createApprovalHub()
+  // 会话事件流：前端靠它渲染正文与工具卡（`/runs/stream` 只吐图状态）
+  const events = createEventHub()
 
   const agentServer = createAgentServer({
-    graph: createGooseGraph(supervisor, createSqliteSaver(db), approvals),
+    graph: createGooseGraph({
+      supervisor,
+      checkpointer: createSqliteSaver(db),
+      approvals,
+      events
+    }),
     approvals,
+    events,
     // goose 查询面（P4-a）：前端把 providers/extensions/diagnostics 这类读操作交给 agentd，
     // 不再自己连 ACP。未托管 goose 时为 null → 这些路由回 503。
     goose: {

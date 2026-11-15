@@ -20,6 +20,7 @@ import { Command } from '@langchain/langgraph'
 import type { Express, Request, Response } from 'express'
 
 import type { ApprovalHub } from './approvals'
+import type { EventHub } from './events'
 
 const GRAPH_NAME = 'agent'
 
@@ -45,6 +46,8 @@ interface AgentServerOptions {
   goose?: GooseQueryPort | null
   /** 工具审批闸门；为 null 时 `/threads/:id/approvals` 一律 503 */
   approvals?: ApprovalHub | null
+  /** 会话事件流（`session/update` 与审批）；为 null 时 `/threads/:id/events` 一律 503 */
+  events?: EventHub | null
 }
 
 interface GooseQueryPort {
@@ -94,6 +97,16 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   const graphName = options.graphName ?? GRAPH_NAME
   const threads = new Map<string, ThreadRecord>()
   const approvals = options.approvals ?? null
+  const events = options.events ?? null
+
+  // 审批事件汇进同一条流：前端只消费 `/threads/:id/events` 一个通道
+  approvals?.subscribe(function (event) {
+    events?.emit(
+      event.approval.threadID,
+      event.type === 'approval_requested' ? 'approval' : 'status',
+      event
+    )
+  })
 
   function readThreadID(req: Request): string {
     return String(req.params.threadId ?? '')
@@ -108,6 +121,15 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     return threads.get(threadID) ?? null
   }
 
+  /** 把请求体折成图的入参（`command.resume` 要包成 Command 实例）。 */
+  function readRunPayload(req: Request, threadID: string): unknown {
+    const body = (req.body ?? {}) as { input?: unknown; command?: Record<string, unknown> }
+    // resume 必须传 **Command 实例**：直接透传普通对象会被当成 input 更新，于是再次 interrupt
+    return body.command !== undefined
+      ? new Command(body.command as never)
+      : withThreadID(body.input, threadID)
+  }
+
   async function handleRunStream(req: Request, res: Response): Promise<void> {
     const threadID = readThreadID(req)
     const thread = ensureThread(threadID)
@@ -116,12 +138,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       return
     }
 
-    const body = (req.body ?? {}) as { input?: unknown; command?: Record<string, unknown> }
-    // resume 必须传 **Command 实例**：直接透传普通对象会被当成 input 更新，于是再次 interrupt
-    const payload =
-      body.command !== undefined
-        ? new Command(body.command as never)
-        : withThreadID(body.input, threadID)
+    const payload = readRunPayload(req, threadID)
 
     res.status(200)
     res.setHeader('content-type', 'text/event-stream; charset=utf-8')
@@ -304,6 +321,54 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       void handleRunStream(req, res)
     })
 
+    /**
+     * 后台跑一轮，不挂 HTTP 响应：202 立刻返回，过程与结果全部进 `/threads/:id/events`。
+     *
+     * 前端用这条而不是 `/runs/stream`：一次会话的事件（正文增量、工具卡、审批、回合状态）
+     * 不应该被绑在「一次图执行」的 HTTP 生命周期上。
+     */
+    app.post('/threads/:threadId/runs', function (req: Request, res: Response) {
+      const threadID = readThreadID(req)
+      const thread = ensureThread(threadID)
+      if (!thread) {
+        res.status(404).json({ error: 'thread_not_found' })
+        return
+      }
+
+      const payload = readRunPayload(req, threadID)
+      const runID = randomUUID()
+      res.status(202).json({ run_id: runID, thread_id: threadID })
+
+      void (async function () {
+        events?.emit(threadID, 'status', { phase: 'running', runID })
+        let status: 'success' | 'error' = 'success'
+        let message: string | undefined
+        try {
+          const iterator = await options.graph.stream(payload, {
+            configurable: { thread_id: threadID },
+            streamMode: ['values', 'updates']
+          })
+          // 图快照不进事件流（前端要的是会话事件）；这里只把流跑完
+          for await (const _chunk of iterator) {
+            // drain
+          }
+        } catch (error) {
+          status = 'error'
+          message = error instanceof Error ? error.message : String(error)
+        } finally {
+          thread.updated_at = nowIso()
+          approvals?.cancelThread(threadID)
+          const statusEvent: { phase: string; runID: string; status: string; message?: string } = {
+            phase: 'settled',
+            runID,
+            status
+          }
+          if (message) statusEvent.message = message
+          events?.emit(threadID, 'status', statusEvent)
+        }
+      })()
+    })
+
     // ── 工具审批 ────────────────────────────────────────────────────────────
     // 审批不能用 LangGraph 的 interrupt：`session/request_permission` 是在 session/prompt
     // 还没返回时推上来的，打断节点就丢了那次 await。这里改成「挂住 ACP 回包 + 独立回执」。
@@ -333,8 +398,8 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
 
     /** 审批等事件的实时通道（SSE）。`/runs/stream` 只吐图状态，装不下这类外部事件。 */
     app.get('/threads/:threadId/events', function (req: Request, res: Response) {
-      if (!approvals) {
-        res.status(503).json({ error: 'approvals_unavailable' })
+      if (!events) {
+        res.status(503).json({ error: 'events_unavailable' })
         return
       }
       const threadID = readThreadID(req)
@@ -343,17 +408,26 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         return
       }
 
+      const rawAfter = Number(req.query.after)
+      const after = Number.isFinite(rawAfter) ? rawAfter : undefined
+
       res.status(200)
       res.setHeader('content-type', 'text/event-stream; charset=utf-8')
       res.setHeader('cache-control', 'no-cache, no-transform')
       res.setHeader('connection', 'keep-alive')
       res.flushHeaders()
-      // 订阅前先补发一次现状：请求可能发生在连上来之前
-      writeSse(res, 'approvals', { approvals: approvals.pending(threadID) })
 
-      const unsubscribe = approvals.subscribe(function (event) {
-        if (event.approval.threadID !== threadID) return
-        writeSse(res, event.type, event)
+      // 先按游标补发，再发一份「现状」：审批请求可能发生在连上来之前
+      for (const event of events.since(threadID, after)) {
+        writeSse(res, 'run', event)
+      }
+      writeSse(res, 'sync', {
+        approvals: approvals ? approvals.pending(threadID) : [],
+        lastSeq: events.since(threadID).at(-1)?.seq ?? 0
+      })
+
+      const unsubscribe = events.subscribe(threadID, function (event) {
+        writeSse(res, 'run', event)
       })
       res.on('close', function () {
         unsubscribe()

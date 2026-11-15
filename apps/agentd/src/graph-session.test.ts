@@ -107,7 +107,7 @@ function buildFakeGoose(script: FakeTurn[]): {
 describe('goose 图的会话复用', function () {
   it('第二轮复用第一轮的 session，不再 session/new', async function () {
     const fake = buildFakeGoose([{ reply: '第一轮' }, { reply: '第二轮' }])
-    const graph = createGooseGraph(fake.supervisor, new MemorySaver())
+    const graph = createGooseGraph({ supervisor: fake.supervisor, checkpointer: new MemorySaver() })
     const config = { configurable: { thread_id: 'thread-a' } }
 
     const first = await graph.invoke({ prompt: '你好', cwd: '/w' }, config)
@@ -131,7 +131,7 @@ describe('goose 图的会话复用', function () {
       { reply: '', failWith: 'session not found: -32002' },
       { reply: '重开后' }
     ])
-    const graph = createGooseGraph(fake.supervisor, new MemorySaver())
+    const graph = createGooseGraph({ supervisor: fake.supervisor, checkpointer: new MemorySaver() })
     const config = { configurable: { thread_id: 'thread-b' } }
 
     await graph.invoke({ prompt: 'first', cwd: '/w' }, config)

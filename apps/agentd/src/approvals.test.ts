@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createApprovalHub } from './approvals'
 import type { ApprovalEvent } from './approvals'
 import { createAgentServer } from './agent-server'
+import { createEventHub } from './events'
 import { SERVICE_NAME, createApp } from './server'
 import type { AgentdStatus } from './server'
 
@@ -41,7 +42,11 @@ const stubGraph = {
 }
 
 function startServer(hub: ReturnType<typeof createApprovalHub>): Promise<string> {
-  const agentServer = createAgentServer({ graph: stubGraph as never, approvals: hub })
+  const agentServer = createAgentServer({
+    graph: stubGraph as never,
+    approvals: hub,
+    events: createEventHub()
+  })
   const app = createApp({
     token: TOKEN,
     status: buildStatus,
@@ -211,13 +216,14 @@ describe('审批 HTTP 面', function () {
     expect(reader).toBeDefined()
     const decoder = new TextDecoder()
     let text = ''
-    while (!text.includes('approvals')) {
+    while (!text.includes('sync')) {
       const chunk = await reader?.read()
       if (!chunk || chunk.done) break
       text += decoder.decode(chunk.value, { stream: true })
     }
     controller.abort()
-    expect(text).toContain('event: approvals')
+    // 连上先补一份现状：审批请求可能早于订阅
+    expect(text).toContain('event: sync')
     expect(text).toContain('requestId')
   })
 })
