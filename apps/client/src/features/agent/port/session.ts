@@ -41,6 +41,8 @@ import type {
 
 import { parseAcpApprovalRequest, parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import type { AcpStreamContext } from '@/features/agent/acp/stream'
+import { writeGooseUsage } from '@/features/agent/acp/goose-usage'
+import { bindSession } from '@/features/agent/acp/session-binding'
 import { callAgentd, callAgentdJson, forgetEndpoint, invokeGoose } from './agentd-rpc'
 import { humanizeRunError } from '@/features/agent/acp/run-error'
 import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
@@ -876,7 +878,16 @@ async function* runThreadPrompt(
       }
 
       if (kind === 'update') {
-        yield { kind: 'update', update: payload as unknown as SessionUpdate }
+        const update = payload as unknown as SessionUpdate
+        // 上下文用量是**旁路**的 UX 信息：写进内存表，让侧栏的用量条跟着动。
+        // 旧实现在 ACP 连接层写，换到 agentd 后事件只在流里过一道，不写就永远不更新。
+        if (update.sessionUpdate === 'usage_update') {
+          const usage = update as unknown as { used?: number; size?: number }
+          if (typeof usage.used === 'number' && typeof usage.size === 'number') {
+            writeGooseUsage(key, usage.used, usage.size)
+          }
+        }
+        yield { kind: 'update', update }
         continue
       }
 
@@ -932,6 +943,14 @@ async function* runThreadPrompt(
     }
     // 会话 id 每轮都刷新：首轮刚建、agentd 重启后失效都会变
     await refreshSessionID(key)
+    // 把绑定落库：刷新页面 / 重开应用后才能接着看这一轮，而不是从头开始
+    if (record.sessionId) {
+      void bindSession(key, {
+        acpSessionId: record.sessionId,
+        cwd,
+        lastSeq: record.lastSeq
+      })
+    }
     yield { kind: 'stop', stopReason: cancelled ? 'cancelled' : 'end_turn' }
   } catch (error) {
     if (controller.signal.aborted) {
