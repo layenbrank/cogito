@@ -127,3 +127,85 @@ flowchart TD
 2. **`node:sqlite` 的成熟度**：Node 24 里它仍标 experimental（无 flag）。S2 必须同时验 WAL、并发写、`busy_timeout`、崩溃后 journal 恢复；接口只暴露 3 个方法，万一要换成 better-sqlite3 只改一个文件（但打包会从 SEA 退成「Node 目录 + 原生件」，代价要提前知道）。
 3. **skein 断更的逃生路径**：上游 `1.0.0-beta.1`、周下载 <150、README 自述 Pre-alpha，且 npm registry 指向 `registry.npmmirror.com`（beta 包可能缺）。已由 D7 的 `AgentServer` 薄接口兑付；若 S1 直接失败，备选是「`@langchain/langgraph` + 自写 `/threads` `/runs/stream`」，工作量约 +5–7 天，不改变其他阶段。
 4. **`@agentclientprotocol/sdk` 版本**：仓库锁 1.7.0（catalog 里有 1.8.0 覆盖），上游 2.7.0 新增 `./experimental/node`。建议 agentd 独立升到 2.x（client 继续 1.7 直到删旧），S3 双版本各跑一遍 ACP 握手与 `session/load`。
+
+---
+
+## 执行后修正（2026-11-16，破坏性重构口径）
+
+> 本计划已在 P0–P8 上执行完毕（19 个提交，`git log` 可查）。下面只记**与原计划不一致的地方与理由**。
+> 原计划正文保留作历史，**其中被本节推翻的条目不要照做**。
+
+### 一、会直接害人的两条（已推翻）
+
+1. **P4-23「把 `session/request_permission` 发成 `interrupt`，回复走 `Command.resume`」—— 错的，会丢半个回合。**
+   `interrupt()` 打断的是当前节点的 `await`，而 `session/prompt` 的 promise 正挂在那上面。一旦被打断，
+   resume 无法「回到原来那个 await」，只能重发 prompt：模型已经算完的工具调用与正文全丢。
+   **实际实现是「挂住 ACP 回包」**（`apps/agentd/src/approvals.ts`）：prompt 一直等，拿到用户决定再写回
+   JSON-RPC result。`interrupt` 在本项目里**一次都没用**。
+
+2. **P5-28「子代理是硬冲突，必须 A/B 二选一」—— 前提不成立。**
+   真实链路是 `goose subagent 工具 → cogito-mcp → Rust 任务板限流 → agent://subagent-spawn 事件 → 渲染侧跑一轮`。
+   渲染侧一直在，`acp/subagent.ts` 只负责「接活」，它现在调的就是 `runThreadPrompt`。
+   **换的是传输，不是职责** —— 既不构成冲突，也不需要改 subgraph、不需要禁用。
+
+### 二、写错的条目
+
+| 条目 | 原写法 | 实际做法与理由 |
+| --- | --- | --- |
+| P2-11 CORS | 「白名单精确到 `tauri://localhost` / dev 的 `http://localhost:8200`」 | **错**：agentd 端口由内核给、vite 端口不固定（5173/8200/9523）、Tauri 各平台 origin 不同。改为**回显 `Origin` + `Vary`**，安全性靠 bearer。更关键的是计划**漏了「`OPTIONS` 预检不带 token，必须挂在 `bearerAuth` 之前」** —— 漏了这条，浏览器里所有请求都是 `Failed to fetch`（已踩） |
+| P7-36 | sha256 入 `checksums.json` | 语义错：那份清单是**远端 staged 产物**的校验（由 `tools.lock.json` 生成）。agentd 是本地构建，塞进去要改 `prepare-binaries.ts` 的校验逻辑，反而破坏它。产物校验改为：`--version` 自报 + CI 三平台各跑一遍 + e2e 真跑一轮 |
+| Verification-2 | Golden 回放「同一份 ndjson → 三段快照，任何字段漂移就红」 | **可比性没定义**：真实录像里模型输出每次不同，逐字快照永远红。只能二选一：手写最小帧（`stream.test.ts` 已按此覆盖全部 12 种 `sessionUpdate` + 审批 + 追问），或把 content 正则化。当前选前者，故**不做 S4 录播** |
+| P0-S3 | 定版 `@agentclientprotocol/sdk` 1.7.0 vs 2.7.0 | **空转**：实现里根本没引这个 SDK（自写 NDJSON 分帧 + 自己收窄类型）。`ws-client` / `experimental/node` 都用不上，引入只多一层版本约束 |
+| P3-16 | 「`goose_serve.rs` 不能整文件删，保留 `run_goose`」 | 保留**能力**是对的，但**文件组织**更优的是「把 `run_goose` 拆进 `utils/goose_cli.rs` 再删整文件」，让 `goose_serve` 这个误导性名字彻底消失。已按此做 |
+| P3-17 | `gooseStatus` 的三个消费面 | 实际 **5 处**：就绪门、诊断卡、`EVENTS.AGENTD_NOT_READY` 订阅者、`security-boundary.md`、`port/session.ts` 的 `waitGooseReady` |
+| P8-37 | 日志含 `traceparent` | 单进程侧车、没有 collector，`traceparent` 无处可用。改为 14 个计数器 + `AGENTD_EVENT` 单行 JSON（字段平铺，`jq` 直接可查）；需要「当前值」的走接口查询，不另存 Gauge |
+
+### 三、因「不保留兼容」而删除的条目
+
+- P4-24 **`AgentPref` 设备级 flag** —— 没有旧实现可回退，flag 只会变成「半开关」
+- P4-25 / Verification-5 **「flag off 与现状逐像素一致」的快照验收** —— 无 flag 即无此验收项
+- P8-38 **灰度**（dogfood → flag off → 分设备开启）与「legacy 保留一个版本」—— 旧链路已整条删除（净删约 3700 行）
+- P2-9 / P0-S1 的 **`AgentServer` 30 行薄接口**（为 skein 断更预留）—— skein 已因 SEA 互斥移除，这层抽象失去存在理由
+- P3-19 的 **「6 个 `tauri.*.conf.json` 变体一并核对」** —— 只保留 dev 与生产两条真链路
+- **P6 完整编排图整段砍掉**：
+  ① goose 自己就是 agent loop，外面再套一层是双循环；
+  ② `planNode` 用 plan 模式子会话 = 每轮多一次完整模型调用，延迟与成本翻倍；
+  ③ `reviewNode` 的硬规则（`findToolRisk`）**已经前移到审批闸门**，用的是同一份 `@cogito/agent-protocol/policy`；
+  ④ 产品里已有 `goal-run` 自驱续跑与 plan 模式，P6 只是把它们用图重写一遍，没有新能力。
+
+### 四、计划没提、但实现时必须做的（每条都踩过）
+
+1. `OPTIONS` 预检必须绕过 `bearerAuth`
+2. `--version` 必须在 `readConfig` **之前**早退 —— 打包校验环境没有 `AGENTD_TOKEN`，放后面就永远验不了产物
+3. **`build.rs` 的 externalBin 校验列表也要加 `agentd`** —— 计划只提了 `tauri.conf.json`；漏了会「`cargo check` 过、`tauri build` 到打包阶段才报错」
+4. SEA 在 macOS 必须 `codesign --remove-signature` → 注入 → ad-hoc 重签，否则内核 SIGKILL
+5. SEA 目标文件被运行中的应用占用时报 `EBUSY`，必须翻译成「先完全退出 cogito」
+6. 审批 300s 超时**不会自动跟着搬家**：闸门从渲染侧到 agentd 后要重新实现，否则一次被忘掉的审批会把 ACP 回包永久悬住
+7. `resumeThreadRun`（刷新恢复）必须处理补发过来的 approval / elicitation 事件，否则刷新后审批卡永久消失
+8. `usage_update` 要写进 `writeGooseUsage`，不然上下文用量条永远不更新
+9. `session-binding` 的**写入**路径（旧会话层删掉后只剩读，刷新续传变虚设）
+10. goose 状态枚举是 `disabled|starting|ready|failed`，**没有 `unavailable`**；容器里没配 `GOOSE_PATH_ROOT` 是 `disabled`（不托管），配了却找不到二进制是 `failed`（坏了），两者不能混
+11. 容器构建上下文必须是仓库根（workspace 依赖）→ 新增根 `.dockerignore`；`pnpm install` 必须 `--ignore-scripts`（`only-allow pnpm` 要联网、`prepare:husky` 没 `.git`、`electron-rebuild` 要宿主平台）
+12. 宿主端口取 **28080**：本机 1024–15000 是动态段，落进去的端口随时被 WinNAT 抽走
+13. `elicitation/create` 只支持 `form` 模式；URL 模式没有渲染面，直接 `decline`
+
+### 五、完成度
+
+| 阶段 | 状态 |
+| --- | --- |
+| P0 决策与证据 | ✅ ADR（supersede）+ findings + S1/S2/S3 |
+| P1 `agent-protocol` | ✅ policy 3 文件 + protocol 类型 |
+| P2 agentd 最小闭环 | ✅ 握手/bearer/白名单透传/游标续传/审批闸门/SqliteSaver |
+| P3 Tauri 侧车 | ✅ `utils/agentd.rs` + 6 命令 + `goose_cli.rs` + SEA |
+| P4 前端 port 切换 | ✅ `port/session.ts` 重写，旧链路已删 |
+| P5 功能对等 | ✅ parity matrix 落 `docs/apps/client/agent-orchestration.md` |
+| P6 完整编排图 | ❌ 整段砍掉（理由见三） |
+| P7 打包/CI/compose | ✅ 镜像 + `agentd-ci.yaml` + `build.rs` + 三平台 SEA |
+| P8 观测 | ✅ 计数器 + `/metrics`；灰度段按上文删除 |
+
+还有三件**已知未做**：`goal-run` 搬进图（判断暂不做，理由同 P6 ①③）、
+`applyGooseThinking` 的会话内生效（依赖 goose 把 thinking 从全局配置改成 session configOption）、
+Docker 镜像只在 CI 验过（本机未起 daemon）。
+
+**验证基线**：agentd 14 文件 69 测试 / client 194 文件 1366 测试 /
+e2e 21 项（无 goose）+ 22 项（含真模型与重启续跑）/ 全仓 lint 17-17。
