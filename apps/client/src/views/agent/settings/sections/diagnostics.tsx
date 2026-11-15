@@ -19,7 +19,7 @@ import {
   type DiagnosticsReport,
   type DiagnosticsTextFile
 } from '@/features/agent/acp/goose-diagnostics'
-import { findThreadAcpSessionID, readGooseStatus, waitGooseReady } from '@/features/agent/acp/session'
+import { findThreadAcpSessionID, readGooseStatus, waitGooseReady } from '@/features/agent/port/session'
 import {
   findSessionMcpStatus,
   readSessionToolSurface,

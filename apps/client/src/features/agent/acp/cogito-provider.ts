@@ -17,7 +17,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { GET_GATEWAY_MODELS, type GatewayModel } from '@/apis/gateway'
 import { findAcpHandle } from '@/features/agent/acp/connection'
 import { fetchProviderEntry } from '@/features/agent/acp/goose-providers'
-import { waitGooseReady } from '@/features/agent/acp/session'
+import { waitGooseReady } from '@/features/agent/port/session'
 import {
   clearGatewayLabels,
   rememberGatewayLabels

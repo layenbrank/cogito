@@ -38,7 +38,7 @@ import {
   type BackgroundTurn
 } from '@/features/agent/acp/background-turn'
 import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
-import { resumeThreadRun } from '@/features/agent/acp/session'
+import { resumeThreadRun } from '@/features/agent/port/session'
 import { bindGoalHistoryPort } from '@/features/agent/goal-continue'
 import { readModeSnapshot, stampModeSnapshot } from '@/features/agent/mode'
 import { notifyTurnDone } from '@/features/agent/notify'

@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'
 import { addConfigExtension } from '@/features/agent/acp/goose-extensions'
-import { waitGooseReady } from '@/features/agent/acp/session'
+import { waitGooseReady } from '@/features/agent/port/session'
 import {
   buildExtension,
   makeExtensionDraft,

@@ -24,7 +24,7 @@ import {
   respondToApproval,
   respondToElicitation,
   runThreadPrompt
-} from '@/features/agent/acp/session'
+} from '@/features/agent/port/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { captureDirectiveDraft } from '@/features/agent/directive-draft'
 import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
@@ -462,6 +462,10 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
                       text: '\n\n（计划模式禁止写操作：请在审批中拒绝写工具，或切到「执行」模式后再改。）\n'
                     }
                   }
+                  yield item.event
+                  break
+                case 'event':
+                  // 会话层已经解析好的事件（目前只有 `tool-approval-settled`）
                   yield item.event
                   break
                 case 'stop':

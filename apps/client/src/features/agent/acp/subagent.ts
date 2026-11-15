@@ -27,7 +27,7 @@ import {
   respondToApproval,
   respondToElicitation,
   runThreadPrompt
-} from '@/features/agent/acp/session'
+} from '@/features/agent/port/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
 import { readGoalRun } from '@/features/agent/goal-run'

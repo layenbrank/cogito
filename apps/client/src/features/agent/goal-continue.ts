@@ -20,11 +20,11 @@ import {
   onBackgroundTurnFinished,
   type BackgroundTurn
 } from '@/features/agent/acp/background-turn'
-import { runThreadPrompt } from '@/features/agent/acp/session'
+import { runThreadPrompt } from '@/features/agent/port/session'
 import {
   respondToApproval,
   respondToElicitation
-} from '@/features/agent/acp/session'
+} from '@/features/agent/port/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { buildSystemPrompt, findAgentCwd } from '@/features/agent/model/prompt-project'

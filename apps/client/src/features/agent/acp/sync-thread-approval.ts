@@ -4,7 +4,7 @@
  * 与 `approval-switch` 同路径（`syncSessionApprovalMode`），供模式切换 / Goal 启停复用。
  */
 import { findAcpHandle } from '@/features/agent/acp/connection'
-import { findThreadAcpSessionID } from '@/features/agent/acp/session'
+import { findThreadAcpSessionID } from '@/features/agent/port/session'
 import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
 import type { ApprovalMode } from '@/features/agent/approval'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'

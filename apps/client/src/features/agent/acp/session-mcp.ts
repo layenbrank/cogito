@@ -17,7 +17,7 @@ import {
   findThreadAcpSessionID,
   readBuiltinMcpSwitches,
   type AcpMcpServer
-} from '@/features/agent/acp/session'
+} from '@/features/agent/port/session'
 
 type SessionMcpName = 'local' | 'corex'
 

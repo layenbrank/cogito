@@ -17,7 +17,7 @@ import { useAuiState } from '@assistant-ui/react'
 import { ReasoningEffort, type EffortLevel } from '@cogito/design/assistant/reasoning-effort'
 import { useMemo } from 'react'
 
-import { applyGooseThinking } from '@/features/agent/acp/session'
+import { applyGooseThinking } from '@/features/agent/port/session'
 import { countTurnReasoningTokens } from '@/features/agent/context-estimate'
 import {
   canThink,

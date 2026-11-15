@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AUTO_COMPACT_THRESHOLD } from '@/features/agent/acp/goose-providers'
-import { compactThreadSession, hasThreadSession } from '@/features/agent/acp/session'
+import { compactThreadSession, hasThreadSession } from '@/features/agent/port/session'
 import {
   CONTEXT_SEGMENT_META,
   type ContextLevel,

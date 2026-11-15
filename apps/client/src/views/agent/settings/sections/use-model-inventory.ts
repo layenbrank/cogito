@@ -14,7 +14,7 @@ import {
   saveProviderConfig,
   type GooseProviderEntry
 } from '@/features/agent/acp/goose-providers'
-import { waitGooseReady } from '@/features/agent/acp/session'
+import { waitGooseReady } from '@/features/agent/port/session'
 import { findProviderLabel } from '@/features/agent/model/display'
 import {
   findModelKey,

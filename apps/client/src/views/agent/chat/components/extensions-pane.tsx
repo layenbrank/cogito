@@ -19,7 +19,7 @@ import {
   fetchSessionExtensions,
   writeConfigExtensionEnabled
 } from '@/features/agent/acp/goose-extensions'
-import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/port/session'
 import {
   EXTENSION_TYPE_LABELS,
   findExtensionKey,

@@ -27,7 +27,7 @@ import {
   removeSessionExtension,
   writeConfigExtensionEnabled
 } from '@/features/agent/acp/goose-extensions'
-import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/port/session'
 import { findSessionMcpStatus, type SessionMcpStatus } from '@/features/agent/acp/session-mcp'
 import {
   describeExtension,

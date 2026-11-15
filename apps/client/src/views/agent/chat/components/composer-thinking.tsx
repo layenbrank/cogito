@@ -23,7 +23,7 @@ import {
 import { cn } from 'cn'
 import { useState } from 'react'
 
-import { applyThinkingToOpenSessions } from '@/features/agent/acp/session'
+import { applyThinkingToOpenSessions } from '@/features/agent/port/session'
 import {
   canThink,
   findModelKey,

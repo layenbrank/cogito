@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'
 import { fetchTemperature } from '@/features/agent/acp/goose-providers'
-import { applyGooseTemperature, waitGooseReady } from '@/features/agent/acp/session'
+import { applyGooseTemperature, waitGooseReady } from '@/features/agent/port/session'
 import { findModelLabel } from '@/features/agent/model/display'
 import { findModelPref, readModelPrefs } from '@/features/agent/model/model-prefs'
 import { parseModels } from '@/features/agent/model/providers'

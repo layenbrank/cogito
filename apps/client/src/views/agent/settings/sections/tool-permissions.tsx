@@ -23,7 +23,7 @@ import {
   type SessionTool,
   type ToolPermissionLevel
 } from '@/features/agent/acp/goose-providers'
-import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/port/session'
 import { findToolRisk, RISK_META } from '@/features/agent/tool-risk'
 import { useAgentStore } from '@/stores/agent'
 

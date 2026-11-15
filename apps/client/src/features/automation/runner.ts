@@ -17,7 +17,7 @@ import {
   respondToApproval,
   respondToElicitation,
   runThreadPrompt
-} from '@/features/agent/acp/session'
+} from '@/features/agent/port/session'
 import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'

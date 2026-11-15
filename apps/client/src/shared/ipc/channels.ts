@@ -2,6 +2,14 @@
  * Tauri invoke / listen 频道单源；格式 namespace:action（事件可用 ://）。
  */
 export const CHANNELS = {
+  AGENTD: {
+    READY: 'agentd:ready',
+    ENDPOINT: 'agentd:endpoint',
+    RESTARTS: 'agentd:restarts',
+    RESTART: 'agentd:restart',
+    RESTART_GOOSE: 'agentd:restart-goose',
+    SHUTDOWN: 'agentd:shutdown'
+  },
   IPC: {
     INVOKE: 'ipc:invoke',
     READY: 'ipc:ready'
@@ -408,6 +416,9 @@ export const EVENTS = {
   GOOSE_NOT_READY: 'goose://not-ready',
   /** goose serve 就绪状态机（S4）：`starting` / `ready` / `failed` 三个相位 */
   GOOSE_STATUS: 'goose://status',
+  /** 编排层宿主的就绪状态机；`AgentdStatusSchema` 解析同一份结构 */
+  AGENTD_NOT_READY: 'agentd://not-ready',
+  AGENTD_STATUS: 'agentd://status',
   GOOSE_ACP_MESSAGE: 'goose://acp-message',
   GOOSE_ACP_CLOSE: 'goose://acp-close',
   GOOSE_ACP_ERROR: 'goose://acp-error',

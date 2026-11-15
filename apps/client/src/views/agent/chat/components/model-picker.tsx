@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { AgentModelSettings } from './model-settings'
 import styles from './model-picker.module.scss'
 import { ensureCogitoProvider } from '@/features/agent/acp/cogito-provider'
-import { switchGooseProviderModel } from '@/features/agent/acp/session'
+import { switchGooseProviderModel } from '@/features/agent/port/session'
 import {
   findModelLabel,
   findProviderBilling,

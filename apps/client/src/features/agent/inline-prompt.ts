@@ -7,7 +7,7 @@
  * 内联**不挂工具**（system 提示里明说）：一轮里若触发审批，这里没有审批 UI，
  * 只能等票据超时，用户看到的就是「卡住」。
  */
-import { closeThreadSession, runThreadPrompt } from '@/features/agent/acp/session'
+import { closeThreadSession, runThreadPrompt } from '@/features/agent/port/session'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
 import { buildModelPort } from '@/features/agent/port/model'
