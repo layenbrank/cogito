@@ -185,3 +185,30 @@ services:
       retries: 12
       start_period: 20s
     restart: unless-stopped
+
+  # 编排层侧车（LangGraph + goose/ACP）。生产里同样**只服务容器内验证/CI**，
+  # 桌面端由 Tauri 以 sidecar 拉起（docker/agentd/Dockerfile 里说明了为什么不做第二个产品形态）。
+  # 生产机只 pull 不可变镜像，不在容器里构建：镜像由 CI 的 agentd-ci.yaml 产出。
+  cogito-agentd:
+    image: ${AGENTD_IMAGE:?AGENTD_IMAGE 必填：预构建 agentd 镜像（registry/... 或本机验产用 cogito-agentd:local）}
+    pull_policy: missing
+    container_name: cogito-agentd
+    environment:
+      AGENTD_TOKEN: ${AGENTD_TOKEN:?AGENTD_TOKEN 必填（≥16 字符），见 .env.production.example}
+      AGENTD_DB: /data/agentd.db
+      AGENTD_PORT: '8080'
+      AGENTD_GOOSE_PATH_ROOT: /data/goose
+    volumes:
+      - agentd-data:/data
+    expose:
+      - '8080'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  agentd-data:

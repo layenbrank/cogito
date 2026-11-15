@@ -1,0 +1,102 @@
+# 桌面端 agent 编排层（agentd）：拓扑、能力对照、取消语义
+
+这套东西的决策理由在 [ADR](../../decisions/agent-orchestration-langgraph.md) 里。
+本文件只管**运维与对接**：谁拉起谁、哪些能力还在、超时到底多长、出问题看哪里。
+
+## 1. 进程拓扑
+
+```mermaid
+graph TD
+  UI["前端（WebView）<br/>features/agent/port/*"] -->|"HTTP + SSE<br/>127.0.0.1:随机端口<br/>Bearer"| A["agentd（sidecar）<br/>Node 单文件"]
+  A -->|"stdio NDJSON<br/>ACP"| G["goose"]
+  G -->|"provider 协议"| W["gateway（唯一出网点）"]
+  A --> DB[("agentd.db<br/>node:sqlite")]
+  T["Tauri（Rust）<br/>utils/agentd.rs"] -->|"spawn + Job Object"| A
+  T -->|"stdout 握手行<br/>AGENTD_READY"| UI
+```
+
+四条必须记住的边界：
+
+1. **agentd 只绑 `127.0.0.1`**，端口由内核挑（`AGENTD_PORT=0`），真实端口只通过 stdout 的
+   `AGENTD_READY {…}` 行报给宿主。不做「先探测空闲端口再传进来」那种 TOCTOU 方案。
+2. **agentd 被 Tauri 收养进 Job Object**，它的 `goose` 子进程继承成员资格；主进程被强杀时
+   由内核回收整棵树。关停顺序是「HTTP `/admin/shutdown` → 等 800 ms → `taskkill /T /F`」。
+3. **agentd 只写自己的 `agentd.db`**（graph checkpoint / run 状态 / 会话映射）。聊天历史仍然是
+   Rust SQLite 的 `agent_message` 单写者，两边不互相写。
+4. **前端只有 `port/` 一条 runtime 通路**。`port/model.ts` 把 Agent Protocol 事件翻译成
+   `ChatStreamEvent`，`packages/chat` 的 `createChatModelAdapter` 原样复用。
+
+## 2. 能力对照（parity）
+
+P5 逐项对照了被删掉的 `acp/session.ts`（2400+ 行），每项只有两种下场：**已实现** 或
+**显式降级**。没有「悄悄少一块」的第三态。
+
+| 能力 | 状态 | 落点 / 说明 |
+| --- | --- | --- |
+| 工具审批（一工具一票） | ✅ 已实现 | agentd `approvals.ts`；判定规则在 `@cogito/agent-protocol/policy`，client 与 agentd 同一份代码 |
+| 审批超时 | ✅ 已实现 | `APPROVAL_TIMEOUT_MS = 300_000`（与旧 `TICKET_TIMEOUT_MS` 同值），超时按取消结案 |
+| 提问追问 `elicitation/create` | ⚠️ 显式降级 | agentd 还没实现该反向请求 → `respondToElicitation` 恒 `false`，UI 按「取消」处理 |
+| 刷新后接着看进行中的回合 | ✅ 已实现 | `/threads/:id/events?after=<seq>` 游标续传 + `acp/session-binding.ts` 落库 |
+| 后台回合（切走再回来） | ✅ 已实现 | agentd 常驻，回合本来就跑在进程外；`background-turn.ts` 只负责前端侧的泵与回放 |
+| 上下文用量条 | ✅ 已实现 | `usage_update` → `writeGooseUsage(threadID, used, size)` |
+| 思考级别（thinking level） | ✅ 已实现 | `GOOSE_THINKING_EFFORT` 的 `_goose/unstable/config/upsert`；会话内即时生效是**试写**，失败只写全局键 |
+| 模型 / 供应商切换 | ✅ 已实现 | `/goose/*` 透传面 + `switchGooseProviderModel` |
+| 权限档（readonly/auto/ask…） | ✅ 已实现 | `session/set_config_option({configId:'mode'})`。**不是** `session/set_mode` —— 后者 goose 宽容返回 `{}` 但状态不变 |
+| 每轮系统提示 | ✅ 已实现 | `_goose/unstable/session/system-prompt/set`（`append` + `key=cogito`），由 agentd 在会话建好后写 |
+| 设置面（extensions/providers/diagnostics/defaults） | ✅ 已实现 | `/goose/{providers,extensions,diagnostics,defaults,sessions}` 透传 |
+| MCP 工具面 | ✅ 已实现 | 由**会话创建方**（前端）在 `session/new` 时给出，agentd 只落进 state |
+| 子代理（`subagent` 工具） | ✅ 已实现 | 调度侧一直在渲染进程（`agent://subagent-spawn` → `acp/subagent.ts`），这次只换了底层传输 |
+| goal 自驱续跑 | ✅ 已实现 | 仍在渲染侧租约（`goal-run.ts`），未搬进 graph 循环 —— 见下 |
+| 取消 / 停止按钮 | ✅ 已实现 | `POST /threads/:id/cancel` → ACP `session/cancel` → abort 图 |
+
+**关于子代理为什么不算「硬冲突」**：计划里担心「goose 不在渲染侧后这条链断了」。实际链路是
+`goose subagent 工具 → cogito-mcp → Rust 任务板限流 → agent://subagent-spawn 事件 → 渲染侧跑一轮`。
+goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那一端（`acp/subagent.ts`）现在调的是
+`port/session.ts` 的 `runThreadPrompt` —— 换的是传输，不是职责。所以既不需要改 subgraph，
+也不需要禁用工具。
+
+**关于 goal 自驱续跑没搬进 graph**：搬到图里能换来「关掉窗口也继续跑」，但要重写租约、幂等与
+中断恢复，且现有实现有 `readGoalRun` 作为「无人值守」的证据被审批策略读取。当前判断是
+**不搬**：等功能面稳定后再单独做，届时以 subgraph 形式接，而不是再复制一套循环。
+
+## 3. 取消与超时语义
+
+三层各自的值必须存在，缺一层就会出现「看起来只是卡住」的无声失败。
+
+| 层 | 值 | 位置 | 触发后 |
+| --- | --- | --- | --- |
+| 用户在 UI 点停止 | 立即 | `port/session.ts` → `POST /threads/:id/cancel` | ACP `session/cancel` + abort 图 |
+| agentd 让位给新回合 | 1500 ms 等待，50 ms 轮询 | `agent-server.ts` `PREEMPT_WAIT_MS` | 等不到也继续（不能因旧回合赖着而拒绝新回合） |
+| 审批票据 | 300 s | `approvals.ts` `APPROVAL_TIMEOUT_MS` | 按 `cancelled` 结案（fail-closed） |
+| goose 单次 JSON-RPC 请求 | 60 s | `goose/client.ts` `DEFAULT_REQUEST_TIMEOUT_MS` | 抛错，由节点决定是否重开会话 |
+| 前端等 agentd 就绪 | 30 s | `port/session.ts` `READY_TIMEOUT_MS` | 报「编排层未就绪」并给诊断入口 |
+| 一轮最长空闲 | 60 min | `port/session.ts` `RUN_IDLE_TIMEOUT_MS` | 断开 SSE 并报超时 |
+| 宿主等 agentd 优雅退出 | 800 ms，然后 `taskkill /T /F` | `utils/agentd.rs` `shutdown_and_wait` | 强杀进程树 |
+| agentd 自身关停兜底 | 5 s | `main.ts` `SHUTDOWN_TIMEOUT_MS` | 强制 `process.exit` |
+
+## 4. 出问题看哪里
+
+| 症状 | 先看 | 常见根因 |
+| --- | --- | --- |
+| `AGENTD_FATAL` 后立即退出（码 2） | 启动参数里的环境变量 | `AGENTD_TOKEN` 缺失或不足 16 字符 / `AGENTD_DB` 没给 —— 这是刻意的 fail-closed |
+| `/health` 的 `goose` 不是 `ready` | `AGENTD_GOOSE_PATH_ROOT` 指向的目录 | 缺 `config.yaml` / `secrets.yaml`，或没配 provider+model（`session/new` 会直接 -32603） |
+| UI 里从来不出审批卡 | `<GOOSE_PATH_ROOT>/config/permission.yaml` | `user.always_allow` 里有 `write`/`edit`、或 `never_allow` 里有 `shell` 时，goose 根本不发 `session/request_permission`。要验审批请用只含 `config.yaml` + `secrets.yaml` 的干净根 |
+| 401 且提示「可能刚重启过」 | 宿主日志的 `agentd 握手行已收到 port=` | 端口变了但前端缓存了旧端点；`port/agentd-rpc.ts` 的 `forgetEndpoint()` 会清缓存重取 |
+| 切了权限档但行为没变 | 是否走了 `session/set_config_option` | `session/set_mode` 是**假的**：返回 `{}` 但不改状态 |
+| 审批请求被当成通知丢掉 | JSON-RPC `id` 类型 | `id` 允许 **string**，只认 number 会把 `request_permission` 漏掉 |
+
+## 5. 打包与部署
+
+- **桌面端**：`apps/agentd` 用 rolldown 打成自包含 CJS，再由 `scripts/build-sea.mjs` 注入成单文件
+  `agentd-<triple>[.exe]`，与其它侧车同目录同命名（`apps/client/src-tauri/binaries/`）。
+  `build.rs` 与 `tauri.conf.json` 的 `externalBin` 两边都必须列它，漏一边只会在打包阶段才报错。
+- **容器**：`docker/agentd/Dockerfile` 只服务 CI 与「容器内验协议」，**不做第二个产品形态**。
+  上下文必须是仓库根（依赖 workspace 内的 `@cogito/agent-protocol`），`.dockerignore` 在仓库根。
+  镜像里没有 goose 二进制，`/health` 的 `goose` 会是 `unavailable`，这是要断言的降级形态。
+- **端口**：容器内固定 `8080`；compose 宿主侧用 **28080**（大于 15000）。本机 TCP 动态端口段是
+  1024–15000，落进去的端口随时被 WinNAT 抽走，报 `bind: An attempt was made to access a socket
+  in a way forbidden by its access permissions` —— 看着像权限问题，实际是端口保留。
+- **校验和**：`binaries/checksums.json` 的语义是「**远端** staged 产物的 sha256」，agentd 是本地
+  构建产物，不进那份清单。它的产物校验靠三件事：`--version` 能自报（在 `readConfig` 之前早退，
+  所以不需要 token）、CI 三平台各自运行一遍、`apps/agentd/scripts/probe-run.mjs` 在有 provider 的
+  机器上跑真一轮。

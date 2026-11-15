@@ -124,7 +124,10 @@ jobs:
         run: |
           mkdir -p binaries
           host=$(rustc --print host-tuple)
-          for stem in corex-daemon corex-mcp cogito-mcp goose; do
+          # agentd 由 apps/agentd 的 build:sea 产出（rolldown bundle + postject 注入），
+          # 与其它侧车同名同目录，所以这里的占位循环必须把它算进去 ——
+          # tauri.conf.json 的 externalBin 已经加了 agentd，漏了就会让 build.rs 校验直接失败。
+          for stem in corex-daemon corex-mcp cogito-mcp goose agentd; do
             printf 'ci-placeholder\n' > "binaries/${stem}-${host}"
           done
           # tauri.conf.json bundle.resources 也校验这些路径存在

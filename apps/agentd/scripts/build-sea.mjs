@@ -112,6 +112,11 @@ function buildBlob() {
 function inject(outFile) {
   console.log(`${LOG_PREFIX} 注入 blob → ${outFile}`)
   copyFileSync(process.execPath, outFile)
+  // macOS 的 node 是**签名过**的：复制 + 改段之后签名失效，内核直接 SIGKILL（arm64 更严）。
+  // 必须先摘签名再注入。注入完的 ad-hoc 重签放在 main() 里做。
+  if (process.platform === 'darwin') {
+    execFileSync('codesign', ['--remove-signature', outFile], { stdio: 'inherit' })
+  }
   execFileSync(
     process.execPath,
     [
@@ -124,6 +129,11 @@ function inject(outFile) {
     ],
     { stdio: 'inherit' }
   )
+  // ad-hoc 重签（`-s -`）：没有开发者证书也能跑，够 CI 校验用。
+  // 真分发包由 Tauri 打包时统一重签，这一步不影响它。
+  if (process.platform === 'darwin') {
+    execFileSync('codesign', ['--force', '--sign', '-', outFile], { stdio: 'inherit' })
+  }
 }
 
 function main() {

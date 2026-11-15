@@ -111,7 +111,7 @@ goose 离开渲染侧后这条链断开。默认走「改为图内 subgraph」�
 | 1 | 唯一出网点 = gateway | 图节点**不直连 LLM**；`planNode`/`reviewNode` 都是 goose 子会话 |
 | 2 | 审批判定只有一份实现 | `@cogito/agent-protocol/policy` 是唯一允许写「要不要人批」的地方 |
 | 3 | 聊天历史单写者 = Rust SQLite | `agentd` 只写自己的 `agentd.db`（run/checkpoint/映射），不碰 `agent_message` |
-| 4 | 前端只有一条 runtime 通路 | 切换缝在 `port/instance.ts` 的 `chatModelPort`；flag 关闭即返回旧实现 |
+| 4 | 前端只有一条 runtime 通路 | 切换缝在 `port/instance.ts` 的 `chatModelPort`；旧的 wss 直连已删除，不存在双轨 |
 | 5 | 进程树必须可回收 | `agentd` 被 Tauri 收养进 Job Object，其 `goose` 子进程继承成员资格；退出走 `taskkill /T /F` |
 | 6 | 本机回环请求不走代理 | `agentd` 健康检查与所有 `127.0.0.1` 客户端必须 `no_proxy`（reqwest 会读 Windows 系统代理） |
 
@@ -126,8 +126,27 @@ goose 离开渲染侧后这条链断开。默认走「改为图内 subgraph」�
   没有 top-level await，`import.meta.url` 需换成 `__filename`。实测单平台产物 88.4 MB。
 - **ACP 传输从 WSS 换成 stdio**：失去 `goose serve` 的证书指纹握手与 loopback URL 校验（这层保护由「进程管道 + 无网络端口」替代），
   但必须自己保证 NDJSON 分帧、UTF-8、背压与子进程回收。
-- **删旧是一次性大改**：`acp/connection.ts`、`acp/wss-stream.ts`、Rust `goose_acp.rs`/`goose_tls.rs` 都要退役；
-  灰度期必须双轨，旧路径至少保留一个版本。
+- **删旧是一次性大改**：`acp/session.ts`、`acp/connection.ts`、`acp/wss-stream.ts`、Rust `goose_serve.rs`/`goose_acp.rs`/`goose_tls.rs`
+  已全部退役（净删约 3700 行）。没有了「flag 关 → 走旧路」这种按设备灰度的手段；回滚就是
+  回滚提交，见下面的回滚手册。代价换来的是**只有一条通路要维护**，不会出现新旧两种行为同时要修。
+
+## 5.1 回滚手册
+
+新链路故障时，按以下顺序处置（从轻到重）：
+
+1. **只停编排层**：宿主日志里查 `agentd 握手行`，拿端口后 `POST /admin/shutdown`（需 bearer），
+   或直接 `GET /health` 看是不是活着。停掉后 agent 面板进入「未就绪 + 诊断指引」状态，
+   聊天历史、编辑、终端等其他功能不受影响。
+2. **清孤儿**：`agentd` 与其 `goose` 子进程都在 Job Object 里，主进程退干净的话不会有残留；
+   若确认有残留，按名字结束进程即可。
+3. **保留还是删 `agentd.db`**：保留（默认）—— 内存态丢了但线程与 checkpoint 还在，重起后下一轮能
+   接着聊；只有在**怀疑库本身写坏了**（迁移报错、`lg_checkpoints` 反序列化失败）时才删，代价是
+   「进行中回合的上下文」丢失，已经落进 Rust `agent_message` 的聊天历史**不会**丢。
+4. **回退代码**：`git revert` 本系列提交（`feat(agent-protocol)` → `feat(agentd)` → … → `refactor: 删除 goose wss 直连`）。
+   没有运行期 flag，所以这是唯一能恢复旧行为的路径；相应地，**新链路不要留「半开关」**——
+   要么整条能用，要么回退。
+
+回滚后必须验的三件事：agent 面板能发一条消息、审批卡能出现并回执、宿主退出后进程树清零。
 
 ## 6. 什么情况下重新考虑
 

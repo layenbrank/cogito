@@ -1,0 +1,22 @@
+# 只作用于「构建上下文 = 仓库根」的镜像（当前只有 docker/agentd/Dockerfile）。
+# 其它服务的 context 是各自的 app 目录（./apps/compute、./apps/service），
+# Docker 只读**上下文根**的 .dockerignore，所以这份文件对它们没有任何影响。
+#
+# 这里筛选的目标只有一个：别把 node_modules / target / dist 拖进构建上下文。
+
+.git
+.github
+.vscode
+
+**/node_modules
+**/dist
+**/.turbo
+**/target
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/coverage
+**/*.log
+
+# 桌面端打包产物（几百 MB 的侧车二进制），容器构建用不上
+apps/client/src-tauri/binaries

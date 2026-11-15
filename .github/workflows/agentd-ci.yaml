@@ -1,0 +1,218 @@
+# agentd（编排层侧车）CI：契约单测 → bundle → SEA 产物 → 容器冒烟。
+#
+# 为什么单开一个 workflow 而不是塞进 cogito-ci：
+# ① agentd 只在 `apps/agentd/**` 或共享契约变化时才需要跑，塞进主 CI 会白烧 runner 时间；
+# ② 它的「产物可运行」判定方式与 web 包完全不同（SEA 单文件 + 容器 /health + 鉴权）。
+#
+# **paths 过滤要写对**：`on.push.paths` 与 `on.pull_request.paths` 必须各自列全，
+# 只写在一个下面（或把 `paths` 缩进错到 `branches` 里）会让过滤静默失效 —— 两种形态都见过。
+# 也不要写 `paths-ignore` 混用：同时给 paths 与 paths-ignore 时 GitHub 取交集语义，
+# 后来人很难判断某个改动到底会不会触发。
+
+name: Agentd CI
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'apps/agentd/**'
+      - 'packages/agent-protocol/**'
+      - 'packages/chat/**'
+      - 'docker/agentd/**'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - 'compose.prod.yaml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/agentd-ci.yaml'
+  pull_request:
+    paths:
+      - 'apps/agentd/**'
+      - 'packages/agent-protocol/**'
+      - 'packages/chat/**'
+      - 'docker/agentd/**'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - 'compose.prod.yaml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/agentd-ci.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: agentd-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.18.0'
+
+jobs:
+  # 契约与逻辑：单测 + 类型 + lint + rolldown bundle。
+  # 这里不碰 goose —— agentd 对「没有 goose」是显式降级（supervisor 不启动），
+  # 所以 goose 相关的真实链路由 scripts/probe-run.mjs 在有 provider 的机器上验。
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests (agent-protocol + agentd)
+        run: |
+          pnpm --filter @cogito/agent-protocol unit
+          pnpm --filter @cogito/agentd unit
+
+      - name: Type check
+        run: |
+          pnpm --filter @cogito/agent-protocol type-check
+          pnpm --filter @cogito/agentd type-check
+
+      - name: Lint
+        run: |
+          pnpm --filter @cogito/agent-protocol lint
+          pnpm --filter @cogito/agentd lint
+
+      - name: Bundle (rolldown → CJS)
+        run: pnpm --filter @cogito/agentd build
+
+  # SEA 产物：三平台各自构建并**运行**，确认 `--version` 能自报。
+  # 单平台跑不够 —— postject 改的是 ELF / Mach-O / PE 三种不同容器格式，
+  # 且 macOS 还多一步签名。
+  sea:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SEA
+        run: pnpm --filter @cogito/agentd build:sea
+
+      # `--version` 在 readConfig 之前早退，所以不需要 AGENTD_TOKEN / AGENTD_DB。
+      # 这也是打包链路的活体验证：产物能跑，说明 blob 注入成功、fuse 已翻转。
+      - name: Verify artifact (posix)
+        if: runner.os != 'Windows'
+        run: |
+          bin=$(ls apps/client/src-tauri/binaries/agentd-* | head -n 1)
+          test -x "$bin" || chmod +x "$bin"
+          version=$("$bin" --version)
+          echo "agentd version: $version"
+          test -n "$version"
+          size=$(wc -c < "$bin")
+          echo "agentd size: $size bytes"
+          # 低于 40 MB 说明 blob 没注进去（node 本体 Linux 约 110 MB，
+          # 但不同版本差异大；40 MB 只是「明显不是半截产物」的下界）
+          test "$size" -gt 40000000
+
+      - name: Verify artifact (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = Get-ChildItem 'apps/client/src-tauri/binaries/agentd-*' | Select-Object -First 1
+          $version = & $bin.FullName --version
+          Write-Host "agentd version: $version"
+          if (-not $version) { throw 'agentd --version 没有输出' }
+          if ($bin.Length -lt 40000000) { throw "产物过小（$($bin.Length) B），blob 可能没注入" }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: agentd-${{ runner.os }}
+          retention-days: 7
+          path: apps/client/src-tauri/binaries/agentd-*
+          if-no-files-found: error
+
+  # 容器冒烟：真起一个容器，验 /health 免鉴权、无 token 401、带 token 能读线程面。
+  # 容器里没有 goose，`/health` 的 goose 字段是 unavailable —— 这正是要断言的降级形态。
+  container:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build image
+        run: docker build -f docker/agentd/Dockerfile -t cogito-agentd:ci .
+
+      - name: Start container
+        run: |
+          docker run -d --name agentd-ci \
+            -e AGENTD_TOKEN=ci-token-0123456789 \
+            -e AGENTD_DB=/data/agentd.db \
+            -e AGENTD_PORT=8080 \
+            -p 28080:8080 \
+            cogito-agentd:ci
+
+      - name: Wait for /health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:28080/health >/tmp/health.json 2>/dev/null; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo '--- 容器日志 ---'
+          docker logs agentd-ci
+          echo '::error::agentd 在 30s 内没有通过 /health'
+          exit 1
+
+      - name: Assert health shape
+        run: |
+          # service 字段是「连上的是不是我们要的那个进程」的判据，必须校验
+          jq -e '.service == "cogito-agentd"' /tmp/health.json
+          # 容器里没 goose 二进制 → 显式降级，不能是 ready
+          jq -e '.goose == "unavailable"' /tmp/health.json
+
+      - name: Assert bearer auth
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:28080/threads)
+          echo "no token → $code"
+          test "$code" = '401'
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'authorization: Bearer ci-token-0123456789' \
+            http://127.0.0.1:28080/threads)
+          echo "with token → $code"
+          test "$code" = '200'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs agentd-ci || true
+          docker rm -f agentd-ci || true

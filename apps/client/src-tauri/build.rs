@@ -18,8 +18,11 @@ fn main() {
     );
 
     // externalBin：daemon（IPC）+ corex mcp（Agent）+ cogito mcp（本地工具面）+ goose（ACP）
+    //          + agentd（编排层宿主，由 apps/agentd 的 build:sea 产出）。
+    // 与 tauri.conf.json 的 bundle.externalBin 必须一一对应：漏一个，`cargo check` 会过，
+    // 但 `tauri build` 在打包阶段才报「找不到 sidecar」，反馈晚一整个流程。
     let suffix = if cfg!(windows) { ".exe" } else { "" };
-    for stem in ["corex-daemon", "corex-mcp", "cogito-mcp", "goose"] {
+    for stem in ["corex-daemon", "corex-mcp", "cogito-mcp", "goose", "agentd"] {
         let path = format!("binaries/{stem}-{host}{suffix}");
         require_nonempty(
             &path,
