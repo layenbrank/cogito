@@ -18,6 +18,7 @@
 import {
   ComposerPrimitive,
   MessagePrimitive,
+  useAui,
   useAuiState,
   type AssistantState
 } from '@assistant-ui/react'
@@ -218,6 +219,7 @@ const MessageEditComposer: FC<MessageEditComposerProps> = function MessageEditCo
   rows = 2
 }) {
   const labels = useAssistantLabels()
+  const aui = useAui()
   const autoDiscarded = useAuiState(findDiscardedReplies)
   const count = discardedReplies ?? autoDiscarded
 
@@ -227,6 +229,12 @@ const MessageEditComposer: FC<MessageEditComposerProps> = function MessageEditCo
       data-state="editing"
       className={cn('aui_edit-composer-wrapper flex flex-col px-2', className)}>
       <ComposerPrimitive.Root
+        onBlur={function handleBlur(event) {
+          // 焦点真正离开整个编辑壳才取消：点「取消 / 更新」时 relatedTarget 在壳内，不触发
+          const next = event.relatedTarget
+          if (next instanceof Node && event.currentTarget.contains(next)) return
+          aui.composer.cancel()
+        }}
         className={cn(
           field,
           'aui-edit-composer-root animate-in fade-in fill-mode-both ms-auto flex w-full max-w-[min(100%,36rem)] cursor-text flex-col gap-3 rounded-2xl p-3.5 duration-200'
@@ -265,5 +273,5 @@ const MessageEditComposer: FC<MessageEditComposerProps> = function MessageEditCo
   )
 }
 
-export { EditMessage, EditMessageDiscardNote, MessageEditComposer, findDiscardedReplies }
+export { EditMessage, EditMessageDiscardNote, findDiscardedReplies, MessageEditComposer }
 export type { EditMessageProps, MessageEditComposerProps }
