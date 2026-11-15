@@ -31,6 +31,23 @@ const RUN_STATUS = {
   FAILED: DICT_VALUE_BY_KEY[DICT_KEY.RUN_FAILED]
 }
 
+const RUN_AS = {
+  USER: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_USER],
+  TENANT: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_TENANT]
+}
+
+/**
+ * 执行身份收窄成契约认可的值（字典 value）；认不出来返回 `undefined` = **不传**。
+ *
+ * 以前 `toCloudInput` 把缺省一律写成 `user`：编辑一条「以租户身份运行」的任务时，
+ * 表单根本没带这个字段，保存就把执行人悄悄改成了「我自己」。宁可不动，也不能猜。
+ */
+function toRunAsKind(value: string | null | undefined): AutomationSave['runAsKind'] {
+  if (value === RUN_AS.TENANT || value === 'tenant') return RUN_AS.TENANT
+  if (value === RUN_AS.USER || value === 'user') return RUN_AS.USER
+  return undefined
+}
+
 /** 组顺序 = 执行语义由「本地」到「远端」：本机 → goose → 服务端 → 其它 */
 const OWNER_ORDER: readonly string[] = [OWNER.CLIENT, OWNER.GOOSE, OWNER.CLOUD]
 
@@ -81,6 +98,8 @@ interface TaskDraft {
   knowledgeBaseId: string | null
   /** 执行时的思考强度（默认「标准」）：只作用于本任务起的会话，不动用户自己的模型偏好 */
   thinking: ThinkingLevel
+  /** 执行身份（服务端任务才有意义）：`null` = 未知，保存时不传 */
+  runAsKind: string | null
   enabled: boolean
 }
 
@@ -295,6 +314,8 @@ function toDraft(item: Automation): TaskDraft {
     planFilePath: item.planFilePath ?? null,
     knowledgeBaseId: item.knowledgeBaseId ?? null,
     thinking: parseAutomationThinking(item.thinking),
+    // 原值带上：编辑服务端任务时要把「以谁的身份跑」原样回写
+    runAsKind: item.runAsKind?.trim() || null,
     enabled: item.enabled
   }
 }
@@ -320,6 +341,7 @@ function createDraft(owner: string): TaskDraft {
     planFilePath: null,
     knowledgeBaseId: null,
     thinking: 'medium',
+    runAsKind: null,
     enabled: true
   }
 }
@@ -400,6 +422,8 @@ function toSaveInput(draft: TaskDraft): AutomationSave {
     planFilePath: draft.planFilePath,
     knowledgeBaseId: draft.knowledgeBaseId,
     thinking: draft.thinking,
+    // 认不出来就不传：让服务端保留原值，而不是被改成本人
+    runAsKind: toRunAsKind(draft.runAsKind),
     enabled: draft.enabled
   }
 }
@@ -458,6 +482,7 @@ export {
   OWNER,
   OWNER_HINT,
   OWNER_ORDER,
+  RUN_AS,
   RUN_STATUS,
   SESSION_MODE_OPTIONS,
   buildTaskGroups,

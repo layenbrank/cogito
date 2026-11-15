@@ -52,6 +52,7 @@ import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useProviderStore } from '@/stores/provider'
 import { AsideSection } from '@/views/agent/chat/components/aside-section'
+import { leaveNewThread } from '@/views/agent/chat/components/new-thread'
 import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
 import {
@@ -117,9 +118,9 @@ function findNextLabel(item: Automation): string {
 function MetaRow(props: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline gap-3">
-      <span className="text-muted-foreground w-[4.25rem] shrink-0 text-xs">{props.label}</span>
+      <span className="text-muted-foreground w-17 shrink-0 text-xs">{props.label}</span>
       {/* 值可能是「人话 + 表达式」两段：用 flex 拉开间距，别让它们粘成一句 */}
-      <span className="text-foreground flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 text-[13px] leading-relaxed break-words">
+      <span className="text-foreground flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 text-[13px] leading-relaxed wrap-break-word">
         {props.children}
       </span>
     </div>
@@ -134,7 +135,7 @@ function PanelHead(props: { title: string; count?: number; children?: ReactNode 
       {props.count ? (
         <Badge
           variant="secondary"
-          className="h-[18px] shrink-0 px-1.5 text-[11px] tabular-nums">
+          className="h-4.5 shrink-0 px-1.5 text-[11px] tabular-nums">
           {props.count}
         </Badge>
       ) : null}
@@ -171,6 +172,9 @@ function AsideTasks() {
   })
   const runs = useAutomationStore(function (state) {
     return state.runs
+  })
+  const runsOwnerID = useAutomationStore(function (state) {
+    return state.activeId
   })
   const allRuns = useAutomationStore(function (state) {
     return state.allRuns
@@ -260,6 +264,8 @@ function AsideTasks() {
       toast.info('这次执行还没有关联会话')
       return
     }
+    // 切到已有会话 = 放弃未落库的新会话，归属槽要清
+    leaveNewThread()
     try {
       await aui.threads.reload()
       aui.threads.switchToThread(sessionId)
@@ -334,8 +340,10 @@ function AsideTasks() {
     const isActive = view.kind === 'detail' && view.id === item.id
     const modeTag = findTaskModeTag(item)
     const runLabel = isRunning ? (phaseLabel ?? '执行中') : '立即执行'
-    // 最近执行：列表没有跨任务的记录缓存时退回「上一次执行」，不为三行字再发一轮请求
-    const history = findRecentRuns(item, allRuns.length > 0 ? allRuns : runs).map(function (run) {
+    // 最近执行：优先用**属于这条任务**的 runs（详情刚刷过就是最新的）。
+    // `allRuns` 只在「全部记录」打开时才刷新，拿它当首选会让卡片一直显示上次的旧记录。
+    const source = runsOwnerID === item.id ? runs : allRuns.length > 0 ? allRuns : runs
+    const history = findRecentRuns(item, source).map(function (run) {
       return { id: run.id, at: formatTime(run.atMs), ok: run.ok }
     })
     return (
@@ -354,7 +362,7 @@ function AsideTasks() {
         />
         <ScheduleCard
           className={clsx(
-            'pointer-events-none relative z-10 transition-colors group-hover:border-primary/25 [&_[data-slot=schedule-card-switch]]:pointer-events-auto',
+            'pointer-events-none relative z-10 transition-colors group-hover:border-primary/25 **:data-[slot=schedule-card-switch]:pointer-events-auto',
             isActive && 'border-primary/40'
           )}
           name={item.name}
@@ -597,7 +605,16 @@ function AsideTasks() {
     const isRunning = Boolean(running[task.id])
     const badge = findTaskBadge(task, isRunning)
     const phaseLabel = isRunning ? findPhaseLabel(phases[task.id]) : null
-    const latestSession = runs.find(function (run) {
+    /*
+     * 只认属于自己的执行记录：切任务时 store 里的 `runs` 可能还是上一个任务的
+     * （取数没回来之前），不过滤的话「再跑一次 / 打开会话」会指到别人身上。
+     */
+    const detailRuns = runsOwnerID === task.id
+      ? runs.filter(function (run) {
+          return run.automationId === task.id
+        })
+      : []
+    const latestSession = detailRuns.find(function (run) {
       return Boolean(run.sessionId)
     })?.sessionId
     const modeTag = findTaskModeTag(task)
@@ -708,7 +725,7 @@ function AsideTasks() {
             title="指令"
             meta={findTaskModeLabel(task)}>
             {task.prompt.trim() ? (
-              <p className="text-foreground/90 text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+              <p className="text-foreground/90 text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word">
                 {task.prompt}
               </p>
             ) : (
@@ -800,7 +817,7 @@ function AsideTasks() {
             <AsideSection
               icon="lucide:history"
               title="执行记录"
-              meta={`${runs.length} 条`}
+              meta={`${detailRuns.length} 条`}
               action={
                 <Button
                   type="button"
@@ -819,7 +836,7 @@ function AsideTasks() {
                 </Button>
               }>
               <TaskRuns
-                runs={runs}
+                runs={detailRuns}
                 running={running}
                 onRerun={function (id) {
                   void runNow(id)

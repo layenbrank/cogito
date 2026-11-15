@@ -123,6 +123,15 @@ function TaskForm(props: TaskFormProps) {
   /** 这两档的执行配置都不归客户端管：锁住 + 说清由谁决定 */
   const isExecConfigLocked = isCloud || isGoose
   const isClient = draft.owner === OWNER.CLIENT
+  /**
+   * 服务端任务的「用谁的身份跑」由服务端定：客户端只读展示，保存时原样回传。
+   * 以前表单里根本没有这一项，保存又把缺省写成「用户」—— 一条以租户身份跑的任务
+   * 编辑一次就变成用创建人自己的身份跑了，界面上看不出任何变化。
+   */
+  const runAsLabel =
+    isCloud && draft.runAsKind
+      ? findLabel(DICT_TYPE.AUTOMATION_RUN_AS, draft.runAsKind)
+      : ''
   const hasBoundPlan = Boolean(draft.planFilePath?.trim())
   const problem = findDraftProblem(draft)
   // 轮次只在 goal / 计划后执行时用；绑定计划 + 执行模式不显示
@@ -474,6 +483,15 @@ function TaskForm(props: TaskFormProps) {
               </SelectContent>
             </Select>
           </div>
+
+          {runAsLabel ? (
+            <div className={styles.fieldGroup}>
+              <span className={styles.fieldLabel}>执行身份</span>
+              <span className={styles.fieldValue} title="由服务端决定，这里只做展示">
+                {runAsLabel}
+              </span>
+            </div>
+          ) : null}
 
           <div className={styles.fieldGroup}>
             <span className={styles.fieldLabel}>工作区</span>
@@ -903,7 +921,13 @@ function TaskForm(props: TaskFormProps) {
 
       {/* 校验提示单独占一行：窄栏里塞在按钮左边只剩半句话 */}
       <div className={styles.formFoot}>
-        {problem && isDirty ? <p className={styles.formError}>{problem}</p> : null}
+        {/*
+         * 已有任务进来就把问题摆出来：它是「保存为什么是灰的」的唯一解释。
+         * 以前只看 `isDirty`，一条历史遗留的非法任务一打开按钮就是灰的、还不说原因。
+         */}
+        {problem && (isDirty || Boolean(draft.id)) ? (
+          <p className={styles.formError}>{problem}</p>
+        ) : null}
         <div className={styles.formActions}>
           <Button
             type="button"

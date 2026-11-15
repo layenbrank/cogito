@@ -45,7 +45,19 @@ function nextDayStart(ms: number): number {
   return date.getTime()
 }
 
+/** 纯日期（`2026-11-15`）：`Date.parse` 按 UTC 解，UTC+8 下全天事件会整体提前 8 小时 */
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
+
 function parseDate(value: string): number | null {
+  const dateOnly = DATE_ONLY.exec(value.trim())
+  if (dateOnly) {
+    const ms = new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3])
+    ).getTime()
+    return Number.isFinite(ms) ? ms : null
+  }
   const ms = Date.parse(value)
   return Number.isFinite(ms) ? ms : null
 }

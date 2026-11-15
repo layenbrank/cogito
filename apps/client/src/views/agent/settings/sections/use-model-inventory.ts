@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'
@@ -47,12 +47,16 @@ function findEntryModel(entry: GooseProviderEntry, formValues: Record<string, st
 }
 
 function useModelInventory() {
+  /** 读取配置的请求序号：连着切两个接入时，先发后到的那份不能覆盖当前表单 */
+  const editorSeqRef = useRef(0)
   const [loading, updateLoading] = useState(false)
   const [entries, updateEntries] = useState<GooseProviderEntry[]>([])
   const [activeId, updateActiveId] = useState<string | null>(null)
   const [editorMode, updateEditorMode] = useState<EditorMode | null>(null)
   const [formValues, updateFormValues] = useState<Record<string, string>>({})
   const [saving, updateSaving] = useState(false)
+  /** 正在读这个接入的已有配置：读完之前不允许保存（见 `openEditor`） */
+  const [loadingConfig, updateLoadingConfig] = useState(false)
   const [probeStatus, updateProbeStatus] = useState<Record<string, ProbeStatus>>({})
   const [pickedAddId, updatePickedAddId] = useState<string | null>(null)
   /** 弹窗里的思考强度草稿（保存时写进该模型的偏好） */
@@ -138,6 +142,12 @@ function useModelInventory() {
 
   async function openEditor(entry: GooseProviderEntry) {
     updateActiveId(entry.providerId)
+    /*
+     * 闸门：`activeId` 先切、配置后到，中间那几帧表单里还是上一个接入的值。
+     * 不拦住的话，「切换接入 → 立刻点保存」会把上一个接入的字段写进当前接入。
+     */
+    updateLoadingConfig(true)
+    const seq = ++editorSeqRef.current
     const initial: Record<string, string> = {}
     for (const key of entry.configKeys) {
       initial[key.name] = key.default?.trim() || ''
@@ -147,11 +157,16 @@ function useModelInventory() {
       await waitGooseReady()
       const handle = await findAcpHandle()
       const fields = await fetchProviderConfig(handle.connection, entry.providerId)
+      // 中间又切了别的接入：这份结果已经不属于当前表单，整份丢掉
+      if (seq !== editorSeqRef.current) return
       for (const field of fields) {
         if (field.value) initial[field.key] = field.value
       }
     } catch (error) {
       console.warn('[agent-settings/model] 读取已有配置失败:', error)
+    } finally {
+      // 只关自己那次闸门，别把后来者的 loading 清掉
+      if (seq === editorSeqRef.current) updateLoadingConfig(false)
     }
 
     updateFormValues(initial)
@@ -181,19 +196,34 @@ function useModelInventory() {
 
   async function handleSave() {
     if (!active) return
+    // 配置还没读完就保存 = 拿上一个接入的字段值覆盖当前接入
+    if (loadingConfig) {
+      toast.info('配置还在读取，稍等一下再保存')
+      return
+    }
     updateSaving(true)
     try {
       await waitGooseReady()
       const handle = await findAcpHandle()
       const fields = parseConfigFields(active.configKeys, formValues)
       await saveProviderConfig(handle.connection, active.providerId, fields)
+      /*
+       * 空密钥 = 用户没改（`parseConfigFields` 也是跳过空值），
+       * **不能**当成「删掉这个接入的密钥」：以前空值直接写 null，
+       * 于是「只是想改个模型、密钥框本来就回填不出来」一保存就把钥匙串清了。
+       * 真要清除得走单独动作。
+       */
       const secretWrites = active.configKeys
         .filter(function (key) {
           return key.secret
         })
         .map(function (key) {
-          const secret = formValues[key.name]?.trim() || null
+          const secret = formValues[key.name]?.trim() ?? ''
+          if (!secret) return null
           return writeProviderSecret(active.providerId, secret)
+        })
+        .filter(function (job) {
+          return job !== null
         })
       await Promise.allSettled(secretWrites)
       if (active.isAcp) {
@@ -282,6 +312,7 @@ function useModelInventory() {
     active,
     formValues,
     saving,
+    loadingConfig,
     pickedAddId,
     editorThinking,
     isDialogOpen: editorMode !== null,

@@ -32,6 +32,8 @@ function ModelEditorDialog(props: {
   pickedAddId: string | null
   formValues: Record<string, string>
   saving: boolean
+  /** 正在读这个接入的已有配置：读完之前表单里可能还是上一个接入的值 */
+  loadingConfig?: boolean
   /** 思考强度：按该接入的当前模型存一份（新接入也能在保存时定下来） */
   thinking: ThinkingLevel
   onThinkingChange: (level: ThinkingLevel) => void
@@ -144,9 +146,9 @@ function ModelEditorDialog(props: {
           </Button>
           <Button
             type="button"
-            disabled={props.saving || !props.active}
+            disabled={props.saving || props.loadingConfig || !props.active}
             onClick={props.onSave}>
-            {props.saving ? <Spinner className="size-3.5" /> : null}
+            {props.saving || props.loadingConfig ? <Spinner className="size-3.5" /> : null}
             {props.mode === 'add' ? '添加模型' : '更新 API Key'}
           </Button>
         </DialogFooter>

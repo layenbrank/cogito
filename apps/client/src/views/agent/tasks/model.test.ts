@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Automation, AutomationRun } from '@/shared/ipc/specs/automation'
 import {
   OWNER,
+  RUN_AS,
   RUN_STATUS,
   buildTaskGroups,
   canRunNow,
@@ -224,6 +225,15 @@ describe('草稿与保存入参', function () {
     const input = toSaveInput({ ...createDraft(OWNER.CLIENT), owner: 'zzz' })
     expect(input.owner).toBe(OWNER.CLIENT)
     expect(toSaveInput(createDraft(OWNER.CLOUD)).owner).toBe(OWNER.CLOUD)
+  })
+
+  it('执行身份原值回写：以租户身份跑的任务不会在编辑后变成「我自己」', function () {
+    // 服务端只能返回字典 value：这里模拟「以租户身份运行」的那一行
+    const tenant = toDraft(task({ owner: OWNER.CLOUD, runAsKind: RUN_AS.TENANT }))
+    expect(toSaveInput(tenant).runAsKind).toBe(RUN_AS.TENANT)
+    // 认不出来的值一律不传，交给服务端保留原值（而不是默认 user）
+    const unknown = toDraft(task({ runAsKind: 'weird' }))
+    expect(toSaveInput(unknown).runAsKind).toBeUndefined()
   })
 
   it('绑定计划时 prompt 可空，但必须有工作目录', function () {

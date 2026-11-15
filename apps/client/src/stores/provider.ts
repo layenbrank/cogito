@@ -228,7 +228,8 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
               return !keySet.has(provider.id)
             })
             if (state.activeProviderID && keySet.has(state.activeProviderID)) {
-              state.activeProviderID = state.providers[0]?.id ?? null
+              // 与初次载入同一口径：不能直接拿 `providers[0]`（可能是没有模型的空壳行）
+              state.activeProviderID = findDefaultProviderID(state.providers)
               state.activeProviderPicked = false
             }
           },

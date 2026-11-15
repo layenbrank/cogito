@@ -38,8 +38,14 @@ describe('日程计划解析', function () {
     expect(rows[0].endAt).toBe(nextMidnightLocal.getTime() - 1)
   })
 
-  it('日期非法或结束早于开始的行被丢掉', function () {
-    const rows = parseSchedulePlan(
+  it('纯日期按本地零点解，不按 UTC 偏移', function () {
+    // `Date.parse('2026-10-27')` 走的是 UTC：UTC+8 下会变成 08:00，全天事件整体错位
+    const rows = parseSchedulePlan(plan([{ title: '休假', startISO: '2026-10-27', entireDay: true }]))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].startAt).toBe(new Date(2026, 9, 27).getTime())
+  })
+
+  it('日期非法或结束早于开始的行被丢掉', function () {    const rows = parseSchedulePlan(
       plan([
         { title: '坏日期', startISO: '不是时间', endISO: '2026-10-27T10:00:00+08:00' },
         {

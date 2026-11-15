@@ -69,7 +69,11 @@ function ToolPermissionsSection() {
   )
 
   async function changePermission(toolName: string, permission: ToolPermissionLevel) {
-    const former = tools
+    // 只记住这一条的旧值：拿整张表的快照回滚，会把期间改过的其它工具一起打回去
+    const former =
+      tools.find(function (tool) {
+        return tool.name === toolName
+      })?.permission ?? null
     updateTools(function (prev) {
       return prev.map(function (tool) {
         return tool.name === toolName ? { ...tool, permission } : tool
@@ -80,7 +84,13 @@ function ToolPermissionsSection() {
       const handle = await findAcpHandle()
       await writeToolPermissions(handle.connection, [{ toolName, permission }])
     } catch (error) {
-      updateTools(former)
+      if (former !== null) {
+        updateTools(function (prev) {
+          return prev.map(function (tool) {
+            return tool.name === toolName ? { ...tool, permission: former } : tool
+          })
+        })
+      }
       console.warn('[settings/tool-permissions] 设置权限失败:', error)
     }
   }

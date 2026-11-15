@@ -147,11 +147,21 @@ function reconcileComposerQueue(
       return
     }
     if (options.isRunning) {
+      // 回灌成真实队列：逐条 `setText` + `send({ steer: false })`。
+      // 输入框里可能正写着下一句 —— 先让位、发完放回去，不再用 `setText` 把它吞掉。
+      const draft = aui.composer.getState().text
+      const leftovers: RestoredQueueItem[] = []
       for (const row of rows) {
         aui.composer.setText(row.text)
         aui.composer.send({ steer: false })
+        // 还是原文 = 这条被闸门挡下了，没进队列：改放「待发送」，别丢
+        if (aui.composer.getState().text === row.text) {
+          leftovers.push({ id: row.id, text: row.text, attachments: row.attachments })
+        }
       }
-      pendingBySession.delete(sessionID)
+      if (draft.length > 0) aui.composer.setText(draft)
+      if (leftovers.length > 0) pendingBySession.set(sessionID, leftovers)
+      else pendingBySession.delete(sessionID)
       notify()
     } else {
       pendingBySession.set(
@@ -207,12 +217,18 @@ function markThreadRunning(sessionID: string): void {
  * 补发历史队列时，输入框里往往正写着下一句：`setText` 覆盖它再 `send()` 会
  * 把草稿一起发出去（或直接把草稿吞掉）。先让位、发完放回去 —— `send()` 本身
  * 同步清空 composer，所以恢复草稿放在它后面是安全的。
+ *
+ * 返回是否真的发出去了：`send()` 在 `!canSend` 时**静默返回**（不抛错），
+ * 这时文本还留在输入框里 —— 调用方不要把这条从队列里摘掉。
  */
-function sendTextKeepingDraft(aui: AssistantClient, text: string): void {
+function sendTextKeepingDraft(aui: AssistantClient, text: string): boolean {
   const draft = aui.composer.getState().text
   aui.composer.setText(text)
   aui.composer.send()
+  // 发出去的话草稿已被清空；还是原文 = 被闸门挡下（thread 未启用 / 正在提交）
+  const accepted = aui.composer.getState().text !== text
   if (draft.length > 0) aui.composer.setText(draft)
+  return accepted
 }
 
 /** 把一条「待发送」发出去（用户手动触发，或由补发泵触发） */
@@ -222,6 +238,8 @@ function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): b
     return item.id === id
   })
   if (!items || !target) return false
+  // 先发、成功才播掉：以前先删再发，一旦被拒（没模型 / 线程未启用）这条就凭空消失了
+  if (!sendTextKeepingDraft(aui, target.text)) return false
   pendingBySession.set(
     sessionID,
     items.filter(function (item) {
@@ -229,7 +247,6 @@ function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): b
     })
   )
   notify()
-  sendTextKeepingDraft(aui, target.text)
   return true
 }
 
@@ -246,8 +263,9 @@ function pumpPendingQueue(aui: AssistantClient, sessionID: string): boolean {
   const head = pendingBySession.get(sessionID)?.[0]
   if (!head) return false
   const sent = sendPendingItem(aui, sessionID, head.id)
-  // 发出去之后要等线程真的跑起来（markThreadRunning）才允许下一条
-  pumpArmed.set(sessionID, false)
+  // 真发出去了才等线程跑起来（markThreadRunning）再放下一条；被拒时保持放行，
+  // 用户把入口修好（启用对话 / 选模型）后还能接着补
+  if (sent) pumpArmed.set(sessionID, false)
   return sent
 }
 

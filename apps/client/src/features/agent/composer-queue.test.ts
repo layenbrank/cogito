@@ -66,13 +66,23 @@ interface FakeAui {
   thread: { getState: () => { isRunning: boolean } }
 }
 
-function makeAui(isRunning: boolean, draft = ''): FakeAui {
+function makeAui(
+  isRunning: boolean,
+  draft = '',
+  options: { sendRejects?: boolean } = {}
+): FakeAui {
+  // 和真实 composer 一致：`setText` 写进草稿、`send()` 发出后清空；被闸门挡下时原文不动
+  const state = { text: draft }
   return {
     composer: {
-      setText: vi.fn<(text: string) => void>(),
-      send: vi.fn(),
+      setText: vi.fn(function (text: string) {
+        state.text = text
+      }),
+      send: vi.fn(function () {
+        if (!options.sendRejects) state.text = ''
+      }),
       getState: function () {
-        return { text: draft }
+        return { text: state.text }
       }
     },
     thread: {
@@ -256,6 +266,29 @@ describe('composer 队列：回灌与待发送', function () {
     expect(aui.composer.setText).toHaveBeenCalledWith('第一条')
     expect(aui.composer.send).toHaveBeenCalledTimes(1)
     expect(readPendingQueue('s1').map(function (item) { return item.id })).toEqual(['r2'])
+  })
+
+  it('发送被闸门挡下时条目留在待发送里（不再先删后发）', async function () {
+    invokeMock.mockImplementation(function () {
+      return Promise.resolve([row('r1', '第一条', 0), row('r2', '第二条', 1)])
+    })
+    const aui = makeAui(false, '', { sendRejects: true })
+    await reconcileComposerQueue(asAui(aui), 's1', { isRunning: false })
+
+    expect(sendPendingItem(asAui(aui), 's1', 'r1')).toBe(false)
+    expect(readPendingQueue('s1').map(function (item) { return item.id })).toEqual(['r1', 'r2'])
+  })
+
+  it('回灌（会话仍在跑）不吃掉输入框里的草稿', async function () {
+    invokeMock.mockImplementation(function () {
+      return Promise.resolve([row('r1', '第一条', 0)])
+    })
+    const aui = makeAui(true, '我正在写的下一句')
+
+    await reconcileComposerQueue(asAui(aui), 's1', { isRunning: true })
+
+    expect(aui.composer.getState().text).toBe('我正在写的下一句')
+    expect(readPendingQueue('s1')).toEqual([])
   })
 
   it('丢弃待发送条目只删列表，不动输入框', async function () {

@@ -47,7 +47,10 @@ function AgentModeSwitch() {
         updateTick(function (value) {
           return value + 1
         })
-        toast.success(`已切换到「${findAgentMode(next).label}」模式（下一轮发送生效）`)
+        // 别承诺「下一轮才生效」：切到计划/离开计划时 goose 的审批档是**立刻**推过去的
+        toast.success(
+          `已切换到「${findAgentMode(next).label}」模式（工具权限立即生效，提示词从下一轮发送起生效）`
+        )
       })
       .catch(function (error: unknown) {
         console.warn('[agent/mode-switch] 切换模式失败:', error)

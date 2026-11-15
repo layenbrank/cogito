@@ -313,7 +313,14 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
           items: get().items.filter(function (item) {
             return item.id !== id
           }),
-          activeId: get().activeId === id ? null : get().activeId
+          activeId: get().activeId === id ? null : get().activeId,
+          // 执行记录也跟着走：任务没了还挂在「全部记录」里，点进去是一条无主的记录
+          runs: get().runs.filter(function (run) {
+            return run.automationId !== id
+          }),
+          allRuns: get().allRuns.filter(function (run) {
+            return run.automationId !== id
+          })
         })
       } catch (error) {
         reportCaught('automation.remove', error)
@@ -384,6 +391,11 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
 
     async openRuns(id) {
       const seq = ++runsSeq
+      /*
+       * 先把归属切过去并**清空**：不然切任务的那几帧里，新任务的标题下面
+       * 挂的还是上一个任务的执行记录（点「再跑一次 / 打开会话」会指向 A 的 run）。
+       */
+      set({ activeId: id, isAllRunsOpen: false, runs: [] })
       try {
         const runs = await listAutomationRuns(id, 20)
         if (seq !== runsSeq) return

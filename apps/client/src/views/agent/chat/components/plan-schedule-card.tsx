@@ -155,6 +155,13 @@ function PlanScheduleCard() {
                 clearBatch()
                 toast.success('已撤销本次写入')
               })
+              .catch(function (error: unknown) {
+                // 撤销失败不能报成功：这几条其实还在日历里
+                reportCaught('agent.planSchedule.undo', error)
+                toast.error('撤销失败', {
+                  description: error instanceof Error ? error.message : String(error)
+                })
+              })
           }
         }
       })

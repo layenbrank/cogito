@@ -122,6 +122,8 @@ function ModelTuningSection(props: ModelTuningSectionProps) {
         updateTuning(function (prev) {
           return { ...prev, temperature: configured }
         })
+        // 回填也要落盘：只改界面不改偏好，下一次打开又回到旧值（再被回填一次）
+        writeTuning({ temperature: configured })
       } catch (error) {
         console.warn('[agent-settings/model] 读取生成温度失败:', error)
       }

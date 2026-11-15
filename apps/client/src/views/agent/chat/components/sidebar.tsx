@@ -19,7 +19,7 @@ import { SidebarScenarioNav } from './sidebar-scenario-nav.tsx'
 import { SidebarWorkspaceTree } from './sidebar-workspace-tree.tsx'
 import { WorkspaceForm } from './workspace-form'
 import { useSidebarBranches, type SidebarSession } from './use-sidebar-branches.ts'
-import { rememberNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
+import { leaveNewThread, startNewThread } from '@/views/agent/chat/components/new-thread'
 import { historyPort } from '@/features/agent/port/instance'
 import { type ScenarioKey } from '@/features/agent/model/scenarios'
 import { useAgentStore } from '@/stores/agent.ts'
@@ -47,9 +47,6 @@ function AgentSidebar(props: SidebarProps) {
   })
   const activeWorkspaceID = useAgentStore(function (state) {
     return state.activeWorkspaceID
-  })
-  const workspaces = useAgentStore(function (state) {
-    return state.workspaces
   })
   const user = useSessionStore(function (state) {
     return state.user
@@ -80,6 +77,8 @@ function AgentSidebar(props: SidebarProps) {
     if (session.workspaceID) {
       useAgentStore.getState().toActivateWorkspace(session.workspaceID)
     }
+    // 放弃那个未落库的新会话：归属槽也要清，否则下一个落库的新会话会继承它
+    leaveNewThread()
     try {
       // 切会话是一次大渲染：整条历史 + 代码高亮 + 图片解码。放进 transition 之后，
       // 侧栏高亮和输入框先响应，重的提交让 React 自己排到后面去。
@@ -95,12 +94,7 @@ function AgentSidebar(props: SidebarProps) {
   function handleInsertSession(workspaceID?: string | null) {
     // 「新建会话」跟随当前激活工作区；工作区节点上的「+」显式带归属。
     // 一个工作区都没有时不再拦人去新建：会话落在「未分组」。
-    const targetID =
-      workspaceID === undefined ? (activeWorkspaceID ?? workspaces[0]?.id ?? null) : workspaceID
-    if (targetID) useAgentStore.getState().toActivateWorkspace(targetID)
-    // 归属记在落库那一刻用：先把这次点击选的归属存好，再种新会话
-    rememberNextThreadWorkspace(targetID ?? null)
-    aui.threads.switchToNewThread()
+    const targetID = startNewThread(aui.threads, workspaceID)
     if (!sectionOpen) updateSectionOpen(true)
     if (targetID && !branchState.expandedKeys.includes(targetID)) {
       branchState.updateExpandedKeys(function (keys) {

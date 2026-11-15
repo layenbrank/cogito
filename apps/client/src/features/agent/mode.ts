@@ -203,37 +203,41 @@ function readAgentModeFor(threadID: string): AgentMode {
 }
 
 /**
- * 按会话写模式（目标收尾 / 崩溃自愈要还原「启动前那一档」，不能改别的会话）。
- *
- * 与 `writeAgentMode` 的区别只在定位方式：那个写**当前活跃会话**，这个按 id 写。
- */
-async function writeAgentModeFor(threadID: string, mode: AgentMode): Promise<void> {
-  const pref = findPref('agent')
-  const id = threadID.trim()
-  if (!id) {
-    await patchPref('agent', { agentMode: mode })
-    notifyScope()
-    return
-  }
-  await patchPref('agent', { modeByThread: { ...pref.modeByThread, [id]: mode } })
-  notifyScope()
-  void import('@/features/agent/acp/sync-thread-approval')
-    .then(function (mod) {
-      return mod.syncApprovalForThread(id)
-    })
-    .catch(function (error: unknown) {
-      console.warn('[agent/mode] 同步有效审批档到 goose 失败:', error)
-    })
-}
-
-/** 当前 UI 主线程；目标后台续跑据此判断「这一轮归 UI 还是归后台」 */
+ * 当前 UI 主线程；目标后台续跑据此判断「这一轮归 UI 还是归后台」 */
 function readAgentModeThread(): string | null {
   return readScopeThread()
 }
 
-async function writeAgentMode(mode: AgentMode): Promise<void> {
+/**
+ * 写入队列：连点两次时，**后点的必须后落盘**。
+ *
+ * 以前两次 `patchPref` 并发：谁先回来谁算数 —— 界面显示第二次的档位，库里留的
+ * 却是第一次的，重启后又变回去。串行化后，每次写入在轮到自己时才读偏好，
+ * 能看见前一次的结果。
+ */
+let modeWriteQueue: Promise<void> = Promise.resolve()
+
+function enqueueModeWrite(task: () => Promise<void>): Promise<void> {
+  const next = modeWriteQueue.then(task, task)
+  // 前一次失败不该堵住后面的写入
+  modeWriteQueue = next.catch(function () {
+    return undefined
+  })
+  return next
+}
+
+/** 把「有效审批档」推给 goose（计划模式只读 / 离开计划回到用户偏好），不落偏好 */
+async function pushEffectiveApproval(threadID: string): Promise<void> {
+  try {
+    const mod = await import('@/features/agent/acp/sync-thread-approval')
+    await mod.syncApprovalForThread(threadID)
+  } catch (error) {
+    console.warn('[agent/mode] 同步有效审批档到 goose 失败:', error)
+  }
+}
+
+async function writeAgentModeNow(threadID: string | null, mode: AgentMode): Promise<void> {
   const pref = findPref('agent')
-  const threadID = readScopeThread()
   if (!threadID) {
     // 还没有会话（首条消息发出前）：只改「下一个新会话」的默认值
     await patchPref('agent', { agentMode: mode })
@@ -244,14 +248,37 @@ async function writeAgentMode(mode: AgentMode): Promise<void> {
     modeByThread: { ...pref.modeByThread, [threadID]: mode }
   })
   notifyScope()
-  // 计划模式要把 goose 切到有效只读；离开计划再回到用户审批偏好（不改偏好落盘）
-  void import('@/features/agent/acp/sync-thread-approval')
-    .then(function (mod) {
-      return mod.syncApprovalForThread(threadID)
-    })
-    .catch(function (error: unknown) {
-      console.warn('[agent/mode] 同步有效审批档到 goose 失败:', error)
-    })
+}
+
+/**
+ * 写完之后再推 goose。**不 await**：那条链路要 ACP 连接，卡住不该连带把
+ * 「切模式」本身卡住（切完模式界面立刻要变，推给 goose 是下一轮的事）。
+ */
+function afterModeWrite(threadID: string | null, written: Promise<void>): Promise<void> {
+  return written.then(function () {
+    if (threadID) void pushEffectiveApproval(threadID)
+  })
+}
+
+async function writeAgentMode(mode: AgentMode): Promise<void> {
+  const threadID = readScopeThread()
+  const written = enqueueModeWrite(function () {
+    return writeAgentModeNow(threadID, mode)
+  })
+  return afterModeWrite(threadID, written)
+}
+
+/**
+ * 按会话写模式（目标收尾 / 崩溃自愈要还原「启动前那一档」，不能改别的会话）。
+ *
+ * 与 `writeAgentMode` 的区别只在定位方式：那个写**当前活跃会话**，这个按 id 写。
+ */
+async function writeAgentModeFor(threadID: string, mode: AgentMode): Promise<void> {
+  const id = threadID.trim()
+  const written = enqueueModeWrite(function () {
+    return writeAgentModeNow(id || null, mode)
+  })
+  return afterModeWrite(id || null, written)
 }
 
 /** 消息上的模式快照键（落 `metadata.custom`，随消息 JSON 一起进 `agent_message.content`） */

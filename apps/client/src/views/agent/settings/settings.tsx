@@ -69,6 +69,16 @@ function AgentSettings() {
   const [searchParams, updateSearchParams] = useSearchParams()
   const [query, updateQuery] = useState('')
   const [pickedID, updatePickedID] = useState<string | null>(null)
+  /**
+   * `pickedID` 只负责「点完立刻切」，不该永久盖住深链：
+   * 以前一旦点过一节，`?section=` 再怎么变都无效了（从别处跳「诊断」还是停在原来那节）。
+   */
+  const [seenSection, updateSeenSection] = useState(searchParams.get('section'))
+  const sectionParam = searchParams.get('section')
+  if (sectionParam !== seenSection) {
+    updateSeenSection(sectionParam)
+    updatePickedID(null)
+  }
 
   const keyword = query.trim().toLowerCase()
   const visibleGroups = useMemo(
@@ -97,7 +107,7 @@ function AgentSettings() {
     []
   )
 
-  const wantedID = pickedID ?? searchParams.get('section') ?? 'model'
+  const wantedID = pickedID ?? sectionParam ?? 'model'
   const active =
     items.find(function (item) {
       return item.id === wantedID

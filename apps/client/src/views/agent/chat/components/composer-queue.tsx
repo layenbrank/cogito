@@ -18,7 +18,7 @@ import { MessageQueue, QueueLineBadge, QueueOrderControls, QUEUE_ROW_PAD_CLASS, 
 import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { useCallback, useEffect, useSyncExternalStore, type FC, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore, type FC, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -33,6 +33,12 @@ import {
   subscribePendingQueue,
   useComposerQueuePersist
 } from '@/features/agent/composer-queue'
+
+/**
+ * 「空闲」先等这么久再补发：刷新恢复那一瞬 `thread.isRunning` 还没被 resume 置位，
+ * 立刻补发会抢在接回的后台回合前面。
+ */
+const RESUME_SETTLE_MS = 1_200
 
 function renderQueueText(text: string): ReactNode {
   return (
@@ -200,6 +206,14 @@ const ComposerQueue: FC = function ComposerQueue() {
   const isRunning = useAuiState(function (state) {
     return state.thread.isRunning
   })
+  /**
+   * 补发闸门：会话刚就绪时 `thread.isRunning` 可能还没被 `unstable_resume` 置位，
+   * 直接补发会抢在接回的后台回合前面。首次观察到「空闲」时先跳过，过一个小窗口再确认一次。
+   *
+   * 按**会话**记（而不是一个布尔）：组件不会随会话切换重挂，布尔一旦置真，
+   * 下一个会话的「首次确认」就被跳过了。
+   */
+  const armedSession = useRef<string | null>(null)
 
   /**
    * 自走泵：本轮结束 → 发队首一条「待发送」→ 线程重新进入运行 → 结束后再发下一条。
@@ -210,10 +224,22 @@ const ComposerQueue: FC = function ComposerQueue() {
       if (!sessionID) return
       if (isRunning) {
         markThreadRunning(sessionID)
+        armedSession.current = sessionID
         return
       }
       if (pending.length === 0) return
+      if (armedSession.current !== sessionID) {
+        armedSession.current = sessionID
+        const timer = window.setTimeout(function () {
+          // 窗口过后仍在空闲才真的补发：刷新恢复的那一瞬不足以确认「没有后台回合」
+          if (!aui.thread.getState().isRunning) pumpPendingQueue(aui, sessionID)
+        }, RESUME_SETTLE_MS)
+        return function () {
+          window.clearTimeout(timer)
+        }
+      }
       pumpPendingQueue(aui, sessionID)
+      return undefined
     },
     [aui, isRunning, pending, sessionID]
   )
@@ -290,7 +316,8 @@ const ComposerQueue: FC = function ComposerQueue() {
                     aria-label={labels.queuePendingSend}
                     onClick={function () {
                       if (!sessionID) return
-                      sendPendingItem(aui, sessionID, item.id)
+                      if (sendPendingItem(aui, sessionID, item.id)) return
+                      toast.error('现在发不出去：对话未就绪或正在提交，稍后重试')
                     }}>
                     {/* 与队列行同一个语义、同一个图标：这条现在就发（⚡），不是「发送键」 */}
                     <Icon

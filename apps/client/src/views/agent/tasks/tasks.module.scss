@@ -97,6 +97,15 @@
   color: var(--muted-foreground);
 }
 
+/** 只读值（例如服务端任务的「执行身份」）：和输入控件同高、不假装可编辑 */
+.fieldValue {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
 .fieldHint {
   margin: 0;
   font-size: 12px;

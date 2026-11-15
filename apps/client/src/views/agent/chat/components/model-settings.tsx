@@ -288,12 +288,16 @@ function AgentModelSettings(props: ModelSettingsProps) {
     })
   }
 
-  function handleSave() {
+  async function handleSave() {
     updateSaving(true)
     try {
-      void writeModelPrefs(draft)
+      // 落盘真的失败（磁盘只读 / store 写失败）时不能报「已保存」：以前是 `void` 掉了
+      await writeModelPrefs(draft)
       toast.success('已保存模型设置')
       props.onClose()
+    } catch (error) {
+      console.warn('[model-settings] 保存模型偏好失败:', error)
+      toast.error('保存模型设置失败，请重试')
     } finally {
       updateSaving(false)
     }
@@ -426,7 +430,7 @@ function AgentModelSettings(props: ModelSettingsProps) {
             className={styles.saveBtn}
             disabled={saving}
             onClick={function () {
-              handleSave()
+              void handleSave()
             }}>
             保存设置
           </Button>

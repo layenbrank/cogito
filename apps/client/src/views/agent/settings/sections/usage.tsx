@@ -33,9 +33,18 @@ function UsageSection() {
     [activeSessionID]
   )
 
-  const rows = [...usages].sort(function (left, right) {
-    return right.createdAt - left.createdAt
-  })
+  /*
+   * 库里的 `usages` 是**按会话合并**的全局缓存（其它会话的用量也要留着给别处用），
+   * 所以「当前会话」这一页必须自己按 sessionID 过滤 ——
+   * 以前直接汇总整份缓存，标签写着「当前会话」、数字却是所有会话加起来的。
+   */
+  const rows = usages
+    .filter(function (usage) {
+      return !activeSessionID || usage.sessionID === activeSessionID
+    })
+    .sort(function (left, right) {
+      return right.createdAt - left.createdAt
+    })
   const totals = findUsageTotals(rows)
   const scopeLabel = activeSessionID ? '当前会话' : '全部会话'
 

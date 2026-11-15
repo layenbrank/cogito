@@ -30,4 +30,14 @@ function takeNextThreadWorkspace(): { workspaceID: DraftWorkspace } | null {
   return value
 }
 
-export { rememberNextThreadWorkspace, takeNextThreadWorkspace }
+/**
+ * 丢掉草稿槽（用户放弃这个新会话、切去看旧会话时）。
+ *
+ * 不清的话，下一次真正落库的新会话会拿到这次点击留下的归属 ——
+ * 看上去就像「我明明新建的，怎么挂在别人的工作区下面」。
+ */
+function forgetNextThreadWorkspace(): void {
+  pending = null
+}
+
+export { forgetNextThreadWorkspace, rememberNextThreadWorkspace, takeNextThreadWorkspace }

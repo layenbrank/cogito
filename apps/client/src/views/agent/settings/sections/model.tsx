@@ -43,6 +43,7 @@ function ModelSection() {
         pickedAddId={inventory.pickedAddId}
         formValues={inventory.formValues}
         saving={inventory.saving}
+        loadingConfig={inventory.loadingConfig}
         thinking={inventory.editorThinking}
         onThinkingChange={inventory.patchThinking}
         onClose={inventory.closeEditor}

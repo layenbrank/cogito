@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/componen
 import { Tabs, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { toast } from 'sonner'
 
 import { AgentModelSettings } from './model-settings'
 import styles from './model-picker.module.scss'
@@ -126,7 +127,14 @@ function AgentModelPicker(props: ModelPickerProps) {
     // goose 认的是 providerId（行里的 kind），不是本地行 id
     const gooseProviderId = provider?.kind || providerId
     useProviderStore.getState().toSetActiveProvider(providerId)
-    await useProviderStore.getState().toUpdateProvider([{ id: providerId, model }])
+    try {
+      await useProviderStore.getState().toUpdateProvider([{ id: providerId, model }])
+    } catch (error) {
+      // 写不进去就别关浮层：关掉会让用户以为切成功了
+      console.warn('[model-picker] 切换模型失败:', error)
+      toast.error('切换模型失败，请重试')
+      return
+    }
     updateOpen(false)
     try {
       if (isGatewayTarget(gooseProviderId)) {

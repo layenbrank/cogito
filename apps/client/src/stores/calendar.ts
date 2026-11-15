@@ -144,6 +144,8 @@ const useCalendarStore = create<CalendarStore>()(
             await invoke(CHANNELS.CALENDAR.REMOVE, { params: keys })
           } catch (err) {
             reportCaught('calendar-store.toRemoveEvents', err)
+            // 必须冒上去：以前吞在这里，调用点无条件弹「已撤销」
+            throw err
           }
         }
       }

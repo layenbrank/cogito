@@ -47,6 +47,7 @@ import {
 import { DelegateSurface } from '@/views/agent/chat/components/delegate-surface'
 import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
+import { startNewThread } from '@/views/agent/chat/components/new-thread'
 import { AutomationSessionPicker } from '@/views/agent/chat/components/automation-session-picker'
 import { useWindowMinimized } from '@/features/window/use-window-minimized'
 import {
@@ -288,7 +289,7 @@ function AgentChatLayout() {
       keywords: 'new task thread',
       group: 'Agent',
       run() {
-        aui.threads.switchToNewThread()
+        startNewThread(aui.threads)
       }
     },
     {

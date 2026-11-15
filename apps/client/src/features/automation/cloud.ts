@@ -4,7 +4,7 @@
  * 列表里要一视同仁地显示本机 / goose / 服务端三种任务；
  * wire 与本地均用全局字典三位 value，不再做英文映射。
  */
-import type { CloudJob } from '@/apis/schedule'
+import type { CloudJob, CloudJobInput } from '@/apis/schedule'
 import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import type { Automation } from '@/shared/ipc/specs/automation'
 
@@ -57,7 +57,13 @@ function toCloudAutomation(job: CloudJob): Automation {
   }
 }
 
-/** 界面 → 服务端请求体（`runAsKind` 缺省用 user，执行人是创建人） */
+/**
+ * 界面 → 服务端请求体。
+ *
+ * `runAsKind` **只在明确认识时才带**：缺省写成 `user` 会把「以租户身份运行」的任务
+ * 在编辑保存后悄悄改成「我自己跑」，而界面上看不出任何变化。不认识就不传，
+ * 让服务端保留原值（新建时服务端本来也默认 user）。
+ */
 function toCloudInput(input: {
   id?: string
   name: string
@@ -66,18 +72,23 @@ function toCloudInput(input: {
   timezone?: string
   enabled?: boolean
   runAsKind?: string
-}) {
-  const runAsKind: 'user' | 'tenant' =
-    input.runAsKind === RUN_AS.TENANT || input.runAsKind === 'tenant' ? 'tenant' : 'user'
-  return {
+}): CloudJobInput {
+  const runAsKind =
+    input.runAsKind === RUN_AS.TENANT || input.runAsKind === 'tenant'
+      ? 'tenant'
+      : input.runAsKind === RUN_AS.USER || input.runAsKind === 'user'
+        ? 'user'
+        : undefined
+  const base: CloudJobInput = {
     id: input.id,
     name: input.name,
     prompt: input.prompt,
     cron: input.schedule,
     timezone: input.timezone,
-    enabled: input.enabled,
-    runAsKind
+    enabled: input.enabled
   }
+  // 不认识就不传，交给服务端保留原值
+  return runAsKind === undefined ? base : { ...base, runAsKind }
 }
 
 export { toCloudAutomation, toCloudInput }
