@@ -21,6 +21,7 @@ import type { Express, Request, Response } from 'express'
 
 import type { ApprovalHub } from './approvals'
 import type { EventHub } from './events'
+import { isAllowedGooseMethod } from './goose/allowlist'
 
 const GRAPH_NAME = 'agent'
 
@@ -69,6 +70,17 @@ interface ThreadRecord {
   metadata: Record<string, unknown>
 }
 
+/** 正在跑的那一轮（同线程只允许一个）。 */
+interface ActiveRun {
+  runID: string
+  controller: AbortController
+  startedAt: number
+}
+
+/** 抢占旧轮时等它落地的上限：超过就继续开新的（宁可丢旧轮，也不要卡在发送中）。 */
+const PREEMPT_WAIT_MS = 1500
+const PREEMPT_POLL_MS = 50
+
 function nowIso(): string {
   return new Date().toISOString()
 }
@@ -96,6 +108,7 @@ function readChunk(chunk: unknown): { mode: string; value: unknown } {
 function createAgentServer(options: AgentServerOptions): AgentServer {
   const graphName = options.graphName ?? GRAPH_NAME
   const threads = new Map<string, ThreadRecord>()
+  const activeRuns = new Map<string, ActiveRun>()
   const approvals = options.approvals ?? null
   const events = options.events ?? null
 
@@ -119,6 +132,116 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
 
   function ensureThread(threadID: string): ThreadRecord | null {
     return threads.get(threadID) ?? null
+  }
+
+  /** 图状态里的 `sessionId`（取消时要拿它发 ACP cancel）；拿不到就返回 null。 */
+  async function readSessionID(threadID: string): Promise<string | null> {
+    if (!options.graph.getState) return null
+    try {
+      const state = (await options.graph.getState({
+        configurable: { thread_id: threadID }
+      })) as { values?: Record<string, unknown> } | undefined
+      const value = state?.values?.sessionId
+      return typeof value === 'string' && value ? value : null
+    } catch {
+      return null
+    }
+  }
+
+  async function waitForIdle(threadID: string, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (!activeRuns.has(threadID)) return true
+      await new Promise<void>(function (resolve) {
+        setTimeout(resolve, PREEMPT_POLL_MS)
+      })
+    }
+    return !activeRuns.has(threadID)
+  }
+
+  /**
+   * 抢占同一线程上的旧轮。
+   *
+   * 前端「改了内容重新发」会在旧轮还没收尾时发新的一轮。这里先让 goose 停（ACP
+   * `session/cancel` 是唯一真正能收住长工具的），再中止图，最后等一个有限窗口。
+   * 等不到也不堵着 —— 抛错会让界面停在「发送中」，那是比丢一轮旧上下文更糟的体验。
+   */
+  async function preempt(threadID: string): Promise<void> {
+    const active = activeRuns.get(threadID)
+    if (!active) return
+    const sessionID = await readSessionID(threadID)
+    if (sessionID && options.goose) {
+      try {
+        await options.goose.cancel(sessionID)
+      } catch {
+        // goose 已经没了 / 没在跑：继续掉图
+      }
+    }
+    active.controller.abort()
+    const idle = await waitForIdle(threadID, PREEMPT_WAIT_MS)
+    if (!idle) {
+      console.warn(`[agent] 旧轮未在 ${PREEMPT_WAIT_MS}ms 内收尾，仍然继续开新一轮（thread=${threadID}）`)
+    }
+  }
+
+  /**
+   * 跑一轮（`/runs` 与 `/runs/stream` 共用）。
+   *
+   * `onChunk` 只有流式端点传：图快照不属于会话事件流，非流式端点直接丢掉。
+   */
+  async function executeRun(
+    threadID: string,
+    payload: unknown,
+    onChunk?: (mode: string, value: unknown) => void,
+    presetRunID?: string
+  ): Promise<{ runID: string; status: 'success' | 'error'; message?: string }> {
+    const runID = presetRunID ?? randomUUID()
+    const controller = new AbortController()
+    activeRuns.set(threadID, { runID, controller, startedAt: Date.now() })
+    events?.emit(threadID, 'status', { phase: 'running', runID })
+
+    let status: 'success' | 'error' = 'success'
+    let message: string | undefined
+    try {
+      const streamable = await options.graph.stream(payload, {
+        configurable: { thread_id: threadID },
+        streamMode: ['values', 'updates']
+      })
+      // 只用 `AsyncIterable` 形态（不假设它是 generator），这样图换成别的实现也能跑
+      const iterator = streamable[Symbol.asyncIterator]()
+      const aborted = new Promise<never>(function (_resolve, reject) {
+        controller.signal.addEventListener(
+          'abort',
+          function () {
+            reject(new Error('run aborted'))
+          },
+          { once: true }
+        )
+      })
+      for (;;) {
+        const next = await Promise.race([iterator.next(), aborted])
+        if (next.done) break
+        const parsed = readChunk(next.value)
+        onChunk?.(parsed.mode, parsed.value)
+      }
+    } catch (error) {
+      status = 'error'
+      message = error instanceof Error ? error.message : String(error)
+    } finally {
+      activeRuns.delete(threadID)
+      const thread = threads.get(threadID)
+      if (thread) thread.updated_at = nowIso()
+      // 回合已结束却还有待审批 → 这次不会再有人回执，按取消结掉避免永久挂起
+      approvals?.cancelThread(threadID)
+      const statusEvent: { phase: string; runID: string; status: string; message?: string } = {
+        phase: 'settled',
+        runID,
+        status
+      }
+      if (message) statusEvent.message = message
+      events?.emit(threadID, 'status', statusEvent)
+    }
+    return message === undefined ? { runID, status } : { runID, status, message }
   }
 
   /** 把请求体折成图的入参（`command.resume` 要包成 Command 实例）。 */
@@ -146,39 +269,34 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     res.setHeader('connection', 'keep-alive')
     res.flushHeaders()
 
+    // 流式端点也要单飞：否则同一线程上两轮交错写 checkpoint
+    await preempt(threadID)
+
     const runID = randomUUID()
     writeSse(res, 'metadata', { run_id: runID })
-    let status: 'success' | 'error' = 'success'
-    let message: string | undefined
 
-    let aborted = false
+    let closed = false
     res.on('close', function () {
-      aborted = true
+      closed = true
     })
 
-    try {
-      const iterator = await options.graph.stream(payload, {
-        configurable: { thread_id: threadID },
-        streamMode: ['values', 'updates']
-      })
-      for await (const chunk of iterator) {
-        if (aborted) break
-        const parsed = readChunk(chunk)
-        writeSse(res, parsed.mode, parsed.value)
-      }
-    } catch (error) {
-      status = 'error'
-      message = error instanceof Error ? error.message : String(error)
-      writeSse(res, 'error', { message })
-    } finally {
-      thread.updated_at = nowIso()
-      // run 已经结束却还有待审批 → 这次回合不会再用到它，按取消结掉避免永久挂起
-      approvals?.cancelThread(threadID)
-      const end: { status: string; message?: string } = { status }
-      if (message) end.message = message
-      writeSse(res, 'end', end)
-      res.end()
+    const result = await executeRun(
+      threadID,
+      payload,
+      function (mode, value) {
+        if (closed) return
+        writeSse(res, mode, value)
+      },
+      runID
+    )
+
+    if (result.status === 'error' && result.message) {
+      writeSse(res, 'error', { message: result.message })
     }
+    const end: { status: string; message?: string } = { status: result.status }
+    if (result.message) end.message = result.message
+    writeSse(res, 'end', end)
+    res.end()
   }
 
   async function handleState(req: Request, res: Response): Promise<void> {
@@ -231,6 +349,37 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     gooseGet('/goose/diagnostics', '_goose/unstable/diagnostics/get')
     gooseGet('/goose/defaults', '_goose/unstable/defaults/read')
     gooseGet('/goose/sessions', 'session/list')
+
+    /**
+     * 白名单透传：前端要用的 19 个 `_goose/unstable/*` 方法走这一条。
+     *
+     * `session/prompt` 与 `session/new` 刻意不在白名单里（前者必须走 `/runs` 才有单飞与
+     * 事件流，后者有具名端点要跟 thread 绑定）。不在表里一律 403，不能让透传变成万能代理。
+     */
+    app.post('/goose/invoke', function (req: Request, res: Response) {
+      if (!goose) {
+        res.status(503).json({ error: 'goose_unavailable' })
+        return
+      }
+      const body = (req.body ?? {}) as { method?: unknown; params?: unknown }
+      const method = typeof body.method === 'string' ? body.method : ''
+      if (!method) {
+        res.status(400).json({ error: 'method_required' })
+        return
+      }
+      if (!isAllowedGooseMethod(method)) {
+        res.status(403).json({ error: 'method_not_allowed', method })
+        return
+      }
+      goose.request(method, body.params ?? {}).then(
+        function (result) {
+          res.json(result ?? {})
+        },
+        function (error: unknown) {
+          res.status(502).json({ error: 'goose_request_failed', message: String(error) })
+        }
+      )
+    })
 
     app.post('/goose/sessions', function (req: Request, res: Response) {
       if (!goose) {
@@ -320,15 +469,30 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       )
     })
 
+    /**
+     * 建线程；带 `thread_id` 时是**幂等 upsert**。
+     *
+     * 为什么必须允许客户端指定 id：`thread_id` 是 checkpoint 的主键。客户端用自己的本地会话 id
+     * 才能做到「agentd 重启后接着跑」——随机 UUID 一重启就对不上历史了。
+     */
     app.post('/threads', function (req: Request, res: Response) {
-      const body = (req.body ?? {}) as { metadata?: Record<string, unknown> }
+      const body = (req.body ?? {}) as { thread_id?: unknown; metadata?: Record<string, unknown> }
+      const requested = typeof body.thread_id === 'string' ? body.thread_id.trim() : ''
+      const threadID = requested || randomUUID()
+      const existing = threads.get(threadID)
+      if (existing) {
+        existing.updated_at = nowIso()
+        if (body.metadata) existing.metadata = body.metadata
+        res.json({ ...existing, status: 'idle', values: {} })
+        return
+      }
       const thread: ThreadRecord = {
-        thread_id: randomUUID(),
+        thread_id: threadID,
         created_at: nowIso(),
         updated_at: nowIso(),
         metadata: body.metadata ?? {}
       }
-      threads.set(thread.thread_id, thread)
+      threads.set(threadID, thread)
       res.status(200).json({ ...thread, status: 'idle', values: {} })
     })
 
@@ -368,32 +532,39 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       res.status(202).json({ run_id: runID, thread_id: threadID })
 
       void (async function () {
-        events?.emit(threadID, 'status', { phase: 'running', runID })
-        let status: 'success' | 'error' = 'success'
-        let message: string | undefined
-        try {
-          const iterator = await options.graph.stream(payload, {
-            configurable: { thread_id: threadID },
-            streamMode: ['values', 'updates']
-          })
-          // 图快照不进事件流（前端要的是会话事件）；这里只把流跑完
-          for await (const _chunk of iterator) {
-            // drain
+        await preempt(threadID)
+        await executeRun(threadID, payload, undefined, runID)
+      })()
+    })
+
+    /**
+     * 取消当前轮。
+     *
+     * 两件事都要做：让 goose 停（ACP `session/cancel`，长工具只有它能真正收住）、
+     * 中止图（否则 `graph.stream` 会继续把后续 update 写进事件流）。
+     */
+    app.post('/threads/:threadId/cancel', function (req: Request, res: Response) {
+      const threadID = readThreadID(req)
+      if (!ensureThread(threadID)) {
+        res.status(404).json({ error: 'thread_not_found' })
+        return
+      }
+      const active = activeRuns.get(threadID)
+      if (!active) {
+        res.status(200).json({ cancelled: false, reason: 'no_active_run' })
+        return
+      }
+      res.status(202).json({ cancelled: true, run_id: active.runID })
+      void (async function () {
+        const sessionID = await readSessionID(threadID)
+        if (sessionID && options.goose) {
+          try {
+            await options.goose.cancel(sessionID)
+          } catch (error) {
+            console.warn(`[agent] cancelling goose session 失败：${String(error)}`)
           }
-        } catch (error) {
-          status = 'error'
-          message = error instanceof Error ? error.message : String(error)
-        } finally {
-          thread.updated_at = nowIso()
-          approvals?.cancelThread(threadID)
-          const statusEvent: { phase: string; runID: string; status: string; message?: string } = {
-            phase: 'settled',
-            runID,
-            status
-          }
-          if (message) statusEvent.message = message
-          events?.emit(threadID, 'status', statusEvent)
         }
+        active.controller.abort()
       })()
     })
 
