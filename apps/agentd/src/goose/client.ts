@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
 import { createLineSplitter, isIncomingRequest, parseMessage } from './protocol'
-import type { JsonRpcRequest } from './protocol'
+import type { JsonRpcId, JsonRpcRequest } from './protocol'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
 
@@ -108,7 +108,7 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
     }
   )
 
-  const pending = new Map<number, PendingRequest>()
+  const pending = new Map<JsonRpcId, PendingRequest>()
   const updateListeners = new Set<(sessionId: string, update: unknown) => void>()
   const splitter = createLineSplitter()
   let permissionHandler: PermissionRequestHandler | null = null
@@ -116,15 +116,20 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
   let closed = false
 
   /** 把决定写回给 goose；请求方在等这条 result。 */
-  function respondPermission(requestId: number, decision: PermissionDecision): void {
+  function respondPermission(requestId: JsonRpcId, decision: PermissionDecision): void {
     if (closed) return
     const result = decision
       ? { outcome: { outcome: 'selected', optionId: decision.optionId } }
       : { outcome: { outcome: 'cancelled' } }
+    console.log(`[acp] 审批回执 id=${requestId} → ${JSON.stringify(result.outcome)}`)
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: requestId, result })}\n`)
   }
 
-  async function handleIncomingRequest(method: string, id: number, params: unknown): Promise<void> {
+  async function handleIncomingRequest(
+    method: string,
+    id: JsonRpcId,
+    params: unknown
+  ): Promise<void> {
     if (method !== 'session/request_permission') {
       // 未实现的反向请求必须回错，不能让它悬着
       child.stdin.write(
@@ -160,10 +165,12 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
 
     if (!permissionHandler) {
       // fail-closed：没有人在听就不执行
+      console.log(`[acp] ${method} 到达但未注册处理器，按取消回写`)
       respondPermission(id, null)
       return
     }
 
+    console.log(`[acp] ${method} id=${id} session=${sessionId} options=${choices.length}`)
     try {
       const decision = await permissionHandler({
         sessionId,
@@ -195,6 +202,9 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
           if (sessionId) {
             for (const listener of updateListeners) listener(sessionId, update)
           }
+        } else {
+          // 认不出但不能默默丢：丢掉一条反向请求 = goose 一直在等
+          console.log(`[acp] 其他帧 method=${message.method}`)
         }
         continue
       }

@@ -13,7 +13,9 @@ const NODE_GLOBALS = {
   setInterval: 'readonly',
   clearInterval: 'readonly',
   URL: 'readonly',
-  fetch: 'readonly'
+  fetch: 'readonly',
+  TextDecoder: 'readonly',
+  AbortController: 'readonly'
 }
 
 /** 与包侧同规则（含禁箭头函数） */

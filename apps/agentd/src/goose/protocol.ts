@@ -7,9 +7,17 @@
  * 等 `_goose/*` 的类型需要复用再引 SDK，届时只换这一层。
  */
 
+/**
+ * JSON-RPC id：ACP 允许 number 或 string（goose 两者都用过），不能只认 number。
+ *
+ * 这条曾经是个真 bug：`request_permission` 的 id 是 string 时被当成「无 id 的通知」丢掉，
+ * 于是 goose 收不到回包 —— 表现是工具卡一闪而过、模型自己说「用户已拒绝」。
+ */
+type JsonRpcId = number | string
+
 interface JsonRpcRequest {
   jsonrpc: '2.0'
-  id: number
+  id: JsonRpcId
   method: string
   params?: unknown
 }
@@ -22,7 +30,7 @@ interface JsonRpcError {
 
 interface JsonRpcResponse {
   jsonrpc: '2.0'
-  id: number
+  id: JsonRpcId
   result?: unknown
   error?: JsonRpcError
 }
@@ -40,7 +48,7 @@ interface JsonRpcNotification {
  */
 interface JsonRpcIncomingRequest {
   jsonrpc: '2.0'
-  id: number
+  id: JsonRpcId
   method: string
   params?: unknown
 }
@@ -87,7 +95,9 @@ function parseMessage(line: string): JsonRpcResponse | JsonRpcNotification | nul
       // 有 id = 对方在等回包（server → client request）；无 id 才是通知
       return value as unknown as JsonRpcNotification | JsonRpcIncomingRequest
     }
-    if (typeof value.id === 'number') return value as unknown as JsonRpcResponse
+    if (typeof value.id === 'number' || typeof value.id === 'string') {
+      return value as unknown as JsonRpcResponse
+    }
     return null
   } catch {
     return null
@@ -99,12 +109,14 @@ function isIncomingRequest(
   message: JsonRpcResponse | JsonRpcNotification | JsonRpcIncomingRequest
 ): message is JsonRpcIncomingRequest {
   if (!('method' in message)) return false
-  return typeof (message as { id?: unknown }).id === 'number'
+  const id = (message as { id?: unknown }).id
+  return typeof id === 'number' || typeof id === 'string'
 }
 
 export { createLineSplitter, isIncomingRequest, parseMessage }
 export type {
   JsonRpcError,
+  JsonRpcId,
   JsonRpcIncomingRequest,
   JsonRpcNotification,
   JsonRpcRequest,

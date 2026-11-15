@@ -63,6 +63,20 @@ const OrchestrationState = Annotation.Root({
     default: function () {
       return ''
     }
+  }),
+  /**
+   * 本轮要用的会话权限档（`auto` / `approve` / `smart_approve` / `chat`）。
+   *
+   * 空串 = 沿用 goose 自己的当前档。前端每轮都会传（审批是安全闸门，不能靠默认值），
+   * 这里只是不把它写进 checkpoint —— 档位属于「这次调用」而不是「这个会话的历史」。
+   */
+  mode: Annotation<string>({
+    reducer: function (_prev, next) {
+      return next
+    },
+    default: function () {
+      return ''
+    }
   })
 })
 
@@ -155,6 +169,21 @@ function createGooseGraph(options: GooseGraphOptions) {
     return collectText(chunks)
   }
 
+  /**
+   * 设置本会话的权限档；空值不改（沿用 goose 当前档）。
+   *
+   * **不是** `session/set_mode`：goose 对那个方法宽容返回 `{}` 但不改状态（实测：
+   * 设 approve 后 write 仍直接执行）。真正的开关在 `configOptions` 里的 `mode` 项。
+   */
+  async function applyMode(client: GooseAcpClient, sessionId: string, mode: string): Promise<void> {
+    if (!mode) return
+    await client.request('session/set_config_option', {
+      sessionId,
+      configId: 'mode',
+      value: mode
+    })
+  }
+
   async function gooseNode(state: typeof OrchestrationState.State): Promise<TurnResult> {
     const client = supervisor.client()
     if (!client) {
@@ -164,6 +193,7 @@ function createGooseGraph(options: GooseGraphOptions) {
 
     if (state.sessionId) {
       try {
+        await applyMode(client, state.sessionId, state.mode)
         return {
           reply: await runTurn(client, state.sessionId, state.prompt, state.threadID),
           sessionId: state.sessionId
@@ -176,6 +206,7 @@ function createGooseGraph(options: GooseGraphOptions) {
 
     const session = await client.newSession({ cwd: state.cwd })
     sessionThreads.set(session.sessionId, state.threadID)
+    await applyMode(client, session.sessionId, state.mode)
     const reply = await runTurn(client, session.sessionId, state.prompt, state.threadID)
     return { reply, sessionId: session.sessionId }
   }

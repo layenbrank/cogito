@@ -254,6 +254,34 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         )
     })
 
+    app.post('/goose/sessions/:sessionId/mode', function (req: Request, res: Response) {
+      if (!goose) {
+        res.status(503).json({ error: 'goose_unavailable' })
+        return
+      }
+      const body = (req.body ?? {}) as { modeId?: string }
+      if (typeof body.modeId !== 'string' || body.modeId.length === 0) {
+        res.status(400).json({ error: 'modeId_required' })
+        return
+      }
+      // 权限档是 `configOptions` 里的一项（`configId: 'mode'`）；`session/set_mode` 是陷阱：
+      // goose 会宽容返回 `{}` 但**不改状态**，于是“设了 approve 却仍然直接执行”。
+      goose
+        .request('session/set_config_option', {
+          sessionId: readParam(req, 'sessionId'),
+          configId: 'mode',
+          value: body.modeId
+        })
+        .then(
+          function (result) {
+            res.json(result ?? {})
+          },
+          function (error: unknown) {
+            res.status(502).json({ error: 'goose_request_failed', message: String(error) })
+          }
+        )
+    })
+
     app.post('/goose/sessions/:sessionId/config', function (req: Request, res: Response) {
       if (!goose) {
         res.status(503).json({ error: 'goose_unavailable' })

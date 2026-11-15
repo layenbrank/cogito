@@ -56,8 +56,31 @@ pnpm --filter @cogito/agentd build:sea    # 打单文件 SEA → apps/client/src
 `@cogito/client` 的 `build` / `dev` 已前置 `build:agentd`，正常不用手动跑。
 调试时也可以让 Tauri 直接跑源码：`AGENTD_ENTRY=<绝对路径>/dist/main.cjs`（`node` 直跑）。
 
-## 四个必须记住的坑（都实测过）
+## 真机探针
 
+```bash
+# 先起一个 agentd（见上），然后：
+AGENTD_BASE=http://127.0.0.1:<port> AGENTD_TOKEN=<token> node scripts/probe-run.mjs \
+  --prompt "Reply with exactly: hello"
+
+# 触发并自动放行工具审批（会真的执行工具）
+node scripts/probe-run.mjs --approve --mode smart_approve \
+  --prompt "Create a file /tmp/probe.txt containing ok"
+```
+
+会话层最难的是时序（prompt 挂起 → 审批 → 继续），单测盖不住「串起来对不对」，这个脚本用真 goose + 真模型跑一遍。
+
+## 三个额外的坑（真机才暴露）
+
+1. **`permission.yaml` 的 `user` 段能吞掉所有审批**：`always_allow` 里的工具直接放行、`never_allow` 里的直接拒绝，
+   两者都**不发** `request_permission`。排查「审批不弹」先看这个文件，别怀疑 ACP。
+   要复现审批链，用不含 `permission.yaml` 的干净 `GOOSE_PATH_ROOT`。
+2. **切档用 `session/set_config_option(configId:'mode')`**，不是 `session/set_mode` ——
+   后者 goose 宽容返回 `{}` 但**不改状态**（最坑的一种失败：看着成功、行为没变）。
+3. **JSON-RPC `id` 允许 string**：只认 number 会把带 string id 的反向请求当通知丢掉，
+   表现同样是「审批没发生」。
+
+## 四个必须记住的坑（都实测过）
 1. **SEA 只按 CJS 执行入口**：ESM 入口注入后报 `Cannot use import statement outside a module`。
 2. **`useCodeCache` 必须 `false`**，否则 `--experimental-sea-config` 报 `Cannot generate V8 code cache`。
 3. **`process.isSea` 在 Node 24.18 是 `undefined`**，判 SEA 要用构建期常量。
