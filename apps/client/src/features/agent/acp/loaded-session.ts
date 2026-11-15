@@ -32,13 +32,18 @@ type LoadedSessionMessage =
  * 语义照着 SDK 的 AsyncQueue 收窄到够用：先攒后取、有等待者就直接给、出错时把等待者
  * 全部打回（否则 `runThreadPrompt` 的泵会永远挂在一个不会来的 update 上）。
  */
+/** 非 Error 的异常（SDK 可能抛字符串 / 裸对象）统一包一层，别把裸值丢给上层 */
+function toError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value))
+}
+
 class LoadedQueue {
   private items: LoadedSessionMessage[] = []
   private waiters: Array<{
     resolve: (message: LoadedSessionMessage) => void
     reject: (error: unknown) => void
   }> = []
-  private error: unknown = null
+  private error: Error | null = null
   private closed = false
 
   push(message: LoadedSessionMessage): void {
@@ -49,12 +54,15 @@ class LoadedQueue {
   }
 
   fail(error: unknown): void {
-    this.error = error
+    const normalized = toError(error)
+    this.error = normalized
     const waiters = this.waiters.splice(0)
-    for (const waiter of waiters) waiter.reject(error)
+    for (const waiter of waiters) waiter.reject(normalized)
   }
 
-  clearErrors(): void {
+  /** 新一轮 prompt 之前清掉上一轮残留：缓存的 update / stop 与错误都不该被下一轮读到 */
+  reset(): void {
+    this.items = []
     this.error = null
   }
 
@@ -125,10 +133,13 @@ function createLoadedSession(input: CreateLoadedSessionInput): ActiveSession {
     get newSessionResponse() {
       return sessionResponse
     },
-    prompt(prompt: string | ContentBlock | ContentBlock[], options?: {
-      cancellationSignal?: AbortSignal
-    }): Promise<PromptResponse> {
-      queue.clearErrors()
+    prompt(
+      prompt: string | ContentBlock | ContentBlock[],
+      options?: {
+        cancellationSignal?: AbortSignal
+      }
+    ): Promise<PromptResponse> {
+      queue.reset()
       const blocks: ContentBlock[] =
         typeof prompt === 'string'
           ? [{ type: 'text' as const, text: prompt }]

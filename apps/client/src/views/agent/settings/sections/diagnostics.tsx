@@ -9,7 +9,7 @@ import { Spinner } from '@cogito/design/components/spinner'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { save } from '@/shared/ipc/dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'
@@ -20,6 +20,12 @@ import {
   type DiagnosticsTextFile
 } from '@/features/agent/acp/goose-diagnostics'
 import { findThreadAcpSessionID, readGooseStatus, waitGooseReady } from '@/features/agent/acp/session'
+import {
+  findSessionMcpStatus,
+  readSessionToolSurface,
+  type SessionMcpStatus,
+  type SessionToolSurface
+} from '@/features/agent/acp/session-mcp'
 import { describeAudit, exportAgentAudit } from '@/shared/ipc/audit'
 import { describeCost, exportRunCost } from '@/shared/ipc/cost'
 import { useAgentStore } from '@/stores/agent'
@@ -121,13 +127,126 @@ function CostExportBar(props: { busy: boolean; onExport: () => Promise<void> }) 
   )
 }
 
+/**
+ * 本会话工具面（Phase 0）：每个内置服务器「接入了没有 / 命令 / 几个工具」，
+ * 外加 `tools/list` 的**原始**名字（可折叠）。
+ *
+ * 为什么放在诊断而不是只放扩展页：扩展页会告诉你「接没接入」，
+ * 但排查「模型调错工具名 / 参数对不上」要看的是名字里到底带不带 `<server>__` 前缀、
+ * 工具面是不是空的。这两个问题在这里一眼就能看出来。
+ */
+function ToolSurfaceBlock(props: { threadID: string }) {
+  const [surface, updateSurface] = useState<SessionToolSurface | null>(null)
+  const [statuses, updateStatuses] = useState<SessionMcpStatus[]>([])
+  const [busy, updateBusy] = useState(true)
+  const [expanded, updateExpanded] = useState(false)
+
+  useEffect(
+    function () {
+      let cancelled = false
+      async function load() {
+        updateBusy(true)
+        try {
+          const [nextSurface, nextStatuses] = await Promise.all([
+            readSessionToolSurface(props.threadID),
+            findSessionMcpStatus(props.threadID)
+          ])
+          if (cancelled) return
+          updateSurface(nextSurface)
+          updateStatuses(nextStatuses)
+        } catch (error) {
+          console.warn('[settings/diagnostics] 读取工具面失败:', error)
+        } finally {
+          if (!cancelled) updateBusy(false)
+        }
+      }
+      void load()
+      return function () {
+        cancelled = true
+      }
+    },
+    [props.threadID]
+  )
+
+  const tools = surface?.tools ?? []
+  return (
+    <div className="border-border/60 flex flex-col gap-2 rounded-lg border px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium">本会话工具面</span>
+        <span className="text-muted-foreground text-xs">
+          {busy ? '读取中…' : `${tools.length} 个工具`}
+        </span>
+        {surface?.acpSessionID ? (
+          <span
+            className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-[11px]"
+            title="与日志里的会话标识对应">
+            {surface.acpSessionID}
+          </span>
+        ) : null}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy || tools.length === 0}
+          onClick={function () {
+            updateExpanded(function (value) {
+              return !value
+            })
+          }}>
+          {expanded ? '收起名字' : '展开名字'}
+        </Button>
+      </div>
+
+      <ul className="flex flex-col gap-1">
+        {statuses.map(function (status) {
+          return (
+            <li
+              key={status.name}
+              className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
+              <span className="text-foreground">{status.label}</span>
+              <span>{status.isMounted ? '已接入' : status.isEnabled ? '未接入' : '已关闭'}</span>
+              <span>{status.tools.length} 个工具</span>
+              {status.command ? <span className="min-w-0 truncate">{status.command}</span> : null}
+            </li>
+          )
+        })}
+      </ul>
+
+      {expanded ? (
+        <ul className="bg-muted/30 max-h-64 overflow-auto rounded-md p-2 font-mono text-xs">
+          {tools.map(function (name) {
+            return (
+              <li
+                key={name}
+                className="truncate">
+                {name}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+
+      {surface?.error ? (
+        <p className="text-destructive text-xs">读取工具面失败：{surface.error}</p>
+      ) : null}
+    </div>
+  )
+}
+
 function DiagnosticsSection() {
   const activeSessionID = useAgentStore(function (state) {
     return state.activeSessionID
   })
   const acpSessionID = activeSessionID ? findThreadAcpSessionID(activeSessionID) : null
 
-  const [report, updateReport] = useState<DiagnosticsReport | null>(null)
+  /**
+   * 报告带着会话归属：切了会话就把旧报告当成「不属于当前会话」而不显示。
+   * 以前它就是个裸 state，切完会话还能点「复制 / 导出」，拿到的是一份别的会话的诊断。
+   */
+  const [reportState, updateReportState] = useState<{
+    sessionID: string
+    report: DiagnosticsReport
+  } | null>(null)
+  const report = reportState && reportState.sessionID === acpSessionID ? reportState.report : null
   const [busyLevel, updateBusyLevel] = useState<DiagnosticsLevel | null>(null)
   const [auditBusy, updateAuditBusy] = useState(false)
   const [costBusy, updateCostBusy] = useState(false)
@@ -141,7 +260,7 @@ function DiagnosticsSection() {
       await waitGooseReady()
       const handle = await findAcpHandle()
       const next = await fetchDiagnostics(handle.connection, acpSessionID, level)
-      updateReport(next)
+      updateReportState({ sessionID: acpSessionID, report: next })
       toast.success(level === 'full' ? '已生成完整报告' : '已生成摘要')
     } catch (error) {
       console.warn('[settings/diagnostics] 生成诊断失败:', error)
@@ -293,6 +412,8 @@ function DiagnosticsSection() {
               : '启动中'}
         </p>
       ) : null}
+
+      {activeSessionID ? <ToolSurfaceBlock threadID={activeSessionID} /> : null}
 
       <AuditExportBar busy={auditBusy} onExport={exportAudit} />
 

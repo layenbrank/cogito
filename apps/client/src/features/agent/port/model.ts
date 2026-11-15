@@ -32,6 +32,7 @@ import {
   beginGoalTurn,
   readGoalRun,
   readNextGoalBudget,
+  renewGoalTurn,
   startGoalRun
 } from '@/features/agent/goal-run'
 import { appendModeGuidance, resolveRunMode } from '@/features/agent/mode'
@@ -245,11 +246,13 @@ function makeBlockIDFinder(): AcpStreamContext['blockID'] {
   }
 }
 
-/**
- * 用量账本随 `agent_usage` 落地（PR4 最后一刀）。这里**不编造数字**：
+/** 用量账本随 `agent_usage` 落地（PR4 最后一刀）。这里**不编造数字**：
  * ACP 的 `usage_update` 报的是上下文窗口占用，不是本次运行的 token 账。
  */
 const RUN_USAGE: ChatUsage = {}
+
+/** 目标推进的租约续期节拍：远小于 `TURN_LEASE_MS`（10 分钟），长任务也不会被判成中断 */
+const GOAL_LEASE_RENEW_MS = 30_000
 
 /**
  * 轮次正常结束时的场景副作用：**按场景取值 → 映射表**，不再堆 `if (scenario === 'x')`。
@@ -320,7 +323,14 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       )
       const text = overrides.findUserText ? overrides.findUserText(input, visibleText) : visibleText
       if (!text.trim()) {
-        yield { kind: 'finish', finishReason: 'end_turn', usage: RUN_USAGE }
+        // 不能静默 finish：空文本曾经表现为「助手消息一出现就完成」，看起来像模型秒答。
+        // 要求空文本必须是一个可见错误（参数说明 + 可做的事）。
+        yield {
+          kind: 'error',
+          message:
+            '这次没有可发送的文本：本轮用户消息为空（可能只带了未能内联的附件）。请补一句具体要求后重试。',
+          usage: RUN_USAGE
+        }
         return
       }
 
@@ -402,8 +412,17 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
         )
       }
       // 每轮都拿一次租约：它是「这一轮归谁推进」的唯一凭据（收尾单飞 + 崩溃自愈都据它判断）
-      if (runMode === 'goal' && readGoalRun(host.threadID)) {
-        beginGoalTurn(host.threadID)
+      const goalLease =
+        runMode === 'goal' && readGoalRun(host.threadID) ? beginGoalTurn(host.threadID) : null
+      // 租约 TTL 只有 10 分钟，而长任务经常跑更久：不续租的话任何一次 `hydrate()` 都会把
+      // 记录打成 `interrupted`（推进链断在半路）。
+      let leaseTimer: number | null = null
+      if (goalLease) {
+        leaseTimer = window.setInterval(function () {
+          if (renewGoalTurn(host.threadID, goalLease)) return
+          if (leaseTimer !== null) window.clearInterval(leaseTimer)
+          leaseTimer = null
+        }, GOAL_LEASE_RENEW_MS)
       }
 
       try {
@@ -489,6 +508,8 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
           })
         }
         yield { kind: 'error', message, usage: RUN_USAGE }
+      } finally {
+        if (leaseTimer !== null) window.clearInterval(leaseTimer)
       }
     },
 

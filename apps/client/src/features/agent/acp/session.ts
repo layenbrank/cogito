@@ -9,9 +9,9 @@
  */
 import type {
   ActiveSession,
+  ClientConnection,
   CreateElicitationRequest,
   CreateElicitationResponse,
-  ClientConnection,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionConfigOption,
@@ -34,52 +34,33 @@ import type {
 } from '@cogito/chat/ports'
 
 import {
-  bindAcpRequestRouter,
-  bindGooseNotReady,
-  bindSessionUpdateRoute,
-  findAcpHandle
-} from '@/features/agent/acp/connection'
-import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
-import { readWikiApiConfig } from '@/views/knowledge/lib/wiki-api-config.ts'
-import { humanizeRunError, isRunCancelled } from '@/features/agent/acp/run-error'
-import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
-import {
   abortAllBackgroundTurns,
   clearPersistedRunning,
   hasPersistedRunningTurn,
   pushTurnEvent
 } from '@/features/agent/acp/background-turn'
-import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
+import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
+import {
+  bindAcpRequestRouter,
+  bindGooseNotReady,
+  bindSessionUpdateRoute,
+  findAcpHandle
+} from '@/features/agent/acp/connection'
 import {
   fetchSessionTools,
   saveDefaults,
   saveTemperature,
   saveThinkingEffort
 } from '@/features/agent/acp/goose-providers'
-import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
-import { bindSession, readBinding, unbindSession } from '@/features/agent/acp/session-binding'
+import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import {
   createLoadedSession,
   feedLoadedSession,
   forgetLoadedSession
 } from '@/features/agent/acp/loaded-session'
-import { isWriteTool } from '@/features/agent/approval'
-import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
-import {
-  recordThinkingApplied,
-  recordThinkingCapability
-} from '@/features/agent/model/thinking-capability'
-import { resolveThinkingValue } from '@/features/agent/model/thinking-effort-map'
-import { findModelKey, findModelPref } from '@/features/agent/model/model-prefs'
+import { humanizeRunError, isRunCancelled } from '@/features/agent/acp/run-error'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
-import { verifyAgentTools } from '@/features/agent/agent-tools'
-import type { AgentToolServer } from '@/features/agent/agent-tools'
-import { notifyTurnDone } from '@/features/agent/notify'
-import { readGoalRun } from '@/features/agent/goal-run'
-import { readAgentModeFor } from '@/features/agent/mode'
-import { findPref } from '@/features/persist'
-import type { ThinkingLevel } from '@/features/persist'
-import { readThinkingLevelFor } from '@/features/agent/thinking-level'
+import { bindSession, readBinding, unbindSession } from '@/features/agent/acp/session-binding'
 import {
   parseAcpApprovalRequest,
   parseAcpElicitationRequest,
@@ -88,15 +69,34 @@ import {
   parseAcpStreamEvent,
   type AcpStreamContext
 } from '@/features/agent/acp/stream'
+import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
+import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
+import type { AgentToolServer } from '@/features/agent/agent-tools'
+import { verifyAgentTools } from '@/features/agent/agent-tools'
+import { isWriteTool } from '@/features/agent/approval'
+import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
+import { readGoalRun } from '@/features/agent/goal-run'
+import { readAgentModeFor } from '@/features/agent/mode'
+import { findModelKey, findModelPref } from '@/features/agent/model/model-prefs'
 import { parseModels, stringifyModels } from '@/features/agent/model/providers'
+import {
+  recordThinkingApplied,
+  recordThinkingCapability
+} from '@/features/agent/model/thinking-capability'
+import { resolveThinkingValue } from '@/features/agent/model/thinking-effort-map'
 import { toGooseTemperature } from '@/features/agent/model/tuning'
+import { notifyTurnDone } from '@/features/agent/notify'
+import { readThinkingLevelFor } from '@/features/agent/thinking-level'
+import type { ThinkingLevel } from '@/features/persist'
+import { findPref } from '@/features/persist'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
-import { GOOSE_STATUS_EVENT, GooseStatusSchema } from '@/shared/ipc/specs/gooseStatus'
-import type { GooseStatus } from '@/shared/ipc/specs/gooseStatus'
 import { BridgeInfoSchema } from '@/shared/ipc/specs/bridge'
+import type { GooseStatus } from '@/shared/ipc/specs/gooseStatus'
+import { GOOSE_STATUS_EVENT, GooseStatusSchema } from '@/shared/ipc/specs/gooseStatus'
 import { StatusSchema } from '@/shared/ipc/specs/sidecar'
 import { useAgentStore } from '@/stores/agent'
 import { useProviderStore } from '@/stores/provider'
+import { readWikiApiConfig } from '@/views/knowledge/lib/wiki-api-config.ts'
 
 /** ACP stdio MCP 条目（与 SDK 的 McpServer 同形） */
 interface AcpMcpServer {
@@ -228,10 +228,12 @@ function makeItemQueue() {
 }
 
 /** 票据：默认值兜底 + 只 settle 一次 */
-function makeTicket<T>(timeoutValue: T): Ticket<T> {
+function makeTicket<T>(timeoutValue: T, onTimeout?: () => void): Ticket<T> {
   let settled = false
   let resolveValue: ((value: T) => void) | null = null
   const timer = setTimeout(function () {
+    if (settled) return
+    onTimeout?.()
     settle(timeoutValue)
   }, TICKET_TIMEOUT_MS)
 
@@ -391,7 +393,13 @@ async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
  * 桥信息（url/tokenFile）只在内存里传递：`bridge:info` 每次都取当前进程的值，
  * 令牌本身不经过渲染进程（Rust 写到 `<appLocalData>/bridge/token`，MCP 自己读）。
  * 缺 `mcpPath` 时不注入（未 stage / 平台不支持），而不是注入一个必然失败的命令。
+ *
+ * **server 名为什么是 `local` 而不是 `cogito`**：goose 会用 `<server>__` 拼工具全名，
+ * server 叫 `cogito` 而工具叫 `cogito_*` 就会得到 `cogito__cogito_workspace_read`。
+ * 现在全名是 `local__cogito_workspace_read`，品牌只出现一次。
  */
+const LOCAL_SERVER_NAME = 'local'
+
 async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
   try {
     if (!readWikiApiConfig().mcpEnabled) {
@@ -409,7 +417,7 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
     }
     return [
       {
-        name: 'cogito',
+        name: LOCAL_SERVER_NAME,
         command,
         args: [],
         env: [
@@ -423,6 +431,40 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
     console.warn('[acp/session] 解析 cogito-mcp 注入失败:', error)
     return []
   }
+}
+
+/**
+ * 一个会话要挂的 MCP 名单：`session/new` 与 `session/load` **必须共用这一份**。
+ *
+ * 以前 resume 走的是空名单（注释假设「load 会沿用会话已有的扩展」），结果接回的会话
+ * 一个 MCP 都没有 —— 本地 35 个工具与 corex 7 个工具全部消失，模型只能照着提示词
+ * 猜工具名与参数，表现为成片的工具调用失败。
+ */
+async function findSessionMcpServers(threadID: string): Promise<AcpMcpServer[]> {
+  return [...(await findCorexMcpServers(threadID)), ...(await findCogitoMcpServers(threadID))]
+}
+
+/** 本次会话是否真的挂上了 `cogito-mcp`（决定要不要校工具基线、要不要补云端检索） */
+function mountsCogitoServer(servers: readonly AcpMcpServer[]): boolean {
+  return servers.some(function (server) {
+    return server.name === LOCAL_SERVER_NAME
+  })
+}
+
+/**
+ * 两个内置 server 的开关状态。
+ *
+ * 设置页与诊断页要回答的不是「有没有挂上」（那是会话事实），而是「为什么没挂上」——
+ * 用户自己关掉的（设置）与故障（注入失败）必须分开说，否则一律显示成「未接入」只会让人去查错地方。
+ */
+function readBuiltinMcpSwitches(): { local: boolean; corex: boolean } {
+  let local = true
+  try {
+    local = readWikiApiConfig().mcpEnabled
+  } catch (error) {
+    console.warn('[acp/session] 读取本地工具面开关失败，按开启处理:', error)
+  }
+  return { local, corex: isCorexToolsEnabled() }
 }
 
 /**
@@ -785,6 +827,17 @@ async function verifyToolSurface(thread: ThreadSession): Promise<void> {
     const names = tools.map(function (tool) {
       return tool.name
     })
+    if (names.length === 0) {
+      // 工具面为空 = 本会话一个 MCP 都没挂上：后面按「名字漂移」报会误导排查
+      console.error(
+        '[acp/session] 工具面为空：本会话没有挂任何 MCP（本地与 corex 工具都不可用），请检查注入名单与会话恢复路径'
+      )
+    } else {
+      // 原始名字（含 goose 的 `<server>__` 前缀）只在 DEV 打：它是工具改名的判定依据
+      if (import.meta.env.DEV) {
+        console.info('[acp/session] 本会话工具面:', names)
+      }
+    }
     const servers: AgentToolServer[] = []
     if (isCorexToolsEnabled()) servers.push('corex')
     if (thread.mountsCogito) servers.push('local')
@@ -802,11 +855,11 @@ async function verifyToolSurface(thread: ThreadSession): Promise<void> {
       if (
         server === 'local' &&
         result.missing.some(function (name) {
-          return name === 'app_terminal_run'
+          return name === 'cogito_terminal_run'
         })
       ) {
         console.error(
-          '[acp/session] 缺少 app_terminal_run：Agent 无法走右栏可见终端，请检查 cogito-mcp 侧车'
+          '[acp/session] 缺少 cogito_terminal_run：Agent 无法走右栏可见终端，请检查 cogito-mcp 侧车'
         )
       }
     }
@@ -924,10 +977,7 @@ async function openThreadSession(
     console.info('[acp/session] authMethods 含 goose-provider，请确认已在设置中配置供应商')
   }
 
-  const mcpServers = [
-    ...(await findCorexMcpServers(threadID)),
-    ...(await findCogitoMcpServers(threadID))
-  ]
+  const mcpServers = await findSessionMcpServers(threadID)
   // session/new 失败时 goose 只回一句 Invalid params：这里补上 cwd，把它变成能照做的提示
   const session = await openAcpSession(handle.connection, cwd, mcpServers, threadID)
 
@@ -942,10 +992,8 @@ async function openThreadSession(
   await syncModelsToStore(applied.providerId, applied.configOptions)
 
   // 本地工具网关没挂上时（cogito-mcp 缺失/桥没起），把云端检索作为会话扩展补上；
-  // 两边同时存在会让模型对同一个查询调两次（`app_knowledge_search` + `cogito_knowledge_search`）。
-  const mountsLocalGateway = mcpServers.some(function (server) {
-    return server.name === 'cogito'
-  })
+  // 两边同时存在会让模型对同一个查询调两次（云端 `knowledge_search` + `cogito_knowledge_search`）。
+  const mountsLocalGateway = mountsCogitoServer(mcpServers)
   if (!mountsLocalGateway) {
     await mountCloudMcp(handle.connection, session.sessionId)
   }
@@ -1019,12 +1067,14 @@ async function resumeThreadSession(
   if (!handle.canLoadSession) return null
 
   let loaded: { configOptions?: SessionConfigOption[] | null } | null = null
+  // 接回旧会话也要把 MCP 重新挂上：`session/load` 的 `mcpServers` 是**这次要挂的名单**，
+  // 不是「沿用旧值」。传空名单的后果见 `findSessionMcpServers` 的注释。
+  const mcpServers = await findSessionMcpServers(threadID)
   try {
     loaded = await handle.connection.agent.request(methods.agent.session.load, {
       sessionId: binding.acpSessionId,
       cwd,
-      // load 是「接上」不是重建：空名单沿用会话已有的扩展，不新增 MCP
-      mcpServers: []
+      mcpServers
     })
   } catch (error) {
     console.warn('[acp/session] 接回旧会话失败，改开新会话:', threadID, error)
@@ -1069,8 +1119,8 @@ async function resumeThreadSession(
     modelID: appliedModel,
     configOptions,
     connection: handle.connection,
-    // 接回来的会话带着当时挂上的 MCP；这里保守当作挂过，工具自检会再核对
-    mountsCogito: true,
+    // 按**实际注入结果**记：以前写死 true，工具自检就会把「没挂上」当成「名字漂移」
+    mountsCogito: mountsCogitoServer(mcpServers),
     run: null
   }
   sessionByAcpID.set(thread.acpSessionID, thread)
@@ -1155,9 +1205,7 @@ async function ensureThreadSession(
   // 内存里没有、但库里存过绑定：先试着 `session/load` 接回旧会话（上下文留着），
   // 接不回来才开新会话。顺序在「预载思考档」之前：接回来的会话本来就有自己的档位。
   const restored =
-    options?.resume === false
-      ? null
-      : await resumeThreadSession(threadID, cwd, providerID, modelID)
+    options?.resume === false ? null : await resumeThreadSession(threadID, cwd, providerID, modelID)
   if (restored) {
     sessionByThread.set(threadID, restored)
     void verifyToolSurface(restored)
@@ -1318,7 +1366,26 @@ async function* runThreadPrompt(
   // 失败要在这里也写得到：泵自己断了同样得终结这一轮（见下面 pump 的 catch）
   const failureBox: { error: Error | null } = { error: null }
 
+  /** 本轮是否已经交付过终态：一轮**只认一个**，多出来的都是迟到/重复的 */
+  let deliveredTerminal = false
+  /** 本轮是否已经把「旧轮迟到终态」记过账（pump.catch 与 promptDone.catch 会同时触发） */
+  let notedStale = false
+  function markStaleOnce(): void {
+    if (notedStale) return
+    notedStale = true
+    noteStaleTerminal(thread.acpSessionID)
+  }
+
+  /** prompt 真正发出去的信号：泵要等它之后才开始拉 update */
+  let openPromptGate: () => void = function () {}
+  const promptIssued = new Promise<void>(function (resolve) {
+    openPromptGate = resolve
+  })
+
   const pump = (async function () {
+    // 顺序很要紧：先发 prompt 再起泵。反过来做，上一轮残留在队列里的 update / stop
+    // 会被这一轮当成自己的输出（旧实现在空 prompt 时表现为「一出现就完成」）。
+    await promptIssued
     while (true) {
       const raced = await Promise.race([
         thread.session.nextUpdate().then(function (message) {
@@ -1331,6 +1398,17 @@ async function* runThreadPrompt(
       if (raced.type === 'released') return
       const message = raced.message
       if (message.kind === 'stop') {
+        // 一轮只认一个终态；旧轮被我们合成过终态时，下一条真实 stop 归它，消费并丢弃
+        const stale = takeStaleTerminal(thread.acpSessionID)
+        if (deliveredTerminal || stale) {
+          console.warn(
+            '[acp/session] 丢弃迟到/重复的终态:',
+            message.stopReason,
+            deliveredTerminal ? '(本轮已交付)' : '(属于上一轮)'
+          )
+          continue
+        }
+        deliveredTerminal = true
         queue.push({ kind: 'stop', stopReason: message.stopReason })
         return
       }
@@ -1350,6 +1428,7 @@ async function* runThreadPrompt(
     // 在按停止时弹一个错误块。
     const cancelled = isRunCancelled(run, input.signal)
     failureBox.error = cancelled ? null : humanizeRunError(error, run.reset)
+    markStaleOnce()
     queue.push({ kind: 'stop', stopReason: cancelled ? 'cancelled' : 'error' })
     releaseBox.release?.()
   })
@@ -1361,9 +1440,13 @@ async function* runThreadPrompt(
     .catch(function (error: unknown) {
       const cancelled = isRunCancelled(run, input.signal)
       failureBox.error = cancelled ? null : humanizeRunError(parseAuthRequired(error), run.reset)
+      markStaleOnce()
       queue.push({ kind: 'stop', stopReason: cancelled ? 'cancelled' : 'error' })
       releaseBox.release?.()
     })
+
+  // prompt 已发出：放行泵（它在等这个信号才去读 update）
+  openPromptGate()
 
   // 从这里开始到 finally 之间不能有同步抛出的路径，否则左栏会一直显示「生成中」
   markRunStarted(threadID)
@@ -1407,6 +1490,28 @@ async function* runThreadPrompt(
  * session 重建（重启 / 换线程）自然拿到零基线；compaction 重置导致负增量时直接跳过，
  * 不落一条 0 账。
  */
+/**
+ * 我们替某一轮**合成**过终态的会话：紧随其后的那条真实 stop 属于已经收尾的旧轮。
+ *
+ * 为什么需要：`session/prompt` 的响应与 `session/update` 流是两条独立的信道，没有轮次 id。
+ * 上一轮被取消/抢占时我们自己先发了 aborted/error，而 goose 的 stop 往往晚一步才到；
+ * 不记账的话它会被**下一轮**的泵取走 → 新一轮立刻 finish/aborted（「重新生成瞬间结束」）。
+ */
+const staleTerminals = new Map<string, number>()
+
+function noteStaleTerminal(acpSessionID: string): void {
+  staleTerminals.set(acpSessionID, (staleTerminals.get(acpSessionID) ?? 0) + 1)
+}
+
+/** 消费一条「旧轮的迟到终态」 */
+function takeStaleTerminal(acpSessionID: string): boolean {
+  const pending = staleTerminals.get(acpSessionID) ?? 0
+  if (pending <= 0) return false
+  if (pending === 1) staleTerminals.delete(acpSessionID)
+  else staleTerminals.set(acpSessionID, pending - 1)
+  return true
+}
+
 /** 上一轮收尾的等待上限：正常取消几十毫秒内完成，留足余量给慢工具 */
 const RUN_HANDOFF_TIMEOUT_MS = 8_000
 const RUN_HANDOFF_POLL_MS = 50
@@ -1507,17 +1612,22 @@ async function requestThreadPermission(
     return { outcome: { outcome: 'cancelled' } }
   }
 
-  // 计划模式硬只读：写工具直接拒绝（不改用户审批偏好，对齐「模式 = 能力面」）。
+  // 只读档 / 计划模式：写工具直接拒绝。合并成一道门：
+  // `readonly` 以前靠 `permission.yaml` 的 never_allow，而那张表现在只放硬禁用（模式无关），
+  // 所以「只读」必须在会话层自己执行 —— 否则选「只读」等于什么都不拦。
   const toolName =
     params.toolCall.name?.trim() || params.toolCall.title?.trim() || params.toolCall.toolCallId
-  if (readAgentModeFor(thread.threadID) === 'plan' && isWriteTool(toolName)) {
-    console.info('[acp/session] 计划模式拒绝写工具:', toolName)
-    return { outcome: { outcome: 'cancelled' } }
+  const effective = findEffectiveApprovalMode(thread.threadID)
+  if (readAgentModeFor(thread.threadID) === 'plan' || effective === 'readonly') {
+    if (isWriteTool(toolName)) {
+      console.info('[acp/session] 只读策略拒绝写工具:', toolName, effective)
+      return { outcome: { outcome: 'cancelled' } }
+    }
   }
 
   // 目标模式特有的兜底：这一线程的推进不是“问一次动一下”，不能停下来等人。
-  // 直接回允许，不挂票据、不往队列塞审批事件（否则用户回来只看到一堆已失效的卡片）。
-  if (readGoalRun(thread.threadID)) {
+  // 但**只在用户当前就是「自动审批」时**自动放行：他中途改回「询问」就该照常问。
+  if (readGoalRun(thread.threadID) && effective === 'auto') {
     const allow = pickAutoAllowOption(params.options)
     if (allow) {
       console.info(
@@ -1535,7 +1645,15 @@ async function requestThreadPermission(
   const toolCallId = params.toolCall.toolCallId
   const previous = run.approvals.get(toolCallId)
   if (previous) previous.settle({ outcome: { outcome: 'cancelled' } })
-  const ticket = makeTicket<RequestPermissionResponse>({ outcome: { outcome: 'cancelled' } })
+  const ticket = makeTicket<RequestPermissionResponse>(
+    { outcome: { outcome: 'cancelled' } },
+    function (): void {
+      // 超时 = 没人回答：从票据表里摘掉并记一条「未通过」。
+      // 不摘的话卡片仍可点，点了会假报「已允许一次」（而 goose 早已收到 cancelled）。
+      run.approvals.delete(toolCallId)
+      rememberSettledApproval(thread.threadID, toolCallId, false)
+    }
+  )
   run.approvals.set(toolCallId, { ...ticket, options })
   run.queue.push({ kind: 'approval', event, params })
   return ticket.promise
@@ -1616,8 +1734,9 @@ function respondToApproval(approval: ChatToolApproval): boolean {
 const settledApprovals = new Map<string, boolean>()
 const SETTLED_APPROVALS_CAP = 256
 
-function rememberSettledApproval(toolCallId: string, approved: boolean): void {
-  settledApprovals.set(toolCallId, approved)
+function rememberSettledApproval(threadID: string, toolCallId: string, approved: boolean): void {
+  // 键带会话：不同会话/不同时间的同名 toolCallId 不该互相污染
+  settledApprovals.set(`${threadID.trim()}\u0000${toolCallId}`, approved)
   if (settledApprovals.size <= SETTLED_APPROVALS_CAP) return
   const oldest = settledApprovals.keys().next().value
   if (oldest !== undefined) settledApprovals.delete(oldest)
@@ -1630,8 +1749,10 @@ function rememberSettledApproval(toolCallId: string, approved: boolean): void {
  * - `null`：既没票据也没回执 —— 历史重建出来的旧卡，已失效。
  */
 function findApprovalState(toolCallId: string): 'pending' | boolean | null {
-  const settled = settledApprovals.get(toolCallId)
-  if (settled !== undefined) return settled
+  const suffix = `\u0000${toolCallId}`
+  for (const [key, value] of settledApprovals) {
+    if (key.endsWith(suffix)) return value
+  }
   for (const thread of sessionByThread.values()) {
     if (thread.run?.approvals.has(toolCallId)) return 'pending'
   }
@@ -1646,7 +1767,7 @@ function settleApproval(threadID: string, approval: ChatToolApproval): boolean {
   run.approvals.delete(approval.toolCallId)
   ticket.settle({ outcome: parseAcpPermissionOutcome(approval, ticket.options) })
   // 先记回执再推事件：UI 下一次渲染就能拿到结论，不必等事件穿过泵
-  rememberSettledApproval(approval.toolCallId, approval.approved)
+  rememberSettledApproval(threadID, approval.toolCallId, approval.approved)
   // 立刻把「已拍板」推回事件流：否则消息要一直等到 `tool-result` 才离开
   // `requires-action`，而工具可能跑几分钟 —— 用户看到的就是「点了审批没反应」。
   pushTurnEvent(threadID, {
@@ -2079,11 +2200,12 @@ async function* resumeThreadRun(
     }
 
     try {
+      // 同 `session/new`：接回时也要把 MCP 名单重新挂上，否则这一轮既没有本地工具也没有 corex 工具
+      const mcpServers = await findSessionMcpServers(threadID)
       await handle.connection.agent.request(methods.agent.session.load, {
         sessionId: remembered.acpSessionId,
         cwd: remembered.cwd,
-        // load 是「接上」不是重建：空名单沿用会话已有扩展，不新增 MCP
-        mcpServers: []
+        mcpServers
       })
     } catch (error) {
       console.warn('[acp/session] 恢复加载会话失败:', threadID, error)
@@ -2125,17 +2247,19 @@ function findThreadAcpSessionID(threadID: string): string | null {
 }
 
 export {
-  applyGooseThinking,
   applyGooseTemperature,
+  applyGooseThinking,
   applyThinkingToOpenSessions,
   clearThreadSessions,
   closeThreadSession,
   compactThreadSession,
   ensureThreadSession,
   findApprovalState,
+  findSessionMcpServers,
   findThreadAcpSessionID,
   hasThreadSession,
   humanizeRunError,
+  readBuiltinMcpSwitches,
   readGooseStatus,
   requestThreadElicitation,
   requestThreadPermission,
@@ -2146,4 +2270,4 @@ export {
   switchGooseProviderModel,
   waitGooseReady
 }
-export type { ThreadRunItem }
+export type { AcpMcpServer, ThreadRunItem }

@@ -4,6 +4,10 @@
  * 全局配置写进 goose 的 config，**新会话**才带上；已开会话的扩展集合另外维护，所以这里两段
  * 并排：上面改配置，下面改当前会话。所有写操作都走同一条 ACP 通道，成功后按 goose 的返回
  * 重新拉取（不猜 goose 侧算出来的 key）。
+ *
+ * 最上面还有一段「内置服务器」：`local` / `corex` 是随会话用 ACP `mcpServers` 挂上去的，
+ * **不是** goose 扩展，所以下面两段永远看不到它们 —— 不给这卡，用户看到的就是
+ * 「工具能用，扩展页里却没有」，只能去查错地方。内置服务器只读，不给删除 / 停用。
  */
 import type { ClientConnection } from '@agentclientprotocol/sdk'
 import { Icon } from '@iconify/react/offline'
@@ -24,6 +28,7 @@ import {
   writeConfigExtensionEnabled
 } from '@/features/agent/acp/goose-extensions'
 import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { findSessionMcpStatus, type SessionMcpStatus } from '@/features/agent/acp/session-mcp'
 import {
   describeExtension,
   EXTENSION_TYPE_LABELS,
@@ -37,6 +42,20 @@ import { ExtensionForm } from './extension-form'
 
 type ActionOutcome = { ok: true } | { ok: false }
 
+/**
+ * 内置服务器那一行的小字：工具数 / 命令路径 / 没接入的原因。
+ *
+ * 三种「没接入」必须分开说，否则用户只会得到一个笼统的「未接入」：
+ * 自己关掉的（设置）、挂上了但起不来（工具数为 0）、本会话压根没注入。
+ */
+function findBuiltinStatusNote(status: SessionMcpStatus): string {
+  if (!status.isEnabled) return '已在设置中关闭，本会话不会接入它'
+  if (!status.isMounted) return '本会话没有接入；新开一个会话，或到诊断页查看原因'
+  if (status.tools.length === 0) return '已接入，但还没读到它的工具；到诊断页查看工具面'
+  const command = status.command ? ` · ${status.command}` : ''
+  return `${status.tools.length} 个工具可用${command}`
+}
+
 function ExtensionsSection() {
   const activeSessionID = useAgentStore(function (state) {
     return state.activeSessionID
@@ -46,6 +65,7 @@ function ExtensionsSection() {
   const [entries, updateEntries] = useState<ExtensionEntry[]>([])
   const [warnings, updateWarnings] = useState<string[]>([])
   const [sessionEntries, updateSessionEntries] = useState<SessionExtensionEntry[]>([])
+  const [builtinStatuses, updateBuiltinStatuses] = useState<SessionMcpStatus[]>([])
   const [loading, updateLoading] = useState(false)
   const [busyKey, updateBusyKey] = useState<string | null>(null)
   const [isAdding, updateAdding] = useState(false)
@@ -67,13 +87,22 @@ function ExtensionsSection() {
           const inSession = acpSessionID
             ? await fetchSessionExtensions(handle.connection, acpSessionID)
             : []
-          if (!cancelled) updateSessionEntries(inSession)
+          if (cancelled) return
+          updateSessionEntries(inSession)
+          // 内置服务器：只要知道会话就查（没接上会话也要能看到「本会话未挂上」）
+          if (activeSessionID) {
+            const statuses = await findSessionMcpStatus(activeSessionID)
+            if (!cancelled) updateBuiltinStatuses(statuses)
+          } else if (!cancelled) {
+            updateBuiltinStatuses([])
+          }
         } catch (error) {
           console.warn('[settings/extensions] 加载扩展失败:', error)
           if (cancelled) return
           updateEntries([])
           updateWarnings([])
           updateSessionEntries([])
+          updateBuiltinStatuses([])
         } finally {
           if (!cancelled) updateLoading(false)
         }
@@ -83,7 +112,7 @@ function ExtensionsSection() {
         cancelled = true
       }
     },
-    [acpSessionID, revision]
+    [acpSessionID, activeSessionID, revision]
   )
 
   /** 所有写操作的公共路径：等 goose 就绪 → 拿连接 → 执行 → 报错兜底 */
@@ -195,6 +224,60 @@ function ExtensionsSection() {
       ) : null}
 
       <div
+        data-slot="mcp-config-builtin"
+        className="flex flex-col">
+        <p
+          className="text-xs font-medium"
+          title="随应用安装，不能删除或停用">
+          内置服务器
+        </p>
+        {builtinStatuses.length === 0 ? (
+          <div className="text-muted-foreground mt-2 flex items-center gap-2 rounded-lg border border-dashed px-3 py-3 text-xs">
+            <Icon
+              icon="lucide:plug"
+              aria-hidden
+              className="size-3.5"
+            />
+            打开一个会话后，这里显示它们在本会话的接入情况
+          </div>
+        ) : (
+          <ul className="mt-2 flex flex-col gap-2">
+            {builtinStatuses.map(function (status) {
+              return (
+                <li
+                  key={status.name}
+                  data-slot="mcp-server-card"
+                  data-state={status.isMounted ? 'connected' : 'needs-auth'}
+                  className="border-border/60 flex flex-col gap-2 rounded-xl border px-3 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      aria-hidden
+                      className="bg-foreground/5 text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+                      <Icon
+                        icon={status.name === 'local' ? 'lucide:hard-drive' : 'lucide:boxes'}
+                        className="size-3.5"
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{status.label}</span>
+                    <Badge variant="outline">内置</Badge>
+                    <Badge variant={status.isMounted ? 'secondary' : 'outline'}>
+                      {status.isMounted ? '已接入本会话' : '未接入'}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground truncate text-xs leading-relaxed">
+                    {status.hint}
+                  </p>
+                  <p className="text-muted-foreground truncate text-xs leading-relaxed">
+                    {findBuiltinStatusNote(status)}
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div
         data-slot="mcp-config-servers"
         className="flex flex-col">
         <div className="flex items-center justify-between gap-4">
@@ -261,7 +344,7 @@ function ExtensionsSection() {
                   <div className="flex items-center gap-2.5">
                     <span
                       aria-hidden
-                      className="bg-foreground/[0.05] text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+                      className="bg-foreground/5 text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
                       <Icon
                         icon="lucide:plug"
                         className="size-3.5"
@@ -349,7 +432,7 @@ function ExtensionsSection() {
                   className="border-border/60 flex items-center gap-2.5 rounded-xl border px-3 py-2.5">
                   <span
                     aria-hidden
-                    className="bg-foreground/[0.05] text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+                    className="bg-foreground/5 text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
                     <Icon
                       icon="lucide:plug"
                       className="size-3.5"
