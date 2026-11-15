@@ -220,6 +220,8 @@ pub struct TerminalInfo {
 #[serde(rename_all = "camelCase")]
 pub struct TerminalRun {
     pub id: String,
+    /// 命令实际落到的目录（工具卡跳右栏、模型下次续读都要它）
+    pub cwd: String,
     pub command: String,
     pub output: String,
     /// `true` 表示等到超时还没静下来（如 `npm run dev`），输出只是到目前为止的部分内容
@@ -333,13 +335,13 @@ mod session_tests {
     }
 }
 
-/// 由 cwd 解析出 agent 会话 id（`app_terminal_read` 省略 id 时用）。
+/// 由 cwd 解析出 agent 会话 id（`cogito_terminal_read` 省略 id 时用）。
 /// 先 canonicalize 再派生，保证与 `terminal:run` 建的会话是同一个键。
 pub fn resolve_agent_session(cwd: &str) -> Result<String, String> {
     resolve_agent_session_scoped(cwd, None)
 }
 
-/// 作用域版：`scope` = 线程 id。`terminal:run` 与 `app_terminal_read` 必须同口径，
+/// 作用域版：`scope` = 线程 id。`terminal:run` 与 `cogito_terminal_read` 必须同口径，
 /// 否则 agent 读到的会是另一个线程的会话。
 pub fn resolve_agent_session_scoped(cwd: &str, scope: Option<&str>) -> Result<String, String> {
     let path = validate_cwd(cwd)?;
@@ -718,7 +720,7 @@ fn spawn_reader(
     });
 }
 
-/// 向已有 PTY 会话写入原始字节（桥 `app_terminal_write` 与 IPC `terminal:write` 共用）
+/// 向已有 PTY 会话写入原始字节（桥 `cogito_terminal_write` 与 IPC `terminal:write` 共用）
 pub fn write_session(hub: &TerminalHub, id: &str, data: &[u8]) -> Result<(), String> {
     let mut sessions = hub
         .sessions
@@ -777,7 +779,7 @@ pub fn terminal_resize(
 ///
 /// 结束判定用「安静期」而不是注入标记：不依赖具体 shell（pwsh / bash / 带 Oh My Posh
 /// 的提示符各不相同），代价是持续输出的命令（`npm run dev`）会等到超时，此时返回
-/// `isRunning: true` + 部分输出，agent 可继续用 `app_terminal_read` 续读。
+/// `isRunning: true` + 部分输出，agent 可继续用 `cogito_terminal_read` 续读。
 #[tauri::command(rename = "terminal:run")]
 pub async fn terminal_run(
     app: AppHandle,
@@ -834,7 +836,7 @@ pub async fn terminal_run(
         AGENT_RUN_EVENT,
         TerminalAgentRunEvent {
             id: session_id.clone(),
-            cwd: cwd_text,
+            cwd: cwd_text.clone(),
             command: trimmed.clone(),
         },
     );
@@ -866,6 +868,7 @@ pub async fn terminal_run(
     let output = read_since(state.inner(), &session_id, start_cursor)?;
     Ok(TerminalRun {
         id: session_id,
+        cwd: cwd_text,
         command: trimmed,
         output,
         is_running,

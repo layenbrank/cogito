@@ -1,4 +1,4 @@
-//! 宿主侧工具在 app 里的执行：浏览器（`app_browser_*`）与终端（`app_terminal_*`）。
+//! 宿主侧工具在 app 里的执行：浏览器（`cogito_browser_*`）与终端（`cogito_terminal_*`）。
 //!
 //! 目录在 `cogito_core::tools::{browser,terminal}`（core 不依赖 tauri，只能放描述），
 //! 这里负责拿到 `AppHandle` 后真正干活：浏览器走 `browser::agent` 的 CDP 通道 +
@@ -8,6 +8,8 @@
 //! 那个 tab —— agent 和用户看到、能接管的是同一份东西。
 
 use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::browser::state::BrowserState;
@@ -59,9 +61,9 @@ pub async fn call(
         browser_catalog::NETWORK => network_list(app, arguments),
         browser_catalog::INTERCEPT => intercept_rules(app, arguments).await,
         browser_catalog::DEVICE => device(app, arguments).await,
-        terminal_catalog::RUN => terminal_run(app, arguments).await,
-        terminal_catalog::READ => terminal_read(app, arguments),
-        terminal_catalog::WRITE => terminal_write(app, arguments),
+        terminal_catalog::RUN => terminal_run(app, arguments, session).await,
+        terminal_catalog::READ => terminal_read(app, arguments, session),
+        terminal_catalog::WRITE => terminal_write(app, arguments, session),
         terminal_catalog::LIST => terminal_list(app),
         agents_catalog::SPAWN => agent_spawn(app, arguments, session).await,
         agents_catalog::WAIT => agent_wait(arguments).await,
@@ -79,6 +81,93 @@ fn text_arg<'a>(arguments: &'a Value, key: &str) -> Option<&'a str> {
         .filter(|text| !text.trim().is_empty())
 }
 
+/// 多个别名里取第一个非空文本。
+///
+/// 模型会按它熟悉的概念写 key：ACP 叫 `sessionId`、`tail -n` 叫 `lines`。
+/// 只报「缺少 id」会让它换个猜法重试 —— 别名归一比让它猜便宜得多。
+fn pick_arg<'a>(arguments: &'a Value, keys: &[&str]) -> Option<&'a str> {
+    keys.iter().find_map(|key| text_arg(arguments, key))
+}
+
+/// 发起方会话 → 「它最近一次 `cogito_terminal_run` 的终端 id」。
+///
+/// 为什么要记：模型调 `cogito_terminal_read` 时手里往往只有一个会话（`x-cogito-session`），
+/// 没有 tab id。要求它先去 `cogito_terminal_list` 再读，就多一步、多一次失败机会。
+fn last_terminals() -> &'static Mutex<HashMap<String, String>> {
+    static MAP: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn remember_session_terminal(session: Option<&str>, id: &str) {
+    let Some(session) = session.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    if let Ok(mut map) = last_terminals().lock() {
+        map.insert(session.to_string(), id.to_string());
+    }
+}
+
+fn find_session_terminal(session: Option<&str>) -> Option<String> {
+    let session = session?.trim();
+    if session.is_empty() {
+        return None;
+    }
+    last_terminals().lock().ok()?.get(session).cloned()
+}
+
+/// 输出首行带定位：调用方 `slice(-N)` 或只读 `output` 时，id 也不会被截掉
+fn decorate_terminal_output(mut value: Value, with_cwd: bool) -> Value {
+    let Some(record) = value.as_object_mut() else {
+        return value;
+    };
+    let id = record
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let output = record
+        .get("output")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let header = if with_cwd {
+        let cwd = record
+            .get("cwd")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let is_running = record
+            .get("isRunning")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        format!("[terminal id={id} cwd={cwd} isRunning={is_running}]")
+    } else {
+        format!("[terminal id={id}]")
+    };
+    record.insert(
+        "output".to_string(),
+        Value::String(format!("{header}\n{output}")),
+    );
+    value
+}
+
+/// 终端定位缺失时的提示：带正确参数名与已知候选，让模型下一轮能自纠
+fn missing_terminal_hint(app: &AppHandle) -> String {
+    let mut ids: Vec<String> = Vec::new();
+    if let Ok(Value::Array(rows)) = terminal_list(app) {
+        for row in rows {
+            if let Some(id) = row.get("id").and_then(Value::as_str) {
+                ids.push(id.to_string());
+            }
+        }
+    }
+    let base = "缺少终端定位：`id` 是终端会话 id（**不是** `sessionId`），也可传 `cwd`（绝对路径，同目录复用同一个 tab）";
+    if ids.is_empty() {
+        format!("{base}；当前没有打开的终端，先用 cogito_terminal_run 跑一条命令")
+    } else {
+        format!("{base}；当前打开的终端：{}", ids.join(" / "))
+    }
+}
+
 /// `tab` 省略（或写 `active`）时取当前活动标签页
 fn resolve_label(app: &AppHandle, arguments: &Value) -> Result<String, String> {
     if let Some(label) = text_arg(arguments, "tab") {
@@ -90,7 +179,7 @@ fn resolve_label(app: &AppHandle, arguments: &Value) -> Result<String, String> {
     state
         .snapshot()
         .active
-        .ok_or_else(|| "当前没有打开的浏览器标签页，先用 app_browser_open 打开一个".to_string())
+        .ok_or_else(|| "当前没有打开的浏览器标签页，先用 cogito_browser_open 打开一个".to_string())
 }
 
 async fn open(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
@@ -175,7 +264,7 @@ async fn act(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
     // scroll 与 reload 不看选择器：它们作用于整页
     if action != "scroll" && action != "reload" && selector.is_empty() {
         return Err(format!(
-            "{action} 需要 selector（先 app_browser_read 拿一份）"
+            "{action} 需要 selector（先 cogito_browser_read 拿一份）"
         ));
     }
     agent::act(app, &label, action, selector, value).await
@@ -200,7 +289,11 @@ fn network_list(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
     Ok(json!({ "tab": label, "count": requests.len(), "requests": requests }))
 }
 
-async fn terminal_run(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+async fn terminal_run(
+    app: &AppHandle,
+    arguments: &Value,
+    session: Option<&str>,
+) -> Result<Value, String> {
     let command = text_arg(arguments, "command")
         .ok_or_else(|| "缺少 command".to_string())?
         .to_string();
@@ -223,39 +316,60 @@ async fn terminal_run(app: &AppHandle, arguments: &Value) -> Result<Value, Strin
         timeout_ms,
     )
     .await?;
-    serde_json::to_value(run).map_err(|error| format!("终端结果不可序列化：{error}"))
+    remember_session_terminal(session, &run.id);
+    let value =
+        serde_json::to_value(run).map_err(|error| format!("终端结果不可序列化：{error}"))?;
+    Ok(decorate_terminal_output(value, true))
 }
 
-fn terminal_read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
-    let id = match text_arg(arguments, "id") {
+fn terminal_read(
+    app: &AppHandle,
+    arguments: &Value,
+    session: Option<&str>,
+) -> Result<Value, String> {
+    let id = match pick_arg(arguments, &["id", "sessionId", "session_id", "session"]) {
         Some(id) => id.to_string(),
-        None => {
-            let cwd = text_arg(arguments, "cwd").ok_or_else(|| "缺少 id 或 cwd".to_string())?;
-            resolve_agent_session_scoped(cwd, text_arg(arguments, "scope"))?
-        }
+        None => match pick_arg(arguments, &["cwd", "workdir", "dir"]) {
+            Some(cwd) => resolve_agent_session_scoped(cwd, text_arg(arguments, "scope"))?,
+            // 什么都没传：读「本会话最近一次跑命令的那个终端」，这是模型最常见的意图
+            None => find_session_terminal(session).ok_or_else(|| missing_terminal_hint(app))?,
+        },
     };
     let max_chars = arguments
         .get("maxChars")
         .and_then(Value::as_u64)
-        .map(|value| value as usize);
+        .map(|value| value as usize)
+        // 模型常按 `tail -n` 传 `lines`：粗折算成字符（每行约 200）
+        .or_else(|| {
+            arguments
+                .get("lines")
+                .and_then(Value::as_u64)
+                .map(|value| (value as usize).saturating_mul(200))
+        });
 
     let state = app.state::<TerminalHub>();
     let read = crate::utils::terminal::terminal_read(state, id, max_chars)?;
-    serde_json::to_value(read).map_err(|error| format!("终端输出不可序列化：{error}"))
+    let value =
+        serde_json::to_value(read).map_err(|error| format!("终端输出不可序列化：{error}"))?;
+    Ok(decorate_terminal_output(value, false))
 }
 
-fn terminal_write(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+fn terminal_write(
+    app: &AppHandle,
+    arguments: &Value,
+    session: Option<&str>,
+) -> Result<Value, String> {
     // 允许纯空白（例如只发换行）；缺字段才报错
     let data = arguments
         .get("data")
         .and_then(Value::as_str)
         .ok_or_else(|| "缺少 data".to_string())?;
-    let id = match text_arg(arguments, "id") {
+    let id = match pick_arg(arguments, &["id", "sessionId", "session_id", "session"]) {
         Some(id) => id.to_string(),
-        None => {
-            let cwd = text_arg(arguments, "cwd").ok_or_else(|| "缺少 id 或 cwd".to_string())?;
-            resolve_agent_session_scoped(cwd, text_arg(arguments, "scope"))?
-        }
+        None => match pick_arg(arguments, &["cwd", "workdir", "dir"]) {
+            Some(cwd) => resolve_agent_session_scoped(cwd, text_arg(arguments, "scope"))?,
+            None => find_session_terminal(session).ok_or_else(|| missing_terminal_hint(app))?,
+        },
     };
     let state = app.state::<TerminalHub>();
     crate::utils::terminal::write_session(state.inner(), &id, data.as_bytes())?;
@@ -422,7 +536,7 @@ async fn agent_spawn(
         "status": job.status,
         "depth": job.depth,
         "title": job.title,
-        "hint": "用 app_agent_wait 等它收尾；wait 超时只是「还没完」，不是失败"
+        "hint": "用 cogito_agent_wait 等它收尾；wait 超时只是「还没完」，不是失败"
     }))
 }
 
@@ -480,4 +594,55 @@ fn agent_result(arguments: &Value) -> Result<Value, String> {
         "summary": job.summary,
         "error": job.error
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pick_arg_accepts_model_aliases() {
+        let arguments = json!({ "sessionId": "agent:D:\\\\work", "lines": 120 });
+        assert_eq!(
+            pick_arg(&arguments, &["id", "sessionId", "session_id", "session"]),
+            Some("agent:D:\\\\work")
+        );
+        // 显式 id 优先于别名
+        let both = json!({ "id": "agent:a", "sessionId": "agent:b" });
+        assert_eq!(pick_arg(&both, &["id", "sessionId"]), Some("agent:a"));
+        // 空串按「没传」处理
+        let blank = json!({ "id": "  " });
+        assert_eq!(pick_arg(&blank, &["id"]), None);
+    }
+
+    #[test]
+    fn session_terminal_remembers_last_run() {
+        let session = "goose-acp:test-session";
+        remember_session_terminal(Some(session), "agent:D:\\\\work");
+        assert_eq!(
+            find_session_terminal(Some(session)),
+            Some("agent:D:\\\\work".to_string())
+        );
+        // 别的会话互不串台；空会话不写也不读
+        assert_eq!(find_session_terminal(Some("goose-acp:other")), None);
+        remember_session_terminal(None, "agent:ignored");
+        assert_eq!(find_session_terminal(None), None);
+    }
+
+    #[test]
+    fn decorate_adds_locator_header() {
+        let value = json!({
+            "id": "agent:D:\\\\work",
+            "cwd": "D:\\\\work",
+            "output": "done",
+            "isRunning": true
+        });
+        let decorated = decorate_terminal_output(value, true);
+        let output = decorated
+            .get("output")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        assert!(output.starts_with("[terminal id=agent:D:\\\\work cwd=D:\\\\work isRunning=true]"));
+        assert!(output.ends_with("done"));
+    }
 }

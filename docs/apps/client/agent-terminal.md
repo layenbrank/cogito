@@ -20,25 +20,27 @@
 - 会话消息里的 tool-call part **没有** `status`（那是渲染器 props 才有的字段），只能按结果推断：
   没有 `result`、或 `isPreliminary`（流式中间态）＝正在跑；等审批（`approval.approved === undefined`）、等人工回答（`interrupt`）都不算执行中。
 - 耗时以「第一次观察到它在跑」起算 —— part 不带开始时间戳，用消息创建时间会被同一条消息里的多个工具调用互相污染。
-- 每条命令带 `source`：`panel`（`app_terminal_*`）或 `external`（历史 goose shell 等）。external 行标「非面板终端」，点击只打开工作区 shell，不指望对上 agent tab。
+- 每条命令带 `source`：`panel`（`cogito_terminal_*`）或 `external`（历史 goose shell 等）。external 行标「非面板终端」，点击只打开工作区 shell，不指望对上 agent tab。
 - 点击 panel 命令：先 `bootstrapTerminalSessions`，再按 `tab.command` / `terminal:resolve_agent_id(workdir)` 选中对应 tab。
 
 ## agent 用右栏终端执行命令
 
 工具目录在 `src-tauri/crates/core/src/tools/terminal.rs`，执行在 `src/bridge/app_tools.rs`：
 
-| 工具                | effect | 作用                                                       |
-| ------------------- | ------ | ---------------------------------------------------------- |
-| `app_terminal_run`  | write  | 在用户看得见的终端里跑一条命令，读回这段输出                |
-| `app_terminal_read` | read   | 读会话最近输出（`isRunning: true` 之后续读）                |
-| `app_terminal_write`| write  | 往已有会话写入（交互提示 / 密码）                          |
-| `app_terminal_list` | read   | 列出会话（id / cwd / pid）                                  |
+| 工具                    | effect | 作用                                                       |
+| ----------------------- | ------ | ---------------------------------------------------------- |
+| `cogito_terminal_run`   | write  | 在用户看得见的终端里跑一条命令，读回这段输出                |
+| `cogito_terminal_read`  | read   | 读会话最近输出（`isRunning: true` 之后续读；省略 id 读本会话最近一次） |
+| `cogito_terminal_write` | write  | 往已有会话写入（交互提示 / 密码）                          |
+| `cogito_terminal_list`  | read   | 列出会话（id / cwd / pid）                                  |
+
+> 工具全名带 server 前缀（goose 拼接）：`local__cogito_terminal_run`。判定/展示前一律先 `stripServerPrefix`。
 
 ### 硬约束：禁止黑盒 shell
 
 - Goose 内置 `shell` / `developer__shell` / `bash` / `exec` 等在任意审批策略下均为 `never_allow`（见 `approval.isOpaqueShellTool`）。
-- 系统 prompt `TERMINAL_PLAYBOOK` 写死：必须且只能用 `app_terminal_run`。
-- 侧车已挂却缺少 `app_terminal_run` 时，`verifyToolSurface` 打 `console.error`。
+- 系统 prompt `TERMINAL_PLAYBOOK` 写死：必须且只能用 `cogito_terminal_run`。
+- 侧车已挂却缺少 `cogito_terminal_run` 时，`verifyToolSurface` 打 `console.error`。
 
 链路：
 
@@ -46,7 +48,7 @@
 2. 会话 id 按 cwd 派生：`agent:<canonical cwd>`；没有就建，有就复用（同一目录反复跑命令共用一个 tab）。前端匹配用 `terminal:resolve_agent_id`，禁止裸拼 `agent:${workdir}`。
 3. 先广播 `terminal://agent-run`（前端 `revealAgentTab`：开 / 选 tab 并掀开面板），**再**写 `command\r`。
 4. 等「安静期」（`quietMs`，默认 700ms）或超时（`timeoutMs`，默认 120s），从记录的游标读回输出，去 ANSI、按字符截尾。
-5. 返回 `{ id, command, output, isRunning, elapsedMs }`；`isRunning: true` 表示还没静下来，需要 `app_terminal_read` 续读。
+5. 返回 `{ id, command, output, isRunning, elapsedMs }`；`isRunning: true` 表示还没静下来，需要 `cogito_terminal_read` 续读。`output` 首行额外带 `[terminal id=… cwd=… isRunning=…]`，防止调用方截断后拿不到 id。
 
 工具的 MCP 描述里写死了「串行调用」：同一目录的 agent 会话只有一个 shell，并发跑会互相干扰。
 
@@ -90,7 +92,7 @@ echo BUILD_EXIT=%ERRORLEVEL% >> "%TEMP%\build.txt"
 2. 用**分离进程**启动：
    `powershell -NoProfile -Command "Start-Process -FilePath '...\build.bat' -WindowStyle Hidden"` ——
    它有自己的控制台，收不到会话里的 `\x03`；
-3. 用 `app_terminal_read` 或读那个输出文件轮询结果，不要在前台等。
+3. 用 `cogito_terminal_read` 或读那个输出文件轮询结果，不要在前台等。
 
 `npm run dev` / `vite` 这类常驻进程同理。已经卡在 `Terminate batch job (Y/N)?` 时，
 往会话写 `y` + 回车即可恢复（实测有效）。
@@ -136,7 +138,7 @@ echo BUILD_EXIT=%ERRORLEVEL% >> "%TEMP%\build.txt"
 - 结束判定是「安静期」而不是注入标记：`npm run dev` / watch 这类持续输出会等到超时，返回 `isRunning: true` + 部分输出。换成 shell integration 更准，但要为 pwsh / bash 各写一套约定，暂不做。
 - 命令必须是**单行**（内嵌换行会被 shell 当成多条命令，判定就失准）——`terminal_run` 直接报错，让模型用 `&&` / `;` 串联。
 - ConPTY 上 PSReadLine 会重绘当前行，去 ANSI 后仍可能看到重复的前缀文本。
-- 终端不是沙箱：命令以用户身份执行；`app_terminal_run` 归类为写工具，走审批（`features/agent/approval.ts` 的 `run` 动词命中）。
+- 终端不是沙箱：命令以用户身份执行；`cogito_terminal_run` 归类为写工具，走审批（`features/agent/approval.ts` 的 `run` 动词命中）。
 - 应用进程退出后无 VS Code 式 Process revive（不重拉 shell / 不恢复缓冲）。
 
 ## 回归检查
@@ -144,8 +146,8 @@ echo BUILD_EXIT=%ERRORLEVEL% >> "%TEMP%\build.txt"
 - `pnpm --filter @cogito/client type-check` / `lint` / `unit`
 - `cargo check`（`terminal:create` / `terminal:resolve_agent_id`）+ `cargo test -p cogito-command`（`terminalText` 的 ANSI / 截尾单测）
 - 手测 A：会话里跑一条命令 → 卡片保持折叠，摘要显示「命令 + 转圈 + 耗时」；点开能看到带 ANSI 着色的输出。
-- 手测 B：agent 调 `app_terminal_run` → 右栏自动切到终端并新建 `agent · <目录>` tab；「详情 · 正在执行」出现同一行，点它回到该 tab。
+- 手测 B：agent 调 `cogito_terminal_run` → 右栏自动切到终端并新建 `agent · <目录>` tab；「详情 · 正在执行」出现同一行，点它回到该 tab。
 - 手测 C：长任务（如 `npm run dev`）→ 刷新 WebView → 面板自动打开对应 agent tab，scrollback 回放，进程仍在。
-- 手测 D：模型调 `shell` / `developer__shell` 应被拒绝；只能走 `app_terminal_run`。
+- 手测 D：模型调 `shell` / `developer__shell` 应被拒绝；只能走 `cogito_terminal_run`。
 - 手测 E：命令列表跳转：panel 命令进对应 tab；历史 external 命令标「非面板终端」并只开工作区 shell。
 - 手测 F：code 底栏 + chat 右栏双宿主同时打开同一会话 → 不杀 PTY；关面板不杀会话。

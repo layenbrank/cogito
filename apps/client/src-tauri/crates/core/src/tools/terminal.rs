@@ -1,4 +1,4 @@
-//! 终端工具面（`app_terminal_*`）的**目录**。
+//! 终端工具面（`cogito_terminal_*`）的**目录**。
 //!
 //! 与浏览器工具同一个理由：`cogito-core` 不依赖 tauri，拿不到 `AppHandle`，
 //! 但工具目录必须单点定义（MCP `tools/list` 与前端审批都看它）。执行在 app 侧
@@ -11,10 +11,10 @@ use serde_json::{Value, json};
 
 use super::{Effect, ToolSpec};
 
-pub const RUN: &str = "app_terminal_run";
-pub const READ: &str = "app_terminal_read";
-pub const WRITE: &str = "app_terminal_write";
-pub const LIST: &str = "app_terminal_list";
+pub const RUN: &str = "cogito_terminal_run";
+pub const READ: &str = "cogito_terminal_read";
+pub const WRITE: &str = "cogito_terminal_write";
+pub const LIST: &str = "cogito_terminal_list";
 
 const NAMES: [&str; 4] = [RUN, READ, WRITE, LIST];
 
@@ -31,13 +31,14 @@ pub fn specs() -> Vec<ToolSpec> {
             RUN,
             "在用户看得见的嵌入式终端里执行一条命令，并把这期间输出读回来。适合需要用户围观/接管的命令（构建、测试、dev server）。\
              结束判定是「安静期」：超过 quietMs 没有新输出即视为跑完；持续输出的命令会等到 timeoutMs，\
-             返回 isRunning=true 与到目前的部分输出，此时用 app_terminal_read 继续读。命令在同一个 tab 里串行执行，不要并发调用。",
+             返回 isRunning=true 与到目前的部分输出，此时用 cogito_terminal_read 继续读。命令在同一个 tab 里串行执行，不要并发调用。",
             Effect::Write,
             json!({
                 "type": "object",
                 "properties": {
                     "command": { "type": "string", "description": "要执行的命令（单行；需要多条时用 && 或 ; 串联）" },
                     "cwd": { "type": "string", "description": "在哪个目录开终端（绝对路径）；同一目录复用同一个 tab" },
+                    "scope": { "type": "string", "description": "可选：线程标识，同目录多线程时用来隔离 tab；一般不用传" },
                     "quietMs": { "type": "integer", "minimum": 50, "description": "多久没输出算结束，默认 700" },
                     "timeoutMs": { "type": "integer", "minimum": 500, "description": "单次等待上限，默认 120000" }
                 },
@@ -46,26 +47,28 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             READ,
-            "读嵌入式终端最近的输出（去 ANSI 后的纯文本）。用于 app_terminal_run 返回 isRunning=true 之后续读，或用户自己在终端里跑过东西时看一眼结果。未选中的 tab 也可读。",
+            "读嵌入式终端最近的输出（去 ANSI 后的纯文本）。用于 cogito_terminal_run 返回 isRunning=true 之后续读，或用户自己在终端里跑过东西时看一眼结果。未选中的 tab 也可读。省略 id 且没有 cwd 时，读本会话最近一次 run 的终端。",
             Effect::Read,
             json!({
                 "type": "object",
                 "properties": {
-                    "id": { "type": "string", "description": "终端会话 id；省略表示当前 cwd 派生的那个 agent 会话" },
+                    "id": { "type": "string", "description": "终端会话 id（形如 agent:<cwd>，**不是 sessionId**）；省略时用 cwd 派生" },
                     "cwd": { "type": "string", "description": "配合 id 省略时使用：这个目录的 agent 会话" },
-                    "maxChars": { "type": "integer", "minimum": 200, "description": "最多返回多少字符，默认 12000" }
+                    "scope": { "type": "string", "description": "可选：与 cogito_terminal_run 相同的线程标识" },
+                    "maxChars": { "type": "integer", "minimum": 200, "description": "最多返回多少字符，默认 12000（别名 lines 会按行粗折算）" }
                 }
             }),
         ),
         spec(
             WRITE,
-            "向嵌入式终端会话写入文本（不自动加回车时可自行在 data 末尾加 \\r）。用于 isRunning 后台会话的交互输入（密码提示、确认），不要用来开新命令——开命令用 app_terminal_run。",
+            "向嵌入式终端会话写入文本（不自动加回车时可自行在 data 末尾加 \\r）。用于 isRunning 后台会话的交互输入（密码提示、确认），不要用来开新命令——开命令用 cogito_terminal_run。",
             Effect::Write,
             json!({
                 "type": "object",
                 "properties": {
-                    "id": { "type": "string", "description": "终端会话 id；省略表示 cwd 派生的 agent 会话" },
+                    "id": { "type": "string", "description": "终端会话 id（**不是 sessionId**）；省略时用 cwd 派生" },
                     "cwd": { "type": "string", "description": "配合 id 省略时使用" },
+                    "scope": { "type": "string", "description": "可选：与 cogito_terminal_run 相同的线程标识" },
                     "data": { "type": "string", "description": "要写入 PTY 的原始文本" }
                 },
                 "required": ["data"]
@@ -73,7 +76,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             LIST,
-            "列出当前打开的嵌入式终端会话（id / cwd / pid）。id 可以喂给 app_terminal_read / app_terminal_write。",
+            "列出当前打开的嵌入式终端会话（id / cwd / pid）。id 可以喂给 cogito_terminal_read / cogito_terminal_write。",
             Effect::Read,
             json!({ "type": "object", "properties": {} }),
         ),
