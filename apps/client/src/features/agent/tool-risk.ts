@@ -16,7 +16,7 @@ type ToolRisk = 'read' | 'write' | 'guarded'
  * 要先由用户确认，模型才能带 `confirm: true` 重试；`.git` 则永久拒绝。
  * 判定实现在 Rust `crates/core/src/tools/workspace.rs` 的 `guard_for`。
  */
-const GUARDED_TOOLS: readonly string[] = ['app_workspace_write', 'app_workspace_patch']
+const GUARDED_TOOLS: readonly string[] = ['cogito_workspace_write', 'cogito_workspace_patch']
 
 interface RiskMeta {
   label: string
@@ -45,7 +45,7 @@ const RISK_META: Record<ToolRisk, RiskMeta> = {
 function findToolRisk(toolName: string): ToolRisk {
   const lower = toolName.toLowerCase()
   const guarded = GUARDED_TOOLS.some(function (name) {
-    // goose 会给工具名加 server 前缀（`mcp__cogito__app_workspace_write`）
+    // goose 会给工具名加 server 前缀（`local__cogito_workspace_write`）
     return lower === name || lower.endsWith('__' + name) || lower.endsWith(':' + name)
   })
   if (guarded) return 'guarded'

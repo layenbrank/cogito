@@ -18,8 +18,8 @@
 | terminal-block       | `terminal.tsx`                                                                                              | ✅        | `tool-card-terminal-body.tsx` + `features/terminal`（右栏常驻终端）                                                                                                                       |
 | job-progress         | `job-progress.tsx`、`job-progress-state.ts`                                                                 | ✅        | client 对话区：命令类工具卡在「后台命令 / 前台已跑 ≥ 20s」时换成这张卡（`tool-card-job.tsx`）。见下节                                                                                     |
 | web-search           | `web-search.tsx`、`web-search-state.ts`                                                                     | ✅        | client 对话区：联网检索工具（`web_search` / `web_fetch`）画成「查询药丸 + 读取 N 个来源 + 逐条域名行」（`tool-card-web-search.tsx`）。见下节「联网检索」                                  |
-| retrieval-chunks     | `retrieval-chunks.tsx`、`retrieval-chunks-state.ts`                                                         | ✅        | client 对话区：知识库检索工具（`app_knowledge_search`）画成「查询药丸 + N 段命中 + 每条纸卡（标题 / 定位 / 分数 / 片段 / 相关度条）」（`tool-card-retrieval.tsx`）。见下节「库内检索」    |
-| timeline             | `timeline.tsx`、`timeline-state.ts`                                                                         | ✅        | client 对话区：日历工具（`app_calendar_read`）画成「时刻 + 圆点/连线 + 标题」的竖轴（`tool-card-timeline.tsx`）。见下节「时间轴」                                                         |
+| retrieval-chunks     | `retrieval-chunks.tsx`、`retrieval-chunks-state.ts`                                                         | ✅        | client 对话区：知识库检索工具（`cogito_knowledge_search`）画成「查询药丸 + N 段命中 + 每条纸卡（标题 / 定位 / 分数 / 片段 / 相关度条）」（`tool-card-retrieval.tsx`）。见下节「库内检索」    |
+| timeline             | `timeline.tsx`、`timeline-state.ts`                                                                         | ✅        | client 对话区：日历工具（`cogito_calendar_read`）画成「时刻 + 圆点/连线 + 标题」的竖轴（`tool-card-timeline.tsx`）。见下节「时间轴」                                                         |
 | approval-card        | `approval-card.tsx`、`approval-card-state.ts`                                                               | ✅        | client 对话区：ACP 的 `tool-approval-request` 画成「图标块 + 标题 / 副标题 + 等宽命令面板 + 右对齐三按钮」的纸卡，答完 footer 变收据（`tool-card-approval-bar.tsx`）。见下节「审批卡」    |
 | tool-call            | `tool-call.tsx`                                                                                             | ✅        | 对话区的工具折叠行：`ToolFallback.Trigger` 复用元素的行（箭头 + 说法交叉淡出 + 等宽参数芯片 + 右端状态），展开区是「请求 / 结果」两块面板块。见下节「工具行」                             |
 | tool-timeline        | `tool-timeline.tsx`、`tool-timeline-state.ts`、`tool-group.aui.tsx`                                         | ✅        | 动词 + 芯片 + 文件统计的紧凑流水（按元素页自写，步骤由宿主映射）。client 对话流按块渲染（思考一段一条、工具一件一行），不挂这条紧凑清单，见下节「过程区」                                 |
@@ -530,7 +530,7 @@ file / image / 自定义 data UI 这种没有一行可写的块不列（展开�
 `aria-valuetext` 是 `0.91 of 1.00`，与行里印的分数读同一个 `formatScore`；
 `aria-label` 用「<来源> 的相关度」，逐条可辨。
 
-**分发**：`findBaseVariant` 给 `isRetrievalTool` 的 tool（`app_knowledge_search`）返回 `'retrieval'`
+**分发**：`findBaseVariant` 给 `isRetrievalTool` 的 tool（`cogito_knowledge_search`）返回 `'retrieval'`
 → `tool-card-retrieval.tsx`。失败 / 取消**不套这张卡**（退回通用行看错误原文）。
 文案走 `labels`（`retrievalRetrieving` / `retrievalMatches(n)` / `retrievalEmpty` /
 `retrievalFuzzy` / `retrievalFuzzyHint` / `retrievalMeter(source)`）。
@@ -557,7 +557,7 @@ file / image / 自定义 data UI 这种没有一行可写的块不列（展开�
 **`visibleCount`**（`clampVisibleCount`）：向下取整后钳进 `0…events.length`，
 NaN / 负数当 0，超过总数按总数。
 
-**接的是哪张卡**：日历。`app_calendar_read` 的结果是一**组带时刻的事件**
+**接的是哪张卡**：日历。`cogito_calendar_read` 的结果是一**组带时刻的事件**
 （`startAt` / `endAt` / `title` / `notes`），正是这张元素要的形状；
 `parseCalendarEvents` 认直接数组、`{events}`、`{data: {items}}` 与编码过的 JSON 字符串，
 没有开始时刻的行整条丢掉（时间轴上没处放）。
@@ -566,7 +566,7 @@ NaN / 负数当 0，超过总数按总数。
 （一根只有表盘的轴比没有还难读）。
 
 **分发**：`findBaseVariant` 给 `isCalendarTool`（名字含 `calendar`）返回 `'timeline'`
-→ `tool-card-timeline.tsx`。它必须排在 `isReadTool` 之前 —— `app_calendar_read` 名字里带 `read`，
+→ `tool-card-timeline.tsx`。它必须排在 `isReadTool` 之前 —— `cogito_calendar_read` 名字里带 `read`，
 否则会被当成「读文件」。失败 / 取消**不套这张卡**（退回通用行看错误原文）。
 
 文案走 `labels`（`timelineAllDay` / `timelineUntitled` / `timelineUntil(clock)` /

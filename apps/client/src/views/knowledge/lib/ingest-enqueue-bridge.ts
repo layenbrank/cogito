@@ -1,5 +1,5 @@
 /**
- * 监听 agent 工具 app_knowledge_ingest 发出的入队事件（即使知识库页未打开）。
+ * 监听 agent 工具 cogito_knowledge_ingest 发出的入队事件（即使知识库页未打开）。
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'

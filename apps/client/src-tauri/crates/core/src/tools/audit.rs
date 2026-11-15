@@ -1,6 +1,6 @@
 //! 本地工具调用审计（S6）。
 //!
-//! 为什么要有这张表：`app_*` 工具是 Agent 能碰本机的**唯一**入口（写文件、
+//! 为什么要有这张表：`cogito_*` 工具是 Agent 能碰本机的**唯一**入口（写文件、
 //! 跑终端、点浏览器），但在此之前「谁在什么时候调了什么、成没成」只留在
 //! goose 的会话消息里 —— 换会话就查不到，被拒的请求更是彻底消失。审计表把
 //! 每一次 `tools::call` 落一行，失败与被拒同样记，出问题时能从库里还原时序。
@@ -427,7 +427,7 @@ mod tests {
         let db = test_db().await;
         record(
             &db,
-            "app_workspace_read",
+            "cogito_workspace_read",
             false,
             Some("超出白名单"),
             &args("x"),
@@ -458,7 +458,7 @@ mod tests {
     async fn long_errors_are_truncated() {
         let db = test_db().await;
         let long = "错".repeat(ERROR_CHARS + 100);
-        record(&db, "app_nope", false, Some(&long), &Json::Null, 1)
+        record(&db, "cogito_nope", false, Some(&long), &Json::Null, 1)
             .await
             .expect("写审计");
         let rows = recent(&db, 10).await.expect("读审计");
@@ -473,7 +473,7 @@ mod tests {
         let now = now_ms();
         insert(
             &db,
-            "app_workspace_read",
+            "cogito_workspace_read",
             "read",
             "read",
             true,
@@ -486,7 +486,7 @@ mod tests {
         .expect("插入过期行");
         insert(
             &db,
-            "app_workspace_read",
+            "cogito_workspace_read",
             "read",
             "read",
             true,
@@ -511,7 +511,7 @@ mod tests {
         for offset in 0..3 {
             insert(
                 &db,
-                "app_workspace_read",
+                "cogito_workspace_read",
                 "read",
                 "read",
                 true,
@@ -534,7 +534,7 @@ mod tests {
         let db = Database::connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        record(&db, "app_calendar_read", true, None, &Json::Null, 5)
+        record(&db, "cogito_calendar_read", true, None, &Json::Null, 5)
             .await
             .expect("写审计");
         assert_eq!(count(&db).await.expect("计数"), 1);

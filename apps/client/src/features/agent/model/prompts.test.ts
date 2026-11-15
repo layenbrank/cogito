@@ -57,13 +57,13 @@ describe('终端 playbook', function () {
   it('general / code 场景提示优先用右栏终端跑命令', function () {
     for (const scenario of ['general', 'code'] as const) {
       const prompt = findSystemPrompt(scenario)
-      expect(prompt).toContain('app_terminal_run')
-      expect(prompt).toContain('app_terminal_read')
+      expect(prompt).toContain('cogito_terminal_run')
+      expect(prompt).toContain('cogito_terminal_read')
     }
   })
 
   it('不涉及终端面板的场景不注入终端 playbook', function () {
-    // 安全段里会提到工具名（「终端命令只能走 app_terminal_run」），所以这里断言的是
+    // 安全段里会提到工具名（「终端命令只能走 cogito_terminal_run」），所以这里断言的是
     // playbook 正文不在，而不是工具名不在
     expect(findSystemPrompt('compare')).not.toContain('右栏终端（用户看得见的嵌入式 shell）')
   })
@@ -211,7 +211,7 @@ describe('corex 工具中文标签', function () {
   })
 
   it('终端工具命中中文标签', function () {
-    expect(toAgentToolLabel('app_terminal_run')).toBe('终端执行')
-    expect(toAgentToolLabel('app_terminal_read')).toBe('读取终端输出')
+    expect(toAgentToolLabel('cogito_terminal_run')).toBe('终端执行')
+    expect(toAgentToolLabel('cogito_terminal_read')).toBe('读取终端输出')
   })
 })

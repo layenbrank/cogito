@@ -27,7 +27,7 @@ describe('buildPickedBlock', function () {
     })
   })
 
-  it('embeds browser chip with page title and selector for app_browser_act', function () {
+  it('embeds browser chip with page title and selector for cogito_browser_act', function () {
     const picked: PickedBrowserElement = {
       label: 'browser-2',
       url: 'https://example.com/x',

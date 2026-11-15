@@ -1,7 +1,7 @@
 # Client 远程 URL 策略
 
 Client **有**内置浏览器：`src-tauri/src/browser/` 用 child webview（`WebviewBuilder::new(label, WebviewUrl::External(url))` + `window.add_child`）承载第三方网页，
-标签页面板、`app_browser_*` 工具、CDP 注入都挂在这套 child webview 上。
+标签页面板、`cogito_browser_*` 工具、CDP 注入都挂在这套 child webview 上。
 
 主 webview（`main` 窗口）**不**加载任何第三方网页 —— 这才是不配 `remote.urls` 的真实原因：
 
@@ -14,7 +14,7 @@ Client **有**内置浏览器：`src-tauri/src/browser/` 用 child webview（`We
 
 1. **系统默认浏览器**：Overview Command Omnibar（`features/command-bar`）选中 Web / URL → `openUrl`；
    建议源为 Tauri `search:suggest`（reqwest → Bing AS），不走 daemon `engine.suggestion`。
-2. **应用内浏览器面板**：`app_browser_open`（Agent 工具）与浏览器面板 UI → `browser::lifecycle` 建 child webview。
+2. **应用内浏览器面板**：`cogito_browser_open`（Agent 工具）与浏览器面板 UI → `browser::lifecycle` 建 child webview。
 
 ## 与其他配置的区别
 

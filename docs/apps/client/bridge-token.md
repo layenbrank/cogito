@@ -7,7 +7,7 @@
 
 `cogito-mcp` 是独立进程，它不能直接开 `cogito-client.db`，只能调 app 内的 loopback 桥
 （`http://127.0.0.1:<随机端口>`，头 `x-bridge-token`）。这个桥之上挂着**全部**本地工具，
-包括 `app_terminal_run`（在用户右栏终端里执行任意命令）、`app_browser_act`、知识库写入。
+包括 `cogito_terminal_run`（在用户右栏终端里执行任意命令）、`cogito_browser_act`、知识库写入。
 所以桥令牌等价于「以用户身份操作这台机器」，比 goose serve 令牌（只能驱动一个 agent 会话）更敏感。
 
 ## 为什么不再交给渲染进程

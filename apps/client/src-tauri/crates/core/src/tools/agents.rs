@@ -1,4 +1,4 @@
-//! 子 agent 工具面（S10）：`app_agent_spawn` / `app_agent_wait` / `app_agent_result`。
+//! 子 agent 工具面（S10）：`cogito_agent_spawn` / `cogito_agent_wait` / `cogito_agent_result`。
 //!
 //! 这里只做**调度与限流**：登记、排队、`maxConcurrent=2`、深度 ≤ 2、摘要 ≤ 2KB。
 //! 真正跑一轮的是渲染进程（ACP 连接在那边），所以 `spawn` 只登记 + 由 app 侧
@@ -19,9 +19,9 @@ use serde_json::{Value, json};
 
 use super::{Effect, ToolSpec};
 
-pub const SPAWN: &str = "app_agent_spawn";
-pub const WAIT: &str = "app_agent_wait";
-pub const RESULT: &str = "app_agent_result";
+pub const SPAWN: &str = "cogito_agent_spawn";
+pub const WAIT: &str = "cogito_agent_wait";
+pub const RESULT: &str = "cogito_agent_result";
 
 const NAMES: [&str; 3] = [SPAWN, WAIT, RESULT];
 
@@ -310,7 +310,7 @@ pub fn specs() -> Vec<ToolSpec> {
     vec![
         super::describe_with_risk(
             SPAWN,
-            "开一个子任务（并行会话）去干一件独立的事，立刻返回 jobID，不阻塞你当前回合。子任务用同一个 provider / model / workspace，工具审批一律拒绝（不需要人盯着）；最多同时 2 个、最多 2 层。干完用 app_agent_wait 等结果、app_agent_result 取摘要。",
+            "开一个子任务（并行会话）去干一件独立的事，立刻返回 jobID，不阻塞你当前回合。子任务用同一个 provider / model / workspace，工具审批一律拒绝（不需要人盯着）；最多同时 2 个、最多 2 层。干完用 cogito_agent_wait 等结果、cogito_agent_result 取摘要。",
             Effect::Write,
             super::Risk::Write,
             json!({
@@ -339,7 +339,7 @@ pub fn specs() -> Vec<ToolSpec> {
             json!({
                 "type": "object",
                 "properties": {
-                    "jobID": { "type": "string", "description": "app_agent_spawn 返回的 jobID" },
+                    "jobID": { "type": "string", "description": "cogito_agent_spawn 返回的 jobID" },
                     "timeoutMs": {
                         "type": "integer",
                         "description": "最多等多少毫秒（默认 30000，上限 120000）"
@@ -355,7 +355,7 @@ pub fn specs() -> Vec<ToolSpec> {
             json!({
                 "type": "object",
                 "properties": {
-                    "jobID": { "type": "string", "description": "app_agent_spawn 返回的 jobID" }
+                    "jobID": { "type": "string", "description": "cogito_agent_spawn 返回的 jobID" }
                 },
                 "required": ["jobID"]
             }),

@@ -54,7 +54,7 @@ function buildPromptContext(): PromptContext {
 function summarizeBrowser(): string {
   const { tabs, activeLabel } = useBrowserStore.getState()
   if (tabs.length === 0) {
-    return '浏览器面板现在没有打开的标签页；需要看网页时用 app_browser_open 打开。'
+    return '浏览器面板现在没有打开的标签页；需要看网页时用 cogito_browser_open 打开。'
   }
   const active = tabs.find(function (tab) {
     return tab.label === activeLabel
@@ -70,14 +70,14 @@ function summarizeBrowser(): string {
     tabs.length > BROWSER_TAB_LINE_MAX
       ? `\n…另有 ${tabs.length - BROWSER_TAB_LINE_MAX} 个标签页未列出`
       : ''
-  return `${head}\n全部标签（未选中也可 app_browser_* 传 tab）：\n${lines.join('\n')}${more}`
+  return `${head}\n全部标签（未选中也可 cogito_browser_* 传 tab）：\n${lines.join('\n')}${more}`
 }
 
 /** 嵌入式终端会话清单：agent 与用户 tab 均可 list/read */
 function summarizeTerminal(): string {
   const { tabs, activeId } = useTerminalStore.getState()
   if (tabs.length === 0) {
-    return '右栏终端目前没有会话；执行命令用 app_terminal_run（按 cwd 复用 agent 会话）。'
+    return '右栏终端目前没有会话；执行命令用 cogito_terminal_run（按 cwd 复用 agent 会话）。'
   }
   const lines = tabs.slice(0, TERMINAL_LINE_MAX).map(function (tab) {
     const mark = tab.id === activeId ? '*' : '-'
@@ -88,7 +88,7 @@ function summarizeTerminal(): string {
     tabs.length > TERMINAL_LINE_MAX
       ? `\n…另有 ${tabs.length - TERMINAL_LINE_MAX} 个会话未列出`
       : ''
-  return `右栏终端已打开 ${tabs.length} 个会话（未选中也可 app_terminal_read / app_terminal_write 传 id）：\n${lines.join('\n')}${more}`
+  return `右栏终端已打开 ${tabs.length} 个会话（未选中也可 cogito_terminal_read / cogito_terminal_write 传 id）：\n${lines.join('\n')}${more}`
 }
 
 export {

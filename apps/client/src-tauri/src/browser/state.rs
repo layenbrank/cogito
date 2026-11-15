@@ -20,7 +20,7 @@ pub struct BrowserTab {
     /// `document.title`；空串表示尚未读到（UI 回退 host）
     #[serde(default)]
     pub title: String,
-    /// 这个 tab 的设备模拟档案；`None` = 桌面态（= `app_browser_device` 的 off）。
+    /// 这个 tab 的设备模拟档案；`None` = 桌面态（= `cogito_browser_device` 的 off）。
     ///
     /// 放在 tab 上是刻意的：`browser_snapshot` 会原样带回前端，页面刷新 / HMR 后
     /// UI 的「当前设备」不会丢，也不需要前端另开一条拉取通道。
@@ -160,7 +160,7 @@ impl BrowserState {
         }
     }
 
-    /// 同 host+port 的已有 tab（`app_browser_open` 默认复用）
+    /// 同 host+port 的已有 tab（`cogito_browser_open` 默认复用）
     pub fn find_by_host_port(&self, host: &str, port: u16) -> Option<BrowserTab> {
         self.lock()
             .tabs
@@ -231,7 +231,7 @@ fn host_port_of(url: &str) -> Option<(String, u16)> {
     Some((host, port))
 }
 
-/// 解析 URL 的 host+port，供 `app_browser_open` 复用比对
+/// 解析 URL 的 host+port，供 `cogito_browser_open` 复用比对
 pub fn parse_host_port(url: &str) -> Option<(String, u16)> {
     host_port_of(url)
 }

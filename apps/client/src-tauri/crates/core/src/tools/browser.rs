@@ -1,4 +1,4 @@
-//! 浏览器工具面（`app_browser_*`）的**目录**。
+//! 浏览器工具面（`cogito_browser_*`）的**目录**。
 //!
 //! 目录与实现分开是刻意的：`cogito-core` 不能依赖 tauri，也就拿不到 `AppHandle`，
 //! 但工具目录必须单点定义（否则 MCP `tools/list` 和前端审批看不到这些工具）。
@@ -12,14 +12,14 @@ use serde_json::{Value, json};
 
 use super::{Effect, ToolSpec};
 
-pub const OPEN: &str = "app_browser_open";
-pub const READ: &str = "app_browser_read";
-pub const ACT: &str = "app_browser_act";
-pub const WAIT: &str = "app_browser_wait";
-pub const SCREENSHOT: &str = "app_browser_screenshot";
-pub const NETWORK: &str = "app_browser_network";
-pub const INTERCEPT: &str = "app_browser_intercept";
-pub const DEVICE: &str = "app_browser_device";
+pub const OPEN: &str = "cogito_browser_open";
+pub const READ: &str = "cogito_browser_read";
+pub const ACT: &str = "cogito_browser_act";
+pub const WAIT: &str = "cogito_browser_wait";
+pub const SCREENSHOT: &str = "cogito_browser_screenshot";
+pub const NETWORK: &str = "cogito_browser_network";
+pub const INTERCEPT: &str = "cogito_browser_intercept";
+pub const DEVICE: &str = "cogito_browser_device";
 
 const NAMES: [&str; 8] = [
     OPEN, READ, ACT, WAIT, SCREENSHOT, NETWORK, INTERCEPT, DEVICE,
@@ -60,7 +60,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             READ,
-            "读取内嵌浏览器的页面：`outline` 返回可交互元素清单（带 selector，可直接喂给 app_browser_act），`text` 返回正文；`assertText` / `assertVisible` 做断言（失败返回 ok:false 与 reason，供重试）。",
+            "读取内嵌浏览器的页面：`outline` 返回可交互元素清单（带 selector，可直接喂给 cogito_browser_act），`text` 返回正文；`assertText` / `assertVisible` 做断言（失败返回 ok:false 与 reason，供重试）。",
             Effect::Read,
             json!({
                 "type": "object",
@@ -84,7 +84,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             ACT,
-            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新 / 选择 native select。selector 用 app_browser_read 返回的那个。设备模拟（app_browser_device）下 click 会走触摸派发，返回值里的 mode 说明实际通道：touch / pointer / synthetic。",
+            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新 / 选择 native select。selector 用 cogito_browser_read 返回的那个。设备模拟（cogito_browser_device）下 click 会走触摸派发，返回值里的 mode 说明实际通道：touch / pointer / synthetic。",
             Effect::Write,
             json!({
                 "type": "object",
@@ -187,7 +187,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             DEVICE,
-            "把内嵌浏览器切换成某个设备（移动端 H5 调试）：设定 CSS 视口尺寸、DPR、移动端 UA、触摸与 `pointer: coarse`，并把预览缩放适配面板。验 H5 移动端效果前先用它切设备，再用 app_browser_read / app_browser_screenshot 看效果；用完传 off=true 复原。",
+            "把内嵌浏览器切换成某个设备（移动端 H5 调试）：设定 CSS 视口尺寸、DPR、移动端 UA、触摸与 `pointer: coarse`，并把预览缩放适配面板。验 H5 移动端效果前先用它切设备，再用 cogito_browser_read / cogito_browser_screenshot 看效果；用完传 off=true 复原。",
             Effect::Write,
             json!({
                 "type": "object",

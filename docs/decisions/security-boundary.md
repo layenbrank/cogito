@@ -13,10 +13,10 @@
    再加上 goose 自带工具（`text_editor` / `shell` …，由审批档控制）；
 3. `.gooseignore` 不是沙箱：它是喂给模型的**提示文件**，模型不遵守也不会被拦。
    **本项目不实现 `.gooseignore`**：拦不住的东西不该让它看起来像隔离；真正的隔离在边界三的执行层
-   （审批层硬禁 goose 内置写工具 + `app_workspace_write/patch` 是唯一写路径）。
+   （审批层硬禁 goose 内置写工具 + `cogito_workspace_write/patch` 是唯一写路径）。
 
 所以「把 capabilities 收窄就安全了」是错的；反过来「只加黑名单」也不够 —— 因为 **Agent 写文件用的是 goose 内置 `text_editor`**，
-压根不经过 `app_workspace_*`（`agent-tools.lock.json` 的 local 面当时只有读）。
+压根不经过 `cogito_workspace_*`（`agent-tools.lock.json` 的 local 面当时只有读）。
 S3 已把这条写路径收回工具层（见边界三），`agent-tools.lock.json` 的 local 面现在也带上了这两个写工具。
 
 ## 决定
@@ -40,8 +40,8 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
 
 ### 边界三：Agent → 文件/命令（工具层 + 审批）
 
-- 硬隔离只能做在**执行层**：Agent 的文件写只有两条路——`app_workspace_write`（整文件写）与
-  `app_workspace_patch`（定点替换），实现在 `crates/core/src/tools/workspace.rs`；
+- 硬隔离只能做在**执行层**：Agent 的文件写只有两条路——`cogito_workspace_write`（整文件写）与
+  `cogito_workspace_patch`（定点替换），实现在 `crates/core/src/tools/workspace.rs`；
   `effect=write` / `risk=guarded` 是 `ToolSpec` 的**内部字段**，只出现在 `/internal/tools/list`，
   **不进** MCP 的 `inputSchema`（Agent 可见的调用契约没变）。
 - goose 内置 `text_editor` / `str_replace` / `apply_patch` / `apply_diff` 在审批层硬禁
@@ -85,8 +85,8 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   ① 启动日志 `授权集重建完成 static_roots=5 workspace_roots=9 asset_files=4 errors=0`；
   ② `bridge/token` 的 `icacls` 只有一条当前用户 ACE（36 字节 uuid）；
   ③ 桥 `401`（无会话头）/ `200`（令牌 + 会话头）/ `401`（错令牌），`/internal/tools/list` 回 27 个工具，
-  含 `app_workspace_write|patch`（`risk=guarded`、`effect=write`）且 MCP `inputSchema` 里没有 `risk`；
-  ④ 实调 `app_workspace_write`：新建返回 `created=true`，覆盖回 `previous` + `snapshotPath`，
+  含 `cogito_workspace_write|patch`（`risk=guarded`、`effect=write`）且 MCP `inputSchema` 里没有 `risk`；
+  ④ 实调 `cogito_workspace_write`：新建返回 `created=true`，覆盖回 `previous` + `snapshotPath`，
   `.git/…` 与 `.env`（未带 confirm）均被拒、带 `confirm: true` 才通过，工作区外路径被拒。
 - 逃生门：`--safe-mode`（或 `COGITO_SAFE_MODE=1`）启动时跳过授权集，直接把家目录与各个盘根递归放行（`grants::apply_safe_mode`），并在启动日志 warn。收口把人收挂时，
   用户至少还能进门把活干完；代价是回到 1B 之前的宽 scope。
@@ -102,7 +102,7 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   以及远端素材下载走 Rust 侧代取。
 - 渲染进程仍残留 15 处 `'__TAURI_INTERNALS__' in window || '__TAURI__' in window` 的**能力判断**（不解引用），
   `withGlobalTauri: false` 后等价于只判 internals；门禁禁止 `window.__TAURI__.` 解引用。
-- S3 只收口了**文件写**：`app_terminal_run` 仍能跑任意命令（这是产品承诺的可见终端），
+- S3 只收口了**文件写**：`cogito_terminal_run` 仍能跑任意命令（这是产品承诺的可见终端），
   真正的执行隔离要等 S10 的子 agent 沙箱。
 - S5 的边界是「git 不会被仓库配置牵着跑外部程序」，**不是**「git 干不了坏事」：
   `git clean -fdx` / `git reset --hard` 依然按用户指令执行；`GIT_CONFIG_NOSYSTEM=1` 也会让
@@ -164,8 +164,8 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   - 还欠的账：serve 令牌仍在 `wss://…?token=` 里（要 S9-B 的 Rust 侧 ACP 客户端才能
     彻底移出渲染进程）；`agent_tool_audit` 还没有 `sessionID` 列 —— **有意延后**：
     三个审计点里有两处拿不到可信的会话归属，硬塞只能写空值，等审计链路统一再补。
-- **S10 已落地**：子 agent / 并行会话的工具面 `app_agent_spawn` / `app_agent_wait` /
-  `app_agent_result`（目录在 `crates/core/src/tools/agents.rs`，执行在 `bridge/app_tools.rs`）。
+- **S10 已落地**：子 agent / 并行会话的工具面 `cogito_agent_spawn` / `cogito_agent_wait` /
+  `cogito_agent_result`（目录在 `crates/core/src/tools/agents.rs`，执行在 `bridge/app_tools.rs`）。
   - **Rust 只做调度，不跑模型**：任务板管并发（同时 2 个）、深度（≤ 2）、摘要（≤ 2KB 且按
     UTF-8 字符边界截断）；`spawn` 登记后 emit `agent://subagent-spawn`，**没人接活就立刻标失败**，
     不会留一个永远 `queued` 的任务让父 agent 干等。跑一轮的是渲染进程 —— ACP 连接在那边。
@@ -173,7 +173,7 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
     ② 子任务的工具审批一律拒绝、追问一律取消（`features/agent/acp/subagent.ts`，没人盯着它点同意）；
     ③ 深度由 Rust 按「发起方会话 id」自己推（`depth_by_session`），模型在参数里写 `depth` 不作数。
   - **可见而不是黑盒**：每个子任务开一个普通会话（左栏能看到、跑完能点进去看完整记录）。
-  - 还欠的账：`app_agent_wait` 是 80ms 轮询（不是事件唤醒）；任务板是内存态，进程重启即清空；
+  - 还欠的账：`cogito_agent_wait` 是 80ms 轮询（不是事件唤醒）；任务板是内存态，进程重启即清空；
     父会话被用户停止时不会连带取消子任务。
 - 门禁脚本不是「安全已达标」的证明，只是「已收的口子不许被悄悄放开」。
 
@@ -195,8 +195,8 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
     接口 / 结构体 / 枚举 / trait / impl / 类型 / 常量 / 模块，带行号、父符号、导出标记）+
     边（`Import` 说明符、`Call` 名字）。跳 `node_modules` / `target` / `dist` / `.git`、
     单文件 512KB、整库 2000 文件封顶 —— 超了如实写进 `skipped`，不装作索引完整。
-  - **五个只读工具**（`crates/core/src/tools/code.rs`）：`app_code_symbols` /
-    `app_code_outline` / `app_code_refs` / `app_code_impact` / `app_code_search`。
+  - **五个只读工具**（`crates/core/src/tools/code.rs`）：`cogito_code_symbols` /
+    `cogito_code_outline` / `cogito_code_refs` / `cogito_code_impact` / `cogito_code_search`。
     全部 `Effect::Read`，根目录必须落在已登记工作区内（复用 `workspace::find_roots`，
     越界直接拒绝）。
   - **索引不进库**：`code_symbol` / `code_edge` 是派生数据，落库要迁移 + 失效逻辑，
@@ -205,7 +205,7 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   - **`Call` 边按名字连**：不做类型解析、不做跨文件消解，重名的会连成一片；
     `impact` 只在 import 说明符与文件名之间做一点互相认（`./session` ↔ `session.ts`）。
   - 还欠的账：没有 `code_symbol` / `code_edge` 表（理由见上）；没有增量索引（每次重建全库）；
-    `Call` 边不是精确调用图；没有写路径（改代码仍只走 `app_workspace_write` / `app_workspace_patch`）。
+    `Call` 边不是精确调用图；没有写路径（改代码仍只走 `cogito_workspace_write` / `cogito_workspace_patch`）。
 
 ## 参考
 
@@ -242,4 +242,4 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
  `features/agent/model/route.ts`（档位缓存 / `pickProvider` / `noteRunFailure`）、
  `features/agent/port/model.ts`（`findRoutedProvider` + 失败降级）、
  `crates/codeindex/src/lib.rs`（`index_source` / `index_root` / `impact`）、
- `crates/core/src/tools/code.rs`（五个 `app_code_*` 只读工具 + 60 秒索引缓存）。
+ `crates/core/src/tools/code.rs`（五个 `cogito_code_*` 只读工具 + 60 秒索引缓存）。

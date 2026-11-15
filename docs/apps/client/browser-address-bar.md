@@ -9,7 +9,7 @@
 
 | 来源 | 日志形状 | 结果 |
 | --- | --- | --- |
-| agent 工具面（`app_browser_open` 复用） | `请求打开 … force_new=false` → `复用同 host tab` → `导航` | ✅ 页面真的换了 |
+| agent 工具面（`cogito_browser_open` 复用） | `请求打开 … force_new=false` → `复用同 host tab` → `导航` | ✅ 页面真的换了 |
 | 地址栏回车（`browser_navigate`） | 只有一行 `导航 …`（可能连续三四次同一地址） | ❌ 页面不动 |
 
 两者最终都跑同一个 `lifecycle::navigate`，唯一的差别是**调用线程**：`browser_open` 是

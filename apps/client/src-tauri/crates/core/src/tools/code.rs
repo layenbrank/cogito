@@ -1,8 +1,8 @@
-//! 代码索引工具面（S12）：`app_code_*`。
+//! 代码索引工具面（S12）：`cogito_code_*`。
 //!
 //! 五个只读工具，全部建立在 `cogito_codeindex` 的 tree-sitter 索引之上：
 //! 建索引、看大纲、找引用、算影响面、按名字搜。**没有写路径** —— 索引是派生数据，
-//! 工具只负责把它暴露给 Agent，改代码仍然只能走 `app_workspace_write` / `app_workspace_patch`。
+//! 工具只负责把它暴露给 Agent，改代码仍然只能走 `cogito_workspace_write` / `cogito_workspace_patch`。
 //!
 //! 索引缓存：进程内按根目录缓存 60 秒。为什么不落库：`code_symbol` / `code_edge`
 //! 本质是缓存（删了能重建），落库就要迁移 + 失效逻辑，而重建一遍本地仓库只要几百毫秒。
@@ -23,15 +23,15 @@ use super::workspace::find_roots;
 use super::{Effect, ToolSpec, describe as describe_tool};
 
 /// 建索引 / 看摘要
-pub const SYMBOLS: &str = "app_code_symbols";
+pub const SYMBOLS: &str = "cogito_code_symbols";
 /// 单文件符号大纲
-pub const OUTLINE: &str = "app_code_outline";
+pub const OUTLINE: &str = "cogito_code_outline";
 /// 谁引用了某个名字 / 模块
-pub const REFS: &str = "app_code_refs";
+pub const REFS: &str = "cogito_code_refs";
 /// 影响面（传递闭包）
-pub const IMPACT: &str = "app_code_impact";
+pub const IMPACT: &str = "cogito_code_impact";
 /// 按名字搜符号
-pub const SEARCH: &str = "app_code_search";
+pub const SEARCH: &str = "cogito_code_search";
 
 /// 单次返回上限；参数可下调不可上调。
 const DEFAULT_LIMIT: usize = 100;

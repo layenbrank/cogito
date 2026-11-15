@@ -70,7 +70,7 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 
 ## agent 工具
 
-`app_browser_device`（effect = **write**）：
+`cogito_browser_device`（effect = **write**）：
 
 ```json
 {
@@ -105,8 +105,8 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
   临时 `setEmitTouchEventsForMouse(false)` + 鼠标派发 → 页面内合成 `pointerdown/pointerup/click`；
   输入类 CDP 调用用 2.5s 短超时（不是全局 10s），失败不再直接抛错而是继续往下降。
   返回值的 `mode`（`touch` / `pointer` / `synthetic`）说明实际走的通道 —— 断言只看 `ok` 不够，
-  要再用 `app_browser_read mode=assertText` 确认页面状态真的变了。
-- **`app_browser_read` 的 `limit` 与 `maxChars` 是两件事**：`limit` 只管 `outline` 条目数（默认 60，上限 200），
+  要再用 `cogito_browser_read mode=assertText` 确认页面状态真的变了。
+- **`cogito_browser_read` 的 `limit` 与 `maxChars` 是两件事**：`limit` 只管 `outline` 条目数（默认 60，上限 200），
   `mode=text` 的正文上限走 `maxChars`（默认 8000，上限 200000，超出时 `truncated=true`）。
   以前两者共用 `limit`，导致正文只能读回几十个字符。
 - **截图先亮屏再拍，三通道兜底**：`fromSurface: true` 取的是一份合成器画面，窗口不可见 /
@@ -123,7 +123,7 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 - **截不到图不等于工具没生效**：日志会写「从第几条通道拿到画面」，退到 OS 兜底时还会写裁切矩形；
   先查这条日志，再怀疑工具。
 - **拦截的观测口径**：`browser/intercept.rs` 给每个 tab 记 `paused`（收到 `Fetch.requestPaused`
-  的次数）与 `matched`（命中规则并真的改写 / 掐断的次数），`app_browser_intercept` 与右栏
+  的次数）与 `matched`（命中规则并真的改写 / 掐断的次数），`cogito_browser_intercept` 与右栏
   网络面板都显示「暂停 N / 命中 M」。两个判据要分开看：`paused = 0` 说明拦截通道没通 ——
   `Fetch.enable` 的 `patterns` 必须是 `[{ urlPattern: "*", requestStage: "Request" }]`，
   **显式传空数组等于「零个拦截模式」**，`requestPaused` 永远不触发；`paused > 0` 而
@@ -144,7 +144,7 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
   （`%LOCALAPPDATA%\cogito\agent-cache\cdp-probe\probe.mjs`），不引产品代码依赖；
   要复现直接 `node probe.mjs`（需要 Edge 与带原生 WebSocket 的 node ≥ 22）。
 
-- **同一 tab 不要并发「动作 + 导航」**：`app_browser_act` 与 `open` / `navigate` 都走同一条 CDP
+- **同一 tab 不要并发「动作 + 导航」**：`cogito_browser_act` 与 `open` / `navigate` 都走同一条 CDP
   连接，导航会换掉 target 的 execution context，交叉下发容易出现「动作发给了正在卸载的文档」
   —— 表现是点击返回成功但页面没变。要导航就先 `navigate` → `wait networkIdle` → 再动作。
 
@@ -179,7 +179,7 @@ MANIFEST 资源撞 `CVT1100`，bins 链接失败）。`tests/smoke.rs` 的存在
 ## 验收清单（12 条）
 
 设备模拟只能在**带该功能的构建**里验收 —— 关键判据是工具目录里有没有
-`app_browser_device`（`GET /internal/tools/list`）。已安装的发行版（1.5.0）没有这个工具，
+`cogito_browser_device`（`GET /internal/tools/list`）。已安装的发行版（1.5.0）没有这个工具，
 所以必须在 `pnpm dev:client` 的窗口里做。
 
 桥的凭据（URL + token）写在 goose 会话库的 `extension_data` 里，可以据此**跳过 UI 直接跑批**：
@@ -197,12 +197,12 @@ node tmp/device-acceptance.mjs --url http://127.0.0.1:<port> --token <token>
 
 | #   | 项           | 判据                                                                             | 方式 |
 | --- | ------------ | -------------------------------------------------------------------------------- | ---- |
-| 1   | P0 通道      | 工具目录有 `app_browser_device`；切 iPhone 后 `innerWidth=393 / innerHeight=852` | 自动 |
+| 1   | P0 通道      | 工具目录有 `cogito_browser_device`；切 iPhone 后 `innerWidth=393 / innerHeight=852` | 自动 |
 | 2   | 断点         | 393 CSS px 下页面命中 `(max-width: 480px)`                                       | 自动 |
 | 3   | 移动语义     | `pointer: coarse` + `hover: none`，`dpr=3`                                       | 自动 |
 | 4   | 触摸         | `ontouchstart` / `maxTouchPoints > 0`                                            | 自动 |
 | 5   | 拾取         | 模拟态开拾取，鼠标划过高亮跟手（`suspend_mouse` 生效）                           | 手工 |
-| 6   | agent 视角   | 模拟态下 `readback` 与 `app_browser_screenshot` 都拿得到                         | 自动 |
+| 6   | agent 视角   | 模拟态下 `readback` 与 `cogito_browser_screenshot` 都拿得到                         | 自动 |
 | 7   | 导航保持     | 硬导航后视口仍是 393×852（`on_page_load` 的 replay）                             | 自动 |
 | 8   | 多 tab       | 新标签页不继承上一个 tab 的设备                                                  | 自动 |
 | 9   | 退出干净     | `off` 后视口 / `pointer` / UA 全部复原                                           | 自动 |

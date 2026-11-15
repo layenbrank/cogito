@@ -1,7 +1,7 @@
 /**
  * 知识库 IPC（列表 / 检索 / staging 发布）。
  *
- * 写正文（发布）只在这里发生：agent 的 `app_knowledge_write_doc` 只写 staging，
+ * 写正文（发布）只在这里发生：agent 的 `cogito_knowledge_write_doc` 只写 staging，
  * 用户在这里点确认才落到正式目录与数据库。
  */
 import { invoke } from '@tauri-apps/api/core'

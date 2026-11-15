@@ -1,4 +1,4 @@
-//! `app_knowledge_*`：知识库读取与 wiki 写入。
+//! `cogito_knowledge_*`：知识库读取与 wiki 写入。
 //!
 //! 读：bases / docs / 单篇正文 / 检索（FTS5 trigram + 短词回退）/ 图谱邻居。
 //! 写：`write_doc` 立即发布；`ingest` 入队前端 ACP 两阶段管线；`.agent/` 产物写。
@@ -12,16 +12,16 @@ use super::{Effect, ToolSpec, describe};
 use crate::knowledge::{PublishMode, Service};
 use cogito_database::entity::knowledge_doc as doc_schema;
 
-pub const LIST_BASES: &str = "app_knowledge_list_bases";
-pub const LIST_DOCS: &str = "app_knowledge_list_docs";
-pub const READ_DOC: &str = "app_knowledge_read_doc";
-pub const READ_WIKI: &str = "app_knowledge_read_wiki";
-pub const SEARCH: &str = "app_knowledge_search";
-pub const LINT: &str = "app_knowledge_lint";
-pub const INGEST: &str = "app_knowledge_ingest";
-pub const WRITE_DOC: &str = "app_knowledge_write_doc";
-pub const GRAPH_SEARCH: &str = "app_knowledge_graph_search";
-pub const WORKSPACE_WRITE: &str = "app_knowledge_workspace_write";
+pub const LIST_BASES: &str = "cogito_knowledge_list_bases";
+pub const LIST_DOCS: &str = "cogito_knowledge_list_docs";
+pub const READ_DOC: &str = "cogito_knowledge_read_doc";
+pub const READ_WIKI: &str = "cogito_knowledge_read_wiki";
+pub const SEARCH: &str = "cogito_knowledge_search";
+pub const LINT: &str = "cogito_knowledge_lint";
+pub const INGEST: &str = "cogito_knowledge_ingest";
+pub const WRITE_DOC: &str = "cogito_knowledge_write_doc";
+pub const GRAPH_SEARCH: &str = "cogito_knowledge_graph_search";
+pub const WORKSPACE_WRITE: &str = "cogito_knowledge_workspace_write";
 
 /// 单篇正文默认/最大返回字符数：整篇倒进上下文没意义，也让模型学会分段读。
 const DEFAULT_MAX_CHARS: usize = 8_000;
@@ -129,7 +129,7 @@ fn read_wiki_spec() -> ToolSpec {
 fn search_spec() -> ToolSpec {
     describe(
         SEARCH,
-        "在本地知识库中检索（默认 FTS；返回 channels 元数据）。命中后再用 app_knowledge_read_doc / app_knowledge_read_wiki。",
+        "在本地知识库中检索（默认 FTS；返回 channels 元数据）。命中后再用 cogito_knowledge_read_doc / cogito_knowledge_read_wiki。",
         Effect::Read,
         json!({
             "type": "object",
@@ -216,7 +216,7 @@ fn graph_search_spec() -> ToolSpec {
 fn workspace_write_spec() -> ToolSpec {
     describe(
         WORKSPACE_WRITE,
-        "把生成物写入知识库根下的 .agent/（HTML/脚本/草稿）。确认后再用 app_knowledge_write_doc 进 wiki。",
+        "把生成物写入知识库根下的 .agent/（HTML/脚本/草稿）。确认后再用 cogito_knowledge_write_doc 进 wiki。",
         Effect::Write,
         json!({
             "type": "object",

@@ -3,7 +3,7 @@
 //! 为什么要把 token 写文件：`cogito-mcp` 是**独立进程**，它必须拿到令牌才能调桥。
 //! 以前这条链路是 `bridge:info` 把 token 交给渲染进程，再由渲染进程塞进 MCP 的 env ——
 //! 于是任何能读前端内存/日志的代码都拿到了「以用户身份执行任意命令」的凭据（桥之上挂着
-//! `app_terminal_run`）。现在改成：token 由 Rust 进程写进 `<appLocalData>/bridge/token`
+//! `cogito_terminal_run`）。现在改成：token 由 Rust 进程写进 `<appLocalData>/bridge/token`
 //! （仅当前用户可读），`bridge:info` 只回**文件路径**，MCP 自己读文件。
 //!
 //! 附带两道小加固：

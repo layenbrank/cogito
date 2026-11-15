@@ -5,7 +5,7 @@
 //!
 //! 令牌**不经过渲染进程**（S2）：`start` 把令牌写到 `<appLocalData>/bridge/token`，
 //! `bridge:info` 只回文件路径，`cogito-mcp` 自己读。渲染进程被拿下时拿不到「执行任意命令」
-//! 的凭据 —— 桥之上挂着 `app_terminal_run` 这类工具。
+//! 的凭据 —— 桥之上挂着 `cogito_terminal_run` 这类工具。
 
 use std::{
     collections::VecDeque,
@@ -122,7 +122,7 @@ struct AppState {
 /// 绑定随机端口并后台运行；返回可直接注入给侧车的 `{url, tokenFile}`。
 pub async fn start(storage: Storage, app: AppHandle) -> anyhow::Result<BridgeState> {
     let token = uuid::Uuid::new_v4().to_string();
-    // 先落盘再起服务：MCP 可能在桥就绪后的任意时刻被拉起，读不到文件就会退化成「只提供 app_ping」。
+    // 先落盘再起服务：MCP 可能在桥就绪后的任意时刻被拉起，读不到文件就会退化成「只提供 cogito_ping」。
     let token_file = super::token::write_token(&app, &token)
         .map_err(|error| anyhow::anyhow!("桥令牌落盘失败: {error}"))?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await?;
@@ -312,7 +312,8 @@ async fn call_tool(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<CallBody>,
-) -> Response {    if let Err(reason) = authorize(&state, &headers) {
+) -> Response {
+    if let Err(reason) = authorize(&state, &headers) {
         audit_reject(&state, &body.name, reason, &body.arguments).await;
         return reject(reason);
     }
@@ -449,7 +450,7 @@ mod tests {
         let storage = test_storage().await;
         let app = router(storage.clone(), "secret".to_string());
         let body = serde_json::to_vec(&json!({
-            "name": "app_workspace_write",
+            "name": "cogito_workspace_write",
             "arguments": { "path": "a.txt", "content": "机密" }
         }))
         .expect("json");
@@ -471,7 +472,7 @@ mod tests {
             .await
             .expect("读审计");
         assert_eq!(rows.len(), 1, "被拒请求要落一行");
-        assert_eq!(rows[0].tool_name, "app_workspace_write");
+        assert_eq!(rows[0].tool_name, "cogito_workspace_write");
         assert!(!rows[0].ok);
         assert_eq!(rows[0].error.as_deref(), Some("token 无效"));
         // effect/risk 仍按工具目录标，方便按风险面筛查被拒的写操作
@@ -497,17 +498,17 @@ mod tests {
             .iter()
             .filter_map(|tool| tool["name"].as_str())
             .collect();
-        assert!(names.contains(&"app_calendar_read"));
-        assert!(names.contains(&"app_workspace_list"));
+        assert!(names.contains(&"cogito_calendar_read"));
+        assert!(names.contains(&"cogito_workspace_list"));
         // S3：Agent 的文件写入口也走同一份目录，且带内部 risk 字段
-        assert!(names.contains(&"app_workspace_write"));
-        assert!(names.contains(&"app_workspace_patch"));
+        assert!(names.contains(&"cogito_workspace_write"));
+        assert!(names.contains(&"cogito_workspace_patch"));
         let guarded = body["tools"]
             .as_array()
             .expect("tools array")
             .iter()
-            .find(|tool| tool["name"] == json!("app_workspace_write"))
-            .expect("app_workspace_write 必须在目录里");
+            .find(|tool| tool["name"] == json!("cogito_workspace_write"))
+            .expect("cogito_workspace_write 必须在目录里");
         assert_eq!(guarded["effect"], json!("write"));
         assert_eq!(guarded["risk"], json!("guarded"));
     }
@@ -516,7 +517,7 @@ mod tests {
     async fn calls_calendar_read_against_empty_db() {
         let app = router(test_storage().await, "secret".to_string());
         let body = serde_json::to_vec(&json!({
-            "name": "app_calendar_read",
+            "name": "cogito_calendar_read",
             "arguments": { "from": 0, "to": 1 }
         }))
         .expect("json");

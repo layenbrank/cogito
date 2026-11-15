@@ -15,7 +15,7 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
     entries: [
       {
         id: 'a',
-        toolName: 'app_workspace_write',
+        toolName: 'cogito_workspace_write',
         effect: 'write',
         risk: 'guarded',
         ok: true,
@@ -26,11 +26,11 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
       },
       {
         id: 'b',
-        toolName: 'app_nope',
+        toolName: 'cogito_nope',
         effect: 'unknown',
         risk: 'unknown',
         ok: false,
-        error: '未知工具：app_nope',
+        error: '未知工具：cogito_nope',
         argsDigest: 'fnv1a64:ffffffffffffffff',
         durationMs: 0,
         createdAt: 1_699_999_999_000

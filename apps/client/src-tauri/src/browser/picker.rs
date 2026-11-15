@@ -21,7 +21,7 @@ const TEXT_CAP: usize = 240;
 const EVENT_PICKED: &str = "browser://element-picked";
 const EVENT_ACTIVE: &str = "browser://element-picker-active";
 
-/// 与 `agent::read` outline 同源的 path/describe，保证 selector 能直接喂 `app_browser_act`
+/// 与 `agent::read` outline 同源的 path/describe，保证 selector 能直接喂 `cogito_browser_act`
 const EXTRACT_FN: &str = r#"function () {
   const el = this;
   if (!el || el.nodeType !== 1) return null;

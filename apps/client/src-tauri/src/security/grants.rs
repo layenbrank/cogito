@@ -235,7 +235,7 @@ fn exists(path: &Path) -> bool {
 ///
 /// 幂等：重复调用只是重复 allow（Tauri 的 scope 是集合）。不需要「撤销」——
 /// 用户删掉工作区 / 归档素材后，旧路径仍在本进程的 scope 里，但读取要经过
-/// `app_workspace_*` 的根校验与 asset 表，所以不会因此变成越权；下一次启动自然收敛。
+/// `cogito_workspace_*` 的根校验与 asset 表，所以不会因此变成越权；下一次启动自然收敛。
 pub async fn rebuild(app: &AppHandle) -> Result<GrantReport, String> {
     let storage = app.state::<Storage>().inner().clone();
     let mut report = GrantReport::default();

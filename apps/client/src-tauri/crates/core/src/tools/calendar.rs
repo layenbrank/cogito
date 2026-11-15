@@ -1,4 +1,4 @@
-//! `app_calendar_read`：按 epoch 毫秒区间读日程。
+//! `cogito_calendar_read`：按 epoch 毫秒区间读日程。
 //!
 //! 只读；写入仍走 `calendar:write` + 前端预览确认，agent 没有写工具。
 use cogito_database::entity::calendar as schema;
@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use super::{Effect, ToolSpec, describe};
 use crate::calendar::Service;
 
-pub const NAME: &str = "app_calendar_read";
+pub const NAME: &str = "cogito_calendar_read";
 
 #[must_use]
 pub fn spec() -> ToolSpec {

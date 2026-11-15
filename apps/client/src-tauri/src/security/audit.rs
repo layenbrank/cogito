@@ -97,7 +97,7 @@ mod tests {
         for _ in 0..3 {
             core_audit::record(
                 db,
-                "app_workspace_write",
+                "cogito_workspace_write",
                 true,
                 None,
                 &json!({ "path": "a.txt", "content": "x" }),
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(out.total, 3, "总数是保留期内全部行");
         assert_eq!(out.entries.len(), 2, "limit 生效");
         assert_eq!(out.retention_ms, RETENTION_MS);
-        assert_eq!(out.entries[0].tool_name, "app_workspace_write");
+        assert_eq!(out.entries[0].tool_name, "cogito_workspace_write");
         assert!(out.entries[0].args_digest.starts_with("fnv1a64:"));
     }
 

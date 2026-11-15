@@ -1,10 +1,10 @@
-//! `app_workspace_*`：Agent 工作区的目录白名单与受限读写。
+//! `cogito_workspace_*`：Agent 工作区的目录白名单与受限读写。
 //!
 //! 越界判定：目标与白名单目录都先 `canonicalize`，再按路径分量比对前缀 ——
 //! symlink 指向白名单之外时会被解析成真实路径再拒绝（不是字符串前缀匹配）。
 //! 单次读取有字节上限：读进整个仓库会把上下文撑爆。
 //!
-//! 写入（S3）：Agent 只能经 `app_workspace_write` / `app_workspace_patch` 改文件，
+//! 写入（S3）：Agent 只能经 `cogito_workspace_write` / `cogito_workspace_patch` 改文件，
 //! goose 内置 `text_editor` / `str_replace` / `apply_patch` 在审批层被 `never_allow`。
 //! 路径守卫分两档：
 //! - **HARD**：目标路径里出现 `.git` 分量 → 永久拒绝（改 hook 等于拿到执行权）；
@@ -28,10 +28,10 @@ use serde_json::{Value, json};
 use super::{Effect, Risk, ToolSpec, describe_with_risk};
 use crate::agent_workspace_folder::Service;
 
-pub const LIST: &str = "app_workspace_list";
-pub const READ: &str = "app_workspace_read";
-pub const WRITE: &str = "app_workspace_write";
-pub const PATCH: &str = "app_workspace_patch";
+pub const LIST: &str = "cogito_workspace_list";
+pub const READ: &str = "cogito_workspace_read";
+pub const WRITE: &str = "cogito_workspace_write";
+pub const PATCH: &str = "cogito_workspace_patch";
 
 /// 默认读取上限 256 KB；硬上限 1 MB。
 const DEFAULT_MAX_BYTES: u64 = 256 * 1024;

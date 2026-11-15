@@ -10,7 +10,7 @@
 //!   令牌只走文件：不进渲染进程，也不走环境变量明文。
 //! - `COGITO_SESSION_ID`：本会话标识，随每个请求放进 `x-cogito-session`，桥侧据此做会话绑定
 //!
-//! 缺 URL 或令牌时退化为只提供 `app_ping`，并把原因写进 instructions —— 让模型/用户
+//! 缺 URL 或令牌时退化为只提供 `cogito_ping`，并把原因写进 instructions —— 让模型/用户
 //! 看到「工具面未连接」，而不是静默地一无所获。
 use std::{path::PathBuf, sync::Arc};
 
@@ -35,7 +35,7 @@ const BRIDGE_TOKEN_FILE_ENV: &str = "COGITO_BRIDGE_TOKEN_FILE";
 const SESSION_ENV: &str = "COGITO_SESSION_ID";
 
 /// 返回图片的工具：它的结果必须作为 image content 交给模型
-const SCREENSHOT_TOOL: &str = "app_browser_screenshot";
+const SCREENSHOT_TOOL: &str = "cogito_browser_screenshot";
 
 /// loopback 桥的客户端；只走 http，故不启用 TLS。
 #[derive(Clone)]
@@ -181,7 +181,7 @@ fn to_tool(entry: Value) -> Option<Tool> {
 
 fn ping_tool() -> Tool {
     Tool::new(
-        "app_ping",
+        "cogito_ping",
         "连通性探测：返回 pong（桥未连接时的占位工具）",
         Arc::new(JsonObject::new()),
     )
@@ -214,9 +214,9 @@ struct App {
 impl ServerHandler for App {
     fn get_info(&self) -> ServerConfig {
         let instructions = if self.bridge.is_some() {
-            "cogito 本地工具面：经 app 内桥读写本机数据。要执行命令请优先用 app_terminal_run —— 它跑在用户右栏看得见的终端里，用户可以围观并随时接管；长跑命令返回 isRunning=true 后用 app_terminal_read 续读。"
+            "cogito 本地工具面：经 app 内桥读写本机数据。要执行命令请优先用 cogito_terminal_run —— 它跑在用户右栏看得见的终端里，用户可以围观并随时接管；长跑命令返回 isRunning=true 后用 cogito_terminal_read 续读。"
         } else {
-            "cogito 本地工具面未连接（缺少 COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN_FILE），仅 app_ping 可用"
+            "cogito 本地工具面未连接（缺少 COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN_FILE），仅 cogito_ping 可用"
         };
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("cogito-mcp", env!("CARGO_PKG_VERSION")))
@@ -247,7 +247,7 @@ impl ServerHandler for App {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let name = request.name.as_ref();
-        if name == "app_ping" && self.bridge.is_none() {
+        if name == "cogito_ping" && self.bridge.is_none() {
             return Ok(CallToolResult::success(vec![ContentBlock::text("pong")]).into());
         }
 

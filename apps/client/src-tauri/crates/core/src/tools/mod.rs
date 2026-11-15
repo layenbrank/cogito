@@ -1,10 +1,10 @@
-//! Agent 本地工具面（`app_*`）：目录与实现只在这里定义一次。
+//! Agent 本地工具面（`cogito_*`）：目录与实现只在这里定义一次。
 //!
 //! 两条消费者：app 内 loopback 桥（`bridge::http`，`cogito-mcp` 经它调用）与
 //! 前端审批/标签（按名字判断效果）。加工具只改本模块，桥与侧车都自动跟上。
 //!
 //! 边界：写工具必须由 app 侧执行（保持「app 是数据库唯一写者」）；Agent 的文件写入
-//! 只允许经 `app_workspace_write` / `app_workspace_patch`，goose 内置文件工具在审批层禁用。
+//! 只允许经 `cogito_workspace_write` / `cogito_workspace_patch`，goose 内置文件工具在审批层禁用。
 pub mod agents;
 pub mod audit;
 pub mod browser;
@@ -216,10 +216,10 @@ mod tests {
         let db = sea_orm::Database::connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        let error = call(&db, "app_nope", &Value::Null)
+        let error = call(&db, "cogito_nope", &Value::Null)
             .await
             .expect_err("未知工具应报错");
-        assert!(error.contains("app_nope"));
+        assert!(error.contains("cogito_nope"));
     }
 
     /// 审计旁路（S6）：即使工具不存在，也要留下「谁被调用了、失败了」的痕迹
@@ -228,10 +228,10 @@ mod tests {
         let db = sea_orm::Database::connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        assert!(call(&db, "app_nope", &Value::Null).await.is_err());
+        assert!(call(&db, "cogito_nope", &Value::Null).await.is_err());
         let rows = audit::recent(&db, 10).await.expect("读审计");
         assert_eq!(rows.len(), 1, "一次调用一行");
-        assert_eq!(rows[0].tool_name, "app_nope");
+        assert_eq!(rows[0].tool_name, "cogito_nope");
         assert!(!rows[0].ok);
         assert_eq!(rows[0].effect, "unknown");
     }

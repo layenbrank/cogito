@@ -40,10 +40,10 @@ describe('正在执行的命令', function () {
     ])
   })
 
-  it('app_terminal_* 标为 panel，goose shell 标为 external', function () {
+  it('cogito_terminal_* 标为 panel，goose shell 标为 external', function () {
     const messages = [
       assistant(
-        { type: 'tool-call', toolCallId: 'p', toolName: 'app_terminal_run', args: { command: 'ls' }, argsText: '' },
+        { type: 'tool-call', toolCallId: 'p', toolName: 'cogito_terminal_run', args: { command: 'ls' }, argsText: '' },
         toolCall('e', { command: 'pwd' })
       )
     ]

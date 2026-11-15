@@ -36,38 +36,38 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   corex_directives: '列出指令',
   corex_directive: '读取指令',
   corex_validate: '校验指令',
-  // 本地工具（cogito-mcp，app_ 前缀）
-  app_calendar_read: '读取日程',
-  app_knowledge_list_bases: '列出知识库',
-  app_knowledge_list_docs: '列出文档',
-  app_knowledge_read_doc: '读取文档',
-  app_knowledge_read_wiki: '读取 Wiki 页',
-  app_knowledge_search: '检索知识',
-  app_knowledge_lint: '检查 Wiki 结构',
-  app_knowledge_ingest: '入队摄入 Wiki',
-  app_knowledge_write_doc: '写入知识草稿',
-  app_knowledge_graph_search: '图谱邻居检索',
-  app_knowledge_workspace_write: '写入 .agent 产物',
-  app_workspace_write: '写入工作区文件',
-  app_workspace_patch: '定点修改工作区文件',
-  app_terminal_run: '终端执行',
-  app_terminal_read: '读取终端输出',
-  app_terminal_write: '写入终端',
-  app_terminal_list: '列出终端会话',
-  app_browser_open: '打开网页',
-  app_browser_read: '读取网页',
-  app_browser_act: '操作网页',
-  app_browser_screenshot: '网页截图',
-  app_browser_network: '网页请求',
-  app_browser_intercept: '拦截请求',
-  app_browser_device: '设备模拟',
-  app_workspace_list: '列出工作区',
-  app_workspace_read: '读取工作区文件'
+  // 本地工具（cogito-mcp，cogito_ 前缀）
+  cogito_calendar_read: '读取日程',
+  cogito_knowledge_list_bases: '列出知识库',
+  cogito_knowledge_list_docs: '列出文档',
+  cogito_knowledge_read_doc: '读取文档',
+  cogito_knowledge_read_wiki: '读取 Wiki 页',
+  cogito_knowledge_search: '检索知识',
+  cogito_knowledge_lint: '检查 Wiki 结构',
+  cogito_knowledge_ingest: '入队摄入 Wiki',
+  cogito_knowledge_write_doc: '写入知识草稿',
+  cogito_knowledge_graph_search: '图谱邻居检索',
+  cogito_knowledge_workspace_write: '写入 .agent 产物',
+  cogito_workspace_write: '写入工作区文件',
+  cogito_workspace_patch: '定点修改工作区文件',
+  cogito_terminal_run: '终端执行',
+  cogito_terminal_read: '读取终端输出',
+  cogito_terminal_write: '写入终端',
+  cogito_terminal_list: '列出终端会话',
+  cogito_browser_open: '打开网页',
+  cogito_browser_read: '读取网页',
+  cogito_browser_act: '操作网页',
+  cogito_browser_screenshot: '网页截图',
+  cogito_browser_network: '网页请求',
+  cogito_browser_intercept: '拦截请求',
+  cogito_browser_device: '设备模拟',
+  cogito_workspace_list: '列出工作区',
+  cogito_workspace_read: '读取工作区文件'
 }
 
 function isBrowserTool(name: string): boolean {
   const lower = name.toLowerCase()
-  return lower.includes('app_browser_') || lower.includes('browser_')
+  return lower.includes('cogito_browser_') || lower.includes('browser_')
 }
 
 /** 从工具参数 / 结果里抽出目标 tab label（`browser-<uuid>`） */
@@ -112,14 +112,14 @@ function isShellTool(name: string): boolean {
 }
 
 /**
- * 是否跑在**右栏嵌入式终端**里的工具（`app terminal run/read/write/list`）。
+ * 是否跑在**右栏嵌入式终端**里的工具（`cogito_terminal_run/read/write/list`）。
  *
  * 这类工具的正文输出本来就落在用户能看见的那个终端里：对话流再摆一份完整终端，
  * 就是同一段输出两个终端。卡片只做「收据 + 跳过去看」。
  */
 function isEmbeddedTerminalTool(name: string): boolean {
   const lower = name.toLowerCase()
-  return lower.includes('app terminal ') || lower.includes('app_terminal_')
+  return lower.includes('cogito_terminal_')
 }
 
 function isCodeTool(name: string): boolean {
@@ -158,11 +158,11 @@ function isReadTool(name: string): boolean {
 function isWriteTool(name: string): boolean {
   if (isBrowserTool(name)) return false
   const lower = name.toLowerCase()
-  // 右栏终端有自己的卡：`app_terminal_write` 名字里带 write，但它不动文件
+  // 右栏终端有自己的卡：`cogito_terminal_write` 名字里带 write，但它不动文件
   if (lower.includes('terminal')) return false
   return (
     // 只看 `write_file` / `edit` 会漏掉本地 MCP 的全部写工具：
-    // `app_workspace_write` / `app_workspace_patch` / `app_knowledge_workspace_write`
+    // `cogito_workspace_write` / `cogito_workspace_patch` / `cogito_knowledge_workspace_write`
     // 名字里既没有 `write_file` 也没有 `edit`，于是被判成 generic ——
     // 写卡不出现，CodeDiff 与回合小结就这样一起消失（见 `readWritePairs`）
     lower.includes('write') ||
@@ -185,7 +185,7 @@ function isSearchTool(name: string): boolean {
 }
 
 /**
- * 库内检索：`app_knowledge_search` / `cogito_knowledge_search`（带 server 前缀也命中）。
+ * 库内检索：`cogito_knowledge_search`（带 server 前缀也命中）。
  *
  * 它返回的是**命中段落**（标题 / 路径 / 片段 / 分数），所以走
  * `elements/retrieval-chunks` 那张卡；不要当普通 search 流到通用行里摆 JSON。
@@ -196,7 +196,7 @@ function isRetrievalTool(name: string): boolean {
 }
 
 /**
- * 日历类工具：`app_calendar_read`（MCP 名可能带 server 前缀）。
+ * 日历类工具：`cogito_calendar_read`（MCP 名可能带 server 前缀）。
  *
  * 它的结果是一**组带时刻的事件**，交给 `elements/timeline` 那张竖轴卡；
  * 注意它名字里带 `read`，判定必须排在 `isReadTool` 前面，否则会被当成「读文件」。

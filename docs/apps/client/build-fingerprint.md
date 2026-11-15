@@ -4,8 +4,8 @@
 dev 下前端是热更新的，**Rust 侧却是启动时那个进程**：改了 `browser/intercept.rs` 或
 `browser/agent.rs` 之后不重启宿主，看到的仍然是旧实现，于是
 
-- `app_browser_screenshot` 报 `CDP Page.captureScreenshot 超时（10s）`（旧的 `CALL_TIMEOUT`，新实现是 4s 上限 + 三通道兜底）
-- `app_browser_intercept` 返回里没有 `paused / matched`（旧实现没有计数器）
+- `cogito_browser_screenshot` 报 `CDP Page.captureScreenshot 超时（10s）`（旧的 `CALL_TIMEOUT`，新实现是 4s 上限 + 三通道兜底）
+- `cogito_browser_intercept` 返回里没有 `paused / matched`（旧实现没有计数器）
 - 终端里 `$env:COGITO_AGENT_CACHE` 是空的、`$env:TEMP` 还是系统 temp（旧实现不注入）
 - 计划卡片没有「按新计划执行（rN）」文案（旧前端 + 旧后端）
 

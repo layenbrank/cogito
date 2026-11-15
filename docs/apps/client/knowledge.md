@@ -118,8 +118,8 @@ Deep Research provider：`tavily` · `serpapi` · `searxng` · `brave` · `firec
 | --- | --- | --- |
 | 右栏 | 仅 Deep Research | 同一 Splitter 列：大纲 \| AI \| 深度研究（tabs；研究可与工具主区并存） |
 | 编辑器 | Milkdown 等 | TipTap |
-| Chat runtime | 内嵌 Rust agent | ACP / goose + `app_knowledge_*`（注入 purpose/schema/overview；检索模式 standard/smart/faithful） |
-| LLM Ingest | 直连 HTTP `streamChat` | **ACP `runInlinePrompt`**；`app_knowledge_ingest` 入队同一管线 |
+| Chat runtime | 内嵌 Rust agent | ACP / goose + `cogito_knowledge_*`（注入 purpose/schema/overview；检索模式 standard/smart/faithful） |
+| LLM Ingest | 直连 HTTP `streamChat` | **ACP `runInlinePrompt`**；`cogito_knowledge_ingest` 入队同一管线 |
 | 建库 | 场景模板覆盖 purpose/schema | 同左（五套模板 + 示例库导入） |
 | 项目 | 单项目路径 | 多 `knowledge_base` |
 | 向量存储 | LanceDB | **LanceDB**（可 JSON 回退） |

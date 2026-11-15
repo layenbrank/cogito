@@ -12,19 +12,19 @@ description: Cogito 知识库（LLM Wiki）工作流：场景模板、purpose/sc
 - `wiki/overview.md`：全局概要（**应用维护**，禁止模型 FILE 生成）
 - 同样禁止改写 `wiki/index.md`、`wiki/log.md`
 
-开场先 `app_knowledge_read_wiki` 读上述文件（若上下文未注入）。
+开场先 `cogito_knowledge_read_wiki` 读上述文件（若上下文未注入）。
 
 ## 工具
 
 | 工具 | 用途 |
 |------|------|
-| `app_knowledge_search` | FTS 检索 |
-| `app_knowledge_graph_search` | `[[wikilink]]` 邻居 |
-| `app_knowledge_read_doc` / `read_wiki` | 读正文 |
-| `app_knowledge_write_doc` | 直接写 wiki |
-| `app_knowledge_ingest` | **入队** ACP 两阶段（返回 `queued`） |
-| `app_knowledge_workspace_write` | 写 `<base>/.agent/` 草稿 |
-| `app_knowledge_lint` | 断链 / 孤儿页 |
+| `cogito_knowledge_search` | FTS 检索 |
+| `cogito_knowledge_graph_search` | `[[wikilink]]` 邻居 |
+| `cogito_knowledge_read_doc` / `read_wiki` | 读正文 |
+| `cogito_knowledge_write_doc` | 直接写 wiki |
+| `cogito_knowledge_ingest` | **入队** ACP 两阶段（返回 `queued`） |
+| `cogito_knowledge_workspace_write` | 写 `<base>/.agent/` 草稿 |
+| `cogito_knowledge_lint` | 断链 / 孤儿页 |
 
 ## 检索模式
 
@@ -35,7 +35,7 @@ description: Cogito 知识库（LLM Wiki）工作流：场景模板、purpose/sc
 ## Ingest
 
 1. 资料落在 `raw/sources/`
-2. `app_knowledge_ingest({ path, baseId? })` → queued
+2. `cogito_knowledge_ingest({ path, baseId? })` → queued
 3. 前端 Activity 跑分析→生成 FILE 块→写 wiki→维护 index/log/overview
 
 ## 建库

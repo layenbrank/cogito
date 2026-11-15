@@ -19,9 +19,9 @@ import { findEditorContext, writeEditor } from '@/views/knowledge/workspace/edit
 const SYSTEM_BASE = `你是 cogito 知识库里写作助手，与「知识库」磁贴共用同一个库目录。
 
 约定：
-- 需要读正文时用 app_knowledge_read_doc / app_knowledge_read_wiki / app_knowledge_search / app_knowledge_graph_search，不要臆造内容；
-- 要落 wiki 页用 app_knowledge_write_doc；原料入百科用 app_knowledge_ingest（入队 ACP 两阶段，返回 queued）；
-- 草稿/HTML 等生成物先写 .agent/（app_knowledge_workspace_write），确认后再 write_doc；
+- 需要读正文时用 cogito_knowledge_read_doc / cogito_knowledge_read_wiki / cogito_knowledge_search / cogito_knowledge_graph_search，不要臆造内容；
+- 要落 wiki 页用 cogito_knowledge_write_doc；原料入百科用 cogito_knowledge_ingest（入队 ACP 两阶段，返回 queued）；
+- 草稿/HTML 等生成物先写 .agent/（cogito_knowledge_workspace_write），确认后再 write_doc；
 - Wiki 在 wiki/，原文在 raw/sources/；交叉引用用 [[wikilink]]；
 - 禁止改写 wiki/index.md、wiki/log.md、wiki/overview.md（应用维护）；
 - 好答案也可整理后让用户点「存回 wiki」；跨文档先检索再答并标明引用。`
@@ -107,7 +107,7 @@ function buildActions(): DockScope['actions'] {
       label: '新建文档',
       icon: 'lucide:file-plus',
       buildPrompt: function () {
-        return `在知识库「${findBaseName()}」里写一篇新 wiki 页。先用一句话问我主题与目标读者，我回答后再写。落盘用 app_knowledge_write_doc（直接进 wiki/）。`
+        return `在知识库「${findBaseName()}」里写一篇新 wiki 页。先用一句话问我主题与目标读者，我回答后再写。落盘用 cogito_knowledge_write_doc（直接进 wiki/）。`
       }
     },
     {

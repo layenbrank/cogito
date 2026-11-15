@@ -59,7 +59,7 @@ impl Bootstrap {
                     std::fs::create_dir_all(app_dir.join("knowledge"))
                         .map_err(|error| anyhow::anyhow!("创建知识库根目录失败: {error}"))?;
                     // 本地工具桥：`cogito-mcp` 只经它读写，app 始终是唯一写者。
-                    // 传 AppHandle 是因为 `app_browser_*` 要访问宿主 webview。
+                    // 传 AppHandle 是因为 `cogito_browser_*` 要访问宿主 webview。
                     let bridge =
                         crate::bridge::start(storage.clone(), handle_for_db.clone()).await?;
                     crate::bridge::start_clip_server(handle_for_db.clone(), storage.clone()).await;

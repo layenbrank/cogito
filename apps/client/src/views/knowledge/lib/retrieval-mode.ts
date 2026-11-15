@@ -15,7 +15,7 @@ const RETRIEVAL_MODE_OPTIONS: readonly RetrievalModeOption[] = [
   {
     id: 'standard',
     label: '标准',
-    hint: '本地 FTS（app_knowledge_search）'
+    hint: '本地 FTS（cogito_knowledge_search）'
   },
   {
     id: 'smart',
@@ -59,11 +59,11 @@ function writeRetrievalMode(mode: RetrievalMode): void {
 function findRetrievalModeHint(mode: RetrievalMode): string {
   switch (mode) {
     case 'smart':
-      return '检索模式=smart：先 app_knowledge_read_wiki 读 wiki/overview.md，再用 app_knowledge_search；需要关系时用 app_knowledge_graph_search。'
+      return '检索模式=smart：先 cogito_knowledge_read_wiki 读 wiki/overview.md，再用 cogito_knowledge_search；需要关系时用 cogito_knowledge_graph_search。'
     case 'faithful':
       return '检索模式=faithful：优先查 raw/sources 与 frontmatter 含 sources[] 的页；结论必须标注来源路径，禁止无依据推断。'
     default:
-      return '检索模式=standard：用 app_knowledge_search 做 FTS，命中后再 read。'
+      return '检索模式=standard：用 cogito_knowledge_search 做 FTS，命中后再 read。'
   }
 }
 

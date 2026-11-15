@@ -438,7 +438,7 @@ async fn eval_object(app: &AppHandle, label: &str, expression: &str) -> Result<V
 
 /// 页面自报的视口参数 —— 「模拟到底生效没有」的唯一判据。
 ///
-/// 面板角标、agent 的 `app_browser_device` 返回、探针都读它，避免三处各算一套。
+/// 面板角标、agent 的 `cogito_browser_device` 返回、探针都读它，避免三处各算一套。
 pub async fn readback(app: &AppHandle, label: &str) -> Result<Value, String> {
     eval_object(
         app,
