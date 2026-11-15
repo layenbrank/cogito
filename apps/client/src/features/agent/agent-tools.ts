@@ -1,5 +1,5 @@
 /**
- * Agent 工具面基线（`agent-tools.lock.json`）与自检。
+ * 工具面基线：`@cogito/agent-protocol/policy`（与审批判定同一份 lock 表，避免双轨）。
  *
  * why：corex-mcp 是随包外部二进制，工具名随版本漂移；提示词里写错一个名字，
  * 模型就会「找不到工具」然后开始臆造。启动/建会话时对一次 tools/list，
@@ -8,7 +8,7 @@
  * 匹配规则：goose 会按 server 给工具名加前缀（`local__cogito_workspace_read`，
  * 旧形态还有 `mcp__<server>__`），所以一律先剥前缀再按成员表判定。
  */
-import lock from './agent-tools.lock.json'
+import { COREX_TOOLS, LOCAL_TOOLS } from '@cogito/agent-protocol/policy'
 
 type AgentToolServer = 'corex' | 'local'
 
@@ -37,7 +37,7 @@ function stripPrefix(name: string): string {
 }
 
 function findExpected(server: AgentToolServer): readonly string[] {
-  return server === 'corex' ? lock.corex : lock.local
+  return server === 'corex' ? COREX_TOOLS : Array.from(LOCAL_TOOLS)
 }
 
 /**
@@ -108,7 +108,7 @@ function verifyAgentTools(names: readonly string[], server: AgentToolServer): To
 
 /** 本地工具（`cogito_*`）尚未全部落地时，自检只在注入该 server 后启用 */
 function isLocalToolsLocked(): boolean {
-  return lock.local.length > 0
+  return LOCAL_TOOLS.size > 0
 }
 
 export { findServerOf, isLocalToolsLocked, matchesTool, verifyAgentTools }

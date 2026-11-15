@@ -1,0 +1,21 @@
+{
+  "name": "@cogito/agent-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "agentd 与前端共享的纯契约：./protocol 编排状态与事件类型，./policy 审批与工具风险的唯一判定实现",
+  "exports": {
+    "./protocol": "./src/protocol/index.ts",
+    "./policy": "./src/policy/index.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "run-s lint:*",
+    "lint:eslint": "eslint . --fix",
+    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
+    "test:unit": "vitest",
+    "unit": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
