@@ -108,27 +108,48 @@ function buildBlob() {
   if (!existsSync(BLOB)) throw new Error(`${LOG_PREFIX} 未生成 ${BLOB}`)
 }
 
+/** `binaries/agentd-*` 正被运行中的应用占用时，给一句能照做的话而不是一个 errno。 */
+function explainLocked(error, outFile) {
+  const code = error && typeof error === 'object' ? error.code : undefined
+  if (code !== 'EBUSY' && code !== 'EPERM' && code !== 'EACCES') return error
+  return new Error(
+    `${LOG_PREFIX} 无法写入 ${outFile}：文件正被占用。\n` +
+      '  Windows 上运行中的 exe 不能被覆盖 —— 先**完全退出** cogito 桌面端\n' +
+      '  （agentd 是它的侧车，会被一起收掉），再重新打包。\n' +
+      '  排查残留：Get-Process agentd* , cogito* ，必要时 taskkill /IM cogito.exe /T /F'
+  )
+}
+
 /** ③ 复制 node 自身 + postject 注入 */
 function inject(outFile) {
   console.log(`${LOG_PREFIX} 注入 blob → ${outFile}`)
-  copyFileSync(process.execPath, outFile)
+  try {
+    copyFileSync(process.execPath, outFile)
+  } catch (error) {
+    throw explainLocked(error, outFile)
+  }
   // macOS 的 node 是**签名过**的：复制 + 改段之后签名失效，内核直接 SIGKILL（arm64 更严）。
   // 必须先摘签名再注入。注入完的 ad-hoc 重签放在 main() 里做。
   if (process.platform === 'darwin') {
     execFileSync('codesign', ['--remove-signature', outFile], { stdio: 'inherit' })
   }
-  execFileSync(
-    process.execPath,
-    [
-      require.resolve('postject/dist/cli.js'),
-      outFile,
-      'NODE_SEA_BLOB',
-      BLOB,
-      '--sentinel-fuse',
-      SENTINEL
-    ],
-    { stdio: 'inherit' }
-  )
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        require.resolve('postject/dist/cli.js'),
+        outFile,
+        'NODE_SEA_BLOB',
+        BLOB,
+        '--sentinel-fuse',
+        SENTINEL
+      ],
+      { stdio: 'inherit' }
+    )
+  } catch (error) {
+    // postject 改的是同一个文件，被占用时的报错更难看懂，一并翻译
+    throw explainLocked(error, outFile)
+  }
   // ad-hoc 重签（`-s -`）：没有开发者证书也能跑，够 CI 校验用。
   // 真分发包由 Tauri 打包时统一重签，这一步不影响它。
   if (process.platform === 'darwin') {
