@@ -90,6 +90,12 @@ jobs:
       - name: Bundle (rolldown → CJS)
         run: pnpm --filter @cogito/agentd build
 
+      # 端到端：真进程 + 真端口 + 真 stdout 握手 + 断流游标补齐 + SIGKILL 后重启。
+      # 这一层跑的是「无 goose」形态（状态 disabled）—— 单测喂的是内存里的 express app，
+      # 跨进程成立的那几条能力它证不了。
+      - name: End-to-end (spawn / handshake / SSE cursor / restart / shutdown)
+        run: pnpm --filter @cogito/agentd e2e
+
   # SEA 产物：三平台各自构建并**运行**，确认 `--version` 能自报。
   # 单平台跑不够 —— postject 改的是 ELF / Mach-O / PE 三种不同容器格式，
   # 且 macOS 还多一步签名。
@@ -196,8 +202,9 @@ jobs:
         run: |
           # service 字段是「连上的是不是我们要的那个进程」的判据，必须校验
           jq -e '.service == "cogito-agentd"' /tmp/health.json
-          # 容器里没 goose 二进制 → 显式降级，不能是 ready
-          jq -e '.goose == "unavailable"' /tmp/health.json
+          # 容器里没配 GOOSE_PATH_ROOT（也没 goose 二进制）→ 状态是 `disabled`（刻意不托管）。
+          # 状态枚举只有 disabled / starting / ready / failed，别写成 unavailable。
+          jq -e '.goose == "disabled"' /tmp/health.json
 
       - name: Assert bearer auth
         run: |

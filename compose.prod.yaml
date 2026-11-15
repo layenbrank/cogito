@@ -197,7 +197,6 @@ services:
       AGENTD_TOKEN: ${AGENTD_TOKEN:?AGENTD_TOKEN 必填（≥16 字符），见 .env.production.example}
       AGENTD_DB: /data/agentd.db
       AGENTD_PORT: '8080'
-      AGENTD_GOOSE_PATH_ROOT: /data/goose
     volumes:
       - agentd-data:/data
     expose:

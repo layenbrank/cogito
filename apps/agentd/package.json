@@ -14,7 +14,9 @@
     "lint:eslint": "eslint . --fix",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "test:unit": "vitest",
-    "unit": "vitest run"
+    "unit": "vitest run",
+    "e2e": "node scripts/e2e.mjs",
+    "probe": "node scripts/probe-run.mjs"
   },
   "dependencies": {
     "@cogito/agent-protocol": "workspace:*",

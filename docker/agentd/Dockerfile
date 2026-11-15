@@ -2,8 +2,9 @@
 #
 # **桌面端永远走 Tauri sidecar，不用这个镜像**（ADR 不变量 5：agentd 被 Tauri 收养进 Job Object）。
 # 这个镜像只服务 CI 与「容器里验证 Agent Protocol」这一种用途：容器内没有 goose 二进制，
-# 所以 `/health` 的 `goose` 字段会是 `unavailable` —— 图启动、线程、审批、事件流、持久化、
-# 鉴权都能验，唯独真正跑模型需要在外部另起 goose。
+# 所以**刻意不配 `AGENTD_GOOSE_PATH_ROOT`** —— `/health` 的 `goose` 字段会是 `disabled`
+# （意图是「不托管」），而不是 `failed`（配了路径但找不到二进制）。
+# 图启动、线程、审批、事件流、持久化、鉴权都能验，唯独真正跑模型需要在外部另起 goose。
 #
 # 构建（**上下文必须是仓库根**：agentd 依赖 workspace 内的 `@cogito/agent-protocol`）：
 #   docker compose build cogito-agentd

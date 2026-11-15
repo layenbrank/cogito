@@ -208,7 +208,8 @@ services:
 
   # 编排层侧车（LangGraph + goose/ACP）。**只服务 CI 与容器内协议验证**，
   # 桌面端永远由 Tauri 以 sidecar 拉起（见 docs/decisions/agent-orchestration-langgraph.md）。
-  # 镜像里没有 goose 二进制，`/health` 的 `goose` 会是 `unavailable` —— 其它面都能验。
+  # 镜像里没有 goose 二进制，所以这里**刻意不配 AGENTD_GOOSE_PATH_ROOT**：
+  # `/health` 的 `goose` 会是 `disabled`（意图是「不托管」），而不是 `failed`（配了但坏了）。
   # 宿主端口取 **28080**：本机 TCP 动态端口段是 1024–15000，落进去的端口随时被 WinNAT 抽走，
   # 表现是 `bind: An attempt was made to access a socket in a way forbidden by its access permissions`。
   cogito-agentd:
@@ -223,7 +224,6 @@ services:
       AGENTD_TOKEN: ${AGENTD_TOKEN:?AGENTD_TOKEN 必填（≥16 字符），见 .env.example}
       AGENTD_DB: /data/agentd.db
       AGENTD_PORT: '8080'
-      AGENTD_GOOSE_PATH_ROOT: /data/goose
     volumes:
       - agentd-data:/data
     ports:

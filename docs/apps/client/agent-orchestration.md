@@ -92,7 +92,8 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
   `build.rs` 与 `tauri.conf.json` 的 `externalBin` 两边都必须列它，漏一边只会在打包阶段才报错。
 - **容器**：`docker/agentd/Dockerfile` 只服务 CI 与「容器内验协议」，**不做第二个产品形态**。
   上下文必须是仓库根（依赖 workspace 内的 `@cogito/agent-protocol`），`.dockerignore` 在仓库根。
-  镜像里没有 goose 二进制，`/health` 的 `goose` 会是 `unavailable`，这是要断言的降级形态。
+  镜像里没有 goose 二进制，也**刻意不配 `AGENTD_GOOSE_PATH_ROOT`**，于是 `/health` 的 `goose` 是
+  `disabled`（意图是「不托管」）而不是 `failed`（配了路径却找不到二进制）—— 这是要断言的降级形态。
 - **端口**：容器内固定 `8080`；compose 宿主侧用 **28080**（大于 15000）。本机 TCP 动态端口段是
   1024–15000，落进去的端口随时被 WinNAT 抽走，报 `bind: An attempt was made to access a socket
   in a way forbidden by its access permissions` —— 看着像权限问题，实际是端口保留。
