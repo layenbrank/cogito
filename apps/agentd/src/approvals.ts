@@ -11,6 +11,9 @@
  * ## 语义
  *
  * - 无人认领（没订阅者 / 没有回执）→ 由调用方 `resolve(…, null)` 成 `cancelled`（fail-closed）；
+ * - **超时也是 fail-closed**：`APPROVAL_TIMEOUT_MS` 到了没人回执，按取消结案。旧链路在渲染侧有
+ *   `TICKET_TIMEOUT_MS = 300_000`，闸门搬到 agentd 后必须保留同一个值 —— 否则一个忘掉的审批
+ *   会把这个线程的 ACP 回包永久悬住，而 UI 那边看起来只是「卡住了」。
  * - 判定规则本身不在这里：哪个选项算「允许」由 `@cogito/agent-protocol/policy` 决定，
  *   这里只负责转发 `optionId`。
  * - 进程退出时会把所有等待者拒掉，避免 HTTP 侧永远挂起。
@@ -19,6 +22,9 @@
 import { randomUUID } from 'node:crypto'
 
 import type { PermissionChoice, PermissionDecision } from './goose/client'
+
+/** 与旧渲染侧 `TICKET_TIMEOUT_MS` 对齐：审批最多等 5 分钟 */
+export const APPROVAL_TIMEOUT_MS = 300_000
 
 interface ApprovalRequest {
   requestId: string
@@ -58,6 +64,8 @@ interface ApprovalHub {
 interface Waiter {
   request: ApprovalRequest
   resolve: (decision: PermissionDecision) => void
+  /** 超时兵。结案时必须清掉，否则定时器把人吊住、进程退不了 */
+  timer: ReturnType<typeof setTimeout>
 }
 
 function createApprovalHub(): ApprovalHub {
@@ -78,6 +86,7 @@ function createApprovalHub(): ApprovalHub {
     const waiter = waiters.get(requestId)
     if (!waiter) return false
     waiters.delete(requestId)
+    clearTimeout(waiter.timer)
     publish({
       type: 'approval_settled',
       approval: waiter.request,
@@ -97,7 +106,12 @@ function createApprovalHub(): ApprovalHub {
       createdAt: Date.now()
     }
     return new Promise<PermissionDecision>(function (resolve) {
-      waiters.set(request.requestId, { request, resolve })
+      const timer = setTimeout(function () {
+        settle(request.requestId, null)
+      }, APPROVAL_TIMEOUT_MS)
+      // 不让人等死：定时器不该单独把进程撑活
+      timer.unref?.()
+      waiters.set(request.requestId, { request, resolve, timer })
       publish({ type: 'approval_requested', approval: request })
     })
   }

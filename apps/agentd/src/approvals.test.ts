@@ -7,9 +7,9 @@
 
 import type { Server } from 'node:http'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createApprovalHub } from './approvals'
+import { APPROVAL_TIMEOUT_MS, createApprovalHub } from './approvals'
 import type { ApprovalEvent } from './approvals'
 import { createAgentServer } from './agent-server'
 import { createEventHub } from './events'
@@ -168,6 +168,21 @@ describe('审批闸门', function () {
     void hub.ask({ threadID: 't1', sessionId: 's1', toolCall: null, options: [] })
     expect(hub.pendingOf('s1')?.threadID).toBe('t1')
     expect(hub.pendingOf('nope')).toBeUndefined()
+  })
+
+  it('没人回执时超时按取消结案（fail-closed，不留永久悬挂）', async function () {
+    const hub = createApprovalHub()
+    // 用假时钟把 5 分钟压缩掉；真 timer 会拖住整轮测试
+    vi.useFakeTimers()
+    try {
+      const pending = hub.ask({ threadID: 't1', sessionId: 's1', toolCall: null, options: [] })
+      expect(hub.pending('t1')).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(APPROVAL_TIMEOUT_MS + 1)
+      expect(await pending).toBeNull()
+      expect(hub.pending('t1')).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

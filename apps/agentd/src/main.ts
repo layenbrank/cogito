@@ -24,7 +24,48 @@ function log(message: string, extra?: Record<string, unknown>): void {
   console.log(line)
 }
 
+/**
+ * `--version` / `--help` 早退：**必须在读配置之前**。
+ *
+ * 打包校验（`agentd-<triple> --version`）跑在没注入 `AGENTD_TOKEN` 的环境里，
+ * 而 `readConfig()` 对缺 token 是 fail-closed 直接退出 2 —— 放在后面就永远验不了产物。
+ */
+function handleCli(): boolean {
+  const argv = process.argv.slice(1)
+  if (argv.includes('--version') || argv.includes('-v')) {
+    // 与握手行的 version 同源（`AGENTD_VERSION` 由打包注入，缺省 dev）
+    console.log(process.env.AGENTD_VERSION?.trim() || '0.0.0-dev')
+    return true
+  }
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(
+      [
+        'cogito-agentd —— 桌面端 agent 循环宿主（goose ACP + LangGraph + Agent Protocol）',
+        '',
+        '正常用法：由 Tauri 以 sidecar 拉起，从 stdout 的 AGENTD_READY 行读端口。',
+        '',
+        '环境变量：',
+        '  AGENTD_TOKEN            必填，≥16 字符；HTTP bearer',
+        '  AGENTD_DB               必填，SQLite 文件路径',
+        '  AGENTD_PORT             监听端口，默认 0（内核挑空闲端口）',
+        '  AGENTD_GOOSE_PATH_ROOT  goose 的数据根；不配则不托管内层 goose',
+        '  AGENTD_GOOSE_BINARY     goose 可执行文件，默认 `goose`',
+        '  AGENTD_VERSION          版本号（打包时注入）',
+        '  AGENTD_ISOLATED         非空 = dev 隔离实例',
+        '',
+        '命令行：',
+        '  --version, -v           打印版本后退出',
+        '  --help, -h              打印本帮助后退出'
+      ].join('\n')
+    )
+    return true
+  }
+  return false
+}
+
 async function bootstrap(): Promise<void> {
+  if (handleCli()) return
+
   let config
   try {
     config = readConfig()
