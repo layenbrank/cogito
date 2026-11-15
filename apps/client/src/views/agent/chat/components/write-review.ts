@@ -13,7 +13,8 @@ import {
   buildLineDiff,
   findBaseName,
   findWritePath,
-  parseWriteTexts,
+  parseFragmentPair,
+  parseWholeFileTexts,
   readWritePairs,
   type WriteDiffKind
 } from '@/views/agent/chat/components/parse-tool-result'
@@ -108,7 +109,8 @@ function toRangeLabel(
 
 /** 工具参数 → 可审阅的块；不是整文件 before/after（或压根没改动）时返回 null */
 function parseWriteReview(args: unknown): WriteReview | null {
-  const { before, after } = parseWriteTexts(args)
+  // 只要**整文件**的 before / after：片段级 `old_string` 拿来重建全文会把文件写成那一段
+  const { before, after } = parseWholeFileTexts(args)
   if (before === null || after === null) return null
 
   const diff = buildLineDiff(before, after)
@@ -168,16 +170,26 @@ function hasEditList(args: unknown): boolean {
   return Array.isArray(list) && list.length > 0
 }
 
+/** 单段改动包成清单（`edits[]` 那条路本来就是清单） */
+function toPairList(pair: { before: string; after: string } | null): readonly {
+  before: string
+  after: string
+}[] {
+  return pair ? [pair] : []
+}
+
 /**
  * 定点替换 → 逐段审阅清单（一段改动 = 一块）。
  *
  * 与 `parseWriteReview` 的分工：那条要求「整文件 before / after」，落盘是按 before 侧重建全文；
  * 这里没有旧全文，落盘走 `rebuildPatchText`——把丢弃的那几段反向替换回磁盘现状。
- * 纯删除段（没有 after）没法反向定位，整份不开放审阅。
+ * 两种参数形态都算定点替换：`edits: [{oldText,newText}]`（本地 patch）与
+ * `{old_string,new_string}`（goose `edit`）。纯删除段（没有 after）没法反向定位，整份不开放审阅。
  */
 function parsePatchReview(args: unknown): PatchReview | null {
-  if (!hasEditList(args)) return null
-  const pairs = readWritePairs(args)
+  const pairs = hasEditList(args)
+    ? readWritePairs(args)
+    : toPairList(parseFragmentPair(args))
   if (pairs.length === 0) return null
   if (
     pairs.some(function (pair) {
@@ -202,26 +214,43 @@ function parsePatchReview(args: unknown): PatchReview | null {
 
 /**
  * 把「丢弃」的段反向替换回去；保留 / 待定的段保持写完之后的样子。
- * 找不到 after 说明文件之后又被改过 —— 交给调用方按失败处理，这里只如实回报。
+ *
+ * 两个以前真踩过的坑：
+ * 1. `String.replace(after, before)` 只改**第一处** —— 同一段文字在文件里出现两次时，
+ *    会把上面那一处还原成旧文，用户丢的却是下面那块。这里用游标按顺序往后找，
+ *    找不到或**多次命中**都拒绝（分不清想撤哪一处，宁可不写）。
+ * 2. `before` 里出现 `$&` / `$1` 时会被当成替换模式改写 —— 改用函数式替换。
  */
 function rebuildPatchText(
   current: string,
   review: PatchReview,
   decisions: Readonly<Record<string, 'pending' | 'kept' | 'discarded'>>
-): { text: string; reverted: number; missing: string[] } {
+): { text: string; reverted: number; missing: string[]; ambiguous: string[] } {
   let text = current
   let reverted = 0
+  let cursor = 0
   const missing: string[] = []
+  const ambiguous: string[] = []
   for (const hunk of review.hunks) {
     if ((decisions[hunk.id] ?? 'pending') !== 'discarded') continue
-    if (!text.includes(hunk.after)) {
+    if (!hunk.after) {
       missing.push(hunk.id)
       continue
     }
-    text = text.replace(hunk.after, hunk.before)
+    const at = text.indexOf(hunk.after, cursor)
+    if (at < 0) {
+      missing.push(hunk.id)
+      continue
+    }
+    if (text.indexOf(hunk.after, at + 1) >= 0) {
+      ambiguous.push(hunk.id)
+      continue
+    }
+    text = text.slice(0, at) + hunk.before + text.slice(at + hunk.after.length)
+    cursor = at + hunk.before.length
     reverted += 1
   }
-  return { text, reverted, missing }
+  return { text, reverted, missing, ambiguous }
 }
 
 /**

@@ -220,11 +220,23 @@ fn unwrap_encoded_blob(text: &str) -> Option<Value> {
     serde_json::from_str(trimmed).ok()
 }
 
+/// Windows 盘符路径 / UNC：反斜杠是**路径分隔符**，不是转义符。
+///
+/// 与客户端 `tool-output.ts` 的 `WINDOWS_PATH` 同一口径：`C:\new` 若按转义解
+/// 会变成「C: + 换行 + ew」、`C:\temp` 变成制表符，工具输出里的路径就坏了。
+fn looks_like_windows_path(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let has_drive = bytes
+        .windows(3)
+        .any(|window| window[0].is_ascii_alphabetic() && window[1] == b':' && window[2] == b'\\');
+    has_drive || text.starts_with("\\\\")
+}
+
 fn unescape_literal_escapes(text: &str) -> String {
     let has_escaped_breaks =
         (text.contains("\\n") || text.contains("\\r\\n") || text.contains("\\t"))
             && !text.contains('\n');
-    if !has_escaped_breaks {
+    if !has_escaped_breaks || looks_like_windows_path(text) {
         return text.replace("\r\n", "\n");
     }
     text.replace("\\r\\n", "\n")
@@ -397,5 +409,22 @@ mod tests {
         let text = normalize_output(&nested, None);
         assert!(text.contains("hello"));
         assert!(text.contains("world"));
+    }
+
+    #[test]
+    fn windows_paths_survive_unescaping() {
+        // `C:\new` / `C:\temp` 里的反斜杠是路径分隔符：以前会被解成换行 / 制表符
+        assert_eq!(
+            unescape_literal_escapes(r"C:\new\test.txt"),
+            r"C:\new\test.txt"
+        );
+        assert_eq!(unescape_literal_escapes(r"D:\temp"), r"D:\temp");
+        assert_eq!(
+            unescape_literal_escapes(r"\\server\share\a"),
+            r"\\server\share\a"
+        );
+
+        // 真正的转义串照旧解
+        assert_eq!(unescape_literal_escapes(r"line1\nline2"), "line1\nline2");
     }
 }

@@ -13,10 +13,8 @@ vi.mock('@tauri-apps/api/core', function () {
 })
 
 import {
-  collapseOutput,
   formatTerminalText,
   normalizeToolOutput,
-  TERMINAL_PREVIEW_LINES,
   toCodeSource,
   toShellCommand
 } from './tool-output'
@@ -38,23 +36,6 @@ describe('toCodeSource', function () {
   it('takes the first non-empty candidate key', function () {
     expect(toCodeSource({ code: 'return 1' })).toBe('return 1')
     expect(toCodeSource({ code: '  ', script: 'return 2' })).toBe('return 2')
-  })
-})
-
-describe('collapseOutput', function () {
-  it('folds past maxLines and unescapes literal breaks', function () {
-    expect(collapseOutput('a\\r\\nb\\r\\nc', 2)).toEqual({
-      lines: ['a', 'b'],
-      hidden: 1
-    })
-  })
-
-  it('uses the terminal preview as the default budget', function () {
-    const raw = Array.from({ length: TERMINAL_PREVIEW_LINES + 3 }, function (_v, index) {
-      return `line ${index}`
-    }).join('\n')
-
-    expect(collapseOutput(raw).hidden).toBe(3)
   })
 })
 
@@ -93,6 +74,14 @@ describe('formatTerminalText', function () {
     expect(formatTerminalText('D:\\Documents\\workspace\\front')).toBe(
       'D:\\Documents\\workspace\\front'
     )
+  })
+
+  it('盘符路径里的 \\n / \\t 不当转义符', function () {
+    // `C:\new` 以前被解成「C: + 换行 + ew」，`C:\temp` 解成制表符
+    expect(formatTerminalText('C:\\new\\test.txt')).toBe('C:\\new\\test.txt')
+    expect(formatTerminalText('C:\\temp')).toBe('C:\\temp')
+    // 真正的转义串照旧解
+    expect(formatTerminalText('line1\\nline2')).toBe('line1\nline2')
   })
 
   it('嵌入式终端载荷只取 output，不复述 command', function () {

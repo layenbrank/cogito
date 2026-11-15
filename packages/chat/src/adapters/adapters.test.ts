@@ -4,7 +4,8 @@ import {
   type MessageFormatItem,
   type MessageStorageEntry,
   type RemoteThreadListAdapter,
-  type ThreadMessage
+  type ThreadMessage,
+  type ThreadUserMessagePart
 } from '@assistant-ui/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -827,7 +828,9 @@ describe('createThreadListAdapter', function () {
 })
 
 describe('buildTitle', function () {
-  function userMessage(content: ThreadMessage['content']): ThreadMessage {
+  // 用户消息的 content 是**用户侧**那半边联合：`ThreadMessage['content']` 会把
+  // assistant 专属的 part（generative-ui 等）也带进来，赋回去就不兼容了
+  function userMessage(content: ThreadUserMessagePart[]): ThreadMessage {
     return {
       id: 'u1',
       createdAt: new Date(),
@@ -866,7 +869,7 @@ describe('buildTitle', function () {
           filename: 'src/a.ts',
           mimeType: 'text/plain',
           data: ''
-        } as ThreadMessage['content'][number]
+        }
       ])
     ])
     expect(title).toBe('a.ts')
@@ -880,13 +883,13 @@ describe('buildTitle', function () {
           filename: 'a.ts',
           mimeType: 'text/plain',
           data: ''
-        } as ThreadMessage['content'][number],
+        },
         {
           type: 'file',
           filename: 'b.ts',
           mimeType: 'text/plain',
           data: ''
-        } as ThreadMessage['content'][number]
+        }
       ])
     ])
     expect(title).toContain('a.ts')

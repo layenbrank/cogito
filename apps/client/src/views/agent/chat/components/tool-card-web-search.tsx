@@ -24,18 +24,25 @@ import {
   CollapsibleTrigger
 } from '@cogito/design/components/collapsible'
 import { clsx } from 'clsx'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { toAgentToolLabel } from '@/features/agent/tool-labels'
+import { findToolActivity } from '@/features/agent/tool-activity'
 import { extractWebQuery, parseWebSources } from '@/views/agent/chat/components/parse-tool-result'
 
 type WebSearchCardProps = ToolCallMessagePartProps & { outputText: string }
 
 function ToolCardWebSearch(props: WebSearchCardProps) {
-  const isRunning = props.status?.type === 'running'
+  const isRunning = findToolActivity(props) === 'running'
   const query = extractWebQuery(props.args) ?? toAgentToolLabel(props.toolName)
-  const rows = toWebSearchResults(
-    parseWebSources(props.toolName, props.args, props.result, props.outputText)
+  // 同上：流式期间每个快照都新建 result，解析一次就够
+  const rows = useMemo(
+    function () {
+      return toWebSearchResults(
+        parseWebSources(props.toolName, props.args, props.result, props.outputText)
+      )
+    },
+    [props.toolName, props.args, props.result, props.outputText]
   )
   const raw = props.outputText.trim()
   const [isOpen, setOpen] = useState(false)

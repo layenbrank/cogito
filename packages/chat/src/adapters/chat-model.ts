@@ -51,6 +51,11 @@ interface ToolAccumulator {
   argsText: string
   result?: unknown
   isError?: boolean
+  /**
+   * 轮次结束时结果还没回来（用户停止 / 流中断 / 进程退出后的补写）。
+   * 与 `isError` 分开：那不是「工具报错」，而是「它到底跑完了没有」没有答案。
+   */
+  cancelled?: boolean
   /** 工具开始执行（tool-call 事件到达）与结果落地（tool-result）的墙钟时间 */
   startedAt?: number
   completedAt?: number
@@ -61,6 +66,9 @@ interface ToolAccumulator {
 type ToolPart = Extract<ThreadAssistantMessagePart, { type: 'tool-call' }>
 
 function toToolStatus(tool: ToolAccumulator): ToolCallMessagePartStatus {
+  // cancelled 排在审批之前：停下来的时候还等着你点的那张卡也一并收口，
+  // 否则它会永远停在「待审批」（历史里还留着可点的按钮）
+  if (tool.cancelled) return { type: 'incomplete', reason: 'cancelled' }
   if (tool.approval && tool.approval.approved === undefined) {
     return { type: 'requires-action', reason: 'tool-calls' }
   }
@@ -324,7 +332,28 @@ function createContentAccumulator() {
     return parts()
   }
 
-  return { appendBlock, updateTool, setPlan, addElicitation, parts, finish }
+  /**
+   * 轮次结束时把「还没有结果」的工具收口成 cancelled。
+   *
+   * 以前这些 part 的 status 会一直停在 `running`（用户停止 / 流中断 / 进程重启后
+   * 根本没有 tool-result 事件），而且随消息落库 —— 第二天翻历史，那条命令还在“执行中”，
+   * 右栏却也看不到它。已经拿到结果的（成功或失败）一律不动。
+   */
+  function cancelOpenTools(): void {
+    for (const block of blocks) {
+      if (block.type !== 'tool') continue
+      const tool = block.tool
+      if (tool.result !== undefined || tool.isError === true) continue
+      tool.cancelled = true
+      // 停在「等你点」的审批要标成「未决策就取消了」，不能退化成「已拒绝」：
+      // 用户可能根本没看见它，是这一轮被停掉了。
+      if (tool.approval && tool.approval.approved === undefined && !tool.approval.resolution) {
+        tool.approval = { ...tool.approval, resolution: 'cancelled' }
+      }
+    }
+  }
+
+  return { appendBlock, cancelOpenTools, updateTool, setPlan, addElicitation, parts, finish }
 }
 
 function toStatus(finishReason: string): ChatModelRunResult['status'] {
@@ -494,7 +523,13 @@ async function* mapChatStreamToRunResults(
             isError: event.isError === true,
             completedAt: Date.now(),
             approval: previous?.approval
-              ? { ...previous.approval, approved: event.isError ? false : true }
+              ? {
+                  ...previous.approval,
+                  // 执行失败**不能**反推成「用户拒绝了」：审批结论只表达用户的选择，
+                  // 工具跑挂由 `isError` 表达。以前这里写 `isError ? false : true`，
+                  // 于是「批准了但执行失败」在收据上显示成「已拒绝」。
+                  approved: previous.approval.approved ?? true
+                }
               : undefined
           }
         })
@@ -538,6 +573,7 @@ async function* mapChatStreamToRunResults(
       case 'finish': {
         const soft = flushSoftIfNeeded()
         if (soft) yield soft
+        content.cancelOpenTools()
         yield {
           content: content.finish(),
           status: toStatus(event.finishReason),
@@ -557,6 +593,7 @@ async function* mapChatStreamToRunResults(
       case 'aborted': {
         const soft = flushSoftIfNeeded()
         if (soft) yield soft
+        content.cancelOpenTools()
         yield {
           content: content.finish(),
           status: { type: 'incomplete', reason: 'cancelled' },
@@ -576,6 +613,7 @@ async function* mapChatStreamToRunResults(
       case 'error': {
         const soft = flushSoftIfNeeded()
         if (soft) yield soft
+        content.cancelOpenTools()
         yield {
           content: content.finish(),
           metadata: { custom: toCustom(event.usage) }
@@ -591,6 +629,7 @@ async function* mapChatStreamToRunResults(
   if (soft) yield soft
   // detach / 用户停止 / bare abort：UI 订阅被掐断，不是协议丢终态——标 cancelled，避免假「流异常」
   if (abortSignal?.aborted) {
+    content.cancelOpenTools()
     yield {
       content: content.finish(),
       status: { type: 'incomplete', reason: 'cancelled' },
@@ -606,6 +645,8 @@ async function* mapChatStreamToRunResults(
     }
     return
   }
+  // 流没有任何终态就断了：同样要把还挂着的工具收口，否则它们会停成「执行中」
+  content.cancelOpenTools()
   yield {
     content: content.finish(),
     status: {

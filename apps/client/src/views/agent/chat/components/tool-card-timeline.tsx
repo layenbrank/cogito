@@ -1,7 +1,7 @@
 /**
  * 时间轴卡（对齐 assistant-ui `elements/timeline`）
  *
- * 日历工具（`app_calendar_read`）的结果是一**组带时刻的事件**，不是一段正文：
+ * 日历工具（`cogito_calendar_read`）的结果是一**组带时刻的事件**，不是一段正文：
  * 通用卡会把整块 JSON 摆出来，「今天还剩什么、现在在做什么」得自己找。
  * 竖轴卡把开始时刻排在左列，正在进行的这场安排加粗 + 光晕点，过去与将来靠点形区分。
  *
@@ -27,6 +27,7 @@ import {
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 
+import { findToolActivity } from '@/features/agent/tool-activity'
 import {
   parseCalendarEvents,
   toClockLabel,
@@ -94,7 +95,7 @@ function RawResult(props: { raw: string }) {
 
 function ToolCardTimeline(props: TimelineCardProps) {
   const labels = useAssistantLabels()
-  const isRunning = props.status?.type === 'running'
+  const isRunning = findToolActivity(props) === 'running'
   const raw = props.outputText.trim()
   const now = useNow()
   const calendarEvents = useMemo(

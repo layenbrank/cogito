@@ -83,7 +83,7 @@ describe('命令类工具卡', function () {
     const { container } = render(
       <ToolCardTerminalBody
         {...makeProps({
-          toolName: 'cogito: app terminal run · dir /b',
+          toolName: 'local__cogito_terminal_run',
           args: { command: 'dir /b', cwd: 'C:/app' },
           status: { type: 'complete' },
           outputText: ''

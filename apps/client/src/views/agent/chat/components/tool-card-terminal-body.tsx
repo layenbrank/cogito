@@ -37,6 +37,7 @@ import { clsx } from 'clsx'
 import { useState } from 'react'
 
 import { isEmbeddedTerminalTool } from '@/features/agent/tool-labels'
+import { findToolActivity } from '@/features/agent/tool-activity'
 import { ToolCardJob } from '@/views/agent/chat/components/tool-card-job'
 import { isJobCommand } from '@/views/agent/chat/components/tool-card-job-state'
 import { toShellCommand } from '@/views/agent/chat/components/tool-output'
@@ -93,7 +94,8 @@ function TerminalJumpButton(props: { command: string; workdir: string | null; co
 
 /** 短命令 / 普通命令：折叠成一条「终端条」 */
 function ToolCardCommandRow(props: CommandProps & { shell: CommandShell; embedded: boolean }) {
-  const isRunning = props.status?.type === 'running'
+  const activity = findToolActivity(props)
+  const isRunning = activity === 'running'
   const shell = props.shell
   // 折叠态就一行「$ 命令」：默认不挂终端正文，点开才渲染、并 pin 住
   const [isOpen, setOpen] = useState(false)
@@ -104,7 +106,14 @@ function ToolCardCommandRow(props: CommandProps & { shell: CommandShell; embedde
     if (props.isError) setOpen(true)
   }
 
-  const emptyHint = isRunning ? '执行中…' : props.isError ? '没有任何输出' : '无输出'
+  const emptyHint =
+    activity === 'running'
+      ? '执行中…'
+      : activity === 'cancelled'
+        ? '命令被中断，没有输出'
+        : activity === 'failed'
+          ? '没有任何输出'
+          : '无输出'
   const hasOutput = props.outputText.trim().length > 0
   // 复制走完整回执（命令 + 输出）：抬头只有命令，复制出来仍要能直接贴给人看
   const terminalBody = `$ ${shell.command}\n${props.outputText || emptyHint}`
@@ -161,13 +170,25 @@ function ToolCardCommandRow(props: CommandProps & { shell: CommandShell; embedde
             aria-label="执行中"
             className="text-terminal-accent size-3 shrink-0 animate-spin"
           />
+        ) : activity === 'waiting' ? (
+          <Icon
+            icon="lucide:clock"
+            aria-label="等待确认"
+            className="text-terminal-muted size-3 shrink-0"
+          />
+        ) : activity === 'cancelled' ? (
+          <Icon
+            icon="lucide:circle-slash"
+            aria-label="已中断"
+            className="text-terminal-muted size-3 shrink-0"
+          />
         ) : (
           <Icon
-            icon={props.isError ? 'lucide:x' : 'lucide:check'}
-            aria-label={props.isError ? '执行失败' : '执行完成'}
+            icon={activity === 'failed' ? 'lucide:x' : 'lucide:check'}
+            aria-label={activity === 'failed' ? '执行失败' : '执行完成'}
             className={clsx(
               'size-3 shrink-0',
-              props.isError ? 'text-terminal-danger' : 'text-terminal-accent'
+              activity === 'failed' ? 'text-terminal-danger' : 'text-terminal-accent'
             )}
           />
         )}

@@ -29,6 +29,7 @@ import {
 import { clsx } from 'clsx'
 import { useMemo, useState } from 'react'
 
+import { findToolActivity } from '@/features/agent/tool-activity'
 import {
   findCommandOutcome,
   findCommandStageIndex
@@ -49,7 +50,10 @@ type ToolCardJobProps = ToolCallMessagePartProps & {
 
 function ToolCardJob(props: ToolCardJobProps) {
   const labels = useAssistantLabels()
-  const isRunning = props.status?.type === 'running'
+  // B7：命令超时返回 `isRunning: true` 时 status 已经是 complete，
+  // 只看 status 会把进度条拉满并写「已结束」—— 交给统一的口径
+  const activity = findToolActivity(props)
+  const isRunning = activity === 'running'
   const [isOpen, setOpen] = useState(false)
 
   // 命令只有一个阶段：weight 取 1，整条进度条按「运行中 / 走完」推进
@@ -78,10 +82,7 @@ function ToolCardJob(props: ToolCardJobProps) {
         stageIndex={findCommandStageIndex(isRunning)}
         stageProgress={0}
         eta={isRunning ? labels.jobRunning : ''}
-        outcome={findCommandOutcome({
-          isRunning,
-          isError: Boolean(props.isError)
-        })}
+        outcome={findCommandOutcome({ activity })}
         elapsedMs={props.elapsedMs}
         className="max-w-none"
       />

@@ -8,7 +8,6 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 
-const TERMINAL_PREVIEW_LINES = 48
 const CODE_KEYS = ['code', 'script', 'source', 'javascript'] as const
 const OUTPUT_KEYS = [
   'stdout',
@@ -32,11 +31,6 @@ interface ShellCommand {
   command: string
   workdir: string | null
   background: boolean
-}
-
-interface CollapsedOutput {
-  lines: string[]
-  hidden: number
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -73,13 +67,20 @@ function toCodeSource(args: unknown): string | null {
   return firstString(record, CODE_KEYS)
 }
 
+/** Windows 盘符路径 / UNC：反斜杠是**路径分隔符**，不是转义符 */
+const WINDOWS_PATH = /[A-Za-z]:\\|^\\\\/
+
 /**
- * 部分链路会把已转义的串原样塞进来（字面 `\\n` / `\\r\\n` / `\\"`）。
- * 仅在「看起来像转义串」时解一层，避免误伤正常反斜杠路径。
+ * 部分链路会把已转义的串原样塞进来（字面 `\n` / `\r\n` / `\"`）。
+ *
+ * 只在「看起来像转义串」时解一层，否则会把 Windows 路径当转义符吃掉：
+ * `C:\new` 解成「C: + 换行 + ew」、`C:\temp` 解成制表符 —— 工具输出里的路径就这么坏了。
+ * 所以带盘符 / UNC 的整段一律不动。
  */
 function unescapeLiteralEscapes(text: string): string {
   const hasEscapedBreaks = /\\r\\n|\\n|\\t/.test(text) && !text.includes('\n')
   if (!hasEscapedBreaks) return text
+  if (WINDOWS_PATH.test(text)) return text
   return text
     .replace(/\\r\\n/g, '\n')
     .replace(/\\n/g, '\n')
@@ -123,6 +124,9 @@ function findTextFromContentBlock(block: unknown): string | null {
 /**
  * 到深度上限 / 无法再归类时的扁平化：对象走 JSON，原始值走 String。
  * 直接 `String(对象)` 只会得到 `[object Object]`，对终端可读性没意义。
+ *
+ * **单行紧凑**（不缩进）：与 Rust 侧 `flatten_text` 的 `value.to_string()` 同一口径 ——
+ * 两边不统一时，同一个工具结果在正式包（走 Rust）与浏览器里会排出两种样子。
  */
 function toFlatText(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -132,7 +136,7 @@ function toFlatText(value: unknown): string {
   }
   if (typeof value === 'symbol' || typeof value === 'function') return value.toString()
   try {
-    const json = JSON.stringify(value, null, 2)
+    const json = JSON.stringify(value)
     return json ?? Object.prototype.toString.call(value)
   } catch (error) {
     console.warn('[agent] 工具输出不可序列化，回退类型描述', error)
@@ -214,20 +218,6 @@ function formatTerminalText(value: unknown, depth = 0): string {
   return toFlatText(value)
 }
 
-function collapseOutput(
-  raw: string | null | undefined,
-  maxLines = TERMINAL_PREVIEW_LINES
-): CollapsedOutput {
-  if (raw === null || raw === undefined) return { lines: [], hidden: 0 }
-
-  const normalized = unescapeLiteralEscapes(raw.replace(/\r\n/g, '\n')).replace(/\n+$/, '')
-  const lines = normalized.split('\n')
-  if (lines.length === 1 && lines[0] === '') return { lines: [], hidden: 0 }
-  if (lines.length <= maxLines) return { lines, hidden: 0 }
-
-  return { lines: lines.slice(0, maxLines), hidden: lines.length - maxLines }
-}
-
 /**
  * 规范化工具输出：Tauri 走 Rust（去 ANSI / 解嵌套 JSON / 可选截尾），否则同步回退。
  *
@@ -270,11 +260,9 @@ async function normalizeToolOutput(
 
 export {
   CODE_KEYS,
-  collapseOutput,
   formatTerminalText,
   normalizeToolOutput,
-  TERMINAL_PREVIEW_LINES,
   toCodeSource,
   toShellCommand
 }
-export type { CollapsedOutput, ShellCommand }
+export type { ShellCommand }

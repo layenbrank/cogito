@@ -27,7 +27,7 @@ function makeProps(overrides: Record<string, unknown> = {}): CardProps {
   return {
     type: 'tool-call',
     toolCallId: 'call-retrieval-1',
-    toolName: 'app_knowledge_search',
+    toolName: 'cogito_knowledge_search',
     args: { query: '发布前检查' },
     argsText: '{"query":"发布前检查"}',
     status: { type: 'complete' },

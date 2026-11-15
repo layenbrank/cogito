@@ -33,9 +33,12 @@ describe('命令任务卡的阶段与结局', function () {
     expect(findCommandStageIndex(false)).toBe(1)
   })
 
-  it('运行中没有收据，结束时才按 isError 分出成功 / 失败', function () {
-    expect(findCommandOutcome({ isRunning: true, isError: false })).toBeUndefined()
-    expect(findCommandOutcome({ isRunning: false, isError: false })).toEqual({ status: 'success' })
-    expect(findCommandOutcome({ isRunning: false, isError: true })).toEqual({ status: 'failed' })
+  it('运行中 / 待确认没有收据；其余按活动状态分成功 / 失败 / 已中断', function () {
+    expect(findCommandOutcome({ activity: 'running' })).toBeUndefined()
+    expect(findCommandOutcome({ activity: 'waiting' })).toBeUndefined()
+    expect(findCommandOutcome({ activity: 'done' })).toEqual({ status: 'success' })
+    expect(findCommandOutcome({ activity: 'failed' })).toEqual({ status: 'failed' })
+    // 被停掉的命令不是失败，也不能画成成功
+    expect(findCommandOutcome({ activity: 'cancelled' })).toEqual({ status: 'cancelled' })
   })
 })

@@ -24,6 +24,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { chatModelPort } from '@/features/agent/port/instance'
+import { findToolActivity } from '@/features/agent/tool-activity'
 import { isShellTool, isWriteTool, toAgentToolLabel } from '@/features/agent/tool-labels'
 import { summarize } from '@/views/agent/chat/components/tool-card-format'
 import { toShellCommand } from '@/views/agent/chat/components/tool-output'
@@ -85,7 +86,10 @@ function ApprovalBar(props: ApprovalBarProps) {
   // 票据状态是**实时**的：历史重建的旧卡可能还带着「待审批」，但票据早没了。
   // 只看消息快照的话，这种卡点下去只会得到一句「已失效」—— 不如一开始就按失效渲染。
   const live = chatModelPort.findApprovalState?.(props.toolCallId)
-  const isStale = live === null
+  // 历史卡（重启 / 切会话后）票据与内存回执都没了。只有**快照里也没有结论**时才算失效：
+  // 以前无条件把 `null` 当失效 → 历史里批准并成功的工具全被渲染成「已拒绝」。
+  const isStale =
+    live === null && approval.approved === undefined && approval.resolution !== 'cancelled'
   // 回执已受理、事件还没穿过泵的那几帧：直接用缓存里的结论，避免先闪回一下待审批
   const settledDecision = typeof live === 'boolean' ? live : undefined
 
@@ -150,9 +154,14 @@ function ApprovalBar(props: ApprovalBarProps) {
 
   const command = isShellTool(props.toolName) ? toShellCommand(props.args)?.command : null
   const summary = summarize(props.args)
+  // 审批结论与执行结果是两件事：允许了照样可能跑挂。
+  // 以前收据直接写「完成」，用户看到的是一个打勾的失败。
+  const receiptFailed = !request && findToolActivity(props) === 'failed'
   const subtitle = isStale
     ? '审批已失效（本轮已结束或审批已过期），需要时请重新发送'
-    : approval.prompt?.trim() || labels.approvalDefaultSubtitle
+    : receiptFailed
+      ? '已允许，但工具执行失败'
+      : approval.prompt?.trim() || labels.approvalDefaultSubtitle
   // 命令已经在等宽面板里：说明别再复述同一句话
   const description = summary && summary !== command && summary !== subtitle ? summary : undefined
 
@@ -171,6 +180,7 @@ function ApprovalBar(props: ApprovalBarProps) {
   return (
     <ApprovalCard
       state={state}
+      variant={receiptFailed ? 'destructive' : undefined}
       title={toAgentToolLabel(props.toolName)}
       subtitle={subtitle}
       // 已经答过的卡只留收据：命令 / 说明再摆一遍，下面还压着一份工具结果

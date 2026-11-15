@@ -137,22 +137,22 @@ describe('parseWriteCodeDiff', function () {
   })
 })
 
-describe('本地 MCP 写工具（app_workspace_*）', function () {
+describe('本地 MCP 写工具（cogito_workspace_*）', function () {
   // 回归：isWriteTool 只认 `write_file` / `edit` 的那段时间，
-  // `app_workspace_write` / `app_workspace_patch` 被判成 generic，
+  // `cogito_workspace_write` / `cogito_workspace_patch` 被判成 generic，
   // 写卡不渲染，CodeDiff 与回合小结一起从对话里消失
-  it('app_workspace_patch 走 write 卡', function () {
+  it('cogito_workspace_patch 走 write 卡', function () {
     const parsed = parseToolCard(
-      'cogito__app_workspace_patch',
+      'local__cogito_workspace_patch',
       { path: 'apps/client/src/a.ts', edits: [{ oldText: 'a', newText: 'b' }] },
       { applied: 1 }
     )
     expect(parsed.variant).toBe('write')
   })
 
-  it('app_workspace_write 走 write 卡，整段写入按新增算', function () {
+  it('cogito_workspace_write 走 write 卡，整段写入按新增算', function () {
     const parsed = parseToolCard(
-      'cogito__app_workspace_write',
+      'local__cogito_workspace_write',
       { path: 'notes.md', content: 'one\ntwo' },
       { bytes: 7 }
     )
@@ -192,7 +192,7 @@ describe('本地 MCP 写工具（app_workspace_*）', function () {
   })
 
   it('终端写工具不是文件写卡', function () {
-    expect(parseToolCard('cogito__app_terminal_write', { data: 'y' }, 'ok').variant).toBe(
+    expect(parseToolCard('local__cogito_terminal_write', { data: 'y' }, 'ok').variant).toBe(
       'command'
     )
   })
@@ -259,6 +259,21 @@ describe('parseWebSources', function () {
       href: 'https://react.dev/reference',
       domain: 'react.dev'
     })
+  })
+
+  it('结果里已有同一条链接时，参数 URL 不抢标题', function () {
+    const sources = parseWebSources(
+      'web_fetch',
+      { url: 'https://react.dev/reference', query: 'useSyncExternalStore' },
+      { results: [{ title: 'useSyncExternalStore – React', url: 'https://react.dev/reference' }] }
+    )
+    expect(sources).toEqual([
+      {
+        title: 'useSyncExternalStore – React',
+        href: 'https://react.dev/reference',
+        domain: 'react.dev'
+      }
+    ])
   })
 
   it('文本兜底：markdown 链接拆出标题，裸 URL 用链接当标题', function () {

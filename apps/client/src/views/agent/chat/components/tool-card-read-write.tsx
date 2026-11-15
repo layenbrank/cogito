@@ -226,6 +226,11 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
         updatePatchReviewing(null)
         return
       }
+      if (result.ambiguous.length > 0) {
+        // 同一段文字在文件里出现多次：猜一处写下去比不写更糟
+        toast.error('这段文字在文件里出现多次，无法确定要还原哪一处；请直接改文件')
+        return
+      }
       if (isSameText(result.text, current)) {
         toast.message('没有丢弃任何改动，文件保持原样')
         updatePatchReviewing(null)

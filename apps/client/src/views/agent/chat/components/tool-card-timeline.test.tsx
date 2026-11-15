@@ -27,7 +27,7 @@ function makeProps(overrides: Record<string, unknown> = {}): CardProps {
   return {
     type: 'tool-call',
     toolCallId: 'call-calendar-1',
-    toolName: 'app_calendar_read',
+    toolName: 'cogito_calendar_read',
     args: { from: 0, to: 1 },
     argsText: '{"from":0,"to":1}',
     status: { type: 'complete' },

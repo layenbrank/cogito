@@ -1,7 +1,7 @@
 /**
  * 检索块卡（对齐 assistant-ui `elements/retrieval-chunks`）
  *
- * 库内检索（`app_knowledge_search`）的命中是一**组段落**，不是一段正文：
+ * 库内检索（`cogito_knowledge_search`）的命中是一**组段落**，不是一段正文：
  * 查询药丸 + 「N 段命中」+ 每条一张纸卡（标题 / 相对路径 / 片段 / 相关度条）。
  * 通用卡把 `{mode, channels, hits: [...]}` 整块摆出来，标题、路径、摘要、分数全糊在一起，
  * 而这里真正要读的只有「哪几段、哪段最相关、那段说了什么」。
@@ -20,17 +20,24 @@ import {
   CollapsibleTrigger
 } from '@cogito/design/components/collapsible'
 import { clsx } from 'clsx'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { toAgentToolLabel } from '@/features/agent/tool-labels'
+import { findToolActivity } from '@/features/agent/tool-activity'
 import { extractQuery, parseRetrievalHits } from '@/views/agent/chat/components/parse-tool-result'
 
 type RetrievalCardProps = ToolCallMessagePartProps & { outputText: string }
 
 function ToolCardRetrieval(props: RetrievalCardProps) {
-  const isRunning = props.status?.type === 'running'
+  const isRunning = findToolActivity(props) === 'running'
   const query = extractQuery(props.args) ?? toAgentToolLabel(props.toolName)
-  const chunks = parseRetrievalHits(props.result)
+  // 每个流式快照都会重建一个 result 字面量：不 memo 就把整组命中重解析一遍
+  const chunks = useMemo(
+    function () {
+      return parseRetrievalHits(props.result)
+    },
+    [props.result]
+  )
   const raw = props.outputText.trim()
   const [isOpen, setOpen] = useState(false)
 

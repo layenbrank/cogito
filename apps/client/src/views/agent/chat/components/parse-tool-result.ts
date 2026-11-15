@@ -178,7 +178,7 @@ function findBaseVariant(toolName: string): ToolCardVariant {
   if (isCodeTool(toolName)) return 'code'
   if (isWebTool(toolName)) return 'web'
   if (isRetrievalTool(toolName)) return 'retrieval'
-  // 日历要排在读写之前：`app_calendar_read` 名字里带 `read`
+  // 日历要排在读写之前：`cogito_calendar_read` 名字里带 `read`
   if (isCalendarTool(toolName)) return 'timeline'
   if (isWriteTool(toolName)) return 'write'
   if (isSearchTool(toolName)) return 'search'
@@ -309,7 +309,40 @@ function parseWriteTexts(args: unknown): { before: string | null; after: string 
   }
 }
 
-/** 定点替换的批改数组（`app_workspace_patch` 的 `edits: [{ oldText, newText }]`） */
+/** 整文件 before / after 的键：`old_string` / `oldText` 是片段级，不在此列 */
+const WHOLE_FILE_OLD_KEYS = ['before', 'old_content'] as const
+const WHOLE_FILE_NEW_KEYS = ['after', 'new_content'] as const
+
+/** 片段级改动的旧／新正文（goose `edit` 的 `old_string` / `new_string`、本地 `oldText` / `newText`） */
+const FRAGMENT_OLD_KEYS = ['old_string', 'oldString', 'oldText'] as const
+const FRAGMENT_NEW_KEYS = ['new_string', 'newString', 'newText'] as const
+
+/**
+ * 整文件的 before / after 原文（按块审阅用）。
+ *
+ * 与 `parseWriteTexts` 的区别：这里**不认片段级键**。拿 `old_string` 当 before 去重建全文，
+ * 写回去就是「整个文件只剩那一段」—— 这就是「审阅按钮点了必失败」的来源。
+ */
+function parseWholeFileTexts(args: unknown): { before: string | null; after: string | null } {
+  const record = toRecord(args)
+  if (!record) return { before: null, after: null }
+  return {
+    before: firstRawString(record, [...WHOLE_FILE_OLD_KEYS]),
+    after: firstRawString(record, [...WHOLE_FILE_NEW_KEYS])
+  }
+}
+
+/** 片段级的一段 old → new；缺任一侧就不是「定点替换」形态 */
+function parseFragmentPair(args: unknown): WriteTextPair | null {
+  const record = toRecord(args)
+  if (!record) return null
+  const before = firstRawString(record, [...FRAGMENT_OLD_KEYS])
+  const after = firstRawString(record, [...FRAGMENT_NEW_KEYS])
+  if (before === null || after === null) return null
+  return { before, after }
+}
+
+/** 定点替换的批改数组（`cogito_workspace_patch` 的 `edits: [{ oldText, newText }]`） */
 const WRITE_EDITS_KEYS = ['edits', 'replacements', 'changes'] as const
 
 /** 一段改动的原文：before 为空 = 新建 / 整段写入，after 为空 = 只删不改 */
@@ -343,8 +376,8 @@ function readEditPairs(args: unknown): readonly WriteTextPair[] {
  * 写工具的「原文对」清单：一段 = 一处改动。
  *
  * 三种真实形态都要认，漏一种那张写卡就会静默退回通用行（CodeDiff / 回合小结一起消失）：
- * - `app_workspace_write`：`{ path, content }` —— 只有写完之后的样子（before 未知）；
- * - `app_workspace_patch`：`{ path, edits: [{ oldText, newText }] }` —— 一次调用改好几处；
+ * - `cogito_workspace_write`：`{ path, content }` —— 只有写完之后的样子（before 未知）；
+ * - `cogito_workspace_patch`：`{ path, edits: [{ oldText, newText }] }` —— 一次调用改好几处；
  * - goose `edit`：`{ old_string, new_string }`；带 before + after 的工具按整文件处理。
  */
 function readWritePairs(args: unknown): readonly WriteTextPair[] {
@@ -682,7 +715,17 @@ function parseWebSources(
 
   const argRecord = toRecord(args)
   const argUrl = argRecord && firstString(argRecord, ['url', 'href', 'uri'])
-  if (argUrl && isHttpUrl(argUrl)) found.unshift(toWebSource(argUrl, extractWebQuery(args)))
+  if (argUrl && isHttpUrl(argUrl)) {
+    /*
+     * 结构化结果里已经有这个链接时**别插队**：参数里能给的只有搜索词，
+     * 排在最前会把后面那条真标题挤掉（去重按 href，先入列的算数），
+     * 于是单页抓取的来源行标题变成了一串查询词。
+     */
+    const known = found.some(function (source) {
+      return source.href === argUrl
+    })
+    if (!known) found.unshift(toWebSource(argUrl, extractWebQuery(args)))
+  }
 
   if (found.length === 0) {
     const text = outputText ?? parseToolOutputText(result)
@@ -707,7 +750,7 @@ function parseWebSources(
   return rows
 }
 
-/** 日历工具返回的日程列表键名（`app_calendar_read` 可能直接给数组，也可能包一层） */
+/** 日历工具返回的日程列表键名（`cogito_calendar_read` 可能直接给数组，也可能包一层） */
 const CALENDAR_LIST_KEYS = ['events', 'items', 'schedules', 'calendar', 'data', 'results'] as const
 
 interface CalendarEvent {
@@ -734,12 +777,12 @@ function firstNumber(record: Record<string, unknown>, keys: readonly string[]): 
 function findCalendarList(record: Record<string, unknown>): readonly unknown[] | null {
   for (const key of CALENDAR_LIST_KEYS) {
     const value = record[key]
-    if (Array.isArray(value)) return value
+    if (Array.isArray(value)) return value as readonly unknown[]
     const nested = toRecord(value)
     if (!nested) continue
     for (const inner of CALENDAR_LIST_KEYS) {
       const innerValue = nested[inner]
-      if (Array.isArray(innerValue)) return innerValue
+      if (Array.isArray(innerValue)) return innerValue as readonly unknown[]
     }
   }
   return null
@@ -971,6 +1014,8 @@ export {
   parseWriteCodeDiff,
   parseWriteDiffStat,
   parseWriteTexts,
+  parseWholeFileTexts,
+  parseFragmentPair,
   readWritePairs
 }
 export type {

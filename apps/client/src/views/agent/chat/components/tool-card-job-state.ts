@@ -11,6 +11,8 @@
  */
 import type { JobOutcome } from '@cogito/design/assistant/job-progress-state'
 
+import type { ToolActivity } from '@/features/agent/tool-activity'
+
 /** 前台命令跑过这个时长就不再是「一闪而过的终端条」，而是一件要盯着看的事 */
 const JOB_COMMAND_THRESHOLD_MS = 20_000
 
@@ -38,13 +40,19 @@ function findCommandStageIndex(isRunning: boolean): number {
   return isRunning ? 0 : COMMAND_STAGE_TOTAL
 }
 
-/** 结局：运行中没有收据；结束按 `isError` 分成失败 / 成功 */
-function findCommandOutcome(input: {
-  isRunning: boolean
-  isError: boolean
-}): JobOutcome | undefined {
-  if (input.isRunning) return undefined
-  return { status: input.isError ? 'failed' : 'success' }
+/** 结局：运行中 / 待确认没有收据；其余按活动状态分三档 */
+function findCommandOutcome(input: { activity: ToolActivity }): JobOutcome | undefined {
+  switch (input.activity) {
+    case 'running':
+    case 'waiting':
+      return undefined
+    case 'cancelled':
+      return { status: 'cancelled' }
+    case 'failed':
+      return { status: 'failed' }
+    default:
+      return { status: 'success' }
+  }
 }
 
 export {
