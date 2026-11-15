@@ -330,6 +330,47 @@ async function main() {
       assertEqual(res.status, 401, '错 bearer 必须 401')
     })
 
+    // ── 2.1 跳源（CORS）────────────────────────────────────────────────────
+    // 这一条在浏览器里是「一切请求都 Failed to fetch」的唯一成因，而 Node 的 fetch
+    // 不做 CORS 检查 —— 不在这里显式断言，就只能在真机上撞。
+    await step('OPTIONS 预检免鉴权并回 CORS 头', async function () {
+      const origin = 'http://localhost:8200'
+      const preflight = await fetch(`${base}/threads`, {
+        method: 'OPTIONS',
+        headers: {
+          origin,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization,content-type'
+        }
+      })
+      assertEqual(preflight.status, 204, '预检应当 204（且不需要 token）')
+      assertEqual(
+        preflight.headers.get('access-control-allow-origin'),
+        origin,
+        '预检没有回显 Origin'
+      )
+      const methods = preflight.headers.get('access-control-allow-methods') ?? ''
+      assert(methods.includes('POST'), `预检没允许 POST（${methods}）`)
+      const allowed = (preflight.headers.get('access-control-allow-headers') ?? '').toLowerCase()
+      assert(allowed.includes('authorization'), `预检没允许 authorization（${allowed}）`)
+      return `origin=${origin}`
+    })
+
+    await step('普通请求也带 allow-origin（否则响应被浏览器丢掉）', async function () {
+      const origin = 'http://localhost:8200'
+      const response = await fetch(`${base}/health`, { headers: { origin } })
+      assertEqual(response.status, 200, '/health 应当 200')
+      assertEqual(
+        response.headers.get('access-control-allow-origin'),
+        origin,
+        '响应没有 allow-origin'
+      )
+      assert(
+        (response.headers.get('vary') ?? '').includes('Origin'),
+        '回显 origin 却缺 Vary，会被中间缓存写坏'
+      )
+    })
+
     // ── 3. 线程幂等（客户端的 id 是 checkpoint 主键） ──────────────────────
     const threadID = 'e2e-thread-fixed'
     await step('POST /threads 幂等 upsert（同 id 两次不换主键）', async function () {
