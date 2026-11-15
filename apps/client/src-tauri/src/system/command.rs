@@ -4,7 +4,6 @@ use serde_json::json;
 use std::time::Duration;
 
 use crate::utils::agentd::{self, AgentdEndpoint, AgentdState};
-use crate::utils::goose_serve::{self, GooseConnection, GooseServeState};
 use crate::utils::ipc;
 use crate::utils::sidecar::{self, SIDECAR_SHUTDOWN_TIMEOUT, SidecarState};
 
@@ -105,42 +104,9 @@ pub async fn sidecar_shutdown(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// `None` = 启动中；`Some(true/false)` = 已结束。
-#[tauri::command(rename = "goose:ready")]
-pub fn goose_ready(state: tauri::State<'_, GooseServeState>) -> Option<bool> {
-    if state.is_ready() {
-        return Some(true);
-    }
-    state.status()
-}
-
-#[tauri::command(rename = "goose:connection")]
-pub fn goose_connection(
-    state: tauri::State<'_, GooseServeState>,
-) -> Result<GooseConnection, String> {
-    state
-        .connection()
-        .ok_or_else(|| "goose serve 未就绪".to_string())
-}
-
-#[tauri::command(rename = "goose:shutdown")]
-pub async fn goose_shutdown(app: tauri::AppHandle) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
-        goose_serve::shutdown(&app);
-    })
-    .await
-    .map_err(|e| format!("goose shutdown 线程异常: {e}"))?;
-    Ok(())
-}
-
-#[tauri::command(rename = "goose:restart")]
-pub async fn goose_restart(app: tauri::AppHandle) -> Result<(), String> {
-    goose_serve::restart(&app).await
-}
-
 /// agentd 状态：`None` = 启动中；`Some(true/false)` = 已结束。
 ///
-/// 与 `goose:ready` 同构：前端 `waitAgentdReady` 拿它做兜底轮询（事件可能早于订阅）。
+/// 与旧 `goose:ready` 同构：前端 `waitGooseReady` 拿它做兜底轮询（事件可能早于订阅）。
 #[tauri::command(rename = "agentd:ready")]
 pub fn agentd_ready(state: tauri::State<'_, AgentdState>) -> Option<bool> {
     state.status()

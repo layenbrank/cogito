@@ -41,6 +41,7 @@ import type {
 
 import { parseAcpApprovalRequest, parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import type { AcpStreamContext } from '@/features/agent/acp/stream'
+import { callAgentd, callAgentdJson, forgetEndpoint, invokeGoose } from './agentd-rpc'
 import { humanizeRunError } from '@/features/agent/acp/run-error'
 import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
 import { isWriteTool } from '@/features/agent/approval'
@@ -56,7 +57,7 @@ import type { ThinkingLevel } from '@/features/persist'
 import { findPref } from '@/features/persist'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 import { BridgeInfoSchema } from '@/shared/ipc/specs/bridge'
-import type { GooseStatus } from '@/shared/ipc/specs/gooseStatus'
+import type { AgentdStatus } from '@/shared/ipc/specs/agentdStatus'
 import { StatusSchema } from '@/shared/ipc/specs/sidecar'
 import { useAgentStore } from '@/stores/agent'
 import { reportCaught } from '@/utils/exception-report'
@@ -89,14 +90,6 @@ type ThreadRunItem =
    */
   | { kind: 'event'; event: ChatStreamEvent }
   | { kind: 'stop'; stopReason: string }
-
-interface AgentdEndpoint {
-  baseUrl: string
-  port: number
-  pid: number
-  version: string
-  token: string
-}
 
 /** agentd 的审批载荷（`/threads/:id/events` 里 `kind:'approval'` 的 payload） */
 interface ApprovalPayload {
@@ -136,53 +129,6 @@ const EVENTS_PATH = '/threads'
 const sessionByThread = new Map<string, ThreadSession>()
 /** 每个 thread 的事件流序号（恢复订阅时用来续读） */
 const seqByThread = new Map<string, number>()
-
-// ── endpoint ────────────────────────────────────────────────────────────────
-
-let cachedEndpoint: AgentdEndpoint | null = null
-
-function forgetEndpoint(): void {
-  cachedEndpoint = null
-}
-
-async function findEndpoint(): Promise<AgentdEndpoint> {
-  if (cachedEndpoint) return cachedEndpoint
-  const value = await invoke<AgentdEndpoint>(CHANNELS.AGENTD.ENDPOINT)
-  cachedEndpoint = value
-  return value
-}
-
-/**
- * 调 agentd 的 HTTP 面。
- *
- * 401 说明 agentd 重启过（令牌变了）：清掉缓存让下次重取，并把错误抛给调用方 ——
- * 静默重试会把「已经换了进程」这件事藏起来，排查时很难受。
- */
-async function callAgentd(path: string, init?: RequestInit): Promise<Response> {
-  const endpoint = await findEndpoint()
-  const headers = new Headers(init?.headers)
-  headers.set('authorization', `Bearer ${endpoint.token}`)
-  if (init?.body !== undefined && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json')
-  }
-  const response = await fetch(`${endpoint.baseUrl}${path}`, { ...init, headers })
-  if (response.status === 401) {
-    forgetEndpoint()
-    throw new Error('agentd 拒绝了这个令牌（可能刚重启过），请重试')
-  }
-  return response
-}
-
-async function callAgentdJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await callAgentd(path, init)
-  if (!response.ok) {
-    const detail = await response.text().catch(function () {
-      return ''
-    })
-    throw new Error(`agentd ${path} 返回 ${response.status}${detail ? `：${detail}` : ''}`)
-  }
-  return (await response.json()) as T
-}
 
 // ── SSE ─────────────────────────────────────────────────────────────────────
 
@@ -237,7 +183,7 @@ async function* readSse(response: Response, signal: AbortSignal): AsyncGenerator
 // ── 就绪状态 ────────────────────────────────────────────────────────────────
 
 let agentdPhase: 'ready' | 'failed' | null = null
-let agentdStatus: GooseStatus | null = null
+let agentdStatus: AgentdStatus | null = null
 let statusSubscribed = false
 const phaseWaiters = new Set<() => void>()
 
@@ -247,14 +193,19 @@ function notifyPhase(): void {
   for (const waiter of waiters) waiter()
 }
 
-function toGooseStatus(payload: Record<string, unknown>): GooseStatus | null {
+function toAgentdStatus(payload: Record<string, unknown>): AgentdStatus | null {
   const state = payload.state
   if (state !== 'starting' && state !== 'ready' && state !== 'failed') return null
-  const status: GooseStatus = { state }
+  const status: AgentdStatus = { state }
   if (typeof payload.readyMs === 'number') status.readyMs = payload.readyMs
+  if (typeof payload.port === 'number') status.port = payload.port
+  if (typeof payload.pid === 'number') status.pid = payload.pid
+  if (typeof payload.restarts === 'number') status.restarts = payload.restarts
   if (typeof payload.reason === 'string') status.reason = payload.reason
-  // agentd 的 RSS 字段名不同（宿主 + 子进程），这里只保留宿主那份作为容量基线
-  if (typeof payload.rssBytes === 'number') status.rssBytes = payload.rssBytes
+  const goose = payload.goose
+  if (goose === 'disabled' || goose === 'starting' || goose === 'ready' || goose === 'failed') {
+    status.goose = goose
+  }
   return status
 }
 
@@ -264,7 +215,7 @@ async function subscribeStatus(): Promise<void> {
   try {
     await listen(EVENTS.AGENTD_STATUS, function (event) {
       const payload = (event.payload ?? {}) as Record<string, unknown>
-      const status = toGooseStatus(payload)
+      const status = toAgentdStatus(payload)
       if (!status) return
       agentdStatus = status
       agentdPhase = status.state === 'ready' ? 'ready' : status.state === 'failed' ? 'failed' : null
@@ -329,7 +280,7 @@ async function waitGooseReady(): Promise<void> {
   throw new Error(`agentd 在 ${READY_TIMEOUT_MS / 1000}s 内未就绪`)
 }
 
-function readGooseStatus(): GooseStatus | null {
+function readGooseStatus(): AgentdStatus | null {
   return agentdStatus
 }
 
@@ -541,13 +492,6 @@ const GOOSE_CONFIG_UPSERT = '_goose/unstable/config/upsert'
 const CONFIG_TEMPERATURE = 'GOOSE_TEMPERATURE'
 /** 思考强度：goose 全局键，枚举 off/low/medium/high/max（与 cogito 五档同名） */
 const CONFIG_THINKING_EFFORT = 'GOOSE_THINKING_EFFORT'
-
-async function invokeGoose<T>(method: string, params: Record<string, unknown>): Promise<T> {
-  return callAgentdJson<T>('/goose/invoke', {
-    method: 'POST',
-    body: JSON.stringify({ method, params })
-  })
-}
 
 /** 上一次写进 goose 全局键的值：没变就不重复 upsert */
 let lastThinkingEffort: string | null = null

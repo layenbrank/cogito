@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import { COGITO_PROVIDER_ID, syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
 import {
   checkAcpReadiness,

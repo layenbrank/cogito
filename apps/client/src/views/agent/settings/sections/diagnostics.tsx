@@ -12,7 +12,7 @@ import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import {
   fetchDiagnostics,
   type DiagnosticsLevel,
@@ -404,9 +404,9 @@ function DiagnosticsSection() {
 
       {gooseStatus ? (
         <p className="text-xs text-muted-foreground">
-          goose 就绪基线：
+          agentd 就绪基线：
           {gooseStatus.state === 'ready'
-            ? `${gooseStatus.readyMs ?? '?'} ms · 宿主 ${formatRss(gooseStatus.rssBytes)} · goose ${formatRss(gooseStatus.gooseRssBytes)}`
+            ? `${gooseStatus.readyMs ?? '?'} ms · 端口 ${gooseStatus.port ?? '?'} · pid ${gooseStatus.pid ?? '?'} · 内层 goose ${gooseStatus.goose ?? '?'} · 重启 ${gooseStatus.restarts ?? 0} 次 · 宿主 ${formatRss(gooseStatus.rssBytes)}`
             : gooseStatus.state === 'failed'
               ? `启动失败：${gooseStatus.reason ?? '未知原因'}`
               : '启动中'}

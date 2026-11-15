@@ -3,7 +3,7 @@
 //! goose 1.54 的 ACP `_goose/unstable/providers/custom/create` 不暴露 `auth.command`（只有
 //! `apiKey`），所以不走 ACP，改为直接写 `<goose-config>/custom_providers/cogito_gateway.json`。
 //! goose 每次启动/重启都会扫描该目录（`register_declarative_providers`），写完后
-//! `goose_serve::restart` 让 goose 重读。
+//! `agentd::restart_goose` 让 agentd 重启内层 goose 重读。
 //!
 //! 鉴权：`auth.command` 指向主程序自身（`cogito --token-helper --file <jwt>`），helper
 //! 每次读 `<appData>/cogito/jwt` 输出令牌（登录/刷新时由 `cogito_token` 原子落盘）。
@@ -160,7 +160,7 @@ pub async fn ensure_provider(
         }
     }
     write_provider_json(app, &target)?;
-    crate::utils::goose_serve::restart(app).await?;
+    crate::utils::agentd::restart_goose(app).await?;
     Ok(true)
 }
 
@@ -187,6 +187,6 @@ pub async fn set_tenant(app: &AppHandle, tenant_id: &str) -> Result<bool, String
         existing["headers"] = json!({ "X-Tenant-ID": tenant_id });
     }
     write_provider_json(app, &existing)?;
-    crate::utils::goose_serve::restart(app).await?;
+    crate::utils::agentd::restart_goose(app).await?;
     Ok(true)
 }

@@ -10,7 +10,7 @@
  * - `tools/list`：真的挂上了没有（注入了也可能起不来），顺便按 server 归类工具名。
  */
 import { findServerOf } from '@/features/agent/agent-tools'
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import { fetchSessionTools } from '@/features/agent/acp/goose-providers'
 import {
   findSessionMcpServers,

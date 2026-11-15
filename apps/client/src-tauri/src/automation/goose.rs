@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use cogito_database::entity::automation as schema;
 use tauri::{AppHandle, Manager};
 
-use crate::utils::goose_serve;
+use crate::utils::goose_cli;
 
 /// recipe 落在应用自己的数据目录下：`<appData>/goose/automation-recipes/<id>.yaml`
 const RECIPE_DIR: &str = "automation-recipes";
@@ -28,9 +28,9 @@ impl GooseSchedule {
         let recipe = Self::write_recipe(app, task)?;
         // 已存在时 add 会失败，所以先无条件删一次；删不到不算错
         let _ =
-            goose_serve::run_goose(app, &["schedule", "remove", "--schedule-id", &task.id]).await;
+            goose_cli::run_goose(app, &["schedule", "remove", "--schedule-id", &task.id]).await;
         let recipe_text = recipe.to_string_lossy().into_owned();
-        goose_serve::run_goose(
+        goose_cli::run_goose(
             app,
             &[
                 "schedule",
@@ -48,13 +48,13 @@ impl GooseSchedule {
     }
 
     pub async fn remove(app: &AppHandle, id: &str) -> Result<(), String> {
-        goose_serve::run_goose(app, &["schedule", "remove", "--schedule-id", id])
+        goose_cli::run_goose(app, &["schedule", "remove", "--schedule-id", id])
             .await
             .map(|_| ())
     }
 
     pub async fn run_now(app: &AppHandle, id: &str) -> Result<(), String> {
-        goose_serve::run_goose(app, &["schedule", "run-now", "--schedule-id", id])
+        goose_cli::run_goose(app, &["schedule", "run-now", "--schedule-id", id])
             .await
             .map(|_| ())
     }

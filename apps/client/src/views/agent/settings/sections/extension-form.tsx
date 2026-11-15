@@ -18,7 +18,7 @@ import { Textarea } from '@cogito/design/components/textarea'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import { addConfigExtension } from '@/features/agent/acp/goose-extensions'
 import { waitGooseReady } from '@/features/agent/port/session'
 import {

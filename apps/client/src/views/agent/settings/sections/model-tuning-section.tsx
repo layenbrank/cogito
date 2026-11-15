@@ -12,7 +12,7 @@ import { SettingsPanel, type SettingToggle } from '@cogito/design/assistant/sett
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import { fetchTemperature } from '@/features/agent/acp/goose-providers'
 import { applyGooseTemperature, waitGooseReady } from '@/features/agent/port/session'
 import { findModelLabel } from '@/features/agent/model/display'

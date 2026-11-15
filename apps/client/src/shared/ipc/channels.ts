@@ -320,13 +320,6 @@ export const CHANNELS = {
     TO_UPDATE: 'agentUsage:toUpdate',
     TO_REMOVE: 'agentUsage:toRemove'
   },
-  GOOSE: {
-    READY: 'goose:ready',
-    CONNECTION: 'goose:connection',
-    ACP_OPEN: 'goose:acp-open',
-    ACP_SEND: 'goose:acp-send',
-    ACP_CLOSE: 'goose:acp-close'
-  },
   COGITO: {
     TOKEN_WRITE: 'cogito:token:write',
     TOKEN_CLEAR: 'cogito:token:clear',
@@ -413,15 +406,9 @@ export const EVENTS = {
   COREX_NOT_READY: 'corex://not-ready',
   /** corex run / invoke 流式步骤帧（带 runId） */
   SIDECAR_PROGRESS: 'sidecar:progress',
-  GOOSE_NOT_READY: 'goose://not-ready',
-  /** goose serve 就绪状态机（S4）：`starting` / `ready` / `failed` 三个相位 */
-  GOOSE_STATUS: 'goose://status',
   /** 编排层宿主的就绪状态机；`AgentdStatusSchema` 解析同一份结构 */
   AGENTD_NOT_READY: 'agentd://not-ready',
   AGENTD_STATUS: 'agentd://status',
-  GOOSE_ACP_MESSAGE: 'goose://acp-message',
-  GOOSE_ACP_CLOSE: 'goose://acp-close',
-  GOOSE_ACP_ERROR: 'goose://acp-error',
   OVERLAY_MODE: 'overlay://mode',
   OVERLAY_MOUNT: 'overlay://mount',
   OVERLAY_UNMOUNT: 'overlay://unmount',

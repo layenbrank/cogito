@@ -13,7 +13,7 @@ import { Switch } from '@cogito/design/components/switch'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import {
   fetchConfigExtensions,
   fetchSessionExtensions,

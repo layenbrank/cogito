@@ -15,9 +15,7 @@ use crate::{
     utils::{
         agent_cache,
         agentd::{self, AgentdState},
-        goose_acp::GooseAcpHub,
-        goose_serve::{self, GooseServeState},
-        goose_tls, log_retention,
+        log_retention,
         sidecar::{self, SidecarState},
         terminal::TerminalHub,
     },
@@ -86,8 +84,6 @@ impl Bootstrap {
                 app.manage(bridge_state);
                 app.manage(SidecarState::new());
                 app.manage(AgentdState::new());
-                app.manage(GooseServeState::new());
-                app.manage(GooseAcpHub::new());
                 app.manage(TerminalHub::new());
                 // 闲置回收：agent 会话 30 分钟无输出且没有在跑的 run 就关掉
                 crate::utils::terminal::start_idle_reaper(app.handle().clone());
@@ -105,7 +101,8 @@ impl Bootstrap {
                         }
                     });
                 }
-                goose_tls::install_crypto_provider();
+                // rustls 的默认 provider 要显式装一次：agentd 探活与 provider 注册都走 reqwest(rustls)
+                let _ = rustls::crypto::ring::default_provider().install_default();
                 app.manage(ThroughState::new("overlay"));
                 app.manage(OverlayPending::default());
                 app.manage(OverlayHealth::default());
@@ -202,10 +199,9 @@ impl Bootstrap {
                     if !skip_sidecar {
                         #[cfg(windows)]
                         sidecar::spawn_and_watch(app.handle(), Duration::from_secs(20));
-                        // agentd 是编排层宿主，自己会拉起 goose（stdio ACP）；
-                        // goose_serve 的 wss 直连是旧路径，P4 切完前端后删。
+                        // agentd 是编排层宿主，自己会拉起 goose（stdio ACP），
+                        // 也是 agent 唯一的子进程。
                         agentd::spawn_and_watch(app.handle());
-                        goose_serve::spawn_and_watch(app.handle(), Duration::from_secs(30));
                     }
                 }
 
@@ -264,9 +260,8 @@ impl Bootstrap {
                     // 先落盘再拆子进程：即便后面某步 panic，也留下了「正常退出」的结论
                     crate::utils::diagnostics::mark_clean_exit();
                     tracing::info!("应用退出，开始回收 sidecar");
-                    // agentd 要排在 goose_serve 前面：它自己 fail-fast 收掉内层 goose
+                    // agentd 要排在前面：它自己 fail-fast 收掉内层 goose
                     agentd::shutdown(app);
-                    goose_serve::shutdown(app);
                     sidecar::shutdown(app);
                     crate::utils::terminal::shutdown(app);
                 }

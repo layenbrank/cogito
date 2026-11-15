@@ -16,7 +16,7 @@ import {
 import { Spinner } from '@cogito/design/components/spinner'
 import { useEffect, useState } from 'react'
 
-import { findAcpHandle } from '@/features/agent/acp/connection'
+import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import {
   fetchSessionTools,
   writeToolPermissions,
