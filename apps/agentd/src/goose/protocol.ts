@@ -33,6 +33,18 @@ interface JsonRpcNotification {
   params?: unknown
 }
 
+/**
+ * goose 反向发来的请求（现在只有 `session/request_permission`）。
+ *
+ * 与通知的区别就是有没有 `id`：有 id 就必须写回一条 result，否则 goose 会一直等。
+ */
+interface JsonRpcIncomingRequest {
+  jsonrpc: '2.0'
+  id: number
+  method: string
+  params?: unknown
+}
+
 interface LineSplitter {
   /** 喂一段 utf8 文本，返回**完整的**行（不含空行） */
   push(chunk: string): string[]
@@ -71,7 +83,10 @@ function parseMessage(line: string): JsonRpcResponse | JsonRpcNotification | nul
   try {
     const value = JSON.parse(line) as Record<string, unknown>
     if (typeof value !== 'object' || value === null) return null
-    if (typeof value.method === 'string') return value as unknown as JsonRpcNotification
+    if (typeof value.method === 'string') {
+      // 有 id = 对方在等回包（server → client request）；无 id 才是通知
+      return value as unknown as JsonRpcNotification | JsonRpcIncomingRequest
+    }
     if (typeof value.id === 'number') return value as unknown as JsonRpcResponse
     return null
   } catch {
@@ -79,5 +94,20 @@ function parseMessage(line: string): JsonRpcResponse | JsonRpcNotification | nul
   }
 }
 
-export { createLineSplitter, parseMessage }
-export type { JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, LineSplitter }
+/** 是不是 goose 发来的请求（要写回 result）。 */
+function isIncomingRequest(
+  message: JsonRpcResponse | JsonRpcNotification | JsonRpcIncomingRequest
+): message is JsonRpcIncomingRequest {
+  if (!('method' in message)) return false
+  return typeof (message as { id?: unknown }).id === 'number'
+}
+
+export { createLineSplitter, isIncomingRequest, parseMessage }
+export type {
+  JsonRpcError,
+  JsonRpcIncomingRequest,
+  JsonRpcNotification,
+  JsonRpcRequest,
+  JsonRpcResponse,
+  LineSplitter
+}

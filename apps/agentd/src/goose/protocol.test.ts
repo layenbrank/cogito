@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createLineSplitter, parseMessage } from './protocol'
+import { createLineSplitter, isIncomingRequest, parseMessage } from './protocol'
 
 describe('createLineSplitter', function () {
   it('按 \\n 切分，丢弃空行，并容忍 CRLF', function () {
@@ -33,5 +33,25 @@ describe('parseMessage', function () {
   it('坏 JSON 返回 null，不抛', function () {
     expect(parseMessage('not json')).toBeNull()
     expect(parseMessage('{"no":"id"}')).toBeNull()
+  })
+
+  /**
+   * 反向请求（goose → 我们）与通知的唯一区别是**有没有 id**。
+   * 认错就会把 `session/request_permission` 当成普通通知丢掉 —— 那样 goose 会一直等，
+   * 表现为「工具卡在跑、界面无反应」。
+   */
+  it('有 id 的 method 帧识别为反向请求，无 id 的才是通知', function () {
+    const request = parseMessage(
+      '{"jsonrpc":"2.0","id":42,"method":"session/request_permission","params":{"sessionId":"s1"}}'
+    )
+    expect(request).not.toBeNull()
+    expect(isIncomingRequest(request!)).toBe(true)
+
+    const notification = parseMessage('{"jsonrpc":"2.0","method":"session/update"}')
+    expect(notification).not.toBeNull()
+    expect(isIncomingRequest(notification!)).toBe(false)
+
+    const response = parseMessage('{"jsonrpc":"2.0","id":1,"result":{}}')
+    expect(isIncomingRequest(response!)).toBe(false)
   })
 })

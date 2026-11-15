@@ -12,7 +12,7 @@
 import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
-import { createLineSplitter, parseMessage } from './protocol'
+import { createLineSplitter, isIncomingRequest, parseMessage } from './protocol'
 import type { JsonRpcRequest } from './protocol'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
@@ -56,8 +56,31 @@ interface GooseAcpClient {
   /** 透传任意 ACP 方法（`_goose/unstable/*` 与 `session/list` 这类查询面） */
   request(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>
   onSessionUpdate(listener: (sessionId: string, update: unknown) => void): () => void
+  /**
+   * `session/request_permission` 的处理器。
+   *
+   * **未注册 = 一律取消**（fail-closed）：审批是安全闸门，没有人在听时宁可不执行。
+   */
+  onPermissionRequest(listener: PermissionRequestHandler | null): void
   close(): void
 }
+
+interface PermissionChoice {
+  optionId: string
+  name: string
+  kind: string
+}
+
+interface PermissionPrompt {
+  sessionId: string
+  toolCall: unknown
+  options: PermissionChoice[]
+}
+
+/** `null` = 用户取消（goose 会把这一步标记为未授权）。 */
+type PermissionDecision = { optionId: string } | null
+
+type PermissionRequestHandler = (prompt: PermissionPrompt) => Promise<PermissionDecision>
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -88,14 +111,80 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
   const pending = new Map<number, PendingRequest>()
   const updateListeners = new Set<(sessionId: string, update: unknown) => void>()
   const splitter = createLineSplitter()
+  let permissionHandler: PermissionRequestHandler | null = null
   let nextId = 1
   let closed = false
+
+  /** 把决定写回给 goose；请求方在等这条 result。 */
+  function respondPermission(requestId: number, decision: PermissionDecision): void {
+    if (closed) return
+    const result = decision
+      ? { outcome: { outcome: 'selected', optionId: decision.optionId } }
+      : { outcome: { outcome: 'cancelled' } }
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: requestId, result })}\n`)
+  }
+
+  async function handleIncomingRequest(method: string, id: number, params: unknown): Promise<void> {
+    if (method !== 'session/request_permission') {
+      // 未实现的反向请求必须回错，不能让它悬着
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32601, message: `未实现的客户端方法: ${method}` }
+        })}\n`
+      )
+      return
+    }
+
+    const record = (typeof params === 'object' && params !== null ? params : {}) as Record<
+      string,
+      unknown
+    >
+    const sessionId = typeof record.sessionId === 'string' ? record.sessionId : ''
+    const options = Array.isArray(record.options) ? record.options : []
+    const choices = options
+      .map(function (option) {
+        if (typeof option !== 'object' || option === null) return null
+        const item = option as Record<string, unknown>
+        if (typeof item.optionId !== 'string') return null
+        return {
+          optionId: item.optionId,
+          name: typeof item.name === 'string' ? item.name : item.optionId,
+          kind: typeof item.kind === 'string' ? item.kind : 'unknown'
+        }
+      })
+      .filter(function (choice): choice is PermissionChoice {
+        return choice !== null
+      })
+
+    if (!permissionHandler) {
+      // fail-closed：没有人在听就不执行
+      respondPermission(id, null)
+      return
+    }
+
+    try {
+      const decision = await permissionHandler({
+        sessionId,
+        toolCall: record.toolCall,
+        options: choices
+      })
+      respondPermission(id, decision)
+    } catch {
+      respondPermission(id, null)
+    }
+  }
 
   child.stdout.setEncoding('utf8')
   child.stdout.on('data', function (chunk: string) {
     for (const line of splitter.push(chunk)) {
       const message = parseMessage(line)
       if (!message) continue
+      if (isIncomingRequest(message)) {
+        void handleIncomingRequest(message.method, message.id, message.params)
+        continue
+      }
       if ('method' in message) {
         if (message.method === 'session/update') {
           const sessionId = sessionIdOf(message.params)
@@ -209,6 +298,9 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
         updateListeners.delete(listener)
       }
     },
+    onPermissionRequest: function (listener: PermissionRequestHandler | null): void {
+      permissionHandler = listener
+    },
     close: function (): void {
       closed = true
       try {
@@ -222,4 +314,14 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
 }
 
 export { spawnGooseAcp }
-export type { AgentCapabilities, GooseAcpClient, GooseAcpOptions, InitializeResult, NewSessionResult }
+export type {
+  AgentCapabilities,
+  GooseAcpClient,
+  GooseAcpOptions,
+  InitializeResult,
+  NewSessionResult,
+  PermissionChoice,
+  PermissionDecision,
+  PermissionPrompt,
+  PermissionRequestHandler
+}

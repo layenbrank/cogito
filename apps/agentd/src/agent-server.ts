@@ -19,6 +19,8 @@ import { randomUUID } from 'node:crypto'
 import { Command } from '@langchain/langgraph'
 import type { Express, Request, Response } from 'express'
 
+import type { ApprovalHub } from './approvals'
+
 const GRAPH_NAME = 'agent'
 
 /**
@@ -41,6 +43,8 @@ interface AgentServerOptions {
    * 生命周期属于 `goose/supervisor.ts`。为 null 时这些路由返回 503（未就绪）。
    */
   goose?: GooseQueryPort | null
+  /** 工具审批闸门；为 null 时 `/threads/:id/approvals` 一律 503 */
+  approvals?: ApprovalHub | null
 }
 
 interface GooseQueryPort {
@@ -70,6 +74,14 @@ function writeSse(res: Response, event: string, data: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
 }
 
+/** `/runs/stream` 的 input 必须带上 threadID，否则图不知道自己在服务哪个线程（审批回查用）。 */
+function withThreadID(input: unknown, threadID: string): unknown {
+  if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+    return { ...(input as Record<string, unknown>), threadID }
+  }
+  return { threadID }
+}
+
 /** `graph.stream` 在不同 streamMode 下的形状不同：多 mode 时给 `[mode, chunk]` */
 function readChunk(chunk: unknown): { mode: string; value: unknown } {
   if (Array.isArray(chunk) && chunk.length === 2 && typeof chunk[0] === 'string') {
@@ -81,6 +93,7 @@ function readChunk(chunk: unknown): { mode: string; value: unknown } {
 function createAgentServer(options: AgentServerOptions): AgentServer {
   const graphName = options.graphName ?? GRAPH_NAME
   const threads = new Map<string, ThreadRecord>()
+  const approvals = options.approvals ?? null
 
   function readThreadID(req: Request): string {
     return String(req.params.threadId ?? '')
@@ -106,7 +119,9 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     const body = (req.body ?? {}) as { input?: unknown; command?: Record<string, unknown> }
     // resume 必须传 **Command 实例**：直接透传普通对象会被当成 input 更新，于是再次 interrupt
     const payload =
-      body.command !== undefined ? new Command(body.command as never) : (body.input ?? {})
+      body.command !== undefined
+        ? new Command(body.command as never)
+        : withThreadID(body.input, threadID)
 
     res.status(200)
     res.setHeader('content-type', 'text/event-stream; charset=utf-8')
@@ -140,6 +155,8 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       writeSse(res, 'error', { message })
     } finally {
       thread.updated_at = nowIso()
+      // run 已经结束却还有待审批 → 这次回合不会再用到它，按取消结掉避免永久挂起
+      approvals?.cancelThread(threadID)
       const end: { status: string; message?: string } = { status }
       if (message) end.message = message
       writeSse(res, 'end', end)
@@ -285,6 +302,62 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
 
     app.post('/threads/:threadId/runs/stream', function (req: Request, res: Response) {
       void handleRunStream(req, res)
+    })
+
+    // ── 工具审批 ────────────────────────────────────────────────────────────
+    // 审批不能用 LangGraph 的 interrupt：`session/request_permission` 是在 session/prompt
+    // 还没返回时推上来的，打断节点就丢了那次 await。这里改成「挂住 ACP 回包 + 独立回执」。
+
+    app.get('/threads/:threadId/approvals', function (req: Request, res: Response) {
+      if (!approvals) {
+        res.status(503).json({ error: 'approvals_unavailable' })
+        return
+      }
+      res.json({ approvals: approvals.pending(readThreadID(req)) })
+    })
+
+    app.post('/threads/:threadId/approvals/:requestId', function (req: Request, res: Response) {
+      if (!approvals) {
+        res.status(503).json({ error: 'approvals_unavailable' })
+        return
+      }
+      const body = (req.body ?? {}) as { optionId?: string | null; cancelled?: boolean }
+      const optionId = body.cancelled === true ? null : (body.optionId ?? null)
+      const settled = approvals.settle(readParam(req, 'requestId'), optionId)
+      if (!settled) {
+        res.status(404).json({ error: 'approval_not_found' })
+        return
+      }
+      res.json({ ok: true, optionId })
+    })
+
+    /** 审批等事件的实时通道（SSE）。`/runs/stream` 只吐图状态，装不下这类外部事件。 */
+    app.get('/threads/:threadId/events', function (req: Request, res: Response) {
+      if (!approvals) {
+        res.status(503).json({ error: 'approvals_unavailable' })
+        return
+      }
+      const threadID = readThreadID(req)
+      if (!ensureThread(threadID)) {
+        res.status(404).json({ error: 'thread_not_found' })
+        return
+      }
+
+      res.status(200)
+      res.setHeader('content-type', 'text/event-stream; charset=utf-8')
+      res.setHeader('cache-control', 'no-cache, no-transform')
+      res.setHeader('connection', 'keep-alive')
+      res.flushHeaders()
+      // 订阅前先补发一次现状：请求可能发生在连上来之前
+      writeSse(res, 'approvals', { approvals: approvals.pending(threadID) })
+
+      const unsubscribe = approvals.subscribe(function (event) {
+        if (event.approval.threadID !== threadID) return
+        writeSse(res, event.type, event)
+      })
+      res.on('close', function () {
+        unsubscribe()
+      })
     })
   }
 

@@ -6,6 +6,7 @@
  */
 
 import { createAgentServer } from './agent-server'
+import { createApprovalHub } from './approvals'
 import { createSqliteSaver } from './checkpointer'
 import { readConfig } from './config'
 import { openDb } from './db'
@@ -49,8 +50,12 @@ async function bootstrap(): Promise<void> {
     await supervisor.start()
   }
 
+  // 工具审批闸门：goose 的 `session/request_permission` 挂在这里等用户回执
+  const approvals = createApprovalHub()
+
   const agentServer = createAgentServer({
-    graph: createGooseGraph(supervisor, createSqliteSaver(db)),
+    graph: createGooseGraph(supervisor, createSqliteSaver(db), approvals),
+    approvals,
     // goose 查询面（P4-a）：前端把 providers/extensions/diagnostics 这类读操作交给 agentd，
     // 不再自己连 ACP。未托管 goose 时为 null → 这些路由回 503。
     goose: {
@@ -81,6 +86,8 @@ async function bootstrap(): Promise<void> {
   }
 
   async function disposeAll(): Promise<void> {
+    // 先把待审批全部按取消结掉，免得有请求挂在半空
+    approvals.cancelAll()
     try {
       await supervisor.stop()
     } catch {
