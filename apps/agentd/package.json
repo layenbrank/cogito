@@ -1,0 +1,31 @@
+{
+  "name": "@cogito/agentd",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "cogito 桌面端 agent 循环宿主：goose(ACP/stdio) + LangGraph + Agent Protocol(HTTP/SSE)，由 Tauri 以 sidecar 管理",
+  "scripts": {
+    "build": "rolldown src/main.ts -o dist/main.cjs -f cjs --platform node",
+    "build:sea": "node scripts/build-sea.mjs",
+    "dev": "pnpm run build && node dist/main.cjs",
+    "sea": "node --experimental-sea-config sea-config.json",
+    "type-check": "tsc --noEmit",
+    "lint": "run-s lint:*",
+    "lint:eslint": "eslint . --fix",
+    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
+    "test:unit": "vitest",
+    "unit": "vitest run"
+  },
+  "dependencies": {
+    "@cogito/agent-protocol": "workspace:*",
+    "@langchain/core": "^1.4.1",
+    "@langchain/langgraph": "^1.7.4",
+    "@langchain/langgraph-checkpoint": "^1.2.2",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@langchain/langgraph-sdk": "^1.9.20",
+    "@types/express": "^5.0.0",
+    "postject": "1.0.0-alpha.6"
+  }
+}

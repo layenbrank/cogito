@@ -1,0 +1,7 @@
+{
+  "main": "dist/main.cjs",
+  "output": "dist/agentd.blob",
+  "disableExperimentalSEAWarning": true,
+  "useSnapshot": false,
+  "useCodeCache": false
+}
