@@ -37,6 +37,17 @@ describe('isLocalTool / isOpaqueShellTool / isLegacyFileWriter', function () {
     expect(isLegacyFileWriter('apply_patch')).toBe(true)
     expect(isLegacyFileWriter('cogito_workspace_write')).toBe(false)
   })
+
+  it('developer 扩展现行的 write / edit 也算内置写工具', function () {
+    expect(isLegacyFileWriter('write')).toBe(true)
+    expect(isLegacyFileWriter('edit')).toBe(true)
+  })
+
+  it('短名只做等值：本地工具与 todo 不被 write 子串误伤', function () {
+    expect(isLegacyFileWriter('local__cogito_workspace_write')).toBe(false)
+    expect(isLegacyFileWriter('todo__todo_write')).toBe(false)
+    expect(isLegacyFileWriter('local__cogito_terminal_write')).toBe(false)
+  })
 })
 
 describe('findHardDenyLevel', function () {
@@ -44,6 +55,12 @@ describe('findHardDenyLevel', function () {
     expect(findHardDenyLevel('shell')).toBe('never_allow')
     expect(findHardDenyLevel('text_editor')).toBe('never_allow')
     expect(findHardDenyLevel('cogito_workspace_write')).toBeNull()
+  })
+
+  it('developer 的 write / edit 与档位无关地硬禁用', function () {
+    expect(findHardDenyLevel('write')).toBe('never_allow')
+    expect(findHardDenyLevel('edit')).toBe('never_allow')
+    expect(findHardDenyLevel('todo__todo_write')).toBeNull()
   })
 })
 

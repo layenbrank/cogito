@@ -77,17 +77,29 @@ function isOpaqueShellTool(toolName: string): boolean {
 }
 
 /**
+ * goose developer 扩展的**精确**写工具名。
+ *
+ * 为什么必须单独一张精确表：这几个名字太短，只能等值匹配。`todo__todo_write` 剥前缀后是
+ * `todo_write`，含 `write` 子串——用子串匹配会把 todo 工具一起硬禁用，用户看到的是
+ * 「选了询问审批，todo 却直接被拒」。
+ */
+const EXACT_FILE_WRITE_NAMES: ReadonlySet<string> = new Set(['write', 'edit'])
+
+/**
  * goose 内置文件写工具：任何审批档都是 `never_allow`。
  *
  * why：Agent 的文件写只能走 `cogito_workspace_write` / `cogito_workspace_patch`——
  * 那条路有 `.git` 永久拒绝、`.env` / `*.pem` 二次确认、写前快照；goose 自带的
- * `text_editor` / `str_replace` / `apply_patch` 直接落盘，把这些闸门全部绕过。
+ * `write` / `edit` / `text_editor` / `str_replace` / `apply_patch` 直接落盘，把这些闸门
+ * 全部绕过。漏掉 `write` / `edit` 的后果实测过：`permission.yaml` 的 user 段里一条
+ * `write: always_allow` 就能让整条闸门永久失效（goose 只做精确匹配，通配符不生效）。
  */
 const LEGACY_FILE_WRITE_PATTERNS = ['text_editor', 'str_replace', 'apply_patch', 'apply_diff']
 
 function isLegacyFileWriter(toolName: string): boolean {
   const lower = stripServerPrefix(toolName)
   if (isLocalTool(lower)) return false
+  if (EXACT_FILE_WRITE_NAMES.has(lower)) return true
   return LEGACY_FILE_WRITE_PATTERNS.some(function (needle) {
     return lower.includes(needle)
   })
@@ -118,6 +130,7 @@ function findToolPermissionLevel(
 
 export {
   COREX_TOOLS,
+  EXACT_FILE_WRITE_NAMES,
   LOCAL_TOOLS,
   LOCK_VERSION,
   OPAQUE_SHELL_NAMES,
