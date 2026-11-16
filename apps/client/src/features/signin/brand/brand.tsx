@@ -5,8 +5,10 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import styles from '../signin.module.scss'
 
 /**
- * Dialog 开场 CSS ~200ms；再等一拍 idle 才挂 WebGPU，
- * 保证表单首帧可点，不被 shader 初始化抢主线程。
+ * 挂载 WebGPU 的最小延迟（开场动画时长是下限，见 `props.introMs`）：
+ * 首开 620ms / 同会话后续 260ms，都比固定 280ms 更贴实际——动画没播完就挂 shader，
+ * 编译尖刺会和入场动画叠在同一个帧里。
+ * 之后再等一拍 idle，并在真正挂之前确认窗口在前台。
  */
 const SHADER_OPEN_MS = 280
 
@@ -102,22 +104,36 @@ function Brand(props: BrandProps) {
 
       let isCancelled = false
       let cancelIdle = function () {}
-      const openTimer = window.setTimeout(
-        function () {
-          cancelIdle = scheduleIdle(function () {
-            if (!isCancelled) setIsShaderReady(true)
-          })
-        },
-        isReducedMotion ? 0 : SHADER_OPEN_MS
+      let openTimer = 0
+
+      function mountWhenIdle() {
+        cancelIdle()
+        cancelIdle = scheduleIdle(function () {
+          // 窗口在后台（最小化 / 被其他窗口盖住）时不抢 GPU，回前台再挂
+          if (isCancelled || document.visibilityState !== 'visible') return
+          setIsShaderReady(true)
+        })
+      }
+
+      function onVisibilityChange() {
+        if (isCancelled || document.visibilityState !== 'visible') return
+        mountWhenIdle()
+      }
+
+      openTimer = window.setTimeout(
+        mountWhenIdle,
+        isReducedMotion ? 0 : Math.max(SHADER_OPEN_MS, props.introMs)
       )
+      document.addEventListener('visibilitychange', onVisibilityChange)
 
       return function () {
         isCancelled = true
         window.clearTimeout(openTimer)
         cancelIdle()
+        document.removeEventListener('visibilitychange', onVisibilityChange)
       }
     },
-    [isLive, isReducedMotion]
+    [isLive, isReducedMotion, props.introMs]
   )
 
   const introSeconds = isReducedMotion ? 0 : props.introMs / 1000

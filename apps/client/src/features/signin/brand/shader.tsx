@@ -1,10 +1,8 @@
 import { useReducedMotion } from 'motion/react'
 import {
   Circle,
-  CursorRipples,
   FilmGrain,
   FloatingParticles,
-  FlowingGradient,
   LinearGradient,
   Ring,
   RoundedRect,
@@ -13,17 +11,21 @@ import {
   isWebGPUSupported
 } from 'shaders/react'
 
-import { hushTypegpuNoise } from './hush-typegpu'
 import styles from '../signin.module.scss'
-
-/** CursorRipples 的 TypeGPU 噪音在 Vite 预打包副本上，须在 Shader 挂载前过滤 console。 */
-hushTypegpuNoise()
 
 /**
  * 品牌 shader ——「思 · 台」。
  *
- * 形状装饰 + 光标水波；无大半径柔边实心圆。
- * 粒子数控住 WebGPU 首帧编译尖刺；挂载时机由 Brand 延后，不在此二次改树。
+ * 性能约束（实测：登录弹窗一挂 WebGPU 就把整个应用冻住，连浮层窗口一起卡）：
+ * 460×520 画布上量「挂载后最大帧间隔」：
+ * - 仅 LinearGradient            ≈ 115ms
+ * - + 形状 / 粒子 / 晕影 / 颗粒  ≈ 380ms
+ * - **再叠一个 `FlowingGradient` ≈ 1370ms** —— 它单独就吃掉 1 秒，故移除；
+ *   动态感改由缓慢漂浮的粒子提供（粒子那档几乎不增加开销）。
+ *
+ * 另外：不做 RTT（原 `CursorRipples` 会把整棵子树重建成离屏 pass 并接管指针），
+ * `FilmGrain` 静态、形状角度固定，开 `disableTelemetry` 不去外网上报采样。
+ * 挂载时机由 `Brand` 控制（开场动画结束 + 空闲 + 窗口可见），这里不做二次改树。
  */
 
 const DESK_STOPS = [
@@ -35,8 +37,8 @@ const DESK_STOPS = [
 const SHAPE = '#9aa6f0'
 const SHAPE_SOFT = '#6b78d4'
 
-/** 相对旧版 280 收一档，降低首帧编译/绘制尖刺 */
-const PARTICLE_COUNT = 110
+/** 粒子数：够看出层次即可，再多就是纯 GPU 负担 */
+const PARTICLE_COUNT = 48
 
 interface BrandShaderProps {
   onUnavailable?: () => void
@@ -48,30 +50,6 @@ function BrandShader(props: BrandShaderProps) {
   if (!isWebGPUSupported()) return null
 
   const speed = isReducedMotion ? 0 : 1
-  const canInteract = !isReducedMotion
-
-  // RoundedRect 类型只声明 rotation: number，运行时仍接受 auto-animate driver
-  const tileARotation = canInteract
-    ? {
-        type: 'auto-animate' as const,
-        mode: 'ping-pong' as const,
-        outputMin: -10,
-        outputMax: 8,
-        speed: 0.07,
-        easing: 'sine' as const
-      }
-    : -6
-
-  const tileBRotation = canInteract
-    ? {
-        type: 'auto-animate' as const,
-        mode: 'ping-pong' as const,
-        outputMin: 4,
-        outputMax: 18,
-        speed: 0.09,
-        easing: 'sine' as const
-      }
-    : 12
 
   const scene = (
     <>
@@ -80,18 +58,6 @@ function BrandShader(props: BrandShaderProps) {
         colorSpace="oklab"
         start={{ x: 0, y: 0 }}
         end={{ x: 0.15, y: 1 }}
-      />
-
-      <FlowingGradient
-        colorA="#080b16"
-        colorB="#121a36"
-        colorC="#1a2860"
-        colorD="#243878"
-        colorSpace="oklab"
-        speed={0.18 * speed}
-        distortion={0.22}
-        seed={2}
-        opacity={0.35}
       />
 
       <Ring
@@ -110,7 +76,7 @@ function BrandShader(props: BrandShaderProps) {
         width={0.12}
         height={0.09}
         rounding={0.04}
-        rotation={tileARotation as number}
+        rotation={-6}
         softness={0.015}
         opacity={0.24}
         blendMode="screen"
@@ -122,7 +88,7 @@ function BrandShader(props: BrandShaderProps) {
         width={0.1}
         height={0.1}
         rounding={0.032}
-        rotation={tileBRotation as number}
+        rotation={12}
         softness={0.008}
         strokeThickness={0.007}
         strokeColor={SHAPE}
@@ -164,13 +130,11 @@ function BrandShader(props: BrandShaderProps) {
         count={PARTICLE_COUNT}
         particleSize={0.5}
         softness={0.35}
-        speed={0.08 * speed}
+        speed={0.06 * speed}
         angle={70}
         speedVariance={0.55}
         angleVariance={50}
         randomness={0.45}
-        twinkle={canInteract ? 0.25 : 0}
-        cursorStrength={canInteract ? 0.4 : 0}
         opacity={0.28}
         blendMode="screen"
       />
@@ -180,19 +144,10 @@ function BrandShader(props: BrandShaderProps) {
   return (
     <Shader
       className={styles.brandShaderMount}
+      // 桌面端登录页不需要向 shaders.com 上报采样（默认开启，会定时 fetch）
+      disableTelemetry
       onUnavailable={props.onUnavailable}>
-      {canInteract ? (
-        <CursorRipples
-          intensity={7}
-          decay={11}
-          radius={0.48}
-          chromaticSplit={0.12}
-          edges="mirror">
-          {scene}
-        </CursorRipples>
-      ) : (
-        scene
-      )}
+      {scene}
 
       <Vignette
         color="#05070f"
@@ -205,7 +160,7 @@ function BrandShader(props: BrandShaderProps) {
       <FilmGrain
         strength={0.02}
         bias={2.5}
-        animated={canInteract}
+        animated={false}
       />
     </Shader>
   )

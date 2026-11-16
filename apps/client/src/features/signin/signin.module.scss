@@ -49,7 +49,8 @@
 }
 
 .brandShaderHost {
-  pointer-events: auto;
+  /* shader 只做装饰：不吃指针，避免它把整个品牌栏变成点击目标 */
+  pointer-events: none;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -61,13 +62,13 @@
   display: block !important;
   width: 100% !important;
   height: 100% !important;
-  pointer-events: auto !important;
+  pointer-events: none !important;
 
   :global(canvas) {
     display: block;
     width: 100% !important;
     height: 100% !important;
-    pointer-events: auto;
+    pointer-events: none;
   }
 }
 
