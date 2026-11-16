@@ -141,17 +141,54 @@ function listHardDenyToolNames(toolNames: readonly string[]): string[] {
   return Array.from(seen)
 }
 
+/**
+ * goose 拒绝工具时的固定文案（`crates/goose/src/agents/tool_execution.rs` 的
+ * `DECLINED_RESPONSE`）。
+ *
+ * 完整原文还有后半句 `DO NOT attempt to call this tool again. …`，所以只比对开头。
+ */
+const POLICY_DENIED_PREFIX = 'The user has declined to run this tool.'
+
+/**
+ * 这条工具结果是不是「被策略拒的」而不是「用户真的点了拒绝」。
+ *
+ * goose 把两条路径压成同一句话（`ApprovalDecision::Deny { reason: DECLINED_RESPONSE }`
+ * 同时覆盖用户点拒绝和 `never_allow` 命中），所以模型只能猜到「用户拒绝」—— 实测过
+ * 一次对话里 agent 反复追问「你是不是点了拒绝」，排查方向完全跑偏。
+ *
+ * 这里只把文案识别出来；到底是「设计禁用」还是「权限文件里的手动偏好」，
+ * 由调用方结合 `findHardDenyLevel` 判断（见 `findHardDenyReplacement`）。
+ */
+function isPolicyDeniedText(text: string): boolean {
+  return text.includes(POLICY_DENIED_PREFIX)
+}
+
+/**
+ * 硬禁用工具的替代入口（告诉用户与模型「改用哪个」）。
+ *
+ * 非硬禁用返回 `null` —— 那种情况是 `permission.yaml` 的手动偏好或档位拦的，
+ * 该引导用户去设置页看，而不是换工具。
+ */
+function findHardDenyReplacement(toolName: string): string | null {
+  if (isOpaqueShellTool(toolName)) return 'cogito_terminal_run'
+  if (isLegacyFileWriter(toolName)) return 'cogito_workspace_write / cogito_workspace_patch'
+  return null
+}
+
 export {
   COREX_TOOLS,
   EXACT_FILE_WRITE_NAMES,
   LOCAL_TOOLS,
   LOCK_VERSION,
   OPAQUE_SHELL_NAMES,
+  POLICY_DENIED_PREFIX,
   findGooseMode,
   findHardDenyLevel,
+  findHardDenyReplacement,
   isLegacyFileWriter,
   isLocalTool,
   isOpaqueShellTool,
+  isPolicyDeniedText,
   listHardDenyToolNames
 }
 export type { ApprovalMode, GooseMode, ToolPermissionLevel }

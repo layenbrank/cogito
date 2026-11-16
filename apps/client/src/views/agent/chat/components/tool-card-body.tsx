@@ -26,6 +26,7 @@ import { ToolFallback } from '@cogito/design/assistant/tool-fallback.aui'
 import { Button } from '@cogito/design/components/button'
 
 import { toolCallSummary } from '@/features/agent/tool-call-summary'
+import { findHardDenyReplacement, isPolicyDeniedText } from '@/features/agent/approval'
 import {
   findBrowserToolLabel,
   isBrowserTool,
@@ -90,6 +91,13 @@ function ToolCardFallbackBody(
   const outputText = props.parsed.text
   const tree = props.parsed.special?.kind === 'tree' ? props.parsed.special.data : null
   const argsText = props.argsText ?? JSON.stringify(props.args, null, 2)
+  /**
+   * goose 把「策略拒绝」和「用户点了拒绝」压成同一句文案（`DECLINED_RESPONSE`），
+   * 模型只能猜到后者 —— 实测过一次对话里 agent 反复追问「你是不是点了拒绝」，
+   * 排查方向完全跑偏。这里把两种情形重新分开说明。
+   */
+  const policyDenied = Boolean(props.isError) && isPolicyDeniedText(outputText)
+  const replacement = policyDenied ? findHardDenyReplacement(props.toolName) : null
 
   return (
     <ToolFallback.Root
@@ -108,6 +116,22 @@ function ToolCardFallbackBody(
       />
       <ToolFallback.Content>
         <ToolFallback.Error status={props.status} />
+        {policyDenied ? (
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed">
+            {replacement ? (
+              <>
+                这个工具在设计上就是禁用的（黑盒终端 / goose 原厂写工具会绕开 cogito 的终端与工作区写闸门），
+                与审批档无关。请改用{' '}
+                <code className="font-mono">{replacement}</code>。
+              </>
+            ) : (
+              <>
+                这次调用被授权策略拒绝，原因记录在权限文件里（不是当前这一轮点了拒绝）。到
+                「设置 → 工具权限 → 手动偏好」看是哪条「从不允许」命中，必要时重置。
+              </>
+            )}
+          </div>
+        ) : null}
         {tree ? <ToolCardTree nodes={tree} /> : null}
         <ToolFallback.Args argsText={argsText} />
         {outputText ? (
@@ -147,6 +171,16 @@ function ToolCardFallbackBody(
 function ToolCardShellBody(props: ToolCallMessagePartProps & { parsed: ParsedToolCard }) {
   const { variant } = props.parsed
   const label = toAgentToolLabel(props.toolName)
+
+  // 策略拒绝既不是「写成功」也不是「命令跑完」：一律走通用行，由它把原因说清楚
+  if (props.isError && isPolicyDeniedText(props.parsed.text)) {
+    return (
+      <ToolCardFallbackBody
+        {...props}
+        label={label}
+      />
+    )
+  }
 
   if (variant === 'write') {
     return (

@@ -210,11 +210,14 @@ export {
   EXACT_FILE_WRITE_NAMES,
   findGooseMode,
   findHardDenyLevel,
+  findHardDenyReplacement,
   isLegacyFileWriter,
   isLocalTool,
   isOpaqueShellTool,
+  isPolicyDeniedText,
   isWriteTool,
   listHardDenyToolNames,
+  POLICY_DENIED_PREFIX,
   stripServerPrefix
 } from '@cogito/agent-protocol/policy'
 export type { GooseMode, ToolEffect } from '@cogito/agent-protocol/policy'

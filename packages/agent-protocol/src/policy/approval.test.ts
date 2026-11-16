@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   findGooseMode,
   findHardDenyLevel,
+  findHardDenyReplacement,
   isLegacyFileWriter,
   isLocalTool,
   isOpaqueShellTool,
+  isPolicyDeniedText,
   listHardDenyToolNames
 } from './approval'
 
@@ -64,6 +66,34 @@ describe('findHardDenyLevel', function () {
     expect(findHardDenyLevel('write')).toBe('never_allow')
     expect(findHardDenyLevel('edit')).toBe('never_allow')
     expect(findHardDenyLevel('todo__todo_write')).toBeNull()
+  })
+})
+
+describe('策略拒绝的识别', function () {
+  // goose 的 DECLINED_RESPONSE 原文（tool_execution.rs 的 const，含后半句 STOP）
+  const DECLINED =
+    'The user has declined to run this tool. DO NOT attempt to call this tool again. ' +
+    'If there are no alternative methods to proceed, clearly explain the situation and STOP.'
+
+  it('识别 goose 的拒绝文案，包括被包在 JSON 里的情况', function () {
+    expect(isPolicyDeniedText(DECLINED)).toBe(true)
+    expect(isPolicyDeniedText(`{"error":${JSON.stringify(DECLINED)}}`)).toBe(true)
+    expect(isPolicyDeniedText('The user has declined to run this tool.')).toBe(true)
+  })
+
+  it('普通工具输出不算', function () {
+    expect(isPolicyDeniedText('file written')).toBe(false)
+    expect(isPolicyDeniedText('')).toBe(false)
+  })
+
+  it('硬禁用给出替代入口，其余返回 null（那属于权限文件问题）', function () {
+    expect(findHardDenyReplacement('shell')).toBe('cogito_terminal_run')
+    expect(findHardDenyReplacement('write')).toBe(
+      'cogito_workspace_write / cogito_workspace_patch'
+    )
+    // execute_javascript 不是硬禁用：它被拒只能是 permission.yaml 里的手动偏好
+    expect(findHardDenyReplacement('execute_javascript')).toBeNull()
+    expect(findHardDenyReplacement('local__cogito_terminal_run')).toBeNull()
   })
 })
 
