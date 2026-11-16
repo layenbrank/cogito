@@ -903,3 +903,56 @@ pub async fn workspaceGitRebaseAbort(params: PathP) -> CommandResult<ActionR> {
         summary: "已中止变基，回到变基前".into(),
     })
 }
+
+// ─── 工作树 ───
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorktreeAddP {
+    pub path: String,
+    /// 新工作树的落点（可以还不存在）
+    pub target_path: String,
+    pub branch: Option<String>,
+    /// true = 新建分支（`-b`）；false = 检出现有分支
+    pub is_new_branch: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorktreeRemoveP {
+    pub path: String,
+    pub target_path: String,
+    /// 有未提交改动时 git 会拒绝删除，`--force` 才放行
+    pub is_force: Option<bool>,
+}
+
+#[tauri::command(rename = "workspaceGit:worktreeList")]
+pub async fn workspaceGitWorktreeList(params: PathP) -> CommandResult<Vec<git::WorktreeR>> {
+    let cwd = validate_path(&params.path)?;
+    git::list_worktrees(&cwd).await
+}
+
+#[tauri::command(rename = "workspaceGit:worktreeAdd")]
+pub async fn workspaceGitWorktreeAdd(params: WorktreeAddP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let target = git::validate_worktree_target(&params.target_path)?;
+    let summary = git::add_worktree(
+        &cwd,
+        &target,
+        params.branch.as_deref(),
+        params.is_new_branch.unwrap_or(true),
+    )
+    .await?;
+    bump_status(&cwd);
+    Ok(ActionR { summary })
+}
+
+#[tauri::command(rename = "workspaceGit:worktreeRemove")]
+pub async fn workspaceGitWorktreeRemove(params: WorktreeRemoveP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let target = git::validate_worktree_target(&params.target_path)?;
+    let summary =
+        git::remove_worktree(&cwd, &target, params.is_force.unwrap_or(false)).await?;
+    bump_status(&cwd);
+    Ok(ActionR { summary })
+}
