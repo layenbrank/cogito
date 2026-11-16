@@ -26,8 +26,9 @@
 
 .loadingBadge {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
+  /* 贴可用区边：浮层铺满整屏，任务栏那条不算可用区（变量由 capture-stage-view 下放） */
+  right: calc(var(--work-right, 0px) + 24px);
+  bottom: calc(var(--work-bottom, 0px) + 24px);
   padding: 6px 12px;
   border-radius: 999px;
   background: rgba(10, 10, 10, 0.72);
@@ -156,8 +157,8 @@
 /* 取字结果面板 */
 .ocrPanel {
   position: absolute;
-  top: 16px;
-  right: 60px;
+  top: calc(var(--work-top, 0px) + 16px);
+  right: calc(var(--work-right, 0px) + 60px);
   z-index: 205;
   display: flex;
   flex-direction: column;

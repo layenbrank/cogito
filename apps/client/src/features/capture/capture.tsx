@@ -11,6 +11,7 @@ import { useCaptureHistory } from '@/features/capture/use-capture-history'
 import { useCaptureLifecycle } from '@/features/capture/use-capture-lifecycle'
 import { useCaptureOcr } from '@/features/capture/use-capture-ocr'
 import { useCaptureStage, type Phase } from '@/features/capture/use-capture-stage'
+import { useCaptureWorkArea } from '@/features/capture/use-work-area'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useCommands, useShortcut } from '@/keyboard/react'
 import { DETECT_ELEMENT, DETECT_WINDOW, useSettingsStore, type Setting } from '@/stores/setting'
@@ -100,6 +101,8 @@ function Capture(props: CaptureProps = {}) {
   const detect = useSettingsStore(function (state) {
     return state.settings.capture.detect
   })
+  /** 可用矩形（扣掉任务栏）：工具栏与贴边面板都按它避让，见 `use-work-area` */
+  const workArea = useCaptureWorkArea()
   const isWindowDetect = detect === DETECT_WINDOW || detect === DETECT_ELEMENT
   const isElementDetect = detect === DETECT_ELEMENT
   const { present: presentContextMenu } = useContextMenu()
@@ -283,6 +286,7 @@ function Capture(props: CaptureProps = {}) {
         annotations={annotations}
         sourceImage={sourceImage}
         sourcePath={sourcePath}
+        workArea={workArea}
         actions={actions}
         onUpdateSelection={onUpdateSelection}
         phase={phase}

@@ -2,6 +2,7 @@ import { AnimatePresence } from 'motion/react'
 import * as m from 'motion/react-m'
 
 import { type GraphicsEnum } from '@/features/capture/components/graphics'
+import type { CaptureRect } from '@/features/capture/tauri'
 
 import { UtilityPropsSurface } from './props-surface'
 import { UtilityToolbar } from './toolbar'
@@ -12,6 +13,8 @@ import styles from './utility.module.scss'
 
 interface UtilityProps {
   selection: { x: number; y: number; w: number; h: number } | null
+  /** 可用矩形（扣掉任务栏）：工具栏不能贴到任务栏后面去 */
+  workArea: CaptureRect | null
   active: GraphicsEnum | null
   color: string
   thickness: number
@@ -49,6 +52,7 @@ function Utility(props: UtilityProps) {
     opacity,
     selection,
     thickness,
+    workArea,
     onUpdateColor,
     onUpdateFilled,
     onUpdateFontSize,
@@ -64,7 +68,7 @@ function Utility(props: UtilityProps) {
     onUpdateUtility
   } = props
 
-  const { containerRef, position } = useUtilityPosition(selection, active)
+  const { containerRef, position } = useUtilityPosition(selection, active, workArea)
   const {
     pickerOpen,
     setPickerOpen,

@@ -175,6 +175,7 @@ tauri-plugin-updater = "2.14.0" # 检查更新
 windows = { version = "0.62", features = [
   "Win32_UI_WindowsAndMessaging",
   "Win32_UI_Accessibility",
+  "Win32_UI_Shell",
   "Win32_Foundation",
   "Win32_Graphics_Dwm",
   "Win32_Graphics_Gdi",

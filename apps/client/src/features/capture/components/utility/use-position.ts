@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
-import { readWorkArea, type CaptureRect } from '@/features/capture/tauri'
+import type { CaptureRect } from '@/features/capture/tauri'
 
 interface SelectionRect {
   x: number
@@ -20,9 +20,8 @@ const GAP = 8
 /**
  * 可用区：整屏扣掉任务栏后那块（overlay 局部 CSS 像素）。
  *
- * 浮层按监视器**物理矩形**铺满（含任务栏那条），所以 `innerHeight` 不是安全边界：
- * 任务栏是 topmost，永远压在浮层上面 —— 整屏选区把工具栏贴到屏幕底部就钻进任务栏后面。
- * 任务栏自动隐藏时工作区等于整屏，此时仍按 `GAP` 内缩，避开任务栏探出的那一条。
+ * 浮层铺满**整屏**（含任务栏那条），而任务栏常驻 topmost —— 拿视口边缘当边界，
+ * 整屏选区就会把工具栏贴到任务栏后面去。`work` 为 null（读不到可用区）时才退回整屏。
  */
 function resolveBounds(work: CaptureRect | null) {
   if (work) {
@@ -31,33 +30,22 @@ function resolveBounds(work: CaptureRect | null) {
   return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
 }
 
-/** 工具栏跟随选区下沿定位：下方装不下翻到上沿；右侧/下方一律夹在可用区里 */
+/**
+ * 工具栏跟随选区定位：默认贴选区下沿；下方装不下翻到上沿；上下都装不下（整屏选区）
+ * 就贴可用区底边。左右与上下最终都夹在可用区里。
+ *
+ * 纯函数式（入参只有选区、可用区），IO 由调用方在截屏会话开始时做一次。
+ */
 function useUtilityPosition(
   selection: SelectionRect | null,
-  active: unknown
+  active: unknown,
+  work: CaptureRect | null
 ): {
   containerRef: RefObject<HTMLDivElement | null>
   position: UtilityPosition
 } {
   const containerRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<UtilityPosition>({ top: 0, left: 0 })
-  /** 可用区由宿主给（一次截屏会话内不变）；拿不到就退回整屏 */
-  const [work, setWork] = useState<CaptureRect | null>(null)
-
-  useEffect(function () {
-    let alive = true
-    void readWorkArea()
-      .then(function (rect) {
-        if (alive && rect) setWork(rect)
-      })
-      .catch(function (error: unknown) {
-        // 读不到就用整屏兜底：工具栏最多贴边，不能因此不显示
-        console.warn('[capture] 读取可用区失败，工具栏按整屏定位', error)
-      })
-    return function () {
-      alive = false
-    }
-  }, [])
 
   useLayoutEffect(
     function () {

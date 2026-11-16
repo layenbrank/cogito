@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 use crate::capture::occlusion::{Box2, CoverageGrid, is_visible_enough};
 use crate::capture::schema::{CaptureRect, CaptureRegion, RegionKind};
 use crate::overlay::command::OVERLAY_LABEL;
+use crate::ui::taskbar;
 
 const MIN_SIDE_PX: i32 = 8;
 
@@ -30,6 +31,47 @@ pub struct ScreenBox {
     pub top: i32,
     pub right: i32,
     pub bottom: i32,
+}
+
+impl ScreenBox {
+    pub fn width(&self) -> i32 {
+        self.right - self.left
+    }
+
+    pub fn height(&self) -> i32 {
+        self.bottom - self.top
+    }
+}
+
+/// 扣掉 auto-hide 任务栏会探出来的那一条。
+///
+/// 独立成「纯函数 + 预留量入参」是为了能单测：真机上任务栏设置切来切去太慢，
+/// 而四个停靠边的减法正是容易写反的部分。
+fn shrink_for_autohide(rect: ScreenBox, reserve: Option<(taskbar::Edge, i32)>) -> ScreenBox {
+    let Some((edge, thickness)) = reserve else {
+        return rect;
+    };
+    if thickness <= 0 {
+        return rect;
+    }
+    match edge {
+        taskbar::Edge::Top => ScreenBox {
+            top: rect.top + thickness,
+            ..rect
+        },
+        taskbar::Edge::Bottom => ScreenBox {
+            bottom: rect.bottom - thickness,
+            ..rect
+        },
+        taskbar::Edge::Left => ScreenBox {
+            left: rect.left + thickness,
+            ..rect
+        },
+        taskbar::Edge::Right => ScreenBox {
+            right: rect.right - thickness,
+            ..rect
+        },
+    }
 }
 
 /// 候选矩形的元信息（窗口/元素身份）
@@ -93,9 +135,10 @@ impl OverlayFrame {
 
     /// 主显示器工作区（扣掉任务栏）→ overlay 局部逻辑像素。
     ///
-    /// 浮层按监视器**物理矩形**铺满（含任务栏那条），但工具栏不能落在任务栏上：
+    /// 浮层按监视器**物理矩形**铺满（含任务栏那条），但工具栏与贴边面板不能落在任务栏上：
     /// Windows 任务栏常驻 topmost，会把浮层那一块压住（任务栏贴左/上时同理）。
-    /// 读不到或退化到不合理的尺寸时退回整屏 —— 宁可贴边，也别给出负数矩形。
+    /// auto-hide 的任务栏 `work_area()` 里体现不出来，所以还要再扣掉它探出来的那条
+    /// （见 `ui::taskbar`）。读不到或退化到不合理的尺寸时退回整屏。
     pub fn work_area(&self) -> CaptureRect {
         let full = CaptureRect {
             x: 0.0,
@@ -105,18 +148,23 @@ impl OverlayFrame {
         };
         let right_edge = self.origin.x.saturating_add(self.size.width as i32);
         let bottom_edge = self.origin.y.saturating_add(self.size.height as i32);
-        let left = self.work.left.max(self.origin.x);
-        let top = self.work.top.max(self.origin.y);
-        let right = self.work.right.min(right_edge);
-        let bottom = self.work.bottom.min(bottom_edge);
-        if right - left < MIN_WORK_SIDE_PX || bottom - top < MIN_WORK_SIDE_PX {
+        let usable = shrink_for_autohide(
+            ScreenBox {
+                left: self.work.left.max(self.origin.x),
+                top: self.work.top.max(self.origin.y),
+                right: self.work.right.min(right_edge),
+                bottom: self.work.bottom.min(bottom_edge),
+            },
+            crate::ui::taskbar::autohide_reserve(),
+        );
+        if usable.width() < MIN_WORK_SIDE_PX || usable.height() < MIN_WORK_SIDE_PX {
             return full;
         }
         CaptureRect {
-            x: f64::from(left - self.origin.x) / self.scale,
-            y: f64::from(top - self.origin.y) / self.scale,
-            w: f64::from(right - left) / self.scale,
-            h: f64::from(bottom - top) / self.scale,
+            x: f64::from(usable.left - self.origin.x) / self.scale,
+            y: f64::from(usable.top - self.origin.y) / self.scale,
+            w: f64::from(usable.width()) / self.scale,
+            h: f64::from(usable.height()) / self.scale,
         }
     }
 
@@ -171,7 +219,8 @@ pub fn find_overlay_work_area(app: &AppHandle) -> Option<CaptureRect> {
     OverlayFrame::find(app).map(|frame| frame.work_area())
 }
 
-pub fn find_overlay_regions(app: &AppHandle) -> Vec<CaptureRegion> {    let Some(frame) = OverlayFrame::find(app) else {
+pub fn find_overlay_regions(app: &AppHandle) -> Vec<CaptureRegion> {
+    let Some(frame) = OverlayFrame::find(app) else {
         return Vec::new();
     };
 
@@ -530,4 +579,47 @@ fn find_windows_regions(
         )
     };
     state.regions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn screen() -> ScreenBox {
+        ScreenBox {
+            left: 0,
+            top: 0,
+            right: 2560,
+            bottom: 1600,
+        }
+    }
+
+    #[test]
+    fn no_reserve_keeps_the_rect() {
+        assert_eq!(shrink_for_autohide(screen(), None).bottom, 1600);
+        assert_eq!(
+            shrink_for_autohide(screen(), Some((taskbar::Edge::Bottom, 0))).right,
+            2560
+        );
+    }
+
+    #[test]
+    fn bottom_taskbar_eats_the_bottom_strip() {
+        // 1080p @125% 缩放 ≈ 96 物理像素的任务栏
+        let rect = shrink_for_autohide(screen(), Some((taskbar::Edge::Bottom, 96)));
+        assert_eq!(
+            (rect.left, rect.top, rect.right, rect.bottom),
+            (0, 0, 2560, 1504)
+        );
+    }
+
+    #[test]
+    fn other_edges_eat_their_own_strip() {
+        let top = shrink_for_autohide(screen(), Some((taskbar::Edge::Top, 60)));
+        assert_eq!((top.top, top.bottom), (60, 1600));
+        let left = shrink_for_autohide(screen(), Some((taskbar::Edge::Left, 80)));
+        assert_eq!((left.left, left.right), (80, 2560));
+        let right = shrink_for_autohide(screen(), Some((taskbar::Edge::Right, 80)));
+        assert_eq!((right.left, right.right), (0, 2480));
+    }
 }

@@ -51,6 +51,8 @@ pub mod ui {
     /// 前台化 / 置顶（Windows 前台锁绕行）
     pub mod foreground;
     pub mod native_find;
+    /// 任务栏占位（auto-hide 时它会探出来盖住贴边浮层）
+    pub mod taskbar;
     pub mod tray;
 }
 

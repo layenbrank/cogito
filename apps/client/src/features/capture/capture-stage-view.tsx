@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import type { RefObject } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 
 import { copyText } from '@/features/capture/clipboard'
 import { CaptureErrorSurface, CaptureLoadingMask } from '@/features/capture/capture-status'
@@ -10,10 +10,28 @@ import { OcrSurface } from '@/features/capture/components/ocr-surface'
 import Utility from '@/features/capture/components/utility'
 import type { useCaptureActions } from '@/features/capture/use-capture-actions'
 import type { Phase } from '@/features/capture/use-capture-stage'
+import type { CaptureRect } from '@/features/capture/tauri'
 
 import styles from '@/features/capture/capture.module.scss'
 
 type CaptureActions = ReturnType<typeof useCaptureActions>
+
+/**
+ * 把可用区（扣掉任务栏）写成 CSS 变量挂在根节点上。
+ *
+ * 为什么要变量：浮层铺满**整屏**（含任务栏那条），静态贴边的面板（取字结果、加载角标）
+ * 用 `var(--work-*)` 避让，跟随选区的工具栏走 `useUtilityPosition` 的数字 —— 同一份数据，
+ * 两个消费方，不再各自拿 `innerWidth/innerHeight` 算一套。
+ */
+function workAreaVars(work: CaptureRect | null): CSSProperties {
+  if (!work) return {}
+  return {
+    '--work-top': `${work.y}px`,
+    '--work-left': `${work.x}px`,
+    '--work-right': `${window.innerWidth - (work.x + work.w)}px`,
+    '--work-bottom': `${window.innerHeight - (work.y + work.h)}px`
+  }
+}
 
 interface CaptureStageViewProps {
   captureStatus: 'loading' | 'ready' | 'error'
@@ -33,6 +51,8 @@ interface CaptureStageViewProps {
   sourceImage: HTMLImageElement | null
   /** 冻结帧磁盘路径：加载期用它铺底（`CaptureLoadingMask`） */
   sourcePath: string | null
+  /** 可用矩形（扣掉任务栏）：贴边面板与工具栏都按它避让 */
+  workArea: CaptureRect | null
   actions: CaptureActions
   onUpdateSelection: (selection: { x: number; y: number; w: number; h: number } | null) => void
   phase: Phase
@@ -56,7 +76,9 @@ function CaptureStageView(props: CaptureStageViewProps) {
   const onClose = props.onClose ?? function () {}
 
   return (
-    <div className={clsx(styles.capture)}>
+    <div
+      className={clsx(styles.capture)}
+      style={workAreaVars(props.workArea)}>
       {props.captureStatus === 'error' ? (
         <CaptureErrorSurface
           message={props.captureError}
@@ -117,6 +139,7 @@ function CaptureStageView(props: CaptureStageViewProps) {
               active={props.graphics}
               opacity={props.opacity}
               ocrBusy={props.ocrBusy}
+              workArea={props.workArea}
               onOcr={props.onRunOcr}
               onCopy={props.actions.handleCopy}
               onPin={props.actions.handlePin}
