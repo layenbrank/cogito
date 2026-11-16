@@ -40,7 +40,10 @@ fn unique_png_name(prefix: &str) -> String {
 }
 
 /// 把贴图写进 `<appLocalData>/textures/<id>.png`，返回绝对路径（供 `asset:insert` 用）。
-#[tauri::command]
+///
+/// 必须显式 `rename`：不写时 Tauri 用 Rust 函数名（`capture_pin_texture`）注册，
+/// 前端 `CHANNELS.CAPTURE.PIN_TEXTURE`（`capture:pinTexture`）会直接找不到命令。
+#[tauri::command(rename = "capture:pinTexture")]
 pub async fn capture_pin_texture(app: AppHandle, data_url: String) -> Result<String, String> {
     let bytes = decode_image(&data_url)?;
     let dir = app
@@ -55,7 +58,7 @@ pub async fn capture_pin_texture(app: AppHandle, data_url: String) -> Result<Str
 }
 
 /// 系统保存对话框 + 落盘；用户取消返回 `None`。
-#[tauri::command]
+#[tauri::command(rename = "capture:savePng")]
 pub async fn capture_save_png(
     app: AppHandle,
     data_url: String,
