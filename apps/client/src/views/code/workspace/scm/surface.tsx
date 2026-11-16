@@ -1,8 +1,17 @@
 /**
- * 源码管理面板：分支条 + 提交框 + 变更分组。
+ * 源码管理面板：分支条 + 提交框 + 变更分组 + 提交历史。
+ *
+ * 「更改」与「提交」各占一栏，中间的横向分隔条可拖 —— 提交多了就把历史拉高，
+ * 只想看工作区改动就把历史压回去。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import {
+  Splitter,
+  SplitterHandle,
+  SplitterPane,
+  usePaneRef
+} from '@cogito/design/components/splitter'
 import { Textarea } from '@cogito/design/components/textarea'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
@@ -73,6 +82,8 @@ function ScmSurface() {
 
   const [message, updateMessage] = useState('')
   const [discardTarget, setDiscardTarget] = useState<DiscardTarget | null>(null)
+  // 提交历史栏的手柄：收起时压到只剩表头（`collapsedSize`），空间让给「更改」
+  const historyPaneRef = usePaneRef()
 
   const groups = useMemo(
     function () {
@@ -247,25 +258,42 @@ function ScmSurface() {
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
       </div>
 
-      {/* 变更独占主滚动区，历史钉在底部，避免互相挤占 */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {entries.length === 0 && !isLoading ? (
-          <p className="text-muted-foreground px-3 py-2 text-xs">没有待提交的更改</p>
-        ) : (
-          <Changes
-            groups={groups}
-            onOpenDiff={onOpenDiff}
-            onOpenFile={onOpenFile}
-            onStage={onStage}
-            onUnstage={onUnstage}
-            onDiscard={onDiscard}
-          />
-        )}
-      </div>
-
-      <div className="border-border/40 shrink-0 border-t">
-        <ScmHistory />
-      </div>
+      {/* 变更与历史各自成栏：分隔条可拖，两栏各自滚动，互不挤占 */}
+      <Splitter
+        id="code-scm-split"
+        orientation="vertical"
+        className="min-h-0 flex-1">
+        <SplitterPane
+          id="code-scm-changes"
+          defaultSize="58%"
+          min={72}
+          className="min-h-0 overflow-hidden">
+          <div className="h-full min-h-0 overflow-y-auto">
+            {entries.length === 0 && !isLoading ? (
+              <p className="text-muted-foreground px-3 py-2 text-xs">没有待提交的更改</p>
+            ) : (
+              <Changes
+                groups={groups}
+                onOpenDiff={onOpenDiff}
+                onOpenFile={onOpenFile}
+                onStage={onStage}
+                onUnstage={onUnstage}
+                onDiscard={onDiscard}
+              />
+            )}
+          </div>
+        </SplitterPane>
+        <SplitterHandle withHandle />
+        <SplitterPane
+          id="code-scm-history"
+          paneRef={historyPaneRef}
+          defaultSize="42%"
+          min={96}
+          collapsedSize={28}
+          className="min-h-0 overflow-hidden">
+          <ScmHistory paneRef={historyPaneRef} />
+        </SplitterPane>
+      </Splitter>
 
       <DiscardDialog
         target={discardTarget}

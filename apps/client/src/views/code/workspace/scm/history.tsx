@@ -1,15 +1,14 @@
 /**
  * SCM 侧栏「提交」线性历史（二期）：最近提交列表，点选打开提交页并聚焦。
+ *
+ * 列表撑满所在分栏、自己滚动；表头的箭头收起时把分栏压到只剩表头，
+ * 让「更改」列表拿到整屏高度。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger
-} from '@cogito/design/components/collapsible'
+import type { PaneHandle } from '@cogito/design/components/splitter'
 import { cn } from 'cn'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import { toast } from 'sonner'
 
 import type { CommitHit } from '@/lib/workspace-git'
@@ -88,7 +87,12 @@ function HistoryRow(props: {
   )
 }
 
-function ScmHistory() {
+interface ScmHistoryProps {
+  /** 所在分栏的手柄：收起时把分栏压到表头高度，避免栏内留一块空白 */
+  paneRef?: RefObject<PaneHandle | null>
+}
+
+function ScmHistory(props: ScmHistoryProps) {
   const recentHits = useCodeGitStore(function (state) {
     return state.recentHits
   })
@@ -102,6 +106,16 @@ function ScmHistory() {
     return state.isRepo
   })
   const [isOpen, updateOpen] = useState(true)
+
+  useEffect(
+    function () {
+      const pane = props.paneRef?.current
+      if (!pane) return
+      if (isOpen) pane.expand()
+      else pane.collapse()
+    },
+    [isOpen, props.paneRef]
+  )
 
   useEffect(
     function () {
@@ -132,12 +146,15 @@ function ScmHistory() {
   if (!isRepo) return null
 
   return (
-    <Collapsible
-      open={isOpen}
-      onOpenChange={updateOpen}
-      className="flex min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="group/header text-muted-foreground hover:bg-muted/60 flex h-7 shrink-0 items-center gap-0.5 px-1 text-xs font-medium">
-        <CollapsibleTrigger className="hover:text-foreground flex min-w-0 flex-1 items-center gap-1 rounded-sm px-2 py-0.5 text-left outline-none">
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          className="hover:text-foreground flex min-w-0 flex-1 items-center gap-1 rounded-sm px-2 py-0.5 text-left outline-none"
+          onClick={function () {
+            updateOpen(!isOpen)
+          }}>
           <Icon
             icon="lucide:chevron-right"
             className={cn(
@@ -157,7 +174,7 @@ function ScmHistory() {
               className="ml-1 size-3.5 animate-spin opacity-60"
             />
           ) : null}
-        </CollapsibleTrigger>
+        </button>
         <Button
           type="button"
           variant="ghost"
@@ -190,8 +207,8 @@ function ScmHistory() {
           />
         </Button>
       </div>
-      <CollapsibleContent>
-        <div className="max-h-52 overflow-y-auto">
+      {isOpen ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {recentHits.length === 0 && !isRecentLoading ? (
             <p className="text-muted-foreground px-3 py-2 text-xs">暂无提交记录</p>
           ) : (
@@ -210,8 +227,8 @@ function ScmHistory() {
             </ul>
           )}
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      ) : null}
+    </div>
   )
 }
 
