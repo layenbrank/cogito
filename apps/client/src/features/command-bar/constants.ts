@@ -13,6 +13,7 @@ const OMNIBAR_UI = {
   DEBOUNCE_MS: 180,
   LOCAL_LIMIT: 8,
   WEB_LIMIT: 8,
+  FILE_LIMIT: 6,
   RECENT_LIMIT: 6,
   RAIL_MS: 260
 } as const
@@ -36,6 +37,8 @@ const PREFIX_DOMAIN: Record<string, HitDomain> = {
   md: 'knowledge',
   markdown: 'knowledge',
   memo: 'knowledge',
+  file: 'file',
+  files: 'file',
   cmd: 'command',
   command: 'command',
   web: 'web'
@@ -51,8 +54,25 @@ const DOMAIN_LABEL: Record<HitDomain | 'all', string> = {
   reminder: '闹钟',
   gallery: '媒体',
   knowledge: '知识库',
+  file: '文件',
   command: '命令',
   web: 'Web'
+}
+
+/** 分类条图标：比纯文字更好认，卡片也才有足够高度做成可点区域 */
+const DOMAIN_ICON: Record<DomainFilter, string> = {
+  all: 'lucide:layers',
+  tile: 'lucide:layout-grid',
+  collection: 'lucide:folder',
+  navigation: 'lucide:bookmark',
+  agent: 'lucide:bot',
+  calendar: 'lucide:calendar',
+  reminder: 'lucide:alarm-clock',
+  gallery: 'lucide:image',
+  knowledge: 'lucide:book-open',
+  file: 'lucide:file',
+  command: 'lucide:terminal',
+  web: 'lucide:globe'
 }
 
 const DOMAIN_ORDER: HitDomain[] = [
@@ -64,6 +84,7 @@ const DOMAIN_ORDER: HitDomain[] = [
   'reminder',
   'gallery',
   'knowledge',
+  'file',
   'command',
   'web'
 ]
@@ -76,11 +97,13 @@ const FILTER_CHIPS: DomainFilter[] = [
   'calendar',
   'gallery',
   'knowledge',
+  'file',
   'command',
   'web'
 ]
 
 export {
+  DOMAIN_ICON,
   DOMAIN_LABEL,
   DOMAIN_ORDER,
   FILTER_CHIPS,

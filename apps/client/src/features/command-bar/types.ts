@@ -9,6 +9,7 @@ type HitDomain =
   | 'reminder'
   | 'gallery'
   | 'knowledge'
+  | 'file'
   | 'command'
   | 'web'
 
@@ -21,6 +22,8 @@ interface Hit {
   icon?: string
   /** 激活时执行；异步可抛错由调用方 toast */
   run: () => void | Promise<void>
+  /** 可选：在文件管理器中显示（Alt+Enter），只有文件类命中提供 */
+  reveal?: () => void | Promise<void>
 }
 
 interface SearchProvider {

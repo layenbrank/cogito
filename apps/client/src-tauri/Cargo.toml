@@ -86,6 +86,7 @@ tauri-build = { version = "2.7.3", features = [
 [dependencies]
 cogito-database = { workspace = true }
 base64 = "0.22" # 贴图/另存为：data URL 解码
+ignore = "0.4" # 全盘文件名索引：目录遍历（与 cogito-command 同一版本）
 sea-orm = { workspace = true } # security/grants.rs 直接用 Statement 读 scope 授权所需的两张表
 cogito-core = { workspace = true }
 cogito-command = { workspace = true }

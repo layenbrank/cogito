@@ -179,9 +179,6 @@ export const CHANNELS = {
     UPDATE: 'magnetic-tile:update',
     REMOVE: 'magnetic-tile:remove'
   },
-  COLLECTION: {
-    READS: 'collection:reads'
-  },
   CALENDAR: {
     READ: 'calendar:read',
     WRITE: 'calendar:write',
@@ -364,7 +361,10 @@ export const CHANNELS = {
     STASH_DROP: 'workspaceGit:stashDrop',
     REBASE: 'workspaceGit:rebase',
     REBASE_CONTINUE: 'workspaceGit:rebaseContinue',
-    REBASE_ABORT: 'workspaceGit:rebaseAbort'
+    REBASE_ABORT: 'workspaceGit:rebaseAbort',
+    WORKTREE_LIST: 'workspaceGit:worktreeList',
+    WORKTREE_ADD: 'workspaceGit:worktreeAdd',
+    WORKTREE_REMOVE: 'workspaceGit:worktreeRemove'
   },
   WORKSPACE_FILES: {
     LIST_DIR: 'workspaceFiles:listDir',
@@ -378,7 +378,12 @@ export const CHANNELS = {
     CHANGED: 'workspaceFiles:changed'
   },
   SEARCH: {
-    SUGGEST: 'search:suggest'
+    SUGGEST: 'search:suggest',
+    FILES: 'search:files',
+    FILE_INDEX_STATUS: 'search:fileIndexStatus',
+    FILE_INDEX_REBUILD: 'search:fileIndexRebuild',
+    OPEN_FILE: 'search:openFile',
+    REVEAL_FILE: 'search:revealFile'
   },
   SITE: {
     FETCH_FAVICON: 'site:fetch-favicon'

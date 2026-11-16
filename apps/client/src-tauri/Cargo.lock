@@ -1350,6 +1350,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hex",
+ "ignore",
  "image",
  "keyring",
  "lancedb",

@@ -1,6 +1,7 @@
 /**
  * 检索编排：同步本地命中 + 异步 Web 建议合并
  */
+import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 import { findEngine } from '@/constants/engine'
@@ -16,11 +17,17 @@ import {
 } from '@/features/command-bar/store'
 import type { DomainFilter, Hit } from '@/features/command-bar/types'
 import { buildMatchUrl } from '@/features/command-bar/url'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 type RecentHitRevive = Pick<RecentHit, 'domain' | 'id' | 'title'>
 
 /** 复活最近项：优先精确命中；Web 建议等无法复活时退回当前引擎搜索标题 */
 async function reviveRecentHit(item: RecentHitRevive): Promise<void> {
+  // 文件命中没有同步 provider 可查，直接按路径重新交给索引命令
+  if (item.domain === 'file') {
+    await invoke(CHANNELS.SEARCH.OPEN_FILE, { params: { path: item.id } })
+    return
+  }
   const revivedLocal = searchLocalProviders(parseQuery(item.title, item.domain))
   const revivedWeb = findInstantWebHits(item.title).filter(function (hit) {
     return matchesFilter(hit.domain, item.domain)
@@ -92,12 +99,18 @@ function findSyncHits(value: string, chip: DomainFilter): Hit[] {
   return sortHits([...local, ...web])
 }
 
-/** 把防抖回来的 Bing 建议并进当前命中（去掉旧 suggest 行） */
-function mergeWebSuggestions(prior: Hit[], suggestions: Hit[]): Hit[] {
-  const withoutSuggest = prior.filter(function (hit) {
-    return !(hit.domain === 'web' && hit.id.startsWith('suggest:'))
+/**
+ * 把防抖回来的异步命中并进当前列表。
+ *
+ * 两条异步 lane：Bing 建议（`suggest:` 前缀）与磁盘文件（`file` 域）。
+ * 旧结果一律先剔掉再并，避免翻键时叠加重复行。
+ */
+function mergeAsyncHits(prior: Hit[], suggestions: Hit[], files: Hit[]): Hit[] {
+  const withoutAsync = prior.filter(function (hit) {
+    if (hit.domain === 'file') return false
+    return !isSuggestHit(hit)
   })
-  return sortHits([...withoutSuggest, ...suggestions])
+  return sortHits([...withoutAsync, ...suggestions, ...files])
 }
 
 function isSuggestHit(hit: Hit): boolean {
@@ -107,7 +120,7 @@ function isSuggestHit(hit: Hit): boolean {
 export {
   findSyncHits,
   findRecentHits,
-  mergeWebSuggestions,
+  mergeAsyncHits,
   isSuggestHit,
   parseEntityId,
   reviveRecentHit

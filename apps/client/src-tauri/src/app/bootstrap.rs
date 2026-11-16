@@ -108,6 +108,17 @@ impl Bootstrap {
                 app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
                 app.manage(CaptureHandshake::default());
+                // 全盘文件名索引（Everything 式）：独立 SQLite 库；空库时启动 30s 后自己扫一遇
+                match app.path().app_local_data_dir() {
+                    Ok(dir) => {
+                        let index = crate::file_index::FileIndex::new(
+                            crate::file_index::database_path(&dir),
+                        );
+                        index.spawn_initial();
+                        app.manage(index);
+                    }
+                    Err(error) => tracing::warn!("文件索引目录不可用：{error}"),
+                }
                 // 浮层窗口**常驻映射**（hide/show 会让 WebView2 挂起合成，下次首帧要等一次点击）：
                 // 启动就铺满整屏（含任务栏）+ 置顶 + 穿透 + show。config 里写的是
                 // `visible: false`，这里必须真的 show 一次 —— 首次截屏才 `show()` 的话，
