@@ -23,18 +23,21 @@ import { installUserMessageBadgeResolver } from '@cogito/design/assistant/user-m
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { useRunningThreads } from '@/features/agent/acp/run-state'
-import { subscribeAutomationLife } from '@/features/automation/events'
-import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { findAgentMode, readModeSnapshot, setAgentModeThread } from '@/features/agent/mode'
-import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
 import { hydrate } from '@/features/agent/plan-store'
+import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
+import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
 import { buildThreadHistoryAdapter } from '@/features/agent/port/thread-history'
-import { AgentElicitationDataUI } from '@/views/agent/chat/components/elicitation-data-ui'
-import { AgentPlanDataUI } from '@/views/agent/chat/components/plan-data-ui'
-import { findSessionKey, useResolvedSessionID } from '@/views/agent/chat/components/use-session-thread-id'
-import { parseWebSources } from '@/views/agent/chat/components/parse-tool-result'
-import { createLocalSuggestionAdapter } from '@/views/agent/chat/suggestions'
+import { subscribeAutomationLife } from '@/features/automation/events'
 import { useAgentStore } from '@/stores/agent'
+import { AgentElicitationDataUI } from '@/views/agent/chat/components/elicitation-data-ui'
+import { parseWebSources } from '@/views/agent/chat/components/parse-tool-result'
+import { AgentPlanDataUI } from '@/views/agent/chat/components/plan-data-ui'
+import {
+  findSessionKey,
+  useResolvedSessionID
+} from '@/views/agent/chat/components/use-session-thread-id'
+import { createLocalSuggestionAdapter } from '@/views/agent/chat/suggestions'
 
 /**
  * 内联引用角标的数据源：从本条消息的工具结果里聚合 web 来源，按出现顺序去重。
