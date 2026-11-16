@@ -166,7 +166,10 @@ pub enum ReadP {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Write {
-    pub index: i32,
+    /// 不传（`null`/缺失）则由服务端分配 `MAX(index) + 1`：
+    /// 前端自己算号需要先读全表、还得自己排队防重复，服务端在同一事务里算既便宜又无竞争。
+    #[serde(default)]
+    pub index: Option<i32>,
     pub title: String,
     pub url: Option<String>,
     pub round: Option<String>,
@@ -195,7 +198,7 @@ pub enum WriteP {
     Many(Vec<Write>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Change {
     pub index: Option<i32>,
@@ -212,11 +215,24 @@ pub struct Change {
     #[serde(rename = "mirrorID")]
     pub mirror_id: Option<String>,
     pub text_color: Option<String>,
-    #[serde(rename = "collectionID")]
-    pub collection_id: Option<String>,
+    /// 三态：缺失 = 不改，`null` = 移出集合（置空），字符串 = 加入该集合。
+    ///
+    /// serde 默认会把 `null` 和「字段缺失」都收敛成 `None`，那样前端
+    /// `change: { collectionID: null }`（移出文件夹）会变成静默空操作。
+    #[serde(rename = "collectionID", default, deserialize_with = "deserialize_patch")]
+    pub collection_id: Option<Option<String>>,
     pub download_count: Option<i32>,
     pub updated_at: Option<i64>,
     pub created_at: Option<i64>,
+}
+
+/// `Option<Option<T>>` 的补丁语义：字段出现（含 `null`）一律是「要改」。
+fn deserialize_patch<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(|inner| Some(inner))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

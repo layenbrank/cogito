@@ -10,6 +10,7 @@ type Tile = Pick<
   | 'title'
   | 'mark'
   | 'url'
+  | 'collectionID'
 >
 
 export type { Tile }

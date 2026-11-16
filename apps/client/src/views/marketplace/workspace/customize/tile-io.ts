@@ -24,9 +24,14 @@ async function exportTiles(tiles: MagneticTile[]): Promise<boolean> {
   return true
 }
 
-function parseTileWrite(item: MagneticTile, mirrorID: string, index: number): MagneticTileWrite {
+/** 把商店里的磁贴翻成写入体；`index` 不传则由后端分配 */
+function parseTileWrite(
+  item: MagneticTile,
+  mirrorID: string,
+  index?: number
+): MagneticTileWrite {
   return {
-    index: item.index ?? index,
+    index,
     title: item.title,
     url: item.url,
     round: item.round,

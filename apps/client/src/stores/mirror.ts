@@ -42,7 +42,7 @@ interface MagneticTileSlice {
   magneticTiles: MagneticTile[]
 
   toReadMagneticTile: (ID: string) => Promise<MagneticTile | null>
-  toInsertMagneticTile: (values: MagneticTileWrite[]) => Promise<void>
+  toInsertMagneticTile: (values: MagneticTileWrite[]) => Promise<string[]>
   toUpdateMagneticTile: (values: MagneticTileUpdate[]) => Promise<void>
   toRemoveMagneticTile: (keys: string[]) => Promise<void>
 
@@ -195,10 +195,11 @@ const magneticTileSlice: SliceCreator<MagneticTileSlice> = function (setters, ge
       return magneticTile
     },
 
-    async toInsertMagneticTile(values: MagneticTileWrite[]) {
-      if (isEmpty(values)) return
+    /** 写入磁贴；返回后端生成的主键（供「新建集合并移入」这类需要 id 的调用方使用） */
+    async toInsertMagneticTile(values: MagneticTileWrite[]): Promise<string[]> {
+      if (isEmpty(values)) return []
       const params = values.length === 1 ? values[0] : values
-      await invoke(CHANNELS.MAGNETIC_TILE.WRITE, { params })
+      const ids = await invoke<string[]>(CHANNELS.MAGNETIC_TILE.WRITE, { params })
 
       const writes = Array.isArray(params) ? params : [params]
       const writtenMirrorIDs = new Set(
@@ -211,6 +212,7 @@ const magneticTileSlice: SliceCreator<MagneticTileSlice> = function (setters, ge
       if (activeMirrorID && writtenMirrorIDs.has(activeMirrorID)) {
         await getters().toReadMirror(activeMirrorID)
       }
+      return ids
     },
 
     async toUpdateMagneticTile(values: MagneticTileUpdate[]) {

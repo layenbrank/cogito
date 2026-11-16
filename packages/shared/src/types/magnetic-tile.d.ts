@@ -94,8 +94,14 @@ declare namespace MagneticTile {
   /**
    * 写入参数：不含自动生成的 id / createdAt / updatedAt
    * Rust Write 结构体中无 downloadCount，此处同步排除
+   *
+   * `index` 可选：不传就由服务端在同一事务里分配 `MAX(index) + 1`。
+   * 前端自己算号得先读全表、还得排队防重复，没必要。
    */
-  type Write = Omit<MagneticTile, 'id' | 'createdAt' | 'updatedAt' | 'downloadCount' | 'archivedAt'>
+  type Write = Omit<
+    MagneticTile,
+    'id' | 'index' | 'createdAt' | 'updatedAt' | 'downloadCount' | 'archivedAt'
+  > & { index?: number }
 
   /** 查询过滤参数：仅限 Rust Read 结构体暴露的字段 */
   type Read = Partial<

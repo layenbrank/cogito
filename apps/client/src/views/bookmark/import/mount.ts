@@ -6,21 +6,38 @@ import { invoke } from '@tauri-apps/api/core'
 import { findFaviconFallback } from '@/features/magnetic-tile/mark.ts'
 import { fetchSiteFavicon } from '@/lib/site-favicon.ts'
 import { CHANNELS } from '@/shared/ipc/channels'
-import type { MagneticTileWrite } from '@/stores/mirror'
-import { findNextIndex } from '@/views/marketplace/workspace/lib/insert-tile'
+import { useMirrorStore, type MagneticTileWrite } from '@/stores/mirror'
 
 type MountAs = 'navigation' | 'collection'
+
+type MountOptions = {
+  mirrorID: string
+  nodeIds: string[]
+  as: MountAs
+}
+
+/** 批量写入：一条 / 多条走同一个命令，返回后端主键（顺序与入参一致） */
+async function insertWrites(writes: MagneticTileWrite[]): Promise<string[]> {
+  if (!writes.length) return []
+  const params = writes.length === 1 ? writes[0] : writes
+  return invoke<string[]>(CHANNELS.MAGNETIC_TILE.WRITE, { params })
+}
+
+/** 写完整批后刷一次墙；只在导入的正是当前墙时才刷，别把别的镜像顶到界面上 */
+async function refreshActiveMirror(mirrorID: string): Promise<void> {
+  const store = useMirrorStore.getState()
+  if (store.active.mirror?.id !== mirrorID) return
+  await store.toReadMirror(mirrorID)
+}
 
 function buildNavigationWrite(
   title: string,
   url: string,
   mirrorID: string,
-  index: number,
   collectionID: string | null,
   mark: string | null
 ): MagneticTileWrite {
   return {
-    index,
     title,
     url,
     round: '12px',
@@ -51,11 +68,9 @@ async function resolveNavigationMark(url: string) {
 function buildCollectionWrite(
   title: string,
   mirrorID: string,
-  index: number,
   parentCollectionID: string | null
 ): MagneticTileWrite {
   return {
-    index,
     title,
     url: null,
     round: '12px',
@@ -113,17 +128,15 @@ async function findBookmarkSubtree(mirrorID: string, rootId: string) {
  * 把书签节点挂到磁贴墙：
  * - navigation：仅链接 → 网址磁贴
  * - collection：文件夹 → 集合，内部链接挂 collectionID；子文件夹嵌套集合
+ *
+ * index 由后端在同一事务里递增分配（`MAX(index) + 1, +2 …`），
+ * 所以整批写入天然保持入参顺序，前端不用再维护号段、也不用排队防撞号。
  */
-async function mountBookmarksToTiles(options: {
-  mirrorID: string
-  nodeIds: string[]
-  as: MountAs
-}): Promise<{ mounted: number }> {
+async function mountBookmarksToTiles(options: MountOptions): Promise<{ mounted: number }> {
   if (!options.nodeIds.length) {
     throw new Error('请先选择书签或文件夹')
   }
 
-  let nextIndex = await findNextIndex(options.mirrorID)
   let mounted = 0
   const existing = await findMirrorTiles(options.mirrorID)
   const urlSet = new Set(
@@ -137,7 +150,7 @@ async function mountBookmarksToTiles(options: {
   )
 
   if (options.as === 'navigation') {
-    const pending: { title: string; url: string; index: number }[] = []
+    const pending: { title: string; url: string }[] = []
     const subtrees = await Promise.allSettled(
       options.nodeIds.map(function (id) {
         return findBookmarkSubtree(options.mirrorID, id)
@@ -152,8 +165,7 @@ async function mountBookmarksToTiles(options: {
       for (const row of rows) {
         if (!row.url) continue
         if (urlSet.has(row.url)) continue
-        pending.push({ title: row.title, url: row.url, index: nextIndex })
-        nextIndex += 1
+        pending.push({ title: row.title, url: row.url })
         urlSet.add(row.url)
         mounted += 1
       }
@@ -176,19 +188,16 @@ async function mountBookmarksToTiles(options: {
         item.title,
         item.url,
         options.mirrorID,
-        item.index,
         null,
         mark
       )
     })
-    if (writes.length) {
-      const params = writes.length === 1 ? writes[0] : writes
-      await invoke(CHANNELS.MAGNETIC_TILE.WRITE, { params })
-    }
+    await insertWrites(writes)
+    await refreshActiveMirror(options.mirrorID)
     return { mounted }
   }
 
-  // collection：nextIndex / idMap 跨节点共享，须按 nodeIds 顺序挂载
+  // collection：idMap 跨节点共享，须按 nodeIds 顺序挂载
   for (const id of options.nodeIds) {
     const rows = await findBookmarkSubtree(options.mirrorID, id)
     const root = rows[0]
@@ -203,42 +212,27 @@ async function mountBookmarksToTiles(options: {
     ) {
       const existingId = idMap.get(bookmarkId)
       if (existingId) return existingId
-      await invoke(CHANNELS.MAGNETIC_TILE.WRITE, {
-        params: buildCollectionWrite(title, options.mirrorID, nextIndex, parentCollectionID)
-      })
-      nextIndex += 1
+      const [createdId] = await insertWrites([
+        buildCollectionWrite(title, options.mirrorID, parentCollectionID)
+      ])
+      if (!createdId) throw new Error(`集合「${title}」创建失败`)
       mounted += 1
-      const tiles = await findMirrorTiles(options.mirrorID)
-      const created = tiles
-        .filter(function (tile) {
-          return (
-            tile.component === 'collection' &&
-            tile.title === title &&
-            (tile.collectionID ?? null) === parentCollectionID
-          )
-        })
-        .toSorted(function (a, b) {
-          return b.createdAt - a.createdAt
-        })[0]
-      if (!created) throw new Error(`集合「${title}」创建失败`)
-      idMap.set(bookmarkId, created.id)
-      return created.id
+      idMap.set(bookmarkId, createdId)
+      return createdId
     }
 
     if (root.url) {
       if (!urlSet.has(root.url)) {
         const mark = await resolveNavigationMark(root.url)
-        await invoke(CHANNELS.MAGNETIC_TILE.WRITE, {
-          params: buildNavigationWrite(
+        await insertWrites([
+          buildNavigationWrite(
             root.title,
             root.url,
             options.mirrorID,
-            nextIndex,
             null,
             mark
           )
-        })
-        nextIndex += 1
+        ])
         mounted += 1
       }
       continue
@@ -248,7 +242,6 @@ async function mountBookmarksToTiles(options: {
     const pendingNav: {
       title: string
       url: string
-      index: number
       collectionID: string
     }[] = []
 
@@ -271,10 +264,8 @@ async function mountBookmarksToTiles(options: {
       pendingNav.push({
         title: row.title,
         url: row.url,
-        index: nextIndex,
         collectionID: parentCollectionID
       })
-      nextIndex += 1
       urlSet.add(row.url)
       mounted += 1
     }
@@ -297,18 +288,15 @@ async function mountBookmarksToTiles(options: {
         item.title,
         item.url,
         options.mirrorID,
-        item.index,
         item.collectionID,
         mark
       )
     })
 
-    if (navWrites.length) {
-      const params = navWrites.length === 1 ? navWrites[0] : navWrites
-      await invoke(CHANNELS.MAGNETIC_TILE.WRITE, { params })
-    }
+    await insertWrites(navWrites)
   }
 
+  await refreshActiveMirror(options.mirrorID)
   return { mounted }
 }
 

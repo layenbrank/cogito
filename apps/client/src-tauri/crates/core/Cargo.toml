@@ -19,7 +19,10 @@ anyhow            = { workspace = true }
 thiserror         = { workspace = true }
 # 审计写入失败只记日志、不影响工具调用（S6：审计是旁路不是闸门）
 tracing           = { workspace = true }
+# 运行时代码用 `tokio::sync::Mutex` 串行化「读最大值 → 插入」的 index 分配
+# （磁贴服务；`std::sync::Mutex` 的 guard 不是 Send，跨 await 就编译不过）
+tokio             = { workspace = true }
 
 [dev-dependencies]
-# 工具面单测需要 async runtime
+# 单测跑 async runtime（用的就是上面的 tokio）
 tokio = { workspace = true }

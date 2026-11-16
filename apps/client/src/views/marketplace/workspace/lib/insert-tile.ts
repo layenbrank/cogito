@@ -1,8 +1,6 @@
-import { invoke } from '@tauri-apps/api/core'
-import { CHANNELS } from '@/shared/ipc/channels'
+import type { MagneticTileWrite } from '@/stores/mirror.ts'
 
 import { parseTileWrite } from '@/views/marketplace/workspace/customize/tile-io'
-import type { MagneticTileWrite } from '@/stores/mirror.ts'
 
 type TileWriteOverrides = {
   size?: Mirror.Size
@@ -14,32 +12,16 @@ type InsertTileOptions = {
   tile: MagneticTile
   mirrorID: string
   overrides?: TileWriteOverrides
-  toInsertMagneticTile: (writes: MagneticTileWrite[]) => Promise<void>
-}
-
-/** 同一镜像串行写入，避免连点撞 index */
-const insertTails = new Map<string, Promise<unknown>>()
-
-/** 目标镜像当前最大 index + 1 */
-async function findNextIndex(mirrorID: string) {
-  const tiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-    params: { mirrorID }
-  })
-  let max = -1
-  for (const tile of tiles) {
-    if (typeof tile.index === 'number' && tile.index > max) max = tile.index
-  }
-  return max + 1
+  toInsertMagneticTile: (writes: MagneticTileWrite[]) => Promise<string[]>
 }
 
 /** 在 tile-io 的基础写入上覆盖尺寸 / 形状 / 方向 */
 function buildTileWrite(
   tile: MagneticTile,
   mirrorID: string,
-  index: number,
   overrides?: TileWriteOverrides
 ): MagneticTileWrite {
-  const write = parseTileWrite(tile, mirrorID, index)
+  const write = parseTileWrite(tile, mirrorID)
   if (!overrides) return write
 
   return {
@@ -50,34 +32,16 @@ function buildTileWrite(
   }
 }
 
-async function runInsert(options: InsertTileOptions) {
-  const index = await findNextIndex(options.mirrorID)
-  const write = buildTileWrite(options.tile, options.mirrorID, index, options.overrides)
-  await options.toInsertMagneticTile([write])
+/**
+ * 把一块（来自商店 / 导航的）磁贴追加到墙上。
+ *
+ * index 由后端分配（`MAX(index) + 1`，同一事务内），这里只负责把 `MagneticTile` 翻成写入体。
+ */
+function insertTile(options: InsertTileOptions): Promise<string[]> {
+  return options.toInsertMagneticTile([
+    buildTileWrite(options.tile, options.mirrorID, options.overrides)
+  ])
 }
 
-/** 按目标镜像计算 index 后写入（同镜像排队） */
-async function insertTile(options: InsertTileOptions) {
-  const mirrorID = options.mirrorID
-  const prev = insertTails.get(mirrorID) ?? Promise.resolve()
-  const next = prev.then(
-    function () {
-      return runInsert(options)
-    },
-    function () {
-      return runInsert(options)
-    }
-  )
-  insertTails.set(mirrorID, next)
-
-  try {
-    await next
-  } finally {
-    if (insertTails.get(mirrorID) === next) {
-      insertTails.delete(mirrorID)
-    }
-  }
-}
-
-export { findNextIndex, insertTile }
+export { insertTile }
 export type { InsertTileOptions, TileWriteOverrides }

@@ -49,7 +49,12 @@ function findBoothBucket(component: MagneticTile.Component): Exclude<BoothBucket
 }
 
 function matchBoothBucket(tile: Pick<MagneticTile, 'component'>, bucket: BoothBucket) {
+  /**
+   * 市场磁贴列表只陈列「可安装的组件」：网址走 navigate 模式，
+   * 集合是本机已有磁贴的容器（不是可下载的条目），两者都不进磁贴桶。
+   */
   if (tile.component === 'navigation') return false
+  if (tile.component === 'collection') return false
   if (bucket === 'all') return true
   return findBoothBucket(tile.component) === bucket
 }

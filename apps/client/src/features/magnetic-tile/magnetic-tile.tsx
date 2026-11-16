@@ -1,6 +1,4 @@
-import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
-import { Icon } from '@iconify/react/offline'
 import { cn, type ClassValue } from 'cn'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
@@ -230,24 +228,6 @@ const MagneticTile = {
             <TooltipContent side="bottom">{props.title}</TooltipContent>
           </Tooltip>
         </span>
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon-xs"
-          aria-label="删除磁贴"
-          onClick={props.onTrash}
-          className={cn(
-            'absolute -top-1.25 -right-1.25 z-10 flex size-4 cursor-pointer items-center justify-center rounded-full border-0 bg-red-500/50 text-white',
-            'pointer-events-none scale-90 opacity-0 transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none',
-            props.onTrash &&
-              'group-hover/tile:pointer-events-auto group-hover/tile:scale-100 group-hover/tile:opacity-100 group-focus-within/tile:pointer-events-auto group-focus-within/tile:scale-100 group-focus-within/tile:opacity-100'
-          )}>
-          <Icon
-            icon="ant-design:delete-outlined"
-            width={10}
-            height={10}
-          />
-        </Button>
       </div>
     )
   }

@@ -1,11 +1,22 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
-import { useCallback, type Dispatch, type SetStateAction } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@cogito/design/components/dropdown-menu'
+import { useCallback, useState, type Dispatch, type SetStateAction } from 'react'
 import { toast } from 'sonner'
 
 import { useCollectionStore } from '@/stores/collection'
 import { useMirrorStore } from '@/stores/mirror'
+import {
+  createCollection,
+  leaveCollection,
+  openBookmarkLibrary
+} from '@/features/magnetic-tile/collection-actions.ts'
+import { CollectionDialog } from '@/features/magnetic-tile/collection-dialog.tsx'
 import { AddSheet } from '@/views/collection/add-sheet.tsx'
 import { Controller } from '@/views/collection/controller.tsx'
 
@@ -24,23 +35,36 @@ interface CollectionSurfaceProps {
 
 function CollectionSurface(props: CollectionSurfaceProps) {
   const currentId = props.stack[props.stack.length - 1] ?? props.id
-  const toUpdateMagneticTile = useMirrorStore(function (state) {
-    return state.toUpdateMagneticTile
-  })
   const toBumpRevision = useCollectionStore(function (state) {
     return state.toBumpRevision
   })
+  const mirrorID = useMirrorStore(function (state) {
+    return state.active.mirror?.id ?? null
+  })
+  const [isCollectionOpen, setCollectionOpen] = useState(false)
+
+  async function onCreateChild(title: string) {
+    if (!mirrorID) {
+      toast.error('找不到当前镜像')
+      return
+    }
+    try {
+      // index 由 `appendTile` 统一分配（以库里的最大值为准），不能再拿集合成员数充数
+      await createCollection({ mirrorID, title, parentCollectionID: currentId })
+      props.onReloadMembers()
+      toBumpRevision()
+    } catch (error) {
+      console.error('[collection] 新建子集合失败', error)
+      toast.error('新建子集合失败')
+    }
+  }
 
   const onUpdateMagneticTiles = props.onUpdateMagneticTiles
   const handleRemove = useCallback(
     async function (tileId: string) {
       try {
-        await toUpdateMagneticTile([
-          {
-            key: tileId,
-            change: { collectionID: null }
-          }
-        ])
+        // 移出集合的写入语义统一在 collection-actions 里（含 `collectionID: null` 的置空写法）
+        await leaveCollection([tileId])
         onUpdateMagneticTiles(function (prev) {
           return prev.filter(function (tile) {
             return tile.id !== tileId
@@ -52,7 +76,7 @@ function CollectionSurface(props: CollectionSurfaceProps) {
         toast.error('移出文件夹失败')
       }
     },
-    [toUpdateMagneticTile, toBumpRevision, onUpdateMagneticTiles]
+    [toBumpRevision, onUpdateMagneticTiles]
   )
 
   function handlePick(tileId: string) {
@@ -67,17 +91,9 @@ function CollectionSurface(props: CollectionSurfaceProps) {
     }
   }
 
-  async function openBookmarkLibrary() {
+  async function openBookmarks() {
     try {
-      const { admitSession } = await import('@/features/magnetic-tile/session')
-      admitSession({
-        component: 'bookmark',
-        id: 'bookmark',
-        url: '',
-        path: '/bookmark'
-      })
-      const { router } = await import('@/routers')
-      await router.navigate('/bookmark')
+      await openBookmarkLibrary()
     } catch (error) {
       console.error(error)
       toast.error('无法打开书签库')
@@ -125,31 +141,40 @@ function CollectionSurface(props: CollectionSurfaceProps) {
             size="sm"
             className="text-muted-foreground"
             onClick={function () {
-              void openBookmarkLibrary()
+              void openBookmarks()
             }}>
             打开书签库
           </Button>
-          <Tooltip>
-            <TooltipTrigger
+          <DropdownMenu>
+            <DropdownMenuTrigger
               render={
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="新增网址"
-                  aria-pressed={props.isAddOpen}
-                  className="text-muted-foreground size-10 rounded-md"
-                  onClick={function () {
-                    props.onUpdateAddOpen(!props.isAddOpen)
-                  }}
-                />
-              }>
-              <Icon
-                icon="lucide:plus"
-                aria-hidden
-              />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">新增网址</TooltipContent>
-          </Tooltip>
+                  aria-label="新增"
+                  className="text-muted-foreground size-10 rounded-md">
+                  <Icon
+                    icon="lucide:plus"
+                    aria-hidden
+                  />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={function () {
+                  setCollectionOpen(true)
+                }}>
+                新建子集合…
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={function () {
+                  props.onUpdateAddOpen(!props.isAddOpen)
+                }}>
+                添加已有网址
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -192,7 +217,7 @@ function CollectionSurface(props: CollectionSurfaceProps) {
                 variant="outline"
                 size="sm"
                 onClick={function () {
-                  void openBookmarkLibrary()
+                  void openBookmarks()
                 }}>
                 打开书签库
               </Button>
@@ -209,6 +234,12 @@ function CollectionSurface(props: CollectionSurfaceProps) {
           props.onReloadMembers()
           toBumpRevision()
         }}
+      />
+
+      <CollectionDialog
+        open={isCollectionOpen}
+        onOpenChange={setCollectionOpen}
+        onConfirm={onCreateChild}
       />
     </div>
   )
