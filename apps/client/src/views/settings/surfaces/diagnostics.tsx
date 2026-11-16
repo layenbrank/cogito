@@ -5,6 +5,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
+import {
+  readFileIndexStatus,
+  rebuildFileIndex,
+  type FileIndexStatus
+} from '@/features/command-bar/providers/files.ts'
 import { cachePruneText, cacheSizeText } from '@/lib/diagnostics/cache-text'
 import {
   clearAgentCache,
@@ -57,6 +62,14 @@ function linkTimeText(ms: number | undefined): string {
   return `${date} ${time}`
 }
 
+function indexStatusText(status: FileIndexStatus | null): string {
+  if (!status) return '读取中…'
+  if (status.state === 'scanning') return `正在建立索引 · 已遍历 ${status.scanned} 项`
+  if (status.state === 'error') return status.message ?? '上次扫描失败'
+  if (status.state === 'ready') return `共 ${status.indexed} 条，可搜文件名`
+  return '还没建立，空闲时会自动开始'
+}
+
 /** 设置 → 诊断：能力自述 / 日志目录 / 崩溃补报开关。 */
 function DiagnosticSurface() {
   const [caps, setCaps] = useState<DiagnosticsCapabilities | null>(null)
@@ -67,6 +80,7 @@ function DiagnosticSurface() {
   const [cache, setCache] = useState<AgentCacheStats | null>(null)
   const [build, setBuild] = useState<BuildInfo | null>(null)
   const [isClearingCache, setIsClearingCache] = useState(false)
+  const [fileIndex, setFileIndex] = useState<FileIndexStatus | null>(null)
 
   const reload = useCallback(async function reload(): Promise<void> {
     setIsLoading(true)
@@ -102,6 +116,46 @@ function DiagnosticSurface() {
     },
     [reload]
   )
+
+  // 文件索引：扫描中每 1.5s 拉一次进度，扫完自停
+  useEffect(function () {
+    let timer = 0
+    let cancelled = false
+
+    async function poll() {
+      try {
+        const next = await readFileIndexStatus()
+        if (cancelled) return
+        setFileIndex(next)
+        if (next.state === 'scanning') {
+          timer = window.setTimeout(function () {
+            void poll()
+          }, 1_500)
+        }
+      } catch (error) {
+        if (!cancelled) console.warn('[settings.diagnostics] 读取文件索引状态失败', error)
+      }
+    }
+
+    void poll()
+    return function () {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [])
+
+  async function onRebuildFileIndex(): Promise<void> {
+    try {
+      await rebuildFileIndex()
+      setFileIndex(function (prev) {
+        return prev ? { ...prev, state: 'scanning', scanned: 0 } : prev
+      })
+      toast.success('已开始重建文件索引')
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      toast.error(`重建索引失败：${text}`)
+    }
+  }
 
   async function onToggleReport(checked: boolean): Promise<void> {
     setReportCrashes(checked)
@@ -165,6 +219,30 @@ function DiagnosticSurface() {
 
   return (
     <div className={SURFACE_STACK}>
+      <SettingsSection title="文件索引">
+        <SettingsRow
+          label="全盘文件名搜索"
+          hint="命令栏（Ctrl+K）可直接搜磁盘文件名；索引在启动空闲时建立，也可随时重建">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={fileIndex?.state === 'scanning'}
+            onClick={function () {
+              void onRebuildFileIndex()
+            }}>
+            {fileIndex?.state === 'scanning' ? '建立中…' : '重建索引'}
+          </Button>
+        </SettingsRow>
+        <SettingsRow
+          label="索引状态"
+          hint={indexStatusText(fileIndex)}>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {fileIndex ? `${fileIndex.indexed} 条` : '—'}
+          </span>
+        </SettingsRow>
+      </SettingsSection>
+
       <SettingsSection title="安装信息">
         <SettingsRow
           label="版本"

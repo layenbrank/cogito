@@ -18,8 +18,10 @@ import type {
   DiagnosticsPref,
   GalleryPref,
   ModelPref,
+  OverlayPref,
   PersistShape,
   PersistValue,
+  SearchIslandEdge,
   SettingsPref,
   SignboardViewMode,
   TileSessionPref,
@@ -450,6 +452,27 @@ function parseVault(raw: unknown): VaultPref {
   return { pinHash: typeof raw.pinHash === 'string' ? raw.pinHash : null }
 }
 
+const SEARCH_ISLAND_EDGES: readonly SearchIslandEdge[] = ['top', 'bottom', 'left', 'right']
+
+function parseOverlay(raw: unknown): OverlayPref {
+  const base = PERSIST_DEFAULTS.overlay
+  if (!isRecord(raw)) return structuredClone(base)
+  const island = isRecord(raw.searchIsland) ? raw.searchIsland : {}
+  const edge =
+    typeof island.edge === 'string' &&
+    SEARCH_ISLAND_EDGES.includes(island.edge as SearchIslandEdge)
+      ? (island.edge as SearchIslandEdge)
+      : null
+  return {
+    searchIsland: {
+      enabled: parseBoolean(island.enabled, base.searchIsland.enabled),
+      edge,
+      ratioX: parseNumber(island.ratioX, base.searchIsland.ratioX, 0, 1),
+      ratioY: parseNumber(island.ratioY, base.searchIsland.ratioY, 0, 1)
+    }
+  }
+}
+
 function parseClipchamp(raw: unknown): ClipchampPref {
   return isRecord(raw) ? { ...raw } : {}
 }
@@ -559,7 +582,8 @@ const PARSE: {
   clipchamp: parseClipchamp,
   gallery: parseGallery,
   vault: parseVault,
-  diagnostics: parseDiagnostics
+  diagnostics: parseDiagnostics,
+  overlay: parseOverlay
 }
 
 function parseNamespace<N extends PersistNamespace>(ns: N, raw: unknown): PersistValue<N> {

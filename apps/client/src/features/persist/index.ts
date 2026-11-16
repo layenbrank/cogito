@@ -3,6 +3,8 @@ export {
   ensurePersist,
   findPref,
   patchPref,
+  PREF_CHANGED,
+  reloadPref,
   replacePref,
   isPersistReady,
   resetPersistForTests

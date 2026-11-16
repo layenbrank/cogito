@@ -10,7 +10,9 @@ const STORE_FILE = {
   gallery: 'gallery.json',
   vault: 'vault.json',
   /** 诊断偏好：崩溃补报开关等（不涉密） */
-  diagnostics: 'diagnostics.json'
+  diagnostics: 'diagnostics.json',
+  /** 浮层窗口偏好：搜索灵动岛的位置与开关 */
+  overlay: 'overlay.json'
 } as const
 
 type PersistNamespace = keyof typeof STORE_FILE

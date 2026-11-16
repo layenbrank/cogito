@@ -112,7 +112,15 @@ const PERSIST_DEFAULTS: PersistShape = {
   clipchamp: {},
   gallery: { placeholder: true },
   vault: { pinHash: null },
-  diagnostics: { reportCrashes: true }
+  diagnostics: { reportCrashes: true },
+  overlay: {
+    searchIsland: {
+      enabled: true,
+      edge: null,
+      ratioX: 0.5,
+      ratioY: 0.06
+    }
+  }
 }
 
 export {

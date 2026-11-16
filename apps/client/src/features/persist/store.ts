@@ -4,12 +4,21 @@
  * 非 Tauri（vitest / 浏览器预览）只走内存，不碰磁盘。
  */
 import { LazyStore } from '@tauri-apps/plugin-store'
+import { emit } from '@tauri-apps/api/event'
 
 import { STORE_FILE, type PersistNamespace } from '@/features/persist/files'
 import { cloneDefaults, parseNamespace } from '@/features/persist/parse'
 import type { PersistShape, PersistValue } from '@/features/persist/types'
 
 const NAMESPACES = Object.keys(STORE_FILE) as PersistNamespace[]
+
+/**
+ * 跨窗口偏好变更广播（负载：`{ namespace }`）。
+ *
+ * 每个窗口的 `cache` 是各自的内存快照，设置窗改了偏好，浮层窗口不会自动知道；
+ * 收到它的窗口用 `reloadPref` 重读磁盘即可。
+ */
+const PREF_CHANGED = 'pref://changed'
 
 const stores = new Map<PersistNamespace, LazyStore>()
 let cache: PersistShape = cloneDefaults()
@@ -94,9 +103,27 @@ async function writeNamespace<N extends PersistNamespace>(ns: N, value: PersistV
       store.set('capture', settings.capture),
       store.set('shortcuts', settings.shortcuts)
     ])
+    await notifyPrefChanged(ns)
     return
   }
   await store.set('value', value)
+  await notifyPrefChanged(ns)
+}
+
+/** 广播失败不影响写入本身（比如没有其它窗口在听） */
+async function notifyPrefChanged(ns: PersistNamespace): Promise<void> {
+  try {
+    await emit(PREF_CHANGED, { namespace: ns })
+  } catch (error) {
+    console.warn('[persist] 广播偏好变更失败', error)
+  }
+}
+
+/** 重读某个命名空间（别的窗口改完之后用；非 Tauri 运行时 直接返回内存值） */
+async function reloadPref<N extends PersistNamespace>(ns: N): Promise<PersistValue<N>> {
+  if (!isTauriRuntime()) return findPref(ns)
+  await bootstrapNamespace(ns)
+  return findPref(ns)
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -162,6 +189,8 @@ export {
   ensurePersist,
   findPref,
   patchPref,
+  PREF_CHANGED,
+  reloadPref,
   replacePref,
   isPersistReady,
   resetPersistForTests

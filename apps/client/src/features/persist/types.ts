@@ -180,6 +180,21 @@ interface VaultPref {
   pinHash: string | null
 }
 
+/** 灵动岛吸附边；`null` = 自由浮在屏内（圆形） */
+type SearchIslandEdge = 'top' | 'bottom' | 'left' | 'right'
+
+interface SearchIslandPref {
+  enabled: boolean
+  edge: SearchIslandEdge | null
+  /** 相对坐标（0..1），换分辨率也不会跑出屏幕 */
+  ratioX: number
+  ratioY: number
+}
+
+interface OverlayPref {
+  searchIsland: SearchIslandPref
+}
+
 /** clipchamp 工程为自由形状 blob */
 type ClipchampPref = Record<string, unknown>
 
@@ -240,6 +255,7 @@ interface PersistShape {
   gallery: GalleryPref
   vault: VaultPref
   diagnostics: DiagnosticsPref
+  overlay: OverlayPref
 }
 
 type PersistValue<N extends PersistNamespace> = PersistShape[N]
@@ -263,6 +279,9 @@ export type {
   GalleryPref,
   VaultPref,
   DiagnosticsPref,
+  OverlayPref,
+  SearchIslandEdge,
+  SearchIslandPref,
   ClipchampPref,
   SettingsPref,
   SettingsProxy,

@@ -1,10 +1,12 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import { Switch } from '@cogito/design/components/switch'
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { cn } from 'cn'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ensurePersist, findPref, patchPref } from '@/features/persist'
 import {
   SURFACE_STACK,
   SettingsRow,
@@ -39,6 +41,35 @@ const TOGGLE_ITEM = 'cursor-pointer px-3 data-[pressed]:bg-primary/10 data-[pres
 
 function AppearanceSurface() {
   const [appearance, updateAppearance] = useState<Appearance>(readAppearance)
+  /** 浮层搜索灵动岛：默认开，关掉就从屏上撤掉（位置偏好保留） */
+  const [isIslandEnabled, setIsIslandEnabled] = useState(true)
+
+  useEffect(function () {
+    let cancelled = false
+    void ensurePersist()
+      .then(function () {
+        if (cancelled) return
+        setIsIslandEnabled(findPref('overlay').searchIsland.enabled)
+      })
+      .catch(function (error) {
+        console.warn('[settings.appearance] 读取灵动岛开关失败', error)
+      })
+    return function () {
+      cancelled = true
+    }
+  }, [])
+
+  async function onToggleIsland(checked: boolean): Promise<void> {
+    setIsIslandEnabled(checked)
+    try {
+      const current = findPref('overlay').searchIsland
+      await patchPref('overlay', { searchIsland: { ...current, enabled: checked } })
+    } catch (error) {
+      setIsIslandEnabled(!checked)
+      console.warn('[settings.appearance] 保存灵动岛开关失败', error)
+      toast.error('保存失败')
+    }
+  }
 
   function apply(patch: Partial<Appearance>) {
     updateAppearance(writeAppearance(patch))
@@ -152,6 +183,19 @@ function AppearanceSurface() {
               )
             })}
           </ToggleGroup>
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="浮层">
+        <SettingsRow
+          label="搜索灵动岛"
+          hint="屏幕边上那个可拖拽的搜索圆点；拖到边会自动吸附并只露出一小截">
+          <Switch
+            checked={isIslandEnabled}
+            onCheckedChange={function (checked) {
+              void onToggleIsland(checked)
+            }}
+          />
         </SettingsRow>
       </SettingsSection>
 
