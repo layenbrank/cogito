@@ -33,7 +33,7 @@ P5 逐项对照了被删掉的 `acp/session.ts`（2400+ 行），每项只有两
 
 | 能力 | 状态 | 落点 / 说明 |
 | --- | --- | --- |
-| 工具审批（一工具一票） | ✅ 已实现 | agentd `approvals.ts`；判定规则在 `@cogito/agent-protocol/policy`，client 与 agentd 同一份代码 |
+| 工具审批（一工具一票） | ✅ 已实现 | agentd `approvals.ts` 只转发 `optionId`；「该不该问」在 client `decideApproval`，「永远不许跑」在 `@cogito/agent-protocol/policy` —— 见下节 |
 | 审批超时 | ✅ 已实现 | `APPROVAL_TIMEOUT_MS = 300_000`（与旧 `TICKET_TIMEOUT_MS` 同值），超时按取消结案 |
 | 提问追问 `elicitation/create` | ✅ 已实现 | agentd `elicitations.ts` 挂住 ACP 回包，`/threads/:id/elicitations/:requestId` 回执；未注册处理器/超时按 `decline`/`cancel` 结案。URL 模式（浏览器交互）仍不支持，直接 decline |
 | 刷新后接着看进行中的回合 | ✅ 已实现 | `/threads/:id/events?after=<seq>` 游标续传 + `acp/session-binding.ts` 落库 |
@@ -58,6 +58,31 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
 **关于 goal 自驱续跑没搬进 graph**：搬到图里能换来「关掉窗口也继续跑」，但要重写租约、幂等与
 中断恢复，且现有实现有 `readGoalRun` 作为「无人值守」的证据被审批策略读取。当前判断是
 **不搬**：等功能面稳定后再单独做，届时以 subgraph 形式接，而不是再复制一套循环。
+
+### 2.1 审批分三层，一层都不能缺
+
+goose 的判定顺序是「`user` 段 → 只读 annotation → `smart_approve` 段 → 默认问」。
+cogito 想要的是「硬策略 > 用户偏好 > 档位」，顺序相反 —— 所以硬禁用不能只靠档位表达。
+
+| 层 | 回答的问题 | 在哪 | 生效时机 |
+| --- | --- | --- | --- |
+| 硬策略 | 「哪些工具永远不许跑」 | `policy/approval.ts` 的 `findHardDenyLevel`（黑盒 shell + goose 原厂写工具） | agentd 在**每个 goose 会话建立时**写一次 `never_allow`（`graph.ts` `ensureHardDeny`） |
+| 档位 | 「本轮要不要问」 | `findGooseMode`：`auto` → `auto`，`ask` → `smart_approve`，`readonly` → `approve` | 前端每轮随 `input.mode` 下发，agentd `applyMode` |
+| 业务规则 | 「这一次该不该问」 | client `port/session.ts` 的 `decideApproval` | 收到 `session/request_permission` 后立即替用户拍板并回执 |
+
+两条不变量：
+
+1. **硬禁用不依赖用户操作**。它是唯一能在 goose `auto` 档（直接 Allow、不看审批）下拦住黑盒
+   shell 的东西，所以写入时机必须是「会话建立」，不是「用户切审批档」。旧实现挂在后者，
+   全新会话在用户碰过那个下拉之前一条 `never_allow` 都没有。
+2. **替用户拍板要回具体选项，不要回 cancelled**。`cancelled` 在 goose 里是中止整个回合，
+   模型只知道「被打断」，不会改用 `cogito_workspace_write`，用户只看到对话停了。
+   只读档拒写工具回的是 `reject_once`，只读工具则在 `approve` 档下由前端自动 `allow_once`。
+
+**`readonly` 为什么是 `approve` 而不是 `smart_approve`**：`smart_approve` 对没有
+`read_only_hint` 的工具会请模型自己判「这个调用是不是只读的」，而只读档的承诺是「写工具一定
+不执行」——不能押在模型判断上。`approve` 下所有工具都先问，前端再分类处置，既有确定性
+又不打扰用户。
 
 ## 3. 取消与超时语义
 
@@ -105,7 +130,8 @@ goose 本来就在进程外，渲染侧从来只负责**接活**，而接活那�
 | --- | --- | --- |
 | `AGENTD_FATAL` 后立即退出（码 2） | 启动参数里的环境变量 | `AGENTD_TOKEN` 缺失或不足 16 字符 / `AGENTD_DB` 没给 —— 这是刻意的 fail-closed |
 | `/health` 的 `goose` 不是 `ready` | `AGENTD_GOOSE_PATH_ROOT` 指向的目录 | 缺 `config.yaml` / `secrets.yaml`，或没配 provider+model（`session/new` 会直接 -32603） |
-| UI 里从来不出审批卡 | `<GOOSE_PATH_ROOT>/config/permission.yaml` | `user.always_allow` 里有 `write`/`edit`、或 `never_allow` 里有 `shell` 时，goose 根本不发 `session/request_permission`。要验审批请用只含 `config.yaml` + `secrets.yaml` 的干净根 |
+| UI 里从来不出审批卡 | `<GOOSE_PATH_ROOT>/config/permission.yaml` 的 `user` 段 | goose 的 `user` 段优先级最高且是**精确字符串**匹配：命中的工具直接 Allow / Deny，不发 `session/request_permission`。先到「设置 → 工具权限 → 手动偏好」看一眼，必要时「重置」（备份后删文件，下个会话自动重写硬禁用） |
+| 工具直接被拒、没有任何弹窗 | 同上，看 `user.never_allow` | `never_allow` 在 goose 里是**静默拒绝**（模型只收到 `User permission denies this tool`），界面上和普通工具失败分不开。`shell` / `write` / `edit` 等属于**设计禁用**，不是用户拒绝 —— agent 应改用 `cogito_terminal_run` / `cogito_workspace_write` |
 | 401 且提示「可能刚重启过」 | 宿主日志的 `agentd 握手行已收到 port=` | 端口变了但前端缓存了旧端点；`port/agentd-rpc.ts` 的 `forgetEndpoint()` 会清缓存重取 |
 | 切了权限档但行为没变 | 是否走了 `session/set_config_option` | `session/set_mode` 是**假的**：返回 `{}` 但不改状态 |
 | 审批请求被当成通知丢掉 | JSON-RPC `id` 类型 | `id` 允许 **string**，只认 number 会把 `request_permission` 漏掉 |

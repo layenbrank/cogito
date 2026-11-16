@@ -42,6 +42,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/port/agentd-connection'
+import { findHardDenyLevel } from '@/features/agent/approval'
 import {
   fetchSessionTools,
   writeToolPermissions,
@@ -241,12 +242,21 @@ function ToolPermissionsSection() {
           <ul className="flex flex-col">
             {entries.map(function (entry) {
               const kind = canClassify ? classifyEntry(entry.name, toolNames) : 'live'
+              // 这条不是用户点的，是 cogito 写进去的安全策略（goose 没有别的下发通道）
+              const hardDenied = findHardDenyLevel(entry.name) !== null
               return (
                 <li
                   key={`${entry.level}:${entry.name}`}
                   className="flex items-center justify-between gap-3 border-b border-border/60 py-2 last:border-b-0">
                   <span className="truncate font-mono text-xs">{entry.name}</span>
                   <div className="flex shrink-0 items-center gap-2">
+                    {hardDenied ? (
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title="cogito 写入的安全策略（不是你的选择）：goose 只有 user 段能下发 never_allow，重置后会在下个会话自动重写">
+                        安全策略
+                      </span>
+                    ) : null}
                     {kind === 'glob' ? (
                       <span
                         className="text-xs text-destructive"
@@ -287,6 +297,10 @@ function ToolPermissionsSection() {
           <ul className="flex flex-col">
             {tools.map(function (tool) {
               const meta = RISK_META[findToolRisk(tool.name)]
+              // 硬禁用是**安全策略**，不是偏好：黑盒 shell 会绕开右栏终端，goose 内置写
+              // 工具会绕开工作区写闸门（.git 拒绝 / .env 二次确认 / 写前快照）。
+              // 在 UI 上留一个下拉让用户把它改成「总是允许」，等于让用户自己拆门。
+              const hardDenied = findHardDenyLevel(tool.name) !== null
               return (
                 <li
                   key={tool.name}
@@ -306,29 +320,37 @@ function ToolPermissionsSection() {
                       </div>
                     ) : null}
                   </div>
-                  <Select
-                    items={PERMISSION_OPTIONS.map(function (option) {
-                      return { value: option.value, label: option.label }
-                    })}
-                    value={tool.permission ?? 'ask_before'}
-                    onValueChange={function (value) {
-                      void changePermission(tool.name, value as ToolPermissionLevel)
-                    }}>
-                    <SelectTrigger size="sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PERMISSION_OPTIONS.map(function (option) {
-                        return (
-                          <SelectItem
-                            key={option.value}
-                            value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        )
+                  {hardDenied ? (
+                    <span
+                      className="shrink-0 text-xs text-muted-foreground"
+                      title="黑盒 shell 会绕开右栏终端，内置写工具会绕开工作区写闸门（.git 拒绝 / .env 二次确认 / 写前快照）。这是策略而不是偏好，不可改。">
+                      设计禁用
+                    </span>
+                  ) : (
+                    <Select
+                      items={PERMISSION_OPTIONS.map(function (option) {
+                        return { value: option.value, label: option.label }
                       })}
-                    </SelectContent>
-                  </Select>
+                      value={tool.permission ?? 'ask_before'}
+                      onValueChange={function (value) {
+                        void changePermission(tool.name, value as ToolPermissionLevel)
+                      }}>
+                      <SelectTrigger size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PERMISSION_OPTIONS.map(function (option) {
+                          return (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </li>
               )
             })}
