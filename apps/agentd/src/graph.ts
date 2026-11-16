@@ -12,6 +12,7 @@
 
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
 import type { BaseCheckpointSaver } from '@langchain/langgraph'
+import { listHardDenyToolNames } from '@cogito/agent-protocol/policy'
 
 import type { GooseAcpClient } from './goose/client'
 import type { GooseSupervisor } from './goose/supervisor'
@@ -227,6 +228,51 @@ function createGooseGraph(options: GooseGraphOptions) {
     })
   }
 
+  /**
+   * 已同步过硬禁用的 goose 会话。
+   *
+   * 键是 goose 的 session id：goose 重启后会话消失，重开时 id 会变，缓存自然失效。
+   */
+  const hardenedSessions = new Set<string>()
+
+  /**
+   * 把「黑盒 shell / 原厂写工具」写成 `never_allow`，**每个会话一次**。
+   *
+   * ## 为什么必须在 agentd 做
+   *
+   * goose 的权限判定是「`user` 段 → 只读 annotation → `smart_approve` 段 → 默认问」，
+   * 而 `auto` 档直接 Allow、根本不看后面任何一道 —— 所以黑盒 shell 在 `auto` 档下
+   * **只能靠 permission.yaml 的 `never_allow` 拦**。旧实现把这次写入挂在客户端
+   * 「切审批档 / 切模式 / Goal 启停」三个动作上：全新会话、全新安装，在用户碰过
+   * 那三处之前，`permission.yaml` 里没有任何一条 `never_allow`... 而系统提示却
+   * 已经告诉模型「shell 已被禁用」。把写入放到会话建立这一层，才是「不可遗漏」。
+   *
+   * 失败**不拦这一轮**：不进缓存，下一轮重试。
+   */
+  async function ensureHardDeny(client: GooseAcpClient, sessionId: string): Promise<void> {
+    if (hardenedSessions.has(sessionId)) return
+    try {
+      const listed = (await client.request('_goose/unstable/tools/list', { sessionId })) as {
+        tools?: Array<{ name?: unknown }>
+      }
+      const names: string[] = []
+      for (const tool of listed.tools ?? []) {
+        if (typeof tool.name === 'string' && tool.name.length > 0) names.push(tool.name)
+      }
+      const denied = listHardDenyToolNames(names)
+      if (denied.length > 0) {
+        await client.request('_goose/unstable/tools/permissions/set', {
+          toolPermissions: denied.map(function (toolName) {
+            return { toolName, permission: 'never_allow' }
+          })
+        })
+      }
+      hardenedSessions.add(sessionId)
+    } catch (error) {
+      console.warn(`[agent] 同步硬禁用失败（下一轮重试）：${String(error)}`)
+    }
+  }
+
   /** 把本轮的附加系统提示挂到会话上；失败不拦这一轮（软参数）。 */
   async function applySystemText(
     client: GooseAcpClient,
@@ -256,6 +302,7 @@ function createGooseGraph(options: GooseGraphOptions) {
     if (state.sessionId) {
       try {
         await applyMode(client, state.sessionId, state.mode)
+        await ensureHardDeny(client, state.sessionId)
         // 复用会话也要重挂：同一 thread 的不同轮次可能带不同场景的系统提示
         await applySystemText(client, state.sessionId, state.systemText)
         return {
@@ -271,6 +318,7 @@ function createGooseGraph(options: GooseGraphOptions) {
     const session = await client.newSession({ cwd: state.cwd, mcpServers: state.mcpServers })
     sessionThreads.set(session.sessionId, state.threadID)
     await applyMode(client, session.sessionId, state.mode)
+    await ensureHardDeny(client, session.sessionId)
     await applySystemText(client, session.sessionId, state.systemText)
     const reply = await runTurn(client, session.sessionId, state.prompt, state.threadID)
     return { reply, sessionId: session.sessionId }

@@ -9,7 +9,7 @@
  */
 
 import lock from './agent-tools.lock.json' with { type: 'json' }
-import { isWriteTool, stripServerPrefix } from './tool-effect'
+import { stripServerPrefix } from './tool-effect'
 
 /** composer 里的审批档（与客户端 `AgentPref.approvalMode` 的字面量集合一致） */
 type ApprovalMode = 'ask' | 'auto' | 'readonly'
@@ -23,12 +23,18 @@ type ToolPermissionLevel = 'always_allow' | 'ask_before' | 'never_allow'
 /**
  * composer 策略 → goose 会话 mode。
  *
- * goose 默认 `auto`：permission_inspector 对所有工具直接 Allow，此时 permission.yaml
- * 的 ask_before **不会**触发审批。「询问审批」必须切到 `smart_approve` 才生效。
+ * - `auto` → `auto`：goose 无条件放行，**硬禁用靠 permission.yaml 拦**，这是全仓唯一
+ *   一个「不写 yaml 就拦不住」的档，所以 agentd 每个会话都必须先同步一次硬禁用。
+ * - `ask` → `smart_approve`：goose 把带 `read_only_hint` 的工具分类，写工具必定要走审批；
+ *   前端在收到审批后不再额外判断（用户就是想被问）。
+ * - `readonly` → `approve`：**不用 smart_approve**。smart_approve 对没有 annotation
+ *   的工具会请模型自己判「这个调用是不是只读的」，而 readonly 档的承诺是「写工具一定
+ *   不执行」—— 不能把这条承诺押在模型判断上。`approve` 下所有工具都先问，前端再把
+ *   只读的自动放行、写的直接拒（见 `decideApproval`），既有确定性又不打扰用户。
  */
 function findGooseMode(mode: ApprovalMode): GooseMode {
   if (mode === 'auto') return 'auto'
-  // ask / readonly 都靠 smart_approve 启审批通道；细粒度由 findToolPermissionLevel 区分
+  if (mode === 'readonly') return 'approve'
   return 'smart_approve'
 }
 
@@ -108,7 +114,8 @@ function isLegacyFileWriter(toolName: string): boolean {
 /**
  * 与档位无关的硬禁用：黑盒 shell + goose 内置写工具。
  *
- * 这张表是 `permission.yaml` **唯一**该写的内容 —— 档位本身由会话 `mode` 表达。
+ * 两者都是 `never_allow`，与 ask / auto / readonly 无关 —— 「自动审批」只意味着
+ * 不再逐次询问 cogito 的工具，不意味着允许绕开右栏终端与工作区写闸门。
  */
 function findHardDenyLevel(toolName: string): ToolPermissionLevel | null {
   if (isLegacyFileWriter(toolName)) return 'never_allow'
@@ -116,16 +123,22 @@ function findHardDenyLevel(toolName: string): ToolPermissionLevel | null {
   return null
 }
 
-function findToolPermissionLevel(
-  mode: ApprovalMode,
-  toolName: string
-): ToolPermissionLevel {
-  // 无论 ask/auto/readonly：黑盒 shell 与内置写工具一律禁用，强制走本地工具
-  const hard = findHardDenyLevel(toolName)
-  if (hard) return hard
-  if (mode === 'auto') return 'always_allow'
-  if (mode === 'ask') return isWriteTool(toolName) ? 'ask_before' : 'always_allow'
-  return isWriteTool(toolName) ? 'never_allow' : 'always_allow'
+/**
+ * 从一份工具清单里挑出必须硬禁用的那些。
+ *
+ * 唯一的调用方是 agentd 的会话初始化：硬禁用必须**由每个 goose 会话自己保证**，
+ * 不能靠「用户点过审批档下拉」。旧实现把它挂在档位切换上，于是全新会话在用户碰
+ * 那个下拉之前根本没有任何 `never_allow` —— 黑盒 shell 在 `auto` 档下直通。
+ *
+ * 返回去重后的工具名（goose 的 `tools/permissions/set` 按精确名写）。
+ */
+function listHardDenyToolNames(toolNames: readonly string[]): string[] {
+  const seen = new Set<string>()
+  for (const name of toolNames) {
+    if (findHardDenyLevel(name) === null) continue
+    seen.add(name)
+  }
+  return Array.from(seen)
 }
 
 export {
@@ -136,9 +149,9 @@ export {
   OPAQUE_SHELL_NAMES,
   findGooseMode,
   findHardDenyLevel,
-  findToolPermissionLevel,
   isLegacyFileWriter,
   isLocalTool,
-  isOpaqueShellTool
+  isOpaqueShellTool,
+  listHardDenyToolNames
 }
 export type { ApprovalMode, GooseMode, ToolPermissionLevel }

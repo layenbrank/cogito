@@ -3,17 +3,20 @@ import { describe, expect, it } from 'vitest'
 import {
   findGooseMode,
   findHardDenyLevel,
-  findToolPermissionLevel,
   isLegacyFileWriter,
   isLocalTool,
-  isOpaqueShellTool
+  isOpaqueShellTool,
+  listHardDenyToolNames
 } from './approval'
 
 describe('findGooseMode', function () {
-  it('auto 直通，其余档靠 smart_approve 启审批通道', function () {
+  it('auto 直通；ask 靠 smart_approve 启审批通道', function () {
     expect(findGooseMode('auto')).toBe('auto')
     expect(findGooseMode('ask')).toBe('smart_approve')
-    expect(findGooseMode('readonly')).toBe('smart_approve')
+  })
+
+  it('readonly 走 approve：写工具不该押在模特的只读判定上', function () {
+    expect(findGooseMode('readonly')).toBe('approve')
   })
 })
 
@@ -64,19 +67,18 @@ describe('findHardDenyLevel', function () {
   })
 })
 
-describe('findToolPermissionLevel', function () {
-  it('auto：白名单外全部放行，但硬禁用优先', function () {
-    expect(findToolPermissionLevel('auto', 'cogito_workspace_write')).toBe('always_allow')
-    expect(findToolPermissionLevel('auto', 'shell')).toBe('never_allow')
-  })
-
-  it('ask：写工具要问，只读放行', function () {
-    expect(findToolPermissionLevel('ask', 'cogito_workspace_write')).toBe('ask_before')
-    expect(findToolPermissionLevel('ask', 'cogito_workspace_read')).toBe('always_allow')
-  })
-
-  it('readonly：写工具禁止，只读放行', function () {
-    expect(findToolPermissionLevel('readonly', 'cogito_workspace_write')).toBe('never_allow')
-    expect(findToolPermissionLevel('readonly', 'cogito_workspace_read')).toBe('always_allow')
+describe('findToolPermissionLevel 已移除', function () {
+  it('listHardDenyToolNames 只挑硬禁用的，且去重', function () {
+    expect(
+      listHardDenyToolNames([
+        'shell',
+        'write',
+        'edit',
+        'local__cogito_workspace_write',
+        'todo__todo_write',
+        'cogito_workspace_read',
+        'shell'
+      ])
+    ).toEqual(['shell', 'write', 'edit'])
   })
 })

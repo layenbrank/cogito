@@ -14,8 +14,11 @@
  * - **超时也是 fail-closed**：`APPROVAL_TIMEOUT_MS` 到了没人回执，按取消结案。旧链路在渲染侧有
  *   `TICKET_TIMEOUT_MS = 300_000`，闸门搬到 agentd 后必须保留同一个值 —— 否则一个忘掉的审批
  *   会把这个线程的 ACP 回包永久悬住，而 UI 那边看起来只是「卡住了」。
- * - 判定规则本身不在这里：哪个选项算「允许」由 `@cogito/agent-protocol/policy` 决定，
- *   这里只负责转发 `optionId`。
+ * - 判定规则本身不在这里：
+ *   - 「哪些工具永远不许跑」（黑盒 shell / goose 原厂写工具）在
+ *     `@cogito/agent-protocol/policy` 的 `findHardDenyLevel`；
+ *   - 「这次调用该不该问用户」（只读档拒写、目标模式放行）在客户端的 `decideApproval`。
+ *   本模块只负责转发 `optionId`，并在没人认领时按取消结案。
  * - 进程退出时会把所有等待者拒掉，避免 HTTP 侧永远挂起。
  */
 

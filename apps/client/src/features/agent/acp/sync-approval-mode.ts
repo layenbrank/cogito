@@ -1,21 +1,25 @@
 /**
  * 把 composer 的审批策略同步到 goose。
  *
- * 两步缺一不可：
- * 1. `session/set_config_option`（或 `set_mode`）写入会话 mode —— goose 默认 `auto`
- *    会无条件放行，单改 permission.yaml 的 ask_before **不会**弹审批；
- * 2. `tools/permissions/set` 写细粒度档（smart_approve 下的 always_allow / ask_before / never_allow）。
+ * **只写会话 `mode`**，不再写细粒度工具权限。
+ *
+ * ## 为什么细粒度权限不在这里
+ *
+ * `permission.yaml` 的 `user` 段是**全进程**的，而档位是**会话级**的 —— 按档位把整张表
+ * 覆写会让两个会话互相踩（A 选「询问」，B 跑一次自动审批就把 A 的工具改成
+ * always_allow，A 从此不再弹审批）。之前为了避开这个，只写「与档位无关的硬禁用」，
+ * 但那又留下一个更糟的洞：写入时机挂在「用户点审批档下拉 / 切模式 / Goal 启停」上，
+ * 全新会话在用户碰过这三处之前，`permission.yaml` 里**一条 `never_allow` 都没有**，
+ * 黑盒 shell 在 `auto` 档下直通。
+ *
+ * 现在硬禁用由 agentd 在**每个 goose 会话建立时**幂等同步一次
+ * （`graph.ts` 的 `ensureHardDeny`）—— 那是唯一不依赖用户操作、且每个会话必然经过的
+ * 位置。档位语义仍然完全由 `mode` 表达。
  */
 import type { ClientConnection } from '@agentclientprotocol/sdk'
 import { methods } from '@agentclientprotocol/sdk'
 
-import { fetchSessionTools, writeToolPermissions } from '@/features/agent/acp/goose-providers'
-import {
-  findGooseMode,
-  findHardDenyLevel,
-  readApprovalMode,
-  type ApprovalMode
-} from '@/features/agent/approval'
+import { findGooseMode, readApprovalMode, type ApprovalMode } from '@/features/agent/approval'
 
 async function writeSessionGooseMode(
   connection: ClientConnection,
@@ -39,40 +43,12 @@ async function writeSessionGooseMode(
   })
 }
 
-/**
- * 细粒度权限：**只写与档位无关的硬禁用**（黑盒 shell / goose 内置写工具）。
- *
- * 为什么不再按档位全表覆写：`permission.yaml` 是**全进程**的，而档位是**会话级**的 ——
- * 两个会话交替同步会互相覆盖（A 选「询问」，B 跑一次自动审批就把 A 的工具改回
- * always_allow，A 从此不再弹审批）。档位本身由会话 `mode`（smart_approve / auto）表达。
- */
-async function syncSessionToolPermissions(
-  connection: ClientConnection,
-  sessionId: string
-): Promise<void> {
-  const tools = await fetchSessionTools(connection, sessionId)
-  const toolPermissions = tools.flatMap(function (tool) {
-    const level = findHardDenyLevel(tool.name)
-    return level ? [{ toolName: tool.name, permission: level }] : []
-  })
-  if (toolPermissions.length === 0) return
-  await writeToolPermissions(connection, toolPermissions)
-}
-
 async function syncSessionApprovalMode(
   connection: ClientConnection,
   sessionId: string,
   mode: ApprovalMode = readApprovalMode()
 ): Promise<void> {
-  const gooseMode = findGooseMode(mode)
-  await writeSessionGooseMode(connection, sessionId, gooseMode)
-
-  try {
-    await syncSessionToolPermissions(connection, sessionId)
-  } catch (error) {
-    // mode 已切到 smart_approve 时，即使细粒度权限失败，写工具仍会走审批通道
-    console.warn('[sync-approval-mode] 写入工具权限失败（会话 mode 已更新）:', error)
-  }
+  await writeSessionGooseMode(connection, sessionId, findGooseMode(mode))
 }
 
 export { syncSessionApprovalMode, writeSessionGooseMode }
