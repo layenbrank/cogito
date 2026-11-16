@@ -17,6 +17,7 @@ import {
 } from '@/stores/overlay'
 import styles from '@/views/overlay/overlay.module.scss'
 import { OverlayBoundary } from '@/views/overlay/boundary'
+import { SearchIsland } from '@/views/overlay/island/island.tsx'
 import Texture from '@/views/overlay/texture'
 import Tile from '@/views/overlay/tile'
 
@@ -410,6 +411,8 @@ function OverlayShell() {
                 />
               )
             })}
+          {/* 搜索灵动岛：与磁贴浮层同级（共用穿透上报），截屏态隐藏 */}
+          {ready && !isScreenshot ? <SearchIsland /> : null}
         </div>
       </div>
     </OverlayBoundary>
