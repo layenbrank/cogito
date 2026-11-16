@@ -8,8 +8,11 @@ import { useCodeStore } from '@/stores/code'
 import { joinPath } from '@/views/code/lib/path.ts'
 
 function useGitSearch() {
-  const workspaceRoot = useCodeStore(function (state) {
-    return state.workspaceRoot
+  const roots = useCodeStore(function (state) {
+    return state.roots
+  })
+  const repoRoot = useCodeGitStore(function (state) {
+    return state.repoRoot
   })
   const isRepo = useCodeGitStore(function (state) {
     return state.isRepo
@@ -140,11 +143,11 @@ function useGitSearch() {
   }
 
   function onOpenFile(relative: string) {
-    if (!workspaceRoot || !selectedOid) return
+    if (!repoRoot || !selectedOid) return
     updateActiveFilePath(relative)
     const parentOid = selectedHit?.parentOid ?? null
     useCodeStore.getState().toOpenDiffTab({
-      path: joinPath(workspaceRoot, relative),
+      path: joinPath(repoRoot, relative),
       baseOid: parentOid ?? '',
       headOid: selectedOid,
       titleHint: selectedOid.slice(0, 7)
@@ -182,7 +185,8 @@ function useGitSearch() {
   const showFileSkeleton = isShowLoading && commitFiles.length === 0 && Boolean(selectedOid)
 
   return {
-    workspaceRoot,
+    roots,
+    repoRoot,
     isRepo,
     searchField,
     searchHits,

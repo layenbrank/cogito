@@ -11,7 +11,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { WorkspaceFolderChips } from '@/views/agent/chat/components/workspace-folder-chips'
 import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
@@ -32,6 +32,8 @@ interface AsideReviewStatusBarProps {
   onPull: () => Promise<unknown>
   onPush: () => Promise<unknown>
   onRefresh: () => Promise<unknown>
+  /** 动作行尾部插槽（审阅面板用来挂「更多 Git 操作」） */
+  trailing?: ReactNode
 }
 
 function ActionButton(props: {
@@ -166,6 +168,7 @@ function AsideReviewStatusBar(props: AsideReviewStatusBarProps) {
               void run('refresh', props.onRefresh)
             }}
           />
+          {props.trailing}
         </div>
       </div>
 

@@ -110,6 +110,42 @@ interface UpstreamResult {
   aheadTruncated: boolean
 }
 
+/** 一条储藏记录 */
+interface StashEntry {
+  /** `stash@{n}` 里的 n（0 = 最新） */
+  index: number
+  /** `stash@{n}` */
+  selector: string
+  /** 已剥掉 `On main:` / `WIP on main: 1a2b3c` 前缀的说明 */
+  message: string
+  /** 秒级时间戳 */
+  committedAt: number
+}
+
+/** 工作区多步操作状态（变基 / 合并 / cherry-pick …）+ 储藏列表 */
+interface GitState {
+  /** 进行中的多步操作；空闲为 null */
+  operation: string | null
+  stashes: StashEntry[]
+  /** 冲突未解的文件（相对仓库根） */
+  conflicted: string[]
+}
+
+/** `git worktree list --porcelain` 的一条 */
+interface WorktreeEntry {
+  /** 工作树根（git 记录的形态，Windows 上可能是正斜杠） */
+  path: string
+  head: string
+  /** 短分支名；游离 HEAD 为 null */
+  branch: string | null
+  isBare: boolean
+  isDetached: boolean
+  isLocked: boolean
+  isPrunable: boolean
+  /** 主工作树 */
+  isMain: boolean
+}
+
 async function probe(path: string) {
   return invoke<ProbeResult>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path } })
 }
@@ -275,6 +311,77 @@ async function pull(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.PULL, { params: { path } })
 }
 
+async function state(path: string) {
+  return invoke<GitState>(CHANNELS.WORKSPACE_GIT.STATE, { params: { path } })
+}
+
+async function stashPush(
+  path: string,
+  options: { message?: string; isIncludeUntracked?: boolean } = {}
+) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.STASH_PUSH, {
+    params: {
+      path,
+      message: options.message?.trim() || undefined,
+      isIncludeUntracked: options.isIncludeUntracked ?? false
+    }
+  })
+}
+
+/** `isPop` 默认 true（应用后丢弃）；false = 只应用、保留储藏 */
+async function stashApply(path: string, index: number, isPop = true) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.STASH_APPLY, {
+    params: { path, index, isPop }
+  })
+}
+
+async function stashDrop(path: string, index: number) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.STASH_DROP, { params: { path, index } })
+}
+
+/** `upstream` 缺省 = 当前分支的上游（`git rebase` 无参数语义） */
+async function rebase(path: string, upstream?: string | null, isAutostash = true) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.REBASE, {
+    params: {
+      path,
+      upstream: upstream?.trim() || undefined,
+      isAutostash
+    }
+  })
+}
+
+async function rebaseContinue(path: string) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.REBASE_CONTINUE, { params: { path } })
+}
+
+async function rebaseAbort(path: string) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.REBASE_ABORT, { params: { path } })
+}
+
+async function worktreeList(path: string) {
+  return invoke<WorktreeEntry[]>(CHANNELS.WORKSPACE_GIT.WORKTREE_LIST, { params: { path } })
+}
+
+async function worktreeAdd(
+  path: string,
+  options: { targetPath: string; branch?: string; isNewBranch?: boolean }
+) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.WORKTREE_ADD, {
+    params: {
+      path,
+      targetPath: options.targetPath,
+      branch: options.branch?.trim() || undefined,
+      isNewBranch: options.isNewBranch ?? true
+    }
+  })
+}
+
+async function worktreeRemove(path: string, targetPath: string, isForce = false) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.WORKTREE_REMOVE, {
+    params: { path, targetPath, isForce }
+  })
+}
+
 const WorkspaceGit = {
   probe,
   fetchBranches,
@@ -293,7 +400,17 @@ const WorkspaceGit = {
   fetchAll,
   pull,
   push,
-  upstream
+  upstream,
+  state,
+  stashPush,
+  stashApply,
+  stashDrop,
+  rebase,
+  rebaseContinue,
+  rebaseAbort,
+  worktreeList,
+  worktreeAdd,
+  worktreeRemove
 }
 
 export { WorkspaceGit }
@@ -316,5 +433,8 @@ export type {
   ShowFile,
   ShowResult,
   ActionResult,
-  UpstreamResult
+  UpstreamResult,
+  StashEntry,
+  GitState,
+  WorktreeEntry
 }

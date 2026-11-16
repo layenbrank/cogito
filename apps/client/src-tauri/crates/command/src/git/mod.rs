@@ -14,6 +14,7 @@ mod path;
 mod session;
 mod status;
 mod upstream;
+mod worktree;
 
 pub use blob::{
     prepare_side, read_head_bytes, read_index_bytes, read_tree_bytes, read_worktree_bytes,
@@ -32,6 +33,7 @@ pub use path::{has_git_marker, validate_branch, validate_path, validate_relative
 pub use session::{ProbeInfo, open_repo, probe_repo};
 pub use status::{BranchList, StatusEntryR, StatusR, list_branches, read_status};
 pub use upstream::{UpstreamR, read_upstream};
+pub use worktree::{WorktreeR, add_worktree, list_worktrees, remove_worktree, validate_worktree_target};
 
 /// 环境变量：`cli`（强制）| `gix`（默认标记，当前仍走 porcelain CLI 以对齐金样）。
 ///

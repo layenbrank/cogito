@@ -16,7 +16,9 @@ import {
   type DiffRevs,
   type SearchField,
   type ShowFile,
-  type StatusEntry
+  type StashEntry,
+  type StatusEntry,
+  type WorktreeEntry
 } from '@/lib/workspace-git'
 
 interface GitDiff {
@@ -48,8 +50,43 @@ interface GitOutcome {
   message: string
 }
 
+/** 工作区根的仓库探测结果：仓库选择器据此只列出真仓库 */
+interface RepoCandidate {
+  path: string
+  isRepo: boolean
+}
+
+/**
+ * 换仓库 / 清空工作区时的统一重置：所有「跟着某个仓库根走」的视图态归零。
+ *
+ * 数组每次新建 —— 直接复用同一个字面量对象会让 immer draft 拿到共享引用，
+ * 后续 `push` 会写回模块级常量。
+ */
+function createEmptyRepoView() {
+  return {
+    entries: [] as StatusEntry[],
+    ahead: 0,
+    behind: 0,
+    diff: null as GitDiff | null,
+    searchHits: [] as CommitHit[],
+    selectedOid: null as string | null,
+    commitFiles: [] as ShowFile[],
+    searchError: null as string | null,
+    showError: null as string | null,
+    recentHits: [] as CommitHit[],
+    branches: [] as string[],
+    remoteBranches: [] as string[],
+    operation: null as string | null,
+    stashes: [] as StashEntry[],
+    conflicted: [] as string[],
+    worktrees: [] as WorktreeEntry[]
+  }
+}
+
 interface CodeGitState {
   repoRoot: string | null
+  /** 各工作区根的仓库探测结果（`toSyncWorkspace` 写入，仓库选择器消费） */
+  repoCandidates: RepoCandidate[]
   isRepo: boolean
   branch: string
   ahead: number
@@ -80,7 +117,20 @@ interface CodeGitState {
   isBranchesLoading: boolean
   isCheckoutBusy: boolean
 
-  /** 工作区根变化时调用：probe 后按需读取状态 */
+  /** 进行中的多步操作（rebase / merge / cherry-pick …）；空闲为 null */
+  operation: string | null
+  /** 储藏列表（stash@{n}，0 最新） */
+  stashes: StashEntry[]
+  /** 冲突未解的文件（相对仓库根） */
+  conflicted: string[]
+  isStateLoading: boolean
+  /** 工作树列表（`--porcelain`） */
+  worktrees: WorktreeEntry[]
+  isWorktreesLoading: boolean
+
+  /** 工作区根集合变化时调用：探测每个根选出一个仓库，再按需读取状态 */
+  toSyncWorkspace: (roots: readonly string[]) => Promise<void>
+  /** 指向单个仓库根（仓库选择器 / 工作区同步共用）：切换时清空上一个仓库的视图态 */
   toSync: (root: string | null) => Promise<void>
   /** watch 回调：先失效缓存再刷新 */
   toInvalidateAndRefresh: () => Promise<void>
@@ -107,6 +157,23 @@ interface CodeGitState {
   toLoadBranches: () => Promise<void>
   /** 切换分支：成功后刷新 status / 最近提交 / 搜索；`fromRemote` 用于从远端分支建跟踪分支 */
   toCheckoutBranch: (branch: string, fromRemote?: string | null) => Promise<GitOutcome>
+  /** 读取多步操作态 + 储藏列表（面板挂载与每次写操作后调用） */
+  toLoadState: () => Promise<void>
+  toStashPush: (options: { message?: string; isIncludeUntracked?: boolean }) => Promise<GitOutcome>
+  /** `isPop` 默认 true（应用后丢弃）；false = 只应用 */
+  toStashApply: (index: number, isPop?: boolean) => Promise<GitOutcome>
+  toStashDrop: (index: number) => Promise<GitOutcome>
+  /** `upstream` 缺省 = 当前分支的上游 */
+  toRebase: (upstream?: string | null) => Promise<GitOutcome>
+  toRebaseContinue: () => Promise<GitOutcome>
+  toRebaseAbort: () => Promise<GitOutcome>
+  toLoadWorktrees: () => Promise<void>
+  toAddWorktree: (options: {
+    targetPath: string
+    branch?: string
+    isNewBranch?: boolean
+  }) => Promise<GitOutcome>
+  toRemoveWorktree: (targetPath: string, isForce?: boolean) => Promise<GitOutcome>
 }
 
 const RECENT_LIMIT = 25
@@ -157,6 +224,7 @@ const useCodeGitStore = create<CodeGitState>()(
   immer(function (set, get) {
     return {
       repoRoot: null,
+      repoCandidates: [],
       isRepo: false,
       branch: '',
       ahead: 0,
@@ -182,48 +250,75 @@ const useCodeGitStore = create<CodeGitState>()(
       remoteBranches: [],
       isBranchesLoading: false,
       isCheckoutBusy: false,
+      operation: null,
+      stashes: [],
+      conflicted: [],
+      isStateLoading: false,
+      worktrees: [],
+      isWorktreesLoading: false,
+
+      async toSyncWorkspace(roots) {
+        const list = roots.filter(function (root) {
+          return Boolean(root)
+        })
+        if (list.length === 0) {
+          set(function (state) {
+            state.repoCandidates = []
+          })
+          await get().toSync(null)
+          return
+        }
+
+        // 逐根 probe（只读 `.git` 标记，很便宜）：SCM 只认真正是仓库的根
+        const probes = await Promise.all(
+          list.map(async function (path): Promise<RepoCandidate> {
+            try {
+              const result = await WorkspaceGit.probe(path)
+              return { path, isRepo: result.isRepo }
+            } catch (error) {
+              console.warn('[code] git probe failed', path, error)
+              return { path, isRepo: false }
+            }
+          })
+        )
+
+        set(function (state) {
+          state.repoCandidates = probes
+        })
+
+        const current = get().repoRoot
+        const keepsCurrent = probes.some(function (item) {
+          return item.path === current && item.isRepo
+        })
+        if (keepsCurrent) return
+
+        const next = probes.find(function (item) {
+          return item.isRepo
+        })
+        await get().toSync(next?.path ?? null)
+      },
 
       async toSync(root) {
         if (!root) {
           set(function (state) {
+            Object.assign(state, createEmptyRepoView())
             state.repoRoot = null
             state.isRepo = false
             state.branch = ''
-            state.ahead = 0
-            state.behind = 0
-            state.entries = []
             state.error = null
-            state.diff = null
-            state.searchHits = []
-            state.selectedOid = null
-            state.commitFiles = []
-            state.searchError = null
-            state.showError = null
-            state.recentHits = []
-            state.branches = []
-            state.remoteBranches = []
           })
           return
         }
         try {
           const probeResult = await WorkspaceGit.probe(root)
           set(function (state) {
-            state.repoRoot = probeResult.isRepo ? root : null
+            const nextRoot = probeResult.isRepo ? root : null
+            // 换仓库：上一个仓库的变更 / 提交 / 文件列表一律作废，否则会串味
+            if (state.repoRoot !== nextRoot) Object.assign(state, createEmptyRepoView())
+            state.repoRoot = nextRoot
             state.isRepo = probeResult.isRepo
             state.branch = probeResult.branch ?? ''
             state.error = null
-            if (!probeResult.isRepo) {
-              state.entries = []
-              state.ahead = 0
-              state.behind = 0
-              state.diff = null
-              state.searchHits = []
-              state.selectedOid = null
-              state.commitFiles = []
-              state.recentHits = []
-              state.branches = []
-              state.remoteBranches = []
-            }
           })
           if (!probeResult.isRepo) return
           await get().toRefresh()
@@ -232,19 +327,10 @@ const useCodeGitStore = create<CodeGitState>()(
         } catch (error) {
           console.error('[code] git sync failed', error)
           set(function (state) {
+            Object.assign(state, createEmptyRepoView())
             state.repoRoot = null
             state.isRepo = false
             state.branch = ''
-            state.entries = []
-            state.ahead = 0
-            state.behind = 0
-            state.diff = null
-            state.searchHits = []
-            state.selectedOid = null
-            state.commitFiles = []
-            state.recentHits = []
-            state.branches = []
-            state.remoteBranches = []
             state.error = toMessage(error, '无法读取仓库信息')
           })
         }
@@ -788,6 +874,178 @@ const useCodeGitStore = create<CodeGitState>()(
             state.isCheckoutBusy = false
           })
           return reportFailure(error, `切换到分支 ${branchName} 失败`)
+        }
+      },
+
+      async toLoadState() {
+        const root = get().repoRoot
+        if (!root) {
+          set(function (state) {
+            state.operation = null
+            state.stashes = []
+            state.conflicted = []
+            state.isStateLoading = false
+          })
+          return
+        }
+        set(function (state) {
+          state.isStateLoading = true
+        })
+        try {
+          const result = await WorkspaceGit.state(root)
+          set(function (state) {
+            state.operation = result.operation
+            state.stashes = result.stashes
+            state.conflicted = result.conflicted
+            state.isStateLoading = false
+          })
+        } catch (error) {
+          // 储藏列表读失败不该挡住面板：留痕后按空处理
+          console.warn('[code] git state failed', error)
+          set(function (state) {
+            state.isStateLoading = false
+          })
+        }
+      },
+
+      async toStashPush(options) {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.stashPush(root, options)
+          await get().toInvalidateAndRefresh()
+          void get().toLoadState()
+          bumpWorkspaceRevision()
+          return success(result.summary)
+        } catch (error) {
+          return reportFailure(error, '储藏失败')
+        }
+      },
+
+      async toStashApply(index, isPop = true) {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.stashApply(root, index, isPop)
+          await get().toInvalidateAndRefresh()
+          void get().toLoadState()
+          bumpWorkspaceRevision()
+          return success(result.summary)
+        } catch (error) {
+          return reportFailure(error, isPop ? '弹出储藏失败' : '应用储藏失败')
+        }
+      },
+
+      async toStashDrop(index) {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.stashDrop(root, index)
+          void get().toLoadState()
+          return success(result.summary)
+        } catch (error) {
+          return reportFailure(error, '删除储藏失败')
+        }
+      },
+
+      async toRebase(upstream) {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.rebase(root, upstream)
+          await get().toInvalidateAndRefresh()
+          void get().toLoadState()
+          void get().toLoadRecentCommits()
+          bumpWorkspaceRevision()
+          return success(result.summary)
+        } catch (error) {
+          // 冲突时 git 的 stderr 已写明怎么继续，原样透出
+          void get().toLoadState()
+          return reportFailure(error, '变基失败')
+        }
+      },
+
+      async toRebaseContinue() {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.rebaseContinue(root)
+          await get().toInvalidateAndRefresh()
+          void get().toLoadState()
+          void get().toLoadRecentCommits()
+          void get().toLoadBranches()
+          bumpWorkspaceRevision()
+          return success(result.summary)
+        } catch (error) {
+          void get().toLoadState()
+          return reportFailure(error, '继续变基失败')
+        }
+      },
+
+      async toRebaseAbort() {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.rebaseAbort(root)
+          await get().toInvalidateAndRefresh()
+          void get().toLoadState()
+          void get().toLoadRecentCommits()
+          void get().toLoadBranches()
+          bumpWorkspaceRevision()
+          return success(result.summary)
+        } catch (error) {
+          void get().toLoadState()
+          return reportFailure(error, '中止变基失败')
+        }
+      },
+
+      async toLoadWorktrees() {
+        const root = get().repoRoot
+        if (!root) {
+          set(function (state) {
+            state.worktrees = []
+            state.isWorktreesLoading = false
+          })
+          return
+        }
+        set(function (state) {
+          state.isWorktreesLoading = true
+        })
+        try {
+          const worktrees = await WorkspaceGit.worktreeList(root)
+          set(function (state) {
+            state.worktrees = worktrees
+            state.isWorktreesLoading = false
+          })
+        } catch (error) {
+          console.warn('[code] git worktree list failed', error)
+          set(function (state) {
+            state.isWorktreesLoading = false
+          })
+        }
+      },
+
+      async toAddWorktree(options) {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.worktreeAdd(root, options)
+          void get().toLoadWorktrees()
+          return success(result.summary)
+        } catch (error) {
+          return reportFailure(error, '新建工作树失败')
+        }
+      },
+
+      async toRemoveWorktree(targetPath, isForce = false) {
+        const root = get().repoRoot
+        if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        try {
+          const result = await WorkspaceGit.worktreeRemove(root, targetPath, isForce)
+          void get().toLoadWorktrees()
+          return success(result.summary)
+        } catch (error) {
+          return reportFailure(error, '删除工作树失败')
         }
       }
     }

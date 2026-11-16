@@ -9,17 +9,28 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import {
+  addWorktreeNow,
   checkoutNow,
   commitNow,
   discardNow,
   fetchNow,
   pullNow,
   pushNow,
+  rebaseAbortNow,
+  rebaseContinueNow,
+  rebaseNow,
   refreshNow,
+  removeWorktreeNow,
   stageNow,
+  stashApplyNow,
+  stashDropNow,
+  stashPushNow,
   unstageNow,
   useWorkspaceGitSnapshot
 } from '@/features/agent/workspace/git.ts'
+import { GitOperationsMenu } from '@/features/git-operations/menu.tsx'
+import { WorktreeDialog } from '@/features/git-operations/worktree-dialog.tsx'
+import { WorkspaceGit, type WorktreeEntry } from '@/lib/workspace-git'
 import { AsideDiff } from '@/views/agent/chat/components/aside-diff'
 import {
   AsideReviewList,
@@ -55,7 +66,22 @@ function AsideReview(props: AsideReviewProps) {
   )
   const [seenInitial, updateSeenInitial] = useState(props.initialRelative ?? null)
   const [discardTarget, setDiscardTarget] = useState<DiscardTarget | null>(null)
+  const [worktrees, updateWorktrees] = useState<WorktreeEntry[]>([])
+  const [isWorktreeLoading, updateWorktreeLoading] = useState(false)
+  const [isWorktreeOpen, setWorktreeOpen] = useState(false)
   // 切文件夹由 AgentAside 的 key 触发重挂：选中项 / 展开态自然清空，不必在这里再判一次
+
+  async function reloadWorktrees() {
+    if (!rootPath) return
+    updateWorktreeLoading(true)
+    try {
+      updateWorktrees(await WorkspaceGit.worktreeList(rootPath))
+    } catch (cause) {
+      console.warn('[agent/review] 读取工作树失败:', cause)
+    } finally {
+      updateWorktreeLoading(false)
+    }
+  }
 
   if (props.initialRelative !== seenInitial) {
     updateSeenInitial(props.initialRelative ?? null)
@@ -114,6 +140,35 @@ function AsideReview(props: AsideReviewProps) {
         onRefresh={function () {
           return refreshNow(rootPath)
         }}
+        trailing={
+          <GitOperationsMenu
+            stashes={snapshot.state.stashes}
+            operation={snapshot.state.operation}
+            branch={snapshot.branch}
+            branches={snapshot.branches?.branches ?? []}
+            onStashPush={function (options) {
+              return stashPushNow(rootPath, options)
+            }}
+            onStashApply={function (index, isPop) {
+              return stashApplyNow(rootPath, index, isPop)
+            }}
+            onStashDrop={function (index) {
+              return stashDropNow(rootPath, index)
+            }}
+            onRebase={function (upstream) {
+              return rebaseNow(rootPath, upstream)
+            }}
+            onRebaseContinue={function () {
+              return rebaseContinueNow(rootPath)
+            }}
+            onRebaseAbort={function () {
+              return rebaseAbortNow(rootPath)
+            }}
+            onOpenWorktrees={function () {
+              setWorktreeOpen(true)
+            }}
+          />
+        }
       />
 
       {selection ? (
@@ -162,6 +217,23 @@ function AsideReview(props: AsideReviewProps) {
         }}
         onConfirm={function () {
           void onConfirmDiscard()
+        }}
+      />
+
+      <WorktreeDialog
+        open={isWorktreeOpen}
+        onOpenChange={setWorktreeOpen}
+        worktrees={worktrees}
+        isLoading={isWorktreeLoading}
+        branches={snapshot.branches?.branches ?? []}
+        onReload={function () {
+          void reloadWorktrees()
+        }}
+        onAdd={function (options) {
+          return addWorktreeNow(rootPath, options)
+        }}
+        onRemove={function (targetPath, isForce) {
+          return removeWorktreeNow(rootPath, targetPath, isForce)
         }}
       />
     </div>

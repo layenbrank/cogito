@@ -286,9 +286,10 @@ function useCodeWorkspaceEffects(input: {
 
   useEffect(
     function () {
-      void useCodeGitStore.getState().toSync(workspaceRoot)
+      // 多根：由 store 逐根 probe 选出当前仓库（只有真仓库才进 SCM / 提交页）
+      void useCodeGitStore.getState().toSyncWorkspace(roots)
     },
-    [workspaceRoot]
+    [roots, rootsKey]
   )
 
   // Agent 面板里切分支 / 拉取 / 提交后也广播 revision：代码窗跟着重读，

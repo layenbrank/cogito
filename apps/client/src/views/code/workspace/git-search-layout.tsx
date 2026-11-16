@@ -11,6 +11,7 @@ import { GIT_SEARCH_FIELDS } from '@/views/code/workspace/git-search-format.ts'
 import { GitSearchChangesPanel } from '@/views/code/workspace/git-search-changes-panel.tsx'
 import { GitSearchCommitsPanel } from '@/views/code/workspace/git-search-commits-panel.tsx'
 import { BranchSwitcher } from '@/views/code/workspace/scm/branch-switcher.tsx'
+import { RepoSwitcher } from '@/views/code/workspace/scm/repo-switcher.tsx'
 
 type CommitHit = ReturnType<typeof useCodeGitStore.getState>['searchHits'][number]
 type CommitFile = ReturnType<typeof useCodeGitStore.getState>['commitFiles'][number]
@@ -50,6 +51,7 @@ function GitSearchToolbar(props: Pick<
 >) {
   return (
     <div className="border-border/50 flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+      <RepoSwitcher className="min-w-0 shrink-0" />
       <BranchSwitcher
         tone="toolbar"
         className="shrink-0"

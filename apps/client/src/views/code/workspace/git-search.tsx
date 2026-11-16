@@ -3,28 +3,30 @@
  */
 import { EmptyState } from '@/views/code/workspace/git-search-parts.tsx'
 import { GitSearchLayout } from '@/views/code/workspace/git-search-layout.tsx'
+import { RepoSwitcher } from '@/views/code/workspace/scm/repo-switcher.tsx'
 import { useGitSearch } from '@/views/code/workspace/use-git-search.ts'
 
 function GitSearch() {
   const state = useGitSearch()
 
-  if (!state.workspaceRoot) {
-    return (
-      <EmptyState
-        icon="lucide:folder-open"
-        title="尚未打开文件夹"
-        hint="打开工作区后即可搜索提交历史"
-      />
-    )
-  }
-
   if (!state.isRepo) {
+    const hasRoots = state.roots.length > 0
     return (
-      <EmptyState
-        icon="lucide:git-branch"
-        title="当前文件夹不是 Git 仓库"
-        hint="在仓库根目录打开文件夹后重试"
-      />
+      <div className="flex h-full min-h-0 flex-col">
+        {/* 仓库条常驻：没仓库时也要能在这里换一个，否则用户只能回资源管理器 */}
+        <div className="border-border/50 flex h-9 shrink-0 items-center border-b px-1.5">
+          <RepoSwitcher className="min-w-0 flex-1" />
+        </div>
+        <EmptyState
+          icon={hasRoots ? 'lucide:git-branch' : 'lucide:folder-open'}
+          title={hasRoots ? '当前工作区没有 Git 仓库' : '尚未打开文件夹'}
+          hint={
+            hasRoots
+              ? '用上方仓库选择器切到其它文件夹'
+              : '打开工作区后即可搜索提交历史'
+          }
+        />
+      </div>
     )
   }
 

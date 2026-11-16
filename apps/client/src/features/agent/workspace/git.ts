@@ -19,6 +19,7 @@ import {
 import {
   WorkspaceGit,
   type BranchesResult,
+  type GitState,
   type StatusEntry,
   type UpstreamResult
 } from '@/lib/workspace-git'
@@ -35,6 +36,8 @@ interface WorkspaceGitSnapshot {
   upstream: UpstreamResult | null
   /** 本地 + 远端分支清单 */
   branches: BranchesResult | null
+  /** 多步操作（变基 / 合并）与储藏列表 */
+  state: GitState
   isPending: boolean
   error: string | null
 }
@@ -47,6 +50,7 @@ interface SnapshotData {
   entries: StatusEntry[]
   upstream: UpstreamResult | null
   branches: BranchesResult | null
+  state: GitState
 }
 
 const EMPTY_DATA: SnapshotData = {
@@ -56,7 +60,8 @@ const EMPTY_DATA: SnapshotData = {
   behind: 0,
   entries: [],
   upstream: null,
-  branches: null
+  branches: null,
+  state: { operation: null, stashes: [], conflicted: [] }
 }
 
 /** 同一 root + 版本 + 强制标记只发一轮 IPC：多个面板同时挂载时共享同一个 promise */
@@ -71,7 +76,7 @@ async function loadSnapshot(rootPath: string): Promise<SnapshotData> {
   }
   const probe = await WorkspaceGit.probe(rootPath)
   if (!probe.isRepo) return EMPTY_DATA
-  const [status, upstream, branches] = await Promise.all([
+  const [status, upstream, branches, state] = await Promise.all([
     WorkspaceGit.status(rootPath).catch(function () {
       return null
     }),
@@ -79,6 +84,9 @@ async function loadSnapshot(rootPath: string): Promise<SnapshotData> {
       return null
     }),
     WorkspaceGit.fetchBranches(rootPath).catch(function () {
+      return null
+    }),
+    WorkspaceGit.state(rootPath).catch(function () {
       return null
     })
   ])
@@ -89,7 +97,8 @@ async function loadSnapshot(rootPath: string): Promise<SnapshotData> {
     behind: status?.behind ?? 0,
     entries: status?.entries ?? [],
     upstream,
-    branches
+    branches,
+    state: state ?? { operation: null, stashes: [], conflicted: [] }
   }
 }
 
@@ -151,6 +160,7 @@ function useWorkspaceGitSnapshot(rootPath: string | null): WorkspaceGitSnapshot 
     entries: rootPath ? data.entries : [],
     upstream: data.upstream,
     branches: data.branches,
+    state: data.state,
     isPending,
     error
   }
@@ -259,15 +269,77 @@ function commitNow(rootPath: string | null, message: string, isStageAll = false)
   })
 }
 
+function stashPushNow(
+  rootPath: string | null,
+  options: { message?: string; isIncludeUntracked?: boolean }
+) {
+  return runGitAction(rootPath, '储藏', function (root) {
+    return WorkspaceGit.stashPush(root, options)
+  })
+}
+
+function stashApplyNow(rootPath: string | null, index: number, isPop: boolean) {
+  return runGitAction(rootPath, isPop ? '弹出储藏' : '应用储藏', function (root) {
+    return WorkspaceGit.stashApply(root, index, isPop)
+  })
+}
+
+function stashDropNow(rootPath: string | null, index: number) {
+  return runGitAction(rootPath, '删除储藏', function (root) {
+    return WorkspaceGit.stashDrop(root, index)
+  })
+}
+
+function rebaseNow(rootPath: string | null, upstream?: string | null) {
+  return runGitAction(rootPath, '变基', function (root) {
+    return WorkspaceGit.rebase(root, upstream)
+  })
+}
+
+function rebaseContinueNow(rootPath: string | null) {
+  return runGitAction(rootPath, '继续变基', function (root) {
+    return WorkspaceGit.rebaseContinue(root)
+  })
+}
+
+function rebaseAbortNow(rootPath: string | null) {
+  return runGitAction(rootPath, '中止变基', function (root) {
+    return WorkspaceGit.rebaseAbort(root)
+  })
+}
+
+function addWorktreeNow(
+  rootPath: string | null,
+  options: { targetPath: string; branch?: string; isNewBranch?: boolean }
+) {
+  return runGitAction(rootPath, '新建工作树', function (root) {
+    return WorkspaceGit.worktreeAdd(root, options)
+  })
+}
+
+function removeWorktreeNow(rootPath: string | null, targetPath: string, isForce = false) {
+  return runGitAction(rootPath, '删除工作树', function (root) {
+    return WorkspaceGit.worktreeRemove(root, targetPath, isForce)
+  })
+}
+
 export {
+  addWorktreeNow,
   commitNow,
   checkoutNow,
   discardNow,
   fetchNow,
   pullNow,
   pushNow,
+  rebaseAbortNow,
+  rebaseContinueNow,
+  rebaseNow,
   refreshNow,
+  removeWorktreeNow,
   stageNow,
+  stashApplyNow,
+  stashDropNow,
+  stashPushNow,
   unstageNow,
   useWorkspaceGitSnapshot
 }
