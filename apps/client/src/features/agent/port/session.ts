@@ -51,10 +51,9 @@ import { bindSession, recallBinding } from '@/features/agent/acp/session-binding
 import { callAgentd, callAgentdJson, forgetEndpoint, invokeGoose } from './agentd-rpc'
 import { humanizeRunError } from '@/features/agent/acp/run-error'
 import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
-import { isWriteTool } from '@/features/agent/approval'
+import { findGooseMode } from '@/features/agent/approval'
+import { decideApprovalForThread } from '@/features/agent/approval-decision'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
-import { readGoalRun } from '@/features/agent/goal-run'
-import { readAgentModeFor } from '@/features/agent/mode'
 import { findModelKey, findModelPref } from '@/features/agent/model/model-prefs'
 import { recordThinkingApplied } from '@/features/agent/model/thinking-capability'
 import { resolveThinkingValue } from '@/features/agent/model/thinking-effort-map'
@@ -644,47 +643,10 @@ async function switchGooseProviderModel(
 
 /** 本轮要不要问用户（agentd 只看 mode，业务规则在这里）。 */
 function resolveSessionMode(threadID: string): string {
-  // `findEffectiveApprovalMode` 已经是「会话覆盖 → 全局偏好」的成品；映射成 goose 的档名
-  const effective = findEffectiveApprovalMode(threadID)
-  if (effective === 'readonly') return 'approve'
-  if (effective === 'auto') return 'auto'
-  return 'smart_approve'
-}
-
-/**
- * 审批的**业务判定**（计划模式 / 只读 / 目标模式自动放行）。
- *
- * - `null`：该问用户；
- * - [`APPROVAL_DENY`]：直接拒绝；
- * - 其他字符串：已经替用户拍板的 optionId。
- */
-const APPROVAL_DENY = '\u0000deny'
-
-function decideApproval(threadID: string, payload: ApprovalPayload): string | null {
-  const toolName =
-    (payload.approval.toolCall as { name?: string; title?: string }).name?.trim() ||
-    (payload.approval.toolCall as { title?: string }).title?.trim() ||
-    ''
-  const effective = findEffectiveApprovalMode(threadID)
-  // 只读档 / 计划模式：写工具直接拒绝。合并成一道门 —— 选「只读」等于什么都不拦就没意义了。
-  if (readAgentModeFor(threadID) === 'plan' || effective === 'readonly') {
-    if (isWriteTool(toolName)) {
-      console.info('[agent/session] 只读策略拒绝写工具:', toolName, effective)
-      return APPROVAL_DENY
-    }
-  }
-  // 目标模式：这一线程不是「问一次动一下」，但**只在用户当前就是自动审批**时才放行
-  if (readGoalRun(threadID) && effective === 'auto') {
-    const allow =
-      payload.approval.options.find(function (option) {
-        return option.kind === 'allow_once'
-      }) ??
-      payload.approval.options.find(function (option) {
-        return option.kind === 'allow_always'
-      })
-    return allow ? allow.optionId : APPROVAL_DENY
-  }
-  return null
+  // 档位 → goose mode 的映射只有一份（`policy/approval.ts` 的 findGooseMode）：
+  // 以前这里手写了一个不一样的版本（readonly → approve，而 policy 里写 smart_approve），
+  // 两处一旦接反就会“选了只读，写工具还是弹审批卡让人点允许”。
+  return findGooseMode(findEffectiveApprovalMode(threadID))
 }
 
 /**
@@ -968,19 +930,27 @@ async function* runThreadPrompt(
 
       if (kind === 'approval') {
         const approval = payload as unknown as ApprovalPayload
-        const decision = decideApproval(key, approval)
-        if (decision === APPROVAL_DENY) {
-          // 规则命中拒绝：立刻回执并**不推给 UI**（推了会闪一下审批卡）
+        const toolCall = approval.approval.toolCall as {
+          name?: string
+          title?: string
+          toolCallId: string
+        }
+        const toolName = toolCall.name?.trim() || toolCall.title?.trim() || ''
+        const outcome = decideApprovalForThread(key, toolName, approval.approval.options)
+        if (outcome.kind === 'cancel') {
+          // 规则要求拦下但拿不到合适选项：宁可按取消结案，也不能让用户把它放行
+          console.warn('[agent/session] 审批决定按取消结案:', outcome.reason)
           void settleRemoteApproval(key, approval.approval.requestId, null)
-          rememberSettled((approval.approval.toolCall as { toolCallId: string }).toolCallId, false)
+          rememberSettled(toolCall.toolCallId, false)
           continue
         }
-        if (decision !== null) {
-          void settleRemoteApproval(key, approval.approval.requestId, decision)
-          rememberSettled((approval.approval.toolCall as { toolCallId: string }).toolCallId, true)
+        if (outcome.kind !== 'ask') {
+          // 规则替用户拍板：立刻回执并**不推给 UI**（推了会闪一下审批卡）
+          void settleRemoteApproval(key, approval.approval.requestId, outcome.optionId)
+          rememberSettled(toolCall.toolCallId, outcome.kind === 'allow')
           continue
         }
-        const toolCallId = (approval.approval.toolCall as { toolCallId: string }).toolCallId
+        const toolCallId = toolCall.toolCallId
         pendingApprovals.set(toolCallId, {
           threadID: key,
           requestId: approval.approval.requestId,

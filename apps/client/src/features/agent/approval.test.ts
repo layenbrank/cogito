@@ -5,10 +5,10 @@ import {
   clearApprovalModeFor,
   findGooseMode,
   findHardDenyLevel,
-  findToolPermissionLevel,
   isLegacyFileWriter,
   isOpaqueShellTool,
   isWriteTool,
+  listHardDenyToolNames,
   readApprovalModeFor,
   writeApprovalModeFor
 } from '@/features/agent/approval'
@@ -49,9 +49,12 @@ describe('工具效果分类', function () {
 })
 
 describe('审批策略 → goose 会话 mode', function () {
-  it('询问审批 / 只读 → smart_approve（否则默认 auto 会跳过 permission.yaml）', function () {
+  it('询问审批 → smart_approve（否则默认 auto 会跳过 permission.yaml）', function () {
     expect(findGooseMode('ask')).toBe('smart_approve')
-    expect(findGooseMode('readonly')).toBe('smart_approve')
+  })
+
+  it('只读 → approve：写工具不押在模型的只读判定上', function () {
+    expect(findGooseMode('readonly')).toBe('approve')
   })
 
   it('自动审批 → auto', function () {
@@ -59,22 +62,8 @@ describe('审批策略 → goose 会话 mode', function () {
   })
 })
 
-describe('审批策略 → goose 权限档', function () {
-  it('询问审批：写工具 ask_before，读工具 always_allow', function () {
-    expect(findToolPermissionLevel('ask', 'write_file')).toBe('ask_before')
-    expect(findToolPermissionLevel('ask', 'read_file')).toBe('always_allow')
-  })
-
-  it('自动审批：非 shell 写工具 always_allow', function () {
-    expect(findToolPermissionLevel('auto', 'write_file')).toBe('always_allow')
-  })
-
-  it('只读：写工具 never_allow，读工具 always_allow', function () {
-    expect(findToolPermissionLevel('readonly', 'write_file')).toBe('never_allow')
-    expect(findToolPermissionLevel('readonly', 'read_file')).toBe('always_allow')
-  })
-
-  it('Goose 黑盒 shell 在任意策略下均为 never_allow；cogito_terminal_* 不受影响', function () {
+describe('硬禁用名单（agentd 每个会话都会同步一次）', function () {
+  it('黑盒 shell 在任意策略下都被挑出来；cogito_terminal_* 不受影响', function () {
     expect(isOpaqueShellTool('shell')).toBe(true)
     expect(isOpaqueShellTool('developer__shell')).toBe(true)
     expect(isOpaqueShellTool('cogito_terminal_run')).toBe(false)
@@ -83,14 +72,13 @@ describe('审批策略 → goose 权限档', function () {
     // never_allow，goose 静默拒绝 —— 用户看到「询问审批」却没有任何人问他
     expect(isOpaqueShellTool('execute_javascript')).toBe(false)
     expect(isOpaqueShellTool('developer__execute_javascript')).toBe(false)
-    expect(findToolPermissionLevel('auto', 'shell')).toBe('never_allow')
-    expect(findToolPermissionLevel('ask', 'developer__shell')).toBe('never_allow')
-    expect(findToolPermissionLevel('readonly', 'bash')).toBe('never_allow')
-    expect(findToolPermissionLevel('auto', 'cogito_terminal_run')).toBe('always_allow')
-    expect(findToolPermissionLevel('ask', 'cogito_terminal_run')).toBe('ask_before')
+    expect(listHardDenyToolNames(['shell', 'bash', 'local__cogito_terminal_run'])).toEqual([
+      'shell',
+      'bash'
+    ])
   })
 
-  it('goose 内置文件写工具在任意策略下均为 never_allow（写文件只能经 cogito_workspace_*）', function () {
+  it('goose 内置文件写工具都被挑出来（写文件只能经 cogito_workspace_*）', function () {
     expect(isLegacyFileWriter('text_editor')).toBe(true)
     expect(isLegacyFileWriter('developer__text_editor')).toBe(true)
     expect(isLegacyFileWriter('str_replace')).toBe(true)
@@ -101,12 +89,15 @@ describe('审批策略 → goose 权限档', function () {
     expect(isLegacyFileWriter('cogito_workspace_patch')).toBe(false)
     expect(isLegacyFileWriter('cogito_knowledge_write_doc')).toBe(false)
 
-    expect(findToolPermissionLevel('auto', 'developer__text_editor')).toBe('never_allow')
-    expect(findToolPermissionLevel('ask', 'str_replace')).toBe('never_allow')
-    expect(findToolPermissionLevel('readonly', 'developer__apply_patch')).toBe('never_allow')
-    // auto 档下写入口仍然放行（guard 在执行层，不在审批层）
-    expect(findToolPermissionLevel('auto', 'cogito_workspace_write')).toBe('always_allow')
-    expect(findToolPermissionLevel('ask', 'cogito_workspace_patch')).toBe('ask_before')
+    expect(
+      listHardDenyToolNames([
+        'developer__text_editor',
+        'write',
+        'edit',
+        'local__cogito_workspace_write',
+        'todo__todo_write'
+      ])
+    ).toEqual(['developer__text_editor', 'write', 'edit'])
   })
 })
 

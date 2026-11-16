@@ -207,13 +207,14 @@ export {
 // 这里只转发，保持既有 import 路径不变。
 export {
   classifyToolEffect,
+  EXACT_FILE_WRITE_NAMES,
   findGooseMode,
   findHardDenyLevel,
-  findToolPermissionLevel,
   isLegacyFileWriter,
   isLocalTool,
   isOpaqueShellTool,
   isWriteTool,
+  listHardDenyToolNames,
   stripServerPrefix
 } from '@cogito/agent-protocol/policy'
 export type { GooseMode, ToolEffect } from '@cogito/agent-protocol/policy'
