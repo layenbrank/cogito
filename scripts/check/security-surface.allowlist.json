@@ -1,11 +1,11 @@
 {
   "$comment": "plugin-fs 引用面基线（只许缩小）。S1/1A 会把下列文件逐个搬进 Rust 命令；新增文件必须显式改这里。",
   "$fsScopeDebt": "fs:scope 全盘通配账目：1B 收口完成前允许存在，清掉后删条目并用 --strict 跑一次门禁。",
-  "generatedAt": "2026-11-10T11:26:17.919Z",
+  "generatedAt": "2026-11-16T04:29:26.784Z",
   "files": [
-    "src/features/agent/acp/session.ts",
     "src/features/agent/plan-file.test.ts",
     "src/features/agent/plan-file.ts",
+    "src/features/agent/port/session.ts",
     "src/features/capture/history.ts",
     "src/features/capture/import-recording.ts",
     "src/features/knowledge-clip/clip-inbox.ts",
