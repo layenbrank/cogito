@@ -12,6 +12,9 @@ use crate::overlay::state::{
 use crate::through::ThroughState;
 use crate::utils::clock::now_ms;
 
+/// 前台化重试间隔：窗口刚 show 出来、Shell 正在切前台时 `SetForegroundWindow` 会偶发失败
+const ACTIVATE_RETRY_DELAYS_MS: [u64; 3] = [0, 24, 64];
+
 pub const OVERLAY_LABEL: &str = "overlay";
 pub const OVERLAY_URL: &str = "/overlay";
 
@@ -199,28 +202,45 @@ pub(crate) fn ensure_overlay_visible(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 进入截屏态前的前台化：显示 → 复位置顶 → 抢前台。
+/// 进入截屏态前的前台化：显示 → 复位置顶 → 抢前台（有界重试）。
 ///
 /// 不抢前台会同时坏两件事：① WebView2 只在窗口被激活后才恢复合成，页面停在 hidden
 /// 就没有遮罩、没有窗口吸附；② 键盘（Esc / 撤销 / 字号输入）根本到不了浮层。
-/// 失败只记日志（不能因此把这次截屏判死），下一次热键会再试一遍。
-pub(crate) fn activate_overlay(app: &AppHandle) {
+/// 失败**不**把这次截屏判死（首帧超时那边还有一次自愈），只把原因写进日志。
+pub(crate) async fn activate_overlay(app: &AppHandle) -> bool {
     if let Err(error) = ensure_overlay_visible(app) {
         tracing::warn!(target: "overlay", "进入截屏态：浮层显示失败: {error}");
-        return;
+        return false;
     }
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
-        return;
+        return false;
     };
-    if !crate::ui::foreground::force_foreground(&window) {
-        // 再兜一次 Tauri 自己的 set_focus（某些 Shell 状态下上面那条被锁挡住）
-        let _ = window.set_focus();
-        if !window.is_focused().unwrap_or(false) {
-            tracing::warn!(
-                target: "overlay",
-                "进入截屏态：浮层未取得前台焦点，首帧可能要等一次点击才恢复绘制"
-            );
+    for delay in ACTIVATE_RETRY_DELAYS_MS {
+        if delay > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
         }
+        if crate::ui::foreground::force_foreground(&window) {
+            return true;
+        }
+    }
+    // 再兜一次 Tauri 自己的 set_focus（个别 Shell 状态下上面那条被锁挡住）
+    let _ = window.set_focus();
+    if window.is_focused().unwrap_or(false) {
+        return true;
+    }
+    tracing::warn!(
+        target: "overlay",
+        "进截屏态：浮层未取得前台焦点，首帧可能要等一次点击才恢复绘制"
+    );
+    false
+}
+
+/// 退出截屏态时把前台还给用户原来的窗口。
+///
+/// 不还的话，截完图键盘焦点还在那个透明全屏浮层上 —— 用户「打字没反应」，得先点一下窗口。
+pub(crate) fn release_foreground(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        crate::ui::foreground::restore_foreground(&window);
     }
 }
 
@@ -295,6 +315,7 @@ pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
             window.is_visible().unwrap_or(false)
         );
     }
+    release_foreground(&app);
     emit_mode(&app, OverlayMode::Idle);
     Ok(())
 }
@@ -314,6 +335,7 @@ pub async fn overlay_park(app: AppHandle) -> Result<(), String> {
             window.is_visible().unwrap_or(false)
         );
     }
+    release_foreground(&app);
     emit_mode(&app, OverlayMode::Idle);
     Ok(())
 }
@@ -342,13 +364,17 @@ pub async fn overlay_update_mode(app: AppHandle, mode: String) -> Result<(), Str
         }
         // 抓帧已经结束，这里再前台化：`force_foreground` 同时会重放置顶，
         // 免得任务栏在这中间把自己又抬上来（贴底的工具栏就会跑到它后面）
-        activate_overlay(&app);
+        activate_overlay(&app).await;
         if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
             let _ = window.set_ignore_cursor_events(false);
         }
-    } else if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        // idle：窗口常驻但不吃指针，立刻切回穿透（不靠 50ms 的轮询窗口）
-        let _ = window.set_ignore_cursor_events(true);
+    } else {
+        if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+            // idle：窗口常驻但不吃指针，立刻切回穿透（不靠 50ms 的轮询窗口）
+            let _ = window.set_ignore_cursor_events(true);
+        }
+        // 退出截屏：先把前台还给用户原来的窗口，再把焦点交出去
+        release_foreground(&app);
     }
 
     if escape_should_bind(parsed) {

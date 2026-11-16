@@ -186,21 +186,31 @@ async fn arm_ready(app: &AppHandle) -> Option<oneshot::Receiver<()>> {
 ///
 /// 两种结果都留痕：握手成功说明「reveal 晚于冻结帧」，超时说明这条慢机上
 /// 靠的是加载期冻结帧兜底 —— 排查「截屏瞬间闪桌面」时先看这一行。
-async fn wait_ready(ready: Option<oneshot::Receiver<()>>) {
+///
+/// 返回值就是这个「首帧上来了没有」：`false` 时调用方再抢一次前台做自愈
+/// （首帧是靠 rAF 发的，页面停在 hidden 就永远等不到）。
+async fn wait_ready(ready: Option<oneshot::Receiver<()>>) -> bool {
     let Some(rx) = ready else {
-        return;
+        // 重新截图路径不挂握手：没有可等的，按「已就绪」处理
+        return true;
     };
     let started = Instant::now();
     match tokio::time::timeout(Duration::from_millis(READY_TIMEOUT_MS), rx).await {
-        Ok(Ok(())) => tracing::info!(
-            target: "capture",
-            "首帧 ack {}ms（reveal 在首帧之后）",
-            started.elapsed().as_millis()
-        ),
-        _ => tracing::warn!(
-            target: "capture",
-            "首帧 ack 超时（上限 {READY_TIMEOUT_MS}ms），按加载期冻结帧 reveal"
-        ),
+        Ok(Ok(())) => {
+            tracing::info!(
+                target: "capture",
+                "首帧 ack {}ms（reveal 在首帧之后）",
+                started.elapsed().as_millis()
+            );
+            true
+        }
+        _ => {
+            tracing::warn!(
+                target: "capture",
+                "首帧 ack 超时（上限 {READY_TIMEOUT_MS}ms），按加载期冻结帧 reveal"
+            );
+            false
+        }
     }
 }
 
@@ -250,7 +260,19 @@ async fn capture_once(
         None
     };
     let mode = overlay_update_mode(app.clone(), "screenshot".into()).await;
-    wait_ready(ready).await;
+    let acked = wait_ready(ready).await;
+    if !acked {
+        // 首帧迟迟不上来 = 页面没在画，最可能是浮层没拿到前台（合成停着）。
+        // 再抢一次前台：拿到激活后 rAF 恢复，遮罩与窗口吸附才会出来。
+        if crate::overlay::command::activate_overlay(app).await {
+            tracing::info!(target: "capture", "首帧自愈：第二次前台化成功");
+        } else {
+            tracing::warn!(
+                target: "capture",
+                "首帧自愈失败：浮层仍未取得前台，需要用户点一下窗口"
+            );
+        }
+    }
     // 无论切模式是否成功都要撤掉 conceal，否则浮层会一直是隐藏态
     reveal_overlay_visuals(app);
 
