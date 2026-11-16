@@ -676,6 +676,50 @@ pub fn shutdown(app: &AppHandle) {
     let _ = shutdown_and_wait(app, EXIT_WAIT);
 }
 
+/// 退出路径上的最小 HTTP 客户端：**故意不用 reqwest**。
+///
+/// `RunEvent::Exit` 里 Tauri 的 tokio runtime 已经在关闭，`block_on(reqwest…)` 会 panic
+/// 「there is no reactor running」。而不只是「请求失败」——panic 会**跳出 Exit 回调**，
+/// 于是后面 `sidecar::shutdown` / `terminal::shutdown` 一个都不执行，子进程只能靠
+/// Job Object 兜底。日志表现就是：退出码非 0 + 下次启动记一次「上次会话未正常退出」。
+///
+/// 这里用裸 `TcpStream` 发一个 HTTP/1.1：无 runtime、无第三方依赖、有超时，
+/// 够用来触发一次 `POST /admin/shutdown`。只要拿到状态行就够了。
+fn post_admin_shutdown(base_url: &str, token: &str) -> Result<u16, String> {
+    use std::io::{Read, Write};
+    use std::net::{TcpStream, ToSocketAddrs};
+
+    let authority = base_url.trim_start_matches("http://").trim_end_matches('/');
+    let addr = authority
+        .to_socket_addrs()
+        .map_err(|error| format!("解析 {authority} 失败: {error}"))?
+        .next()
+        .ok_or_else(|| format!("{authority} 没有可用的地址"))?;
+
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(500))
+        .map_err(|error| format!("连接 {addr} 失败: {error}"))?;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+
+    let request = format!(
+        "POST /admin/shutdown HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    );
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|error| format!("发送 shutdown 请求失败: {error}"))?;
+
+    // 只读一小段：状态行在第一行，body 可能是空的
+    let mut buffer = [0u8; 64];
+    let read = stream
+        .read(&mut buffer)
+        .map_err(|error| format!("读取响应失败: {error}"))?;
+    let head = String::from_utf8_lossy(&buffer[..read]);
+    head.split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse::<u16>().ok())
+        .ok_or_else(|| format!("响应不是合法 HTTP 状态行: {head:?}"))
+}
+
 pub fn shutdown_and_wait(app: &AppHandle, timeout: Duration) -> bool {
     info!("正在关闭 agentd…");
     let Some(state) = app.try_state::<AgentdState>() else {
@@ -696,18 +740,9 @@ pub fn shutdown_and_wait(app: &AppHandle, timeout: Duration) -> bool {
 
     // 优雅路径：agentd 收到 202 后自己 dispose 再 exit
     if let Some(endpoint) = endpoint {
-        let url = format!("{}/admin/shutdown", endpoint.base_url);
-        let client = reqwest::Client::builder().no_proxy().build();
-        if let Ok(client) = client {
-            let request = client
-                .post(&url)
-                .bearer_auth(&endpoint.token)
-                .timeout(Duration::from_secs(2))
-                .send();
-            match tauri::async_runtime::block_on(request) {
-                Ok(response) => info!("agentd /admin/shutdown → {}", response.status()),
-                Err(error) => warn!("agentd /admin/shutdown 失败（可忽略）: {error}"),
-            }
+        match post_admin_shutdown(&endpoint.base_url, &endpoint.token) {
+            Ok(status) => info!("agentd /admin/shutdown → {status}"),
+            Err(error) => warn!("agentd /admin/shutdown 失败（可忽略）: {error}"),
         }
     }
 

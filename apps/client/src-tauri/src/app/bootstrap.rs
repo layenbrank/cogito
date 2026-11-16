@@ -112,9 +112,7 @@ impl Bootstrap {
                 // 启动就铺满整屏（含任务栏）+ 置顶 + 穿透 + show。config 里写的是
                 // `visible: false`，这里必须真的 show 一次 —— 首次截屏才 `show()` 的话，
                 // 抓帧期间页面一直停在 hidden，遮罩和窗口吸附都要等一次点击才出来。
-                if let Err(error) =
-                    crate::overlay::command::ensure_overlay_visible(app.handle())
-                {
+                if let Err(error) = crate::overlay::command::ensure_overlay_visible(app.handle()) {
                     tracing::warn!("overlay 初始化失败: {error}");
                 }
                 if let Some(overlay) =
@@ -126,8 +124,7 @@ impl Bootstrap {
                     let handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(Duration::from_millis(1_200)).await;
-                        if let Err(error) =
-                            crate::overlay::command::ensure_overlay_visible(&handle)
+                        if let Err(error) = crate::overlay::command::ensure_overlay_visible(&handle)
                         {
                             tracing::warn!("overlay 延迟显示失败: {error}");
                         }
@@ -261,10 +258,20 @@ impl Bootstrap {
                     // 先落盘再拆子进程：即便后面某步 panic，也留下了「正常退出」的结论
                     crate::utils::diagnostics::mark_clean_exit();
                     tracing::info!("应用退出，开始回收 sidecar");
-                    // agentd 要排在前面：它自己 fail-fast 收掉内层 goose
-                    agentd::shutdown(app);
-                    sidecar::shutdown(app);
-                    crate::utils::terminal::shutdown(app);
+                    // **每一步单独兜住 panic**：退出回调里任何一步炸了，都会让后面几步
+                    // 直接不执行 —— 子进程于是变成孤儿，只能指望 Job Object 回收。
+                    // 实测过：agentd 那步曾因 `block_on` 在已关闭的 runtime 上 panic，
+                    // 结果 sidecar 与终端一个都没收。`Cargo.toml` 明确 panic = "unwind"，
+                    // 所以这里 catch_unwind 是有效的。
+                    fn isolated(label: &str, step: impl FnOnce()) {
+                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(step)).is_err() {
+                            tracing::error!("回收 {label} 时 panic（已隔离，继续收下一个）");
+                        }
+                    }
+                    // agentd 要排在前面：它自己会先 fail-fast 收掉内层 goose
+                    isolated("agentd", || agentd::shutdown(app));
+                    isolated("corex-daemon", || sidecar::shutdown(app));
+                    isolated("terminal", || crate::utils::terminal::shutdown(app));
                 }
             });
     }
