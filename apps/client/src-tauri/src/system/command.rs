@@ -4,6 +4,7 @@ use serde_json::json;
 use std::time::Duration;
 
 use crate::utils::agentd::{self, AgentdEndpoint, AgentdState};
+use crate::utils::goose_permissions::GoosePermissions;
 use crate::utils::ipc;
 use crate::utils::sidecar::{self, SIDECAR_SHUTDOWN_TIMEOUT, SidecarState};
 
@@ -147,6 +148,31 @@ pub async fn agentd_shutdown(app: tauri::AppHandle) -> Result<(), String> {
     .await
     .map_err(|error| format!("agentd shutdown 线程异常: {error}"))?;
     Ok(())
+}
+
+/// goose 审批偏好快照：`permission.yaml` 的 `user`（用户手动记的，优先级最高）与
+/// `smart_approve`（goose 的 LLM 判定缓存）两段。
+///
+/// 为什么前端需要这个：`user` 段命中后 goose 直接按它执行，**不再发审批请求**，
+/// 于是「工具不弹审批 / 直接被拒」在 UI 上完全无迹可循。
+#[tauri::command(rename = "goose:permissions:read")]
+pub fn goose_permissions_read(app: tauri::AppHandle) -> Result<GoosePermissions, String> {
+    crate::utils::goose_permissions::read(&app)
+}
+
+/// 重置手动审批偏好：备份后删掉 `permission.yaml`，并重启内层 goose 让新表生效。
+///
+/// 重启不能省：`PermissionManager` 在进程内缓存整个表，删文件对已跑起来的进程无效。
+/// 封在这里而不是交给前端串两步，是为了让「删了必须重启」不可能被漏掉。
+///
+/// 返回备份文件路径；原本没有该文件时返回 `None`（也不重启）。
+#[tauri::command(rename = "goose:permissions:reset")]
+pub async fn goose_permissions_reset(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let backup = crate::utils::goose_permissions::reset(&app)?;
+    if backup.is_some() {
+        agentd::restart_goose(&app).await?;
+    }
+    Ok(backup)
 }
 
 #[tauri::command(rename = "secret:get")]

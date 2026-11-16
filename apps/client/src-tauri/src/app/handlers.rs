@@ -90,6 +90,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         system::command::agentd_restart,
         system::command::agentd_restart_goose,
         system::command::agentd_shutdown,
+        system::command::goose_permissions_read,
+        system::command::goose_permissions_reset,
         system::command::secret_get,
         system::command::secret_set,
         system::command::secret_delete,

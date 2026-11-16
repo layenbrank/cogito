@@ -10,6 +10,10 @@ export const CHANNELS = {
     RESTART_GOOSE: 'agentd:restart-goose',
     SHUTDOWN: 'agentd:shutdown'
   },
+  GOOSE: {
+    PERMISSIONS_READ: 'goose:permissions:read',
+    PERMISSIONS_RESET: 'goose:permissions:reset'
+  },
   IPC: {
     INVOKE: 'ipc:invoke',
     READY: 'ipc:ready'

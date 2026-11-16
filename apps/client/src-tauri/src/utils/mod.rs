@@ -11,6 +11,7 @@ pub mod cogito_token;
 pub mod cursor_agent;
 pub mod diagnostics;
 pub mod goose_cli;
+pub mod goose_permissions;
 pub mod instance;
 pub mod ipc;
 pub mod log_retention;
