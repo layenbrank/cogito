@@ -42,7 +42,13 @@ function useMirrorSwitcherState() {
 
   async function switchTo(id: string) {
     updateOpen(false)
-    await requestMirrorSwitch(id)
+    try {
+      await requestMirrorSwitch(id)
+    } catch (error) {
+      // 切换失败不能静默：以前只在控制台留一行，用户只会觉得「点了没反应」
+      console.error('[caption-mirror] 切换镜像失败', error)
+      toast.error('切换镜像失败，请重试')
+    }
   }
 
   async function handleCreate() {

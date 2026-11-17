@@ -26,7 +26,7 @@ function wantsAddOpen(params: URLSearchParams) {
 }
 
 export default function Collection() {
-  const [searchParams, updateSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   const id = useMemo(
     function () {
@@ -47,19 +47,21 @@ export default function Collection() {
   const { title, magneticTiles, onUpdateMagneticTiles, reloadMembers } =
     useCollectionMembers(currentId)
 
-  const isAddOpen = wantsAddOpen(searchParams)
+  /**
+   * 抽屉开关走组件状态，**不走 `?add=1`**。
+   *
+   * 以前每次开抽屉都 `setSearchParams` 发一次导航：路由换一轮 → 页面重渲／入场动画重放，
+   * 集合里的图标会整体跳一下，看起来像「切了一页」，但用户只是点开了抽屉。
+   * 深链（外部带 `?add=1` 打开）仍然生效：只作为初始值读一次。
+   */
+  const [isAddOpen, updateAddOpen] = useState(function () {
+    return wantsAddOpen(searchParams)
+  })
 
   useShellSurface({
     summary: id ? title : '集合',
     scrollable: false
   })
-
-  function onUpdateAddOpen(open: boolean) {
-    const next = new URLSearchParams(searchParams)
-    if (open) next.set('add', '1')
-    else next.delete('add')
-    updateSearchParams(next, { replace: true })
-  }
 
   if (!id) {
     return <p className="text-muted-foreground p-6 text-sm">缺少集合 id（?id=）</p>
@@ -76,7 +78,7 @@ export default function Collection() {
       onUpdateMagneticTiles={onUpdateMagneticTiles}
       onReloadMembers={reloadMembers}
       isAddOpen={isAddOpen}
-      onUpdateAddOpen={onUpdateAddOpen}
+      onUpdateAddOpen={updateAddOpen}
     />
   )
 }

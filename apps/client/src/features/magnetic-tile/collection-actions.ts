@@ -6,12 +6,7 @@
 import { useMirrorStore } from '@/stores/mirror'
 
 /** 新建集合：一块 `component = 'collection'` 的磁贴（外观与书签导入造出来的一致） */
-async function createCollection(input: {
-  mirrorID: string
-  title: string
-  /** 在集合页建子集合时传当前集合 id；墙上建顶层集合传 null */
-  parentCollectionID?: string | null
-}): Promise<string | null> {
+async function createCollection(input: { mirrorID: string; title: string }): Promise<string | null> {
   const title = input.title.trim()
   if (!title) return null
   const ids = await useMirrorStore.getState().toInsertMagneticTile([
@@ -26,7 +21,8 @@ async function createCollection(input: {
       backdrop: null,
       mirrorID: input.mirrorID,
       textColor: '0F172A',
-      collectionID: input.parentCollectionID ?? null,
+      // 集合只有顶层一层（集合不能嵌套集合）
+      collectionID: null,
       size: 1,
       shape: 'square',
       direction: 'vertical'

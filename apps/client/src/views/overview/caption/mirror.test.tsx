@@ -23,6 +23,12 @@ vi.mock('@iconify/react/offline', function () {
   }
 })
 
+// 没有动画通道时 `requestMirrorSwitch` 会直读磁贴（`toFetchMirrorPayload`）：
+// jsdom 里没有 Tauri，这里给一个空结果，避免测试里抛「Cannot read properties of undefined」
+vi.mock('@tauri-apps/api/core', function () {
+  return { invoke: vi.fn(async function () { return [] }) }
+})
+
 function buildMirror(id: string, title: string, index: number, description = ''): Mirror {
   const now = Date.now()
   return {
@@ -204,10 +210,22 @@ describe('MirrorSwitcher', function () {
     })
   }, 15_000)
 
-  it('切换中禁用触发按钮', function () {
+  it('切换中禁用触发按钮（有动画通道时）', async function () {
     seed(MIRRORS)
-    expect(requestMirrorSwitch('m2')).toBeInstanceOf(Promise)
+    let release = function () {}
+    const unregister = registerMirrorSwitch(function () {
+      return new Promise<void>(function (resolve) {
+        release = resolve
+      })
+    })
+    void requestMirrorSwitch('m2')
     render(<MirrorSwitcher />)
-    expect(screen.getByRole('button', { name: /镜像：工作台/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /镜像：工作台/ })).toBeDisabled()
+
+    release()
+    await waitFor(function () {
+      expect(screen.getByRole('button', { name: /镜像：工作台/ })).toBeEnabled()
+    })
+    unregister()
   })
 })

@@ -2,6 +2,8 @@
  * Mirror 切换请求注册表
  * Pager 调用 requestMirrorSwitch；Controller.Mirror 注册实际切换逻辑
  */
+import { useMirrorStore } from '@/stores/mirror'
+
 type MirrorSwitchHandler = (id: string) => Promise<void>
 
 /**
@@ -26,12 +28,20 @@ function registerMirrorSwitch(next: MirrorSwitchHandler) {
 }
 
 async function requestMirrorSwitch(id: string) {
-  if (!handler || isSwitching) return
+  if (!id || isSwitching) return
   isSwitching = true
   notifySwitching()
 
   let timer = 0
   try {
+    if (!handler) {
+      // 没有动画通道（墙还没挂上 / 不在工作台路由）：仍然要把切换做完。
+      // 以前这里直接 return，界面上的表现就是「点了没反应」。
+      const store = useMirrorStore.getState()
+      const payload = await store.toFetchMirrorPayload(id)
+      if (payload) store.toCommitMirrorPayload(payload)
+      return
+    }
     await Promise.race([
       handler(id),
       new Promise<void>(function (resolve) {

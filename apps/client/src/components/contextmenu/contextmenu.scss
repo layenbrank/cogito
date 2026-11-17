@@ -13,16 +13,17 @@
 .contextmenu-surface {
   position: fixed;
   z-index: 1050;
-  min-width: 160px;
-  max-width: min(320px, calc(100vw - 16px));
-  padding: 4px;
+  /* 204px 能装下「将所选 3 项加入此集合」这类中文长标签，不至于截成省略号 */
+  min-width: 204px;
+  max-width: min(340px, calc(100vw - 16px));
+  padding: 6px;
   margin: 0;
   list-style: none;
   pointer-events: auto;
   box-sizing: border-box;
   background: var(--popover);
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   /* 与 design OVERLAY_ELEVATION 对齐：无描边，纯扩散阴影 */
   box-shadow:
     0 2px 8px -2px rgb(15 23 42 / 0.1),
@@ -34,8 +35,8 @@
       0 4px 12px -2px rgb(0 0 0 / 0.4),
       0 16px 40px -10px rgb(0 0 0 / 0.55);
   }
-  font-size: 0.875rem;
-  line-height: 1.5714;
+  font-size: 0.8125rem;
+  line-height: 1.5;
   outline: none;
   transform-origin: top left;
 
@@ -63,21 +64,26 @@ html[data-motion='reduce'] {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 5px 12px;
+  /* 图标列 ↔ 文字：分两档拉开，比「紧贴」更像桌面菜单 */
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 10px;
   margin: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   color: var(--foreground);
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   transition:
-    background-color 0.2s,
-    color 0.2s;
+    background-color 0.15s,
+    color 0.15s;
 
   &:hover,
   &.is-active {
-    background: var(--muted);
+    background: color-mix(in oklab, var(--muted) 78%, transparent);
+  }
+
+  &:active:not(.is-disabled) {
+    background: color-mix(in oklab, var(--muted) 96%, transparent);
   }
 
   &:focus-visible {
@@ -113,13 +119,14 @@ html[data-motion='reduce'] {
 
 .contextmenu-icon {
   display: inline-flex;
-  flex: 0 0 14px;
+  flex: 0 0 16px;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
-  font-size: 14px;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
   color: inherit;
+  opacity: 0.85;
 
   &.contextmenu-icon-empty {
     visibility: hidden;
@@ -156,8 +163,8 @@ html[data-motion='reduce'] {
 
 .contextmenu-divider {
   height: 1px;
-  margin: 4px 0;
-  background: var(--border);
+  margin: 6px 4px;
+  background: color-mix(in oklab, var(--border) 70%, transparent);
 }
 
 .contextmenu-group {
@@ -165,7 +172,7 @@ html[data-motion='reduce'] {
 }
 
 .contextmenu-group-title {
-  padding: 8px 12px 4px;
+  padding: 8px 10px 4px;
   color: var(--muted-foreground);
   font-size: 0.75rem;
   line-height: 1.5;

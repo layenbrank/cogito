@@ -109,12 +109,16 @@ function buildFloat(tile: Tile): MenuItem {
 }
 
 /**
- * 集合层级靠 `collectionID` 表达。下面两个函数只干一件事：挡掉会成环的移动。
+ * 集合层级只有一层：**集合里只能放网址，集合本身不能再进集合**（产品口径 2026-11-17）。
  *
- * 成环的代价是隐形的：面包屑永远走不到头、删父集合也排不掉，只能手工改库。
+ * 以前只挡「会成环」的移动，于是集合仍可拖进另一个集合。嵌套没有对应的浏览 UI（集合页只画成员，
+ * 不再进子集合），用户看到的是一层里少了一半东西 —— 所以从入口处就不允许。
  */
+function isCollectionTile(item: Tile): boolean {
+  return item.component === 'collection'
+}
 
-/** `id` 自己 + 全部祖先（把 `id` 挂进这些集合会成环） */
+/** `id` 自己 + 全部祖先（库里可能已有历史嵌套数据，别把自己收进来） */
 function findSelfAndAncestors(id: string, collections: Tile[]): Set<string> {
   const byId = new Map(
     collections.map(function (item) {
@@ -132,17 +136,6 @@ function findSelfAndAncestors(id: string, collections: Tile[]): Set<string> {
   return out
 }
 
-/** `rootID` 自己 + 全部子孙 */
-function findSubtree(rootID: string, collections: Tile[]): string[] {
-  const out = [rootID]
-  for (let i = 0; i < out.length; i += 1) {
-    for (const item of collections) {
-      if (item.collectionID === out[i] && !out.includes(item.id)) out.push(item.id)
-    }
-  }
-  return out
-}
-
 function buildItems(context: TileMenuContext): MenuItem[] {
   const { tile, targets } = context
   const items: MenuItem[] = []
@@ -150,13 +143,19 @@ function buildItems(context: TileMenuContext): MenuItem[] {
   const movable = targets.filter(function (item) {
     return item.id && item.id !== tile.id
   })
+  /** 能作为集合成员的只有网址（集合不能套集合） */
+  const joinable = targets.filter(function (item) {
+    return item.id && !isCollectionTile(item)
+  })
+  const joinableIDs = joinable.map(function (item) {
+    return item.id
+  })
 
   if (isCollection) {
-    // 右键落在集合上：把选中的网址收进这个集合。
-    // 选中的集合若是本集合的祖先，收进来就成了环，直接别算进「所选」
+    // 右键落在集合上：把选中的网址收进这个集合（集合项直接不算进「所选」）
     const ancestors = findSelfAndAncestors(tile.id, context.collections)
     const joined = movable.filter(function (item) {
-      return !ancestors.has(item.id)
+      return !isCollectionTile(item) && !ancestors.has(item.id)
     })
     items.push({
       key: 'join-current',
@@ -179,12 +178,6 @@ function buildItems(context: TileMenuContext): MenuItem[] {
       }
     })
   } else {
-    // 候选集合去掉「自己与自己的子孙」：那些位置挂进去就是环
-    const blocked = new Set<string>()
-    for (const item of movable) {
-      if (item.component !== 'collection') continue
-      for (const id of findSubtree(item.id, context.collections)) blocked.add(id)
-    }
     items.push({
       key: 'join',
       label: '加入集合',
@@ -195,32 +188,25 @@ function buildItems(context: TileMenuContext): MenuItem[] {
           height={14}
         />
       ),
+      // 选中项里没有网址（全是集合）时没有任何合法目标
+      disabled: joinableIDs.length === 0,
       children: [
-        ...context.collections
-          .filter(function (collection) {
-            return !blocked.has(collection.id)
-          })
-          .map(function (collection) {
-            return {
-              key: `join-${collection.id}`,
-              label: collection.title,
-              icon: (
-                <Icon
-                  icon="lucide:folder"
-                  width={14}
-                  height={14}
-                />
-              ),
-              onSelect() {
-                context.onMoveToCollection(
-                  collection.id,
-                  targets.map(function (item) {
-                    return item.id
-                  })
-                )
-              }
+        ...context.collections.map(function (collection) {
+          return {
+            key: `join-${collection.id}`,
+            label: collection.title,
+            icon: (
+              <Icon
+                icon="lucide:folder"
+                width={14}
+                height={14}
+              />
+            ),
+            onSelect() {
+              context.onMoveToCollection(collection.id, joinableIDs)
             }
-          }),
+          }
+        }),
         ...(context.collections.length > 0
           ? [{ key: 'join-divider', type: 'divider' as const }]
           : []),
@@ -236,11 +222,7 @@ function buildItems(context: TileMenuContext): MenuItem[] {
           ),
           // 从「加入集合」进的新建，语义是「建好顺手移进去」，不能建完就丢下选中项
           onSelect() {
-            context.onCreateCollection(
-              targets.map(function (item) {
-                return item.id
-              })
-            )
+            context.onCreateCollection(joinableIDs)
           }
         }
       ]

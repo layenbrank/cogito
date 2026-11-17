@@ -1,22 +1,15 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@cogito/design/components/dropdown-menu'
-import { useCallback, useState, type Dispatch, type SetStateAction } from 'react'
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@cogito/design/components/tooltip'
+import { useCallback, type Dispatch, type SetStateAction } from 'react'
 import { toast } from 'sonner'
 
 import { useCollectionStore } from '@/stores/collection'
-import { useMirrorStore } from '@/stores/mirror'
-import {
-  createCollection,
-  leaveCollection,
-  openBookmarkLibrary
-} from '@/features/magnetic-tile/collection-actions.ts'
-import { CollectionDialog } from '@/features/magnetic-tile/collection-dialog.tsx'
+import { leaveCollection } from '@/features/magnetic-tile/collection-actions.ts'
 import { AddSheet } from '@/views/collection/add-sheet.tsx'
 import { Controller } from '@/views/collection/controller.tsx'
 
@@ -38,26 +31,6 @@ function CollectionSurface(props: CollectionSurfaceProps) {
   const toBumpRevision = useCollectionStore(function (state) {
     return state.toBumpRevision
   })
-  const mirrorID = useMirrorStore(function (state) {
-    return state.active.mirror?.id ?? null
-  })
-  const [isCollectionOpen, setCollectionOpen] = useState(false)
-
-  async function onCreateChild(title: string) {
-    if (!mirrorID) {
-      toast.error('找不到当前镜像')
-      return
-    }
-    try {
-      // index 由 `appendTile` 统一分配（以库里的最大值为准），不能再拿集合成员数充数
-      await createCollection({ mirrorID, title, parentCollectionID: currentId })
-      props.onReloadMembers()
-      toBumpRevision()
-    } catch (error) {
-      console.error('[collection] 新建子集合失败', error)
-      toast.error('新建子集合失败')
-    }
-  }
 
   const onUpdateMagneticTiles = props.onUpdateMagneticTiles
   const handleRemove = useCallback(
@@ -91,15 +64,6 @@ function CollectionSurface(props: CollectionSurfaceProps) {
     }
   }
 
-  async function openBookmarks() {
-    try {
-      await openBookmarkLibrary()
-    } catch (error) {
-      console.error(error)
-      toast.error('无法打开书签库')
-    }
-  }
-
   const canGoBack = props.stack.length > 1
 
   return (
@@ -125,9 +89,21 @@ function CollectionSurface(props: CollectionSurfaceProps) {
             </Button>
           ) : null}
           <div className="min-w-0">
-            <h2 className="text-foreground truncate text-lg font-semibold tracking-tight">
-              {props.title}
-            </h2>
+            {/* 长标题会被 truncate：tooltip 锡在标题元素上（bottom / 开头对齐），不再跟鼠标跑 */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <h2 className="text-foreground max-w-full truncate text-lg font-semibold tracking-tight" />
+                }>
+                {props.title}
+              </TooltipTrigger>
+              <TooltipContent
+                side="bottom"
+                align="start"
+                className="max-w-[min(24rem,80vw)] wrap-break-word">
+                {props.title}
+              </TooltipContent>
+            </Tooltip>
             <p className="text-muted-foreground truncate text-xs">
               {props.magneticTiles.length
                 ? `${props.magneticTiles.length} 个项目`
@@ -135,50 +111,31 @@ function CollectionSurface(props: CollectionSurfaceProps) {
             </p>
           </div>
         </div>
+        {/*
+         * 这里只留一个动作：添加已有网址。
+         * 以前是个下拉（新建子集合 / 添加已有网址），而集合**不支持嵌套**，
+         * 多一步选择只是让用户多猜一次；分开一个 + 比下拉快得多。
+         */}
         <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
+            size="icon-sm"
+            aria-label="添加已有网址"
+            title="添加已有网址"
+            className="text-muted-foreground size-9 rounded-lg"
             onClick={function () {
-              void openBookmarks()
+              props.onUpdateAddOpen(true)
             }}>
-            打开书签库
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="新增"
-                  className="text-muted-foreground size-10 rounded-md">
-                  <Icon
-                    icon="lucide:plus"
-                    aria-hidden
-                  />
-                </Button>
-              }
+            <Icon
+              icon="lucide:plus"
+              aria-hidden
             />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={function () {
-                  setCollectionOpen(true)
-                }}>
-                新建子集合…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={function () {
-                  props.onUpdateAddOpen(!props.isAddOpen)
-                }}>
-                添加已有网址
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          </Button>
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pb-8">
+      {/* scrollbar-gutter：抽屉开关不改变内容宽度，网格不会重排（图标不会「跳一下」） */}
+      <div className="min-h-0 flex-1 scrollbar-gutter-stable overflow-x-hidden overflow-y-auto px-6 pb-8">
         {props.magneticTiles.length ? (
           <Controller
             magneticTiles={props.magneticTiles}
@@ -198,30 +155,20 @@ function CollectionSurface(props: CollectionSurfaceProps) {
             <div className="space-y-1">
               <p className="text-foreground text-sm font-medium">还没有内容</p>
               <p className="text-muted-foreground text-sm">
-                从主镜未归组的网址磁贴里挑选，或去书签库批量挂载
+                从主镜未归组的网址磁贴里挑选
               </p>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button
-                size="sm"
-                onClick={function () {
-                  props.onUpdateAddOpen(true)
-                }}>
-                <Icon
-                  icon="lucide:plus"
-                  aria-hidden
-                />
-                新增网址
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={function () {
-                  void openBookmarks()
-                }}>
-                打开书签库
-              </Button>
-            </div>
+            <Button
+              size="default"
+              onClick={function () {
+                props.onUpdateAddOpen(true)
+              }}>
+              <Icon
+                icon="lucide:plus"
+                aria-hidden
+              />
+              添加网址
+            </Button>
           </div>
         )}
       </div>
@@ -234,12 +181,6 @@ function CollectionSurface(props: CollectionSurfaceProps) {
           props.onReloadMembers()
           toBumpRevision()
         }}
-      />
-
-      <CollectionDialog
-        open={isCollectionOpen}
-        onOpenChange={setCollectionOpen}
-        onConfirm={onCreateChild}
       />
     </div>
   )

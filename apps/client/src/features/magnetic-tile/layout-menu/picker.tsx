@@ -21,11 +21,9 @@ interface PickerProps {
 /** 形状缩略图固定按 size=1 比例绘制，避免菜单抖动 */
 const THUMB_SIZE: MagneticTile.Size = 1
 /** 矩形长边；短边由磁贴比例推导，横/竖条互为旋转 */
-const THUMB_LONG = 28
+const THUMB_LONG = 32
 /** 圆形略放大，补偿同等直径看起来更小的视错觉 */
 const CIRCLE_OPTICAL = 1.08
-const SIZE_BASE = 10
-const SIZE_STEP = 3
 
 const SIZES: MagneticTile.Size[] = [1, 2, 3, 4]
 
@@ -69,18 +67,6 @@ function ShapeThumb(props: { shape: MagneticTile.Shape; direction: MagneticTile.
     <span
       className={clsx(styles.thumb, styles[props.shape])}
       style={size}
-      aria-hidden="true"
-    />
-  )
-}
-
-function SizeThumb(props: { size: MagneticTile.Size }) {
-  const side = SIZE_BASE + (props.size - 1) * SIZE_STEP
-
-  return (
-    <span
-      className={clsx(styles.thumb, styles.square)}
-      style={{ width: side, height: side }}
       aria-hidden="true"
     />
   )
@@ -183,7 +169,6 @@ function LayoutPicker(props: PickerProps) {
                 onClick={function () {
                   onPickSize(value)
                 }}>
-                <SizeThumb size={value} />
                 <span className={styles.digit}>{value}</span>
               </Button>
             )

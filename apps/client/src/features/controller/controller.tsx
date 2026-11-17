@@ -108,9 +108,10 @@ const Controller = {
     useEffect(
       function () {
         if (!activeId) return
-        if (viewIdRef.current === null || viewIdRef.current === undefined) {
-          setViewId(activeId)
-        }
+        if (viewIdRef.current === activeId) return
+        // 以前只在 viewId 为空时同步一次 —— 之后走了「没有动画通道」的切换
+        // （`requestMirrorSwitch` 的 store 直达路径），墙会一直停在旧镜像上。
+        setViewId(activeId)
       },
       [activeId]
     )

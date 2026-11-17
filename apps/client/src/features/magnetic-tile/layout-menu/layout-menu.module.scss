@@ -1,8 +1,9 @@
 /* 磁贴菜单覆盖：近实心底，保证文字可读（面板有 transform，磨砂不可用） */
 
 :global(.contextmenu-panel).frost {
-  min-width: 148px;
-  max-width: min(280px, calc(100vw - 16px));
+  /* 与基础菜单同一口径：中文长标签（「将所选 N 项加入此集合」）不能被截成省略号 */
+  min-width: 208px;
+  max-width: min(320px, calc(100vw - 16px));
   padding: 6px;
   background: color-mix(in oklab, var(--popover) 94%, transparent);
   border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
@@ -23,7 +24,8 @@
 }
 
 .flyout {
-  max-width: min(260px, calc(100vw - 16px));
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 16px));
 }
 
 :global(.contextmenu-item).row {
@@ -47,8 +49,9 @@
 
 .picker {
   box-sizing: border-box;
-  width: 228px;
-  padding: 8px 6px 6px;
+  /* 与主菜单同宽：子菜单比父项宽一大截时，两者读起来像两张不相干的卡片 */
+  width: 208px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
 }
@@ -56,24 +59,23 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  min-height: 18px;
-  padding: 0 2px;
+  padding: 2px 4px 0;
 }
 
 .caption {
-  color: var(--muted-foreground);
+  color: var(--foreground);
   font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.5;
+  font-weight: 600;
+  line-height: 1.4;
   user-select: none;
 }
 
@@ -82,89 +84,73 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
   user-select: none;
 }
 
 .line {
   height: 1px;
   margin: 10px 0;
-  background: color-mix(in oklab, var(--border) 80%, transparent);
+  border: 0;
+  background: color-mix(in oklab, var(--border) 55%, transparent);
 }
 
+/* 大小：iOS 分段控件（满宽一条轨道 + 选中的白色拨块），而不是四个各自为政的小方块 */
 .sizes {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--muted) 45%, transparent);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
 }
 
 .size {
   appearance: none;
-  position: relative;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   min-width: 0;
-  height: 44px;
+  height: 28px;
   margin: 0;
-  padding: 4px 2px;
-  border: none;
-  border-radius: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
   user-select: none;
   transition:
     background-color 0.15s ease-in-out,
-    color 0.15s ease-in-out;
-
-  &:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    top: 8px;
-    right: 0;
-    bottom: 8px;
-    width: 1px;
-    background: color-mix(in oklab, var(--border) 80%, transparent);
-    pointer-events: none;
-  }
+    color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
 
   &:hover:not(.selected) {
     color: var(--foreground);
-    background: color-mix(in oklab, var(--muted) 70%, transparent);
-  }
-
-  &:active:not(.selected) {
-    background: color-mix(in oklab, var(--muted) 85%, transparent);
   }
 
   &.selected {
-    z-index: 1;
-    color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 12%, var(--popover));
-
-    &::after {
-      opacity: 0;
-    }
+    color: var(--foreground);
+    background: var(--popover);
+    font-weight: 600;
+    /* 拨块必须浮在轨道上：只有底影能把它从灰色轨道里分出来 */
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.12),
+      0 0 0 0.5px color-mix(in oklab, var(--foreground) 8%, transparent);
   }
 
   &:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: -2px;
-    z-index: 2;
   }
 }
 
 .digit {
   font-size: 11px;
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  letter-spacing: 0.02em;
   color: inherit;
 }
 
@@ -174,6 +160,7 @@
   gap: 6px;
 }
 
+/* 形状：实心剪影（不是空框）。空框在浅底上读起来像四个未勾选的复选框 */
 .shape {
   appearance: none;
   display: inline-flex;
@@ -181,34 +168,34 @@
   justify-content: center;
   width: 100%;
   min-width: 0;
-  height: 40px;
+  height: 46px;
   margin: 0;
   padding: 0;
-  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--muted) 34%, transparent);
   color: var(--muted-foreground);
   cursor: pointer;
   user-select: none;
   transition:
     background-color 0.15s ease-in-out,
     border-color 0.15s ease-in-out,
-    color 0.15s ease-in-out;
+    color 0.15s ease-in-out,
+    transform 0.12s ease-out;
 
   &:hover:not(.selected) {
     color: var(--foreground);
-    background: color-mix(in oklab, var(--muted) 75%, transparent);
-    border-color: color-mix(in oklab, var(--border) 100%, transparent);
+    background: color-mix(in oklab, var(--muted) 58%, transparent);
   }
 
   &:active:not(.selected) {
-    background: color-mix(in oklab, var(--muted) 90%, transparent);
+    transform: scale(0.95);
   }
 
   &.selected {
     color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 12%, var(--popover));
-    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+    background: color-mix(in oklab, var(--primary) 9%, var(--popover));
+    border-color: color-mix(in oklab, var(--primary) 55%, transparent);
   }
 
   &:focus-visible {
@@ -221,28 +208,25 @@
   display: block;
   flex: 0 0 auto;
   box-sizing: border-box;
-  background: transparent;
-  border: 1.5px solid currentColor;
-  opacity: 0.9;
+  /* 实心剪影：形状用「填色」表达，比描边一眼就能认出来 */
+  background: color-mix(in oklab, currentColor 16%, transparent);
+  border: 1px solid color-mix(in oklab, currentColor 45%, transparent);
   transition:
-    opacity 0.15s ease-in-out,
-    background-color 0.15s ease-in-out;
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 
-  .size:hover &,
-  .size.selected &,
-  .shape:hover &,
-  .shape.selected & {
-    opacity: 1;
+  .shape:hover & {
+    background: color-mix(in oklab, currentColor 22%, transparent);
   }
 
-  .size.selected &,
   .shape.selected & {
-    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    background: color-mix(in oklab, currentColor 26%, transparent);
+    border-color: color-mix(in oklab, currentColor 70%, transparent);
   }
 
   &.square,
   &.rectangle {
-    border-radius: 2px;
+    border-radius: 3px;
   }
 
   &.circle {
