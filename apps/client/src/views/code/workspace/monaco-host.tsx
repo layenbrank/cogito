@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react'
 import '@/lib/monaco-contribs.ts'
 import '@/lib/monaco-environment.ts'
 import { adoptMonaco } from '@/lib/monaco-loader.ts'
+import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import { useCodeStore } from '@/stores/code'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { pushProblemCounts } from '@/views/code/lib/monaco-markers.ts'
@@ -19,7 +20,8 @@ import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib
 adoptMonaco(monaco)
 
 const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
-  theme: 'vs-dark',
+  // 主题名固定为设计 token 派生出来的那一套（见 `lib/monaco-theme.ts`）
+  theme: CODE_THEME,
   fontSize: 13,
   lineHeight: 20,
   tabSize: 2,
@@ -65,10 +67,6 @@ const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
   stickyScroll: { enabled: true }
 }
 
-function isDarkMode(): boolean {
-  return document.documentElement.classList.contains('dark')
-}
-
 interface MonacoHostProps {
   className?: string
   /** 宿主从隐藏（设置 / 提交历史盖住）恢复显示：容器尺寸从 0 变回来，要重新量一次 */
@@ -92,17 +90,16 @@ function MonacoHost(props: MonacoHostProps) {
     const host = hostRef.current
     if (!host) return
 
-    monaco.editor.setTheme(isDarkMode() ? 'vs-dark' : 'vs')
+    // 主题必须走设计 token（`lib/monaco-theme`）：直接用内置 `vs` / `vs-dark` 时，
+    // 编辑区背景、右键菜单（`menu.*`）、查找框（`input.*` / `widget.*`）都会用 VS Code
+    // 的默认色，跟应用的 `--background` / `--popover` 脱钩 —— 这就是「编辑器背景不跟随主题」
+    // 与「变基区右键菜单字体色不对」的同一个根。
+    syncCodeTheme()
     const editor = monaco.editor.create(host, EDITOR_OPTIONS)
     editorRef.current = editor
 
-    const themeObserver = new MutationObserver(function () {
-      monaco.editor.setTheme(isDarkMode() ? 'vs-dark' : 'vs')
-    })
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
+    // 同时观察 `class`（明暗）与 `style`（`--primary` 等外置 token，外观设置会写它）
+    const stopThemeWatch = watchCodeTheme()
 
     const subCursor = editor.onDidChangeCursorPosition(function (event) {
       useCodeStore.getState().toSetCursor({
@@ -133,7 +130,7 @@ function MonacoHost(props: MonacoHostProps) {
     })
 
     return function () {
-      themeObserver.disconnect()
+      stopThemeWatch()
       subCursor.dispose()
       subContent.dispose()
       subMarkers.dispose()

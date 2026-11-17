@@ -17,6 +17,34 @@ use crate::git::{
 
 // ─── 请求 / 响应（对前端稳定） ───
 
+/// 远端要凭据、但 git 拿不到凭据时，把原始 stderr 换成「下一步做什么」。
+///
+/// 背景：命令统一跑在 `GIT_TERMINAL_PROMPT=0` 下（没有 TTY，提示会挂住），
+/// 一旦凭据管理器没接上，git 只会吐
+/// `fatal: could not read Password for 'http://…': terminal prompts disabled` ——
+/// 这句话对用户没有可操作性。现在凭据助手已从系统配置里单独补回来（见 `git/cli.rs`），
+/// 真到了这里说明是**没装 / 没配**凭据助手，或地址里带的账号本身没有权限。
+///
+/// 返回 `None` 表示不是认证问题，调用方照常透传原始错误。
+fn auth_hint(raw: &str) -> Option<String> {
+    let lower = raw.to_ascii_lowercase();
+    let needs_auth = lower.contains("could not read username")
+        || lower.contains("could not read password")
+        || lower.contains("terminal prompts disabled")
+        || lower.contains("authentication failed")
+        || lower.contains("invalid username or password")
+        || lower.contains("http 401");
+    if !needs_auth {
+        return None;
+    }
+    Some(format!(
+        "远端要求凭据，但当前没有可用的凭据管理器。\
+         请为这个地址配置 Git 凭据（Git for Windows 自带 credential.helper=manager：\
+         在系统 gitconfig 里配置即可），或改用带 token 的 HTTPS 地址 / SSH 远端。\
+         原始错误：{raw}"
+    ))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PathP {
@@ -512,7 +540,7 @@ pub async fn workspaceGitFetch(params: PathP) -> CommandResult<ActionR> {
         return Err(Exception::Internal(if err.is_empty() {
             "获取远程更新失败".into()
         } else {
-            err
+            auth_hint(&err).unwrap_or(err)
         }));
     }
     bump_status(&cwd);
@@ -534,7 +562,7 @@ pub async fn workspaceGitPull(params: PathP) -> CommandResult<ActionR> {
         return Err(Exception::Internal(if detail.is_empty() {
             "拉取失败，请确认本地没有与远端冲突的提交".into()
         } else {
-            detail
+            auth_hint(&detail).unwrap_or(detail)
         }));
     }
     bump_status(&cwd);

@@ -52,6 +52,59 @@ const HARDENED_ENVS: [(&str, &str); 6] = [
 /// 只有用户自己确认要看「渲染后的二进制差异」时才该打开。
 const TEXTCONV_ENV: &str = "COGITO_GIT_ALLOW_TEXTCONV";
 
+/// 系统配置里的凭据助手（Git for Windows 写在 `etc/gitconfig`：`credential.helper=manager`）。
+///
+/// 为什么单独捞回来：`GIT_CONFIG_NOSYSTEM=1` 会把**整份**系统配置关掉，
+/// 包括凭据管理器 —— 于是 http(s) 远端直接报
+/// `could not read Password for 'http://…': terminal prompts disabled`，
+/// 用户看到的就是「获取远程更新失败」。
+///
+/// 只捞这一个键是安全的：凭据助手的作用是「弹自己的凭据对话框」，
+/// 不像是 `filter.*` / `diff.external` 那样执行仓库里指定的任意程序。
+fn system_credential_helpers() -> &'static [String] {
+    static HELPERS: OnceLock<Vec<String>> = OnceLock::new();
+    HELPERS
+        .get_or_init(|| {
+            let mut probe = std::process::Command::new("git");
+            probe
+                .args(["config", "--system", "--get-all", "credential.helper"])
+                // 这次探测的目的就是读系统配置，不能被加固变量拦掉
+                .env_remove("GIT_CONFIG_NOSYSTEM");
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                probe.creation_flags(CREATE_NO_WINDOW);
+            }
+            let Ok(output) = probe.output() else {
+                return Vec::new();
+            };
+            if !output.status.success() {
+                return Vec::new();
+            }
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .as_slice()
+}
+
+/// 把系统级凭据助手拼进 `-c credential.helper=…`（去重，保留配置里的顺序）
+fn push_credential_helpers(argv: &mut Vec<String>, helpers: &[String]) {
+    let mut seen: Vec<&str> = Vec::new();
+    for helper in helpers {
+        if seen.contains(&helper.as_str()) {
+            continue;
+        }
+        seen.push(helper.as_str());
+        argv.push("-c".to_string());
+        argv.push(format!("credential.helper={helper}"));
+    }
+}
+
 /// 空 hooks 目录：把 `core.hooksPath` 指到这里，仓库里的 pre-commit 就不会被 GUI 触发。
 ///
 /// 目录必须在磁盘上存在，否则 git 每次都会打一行 hint。创建失败就退化为「不加这条配置」
@@ -96,17 +149,21 @@ fn find_subcommand(args: &[String]) -> Option<&str> {
     None
 }
 
-/// 把调用方的参数拼成「实际要执行的 argv + 要注入的 env」。
-///
-/// 抽成纯函数是为了能在单测里断言——真起 git 进程测不出「有没有带 `--no-ext-diff`」。
-fn assemble(cwd: &Path, args: &[String]) -> (Vec<String>, Vec<(&'static str, &'static str)>) {
-    assemble_with(cwd, args, textconv_allowed())
-}
-
+/// 测试专用：不带系统凭据助手的组装（保持单测与机器配置无关）
+#[cfg(test)]
 fn assemble_with(
     cwd: &Path,
     args: &[String],
     allow_textconv: bool,
+) -> (Vec<String>, Vec<(&'static str, &'static str)>) {
+    assemble_full(cwd, args, allow_textconv, &[])
+}
+
+fn assemble_full(
+    cwd: &Path,
+    args: &[String],
+    allow_textconv: bool,
+    credential_helpers: &[String],
 ) -> (Vec<String>, Vec<(&'static str, &'static str)>) {
     let mut argv: Vec<String> = Vec::with_capacity(args.len() + 8);
     // safe.directory 放在最前面：它是「信任这个工作区」的显式声明
@@ -116,6 +173,7 @@ fn assemble_with(
         argv.push("-c".to_string());
         argv.push(format!("{key}={value}"));
     }
+    push_credential_helpers(&mut argv, credential_helpers);
     if let Some(dir) = empty_hooks_dir() {
         argv.push("-c".to_string());
         argv.push(format!("core.hooksPath={}", dir.to_string_lossy()));
@@ -148,7 +206,12 @@ fn assemble_with(
 /// `rev-parse` / `ls-files` 也走这里，免得两处各写一份 env。
 pub(crate) fn command(cwd: &Path, args: &[&str]) -> Command {
     let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
-    let (argv, envs) = assemble(cwd, &owned);
+    let (argv, envs) = assemble_full(
+        cwd,
+        &owned,
+        textconv_allowed(),
+        system_credential_helpers(),
+    );
     let mut command = Command::new("git");
     command.args(&argv).current_dir(cwd);
     for (key, value) in envs {
@@ -281,6 +344,33 @@ mod tests {
     }
 
     #[test]
+    fn harden_configs_never_drop_the_system_credential_helper() {
+        // `GIT_CONFIG_NOSYSTEM=1` 关掉的是系统配置，凭据助手必须单独补回来，
+        // 否则 http 远端会直接报 「could not read Password … terminal prompts disabled」。
+        let helpers = vec!["manager".to_string(), "manager".to_string()];
+        let (argv, _) = assemble_full(
+            Path::new("C:/repo"),
+            &args(&["fetch", "--all"]),
+            false,
+            &helpers,
+        );
+        let injected: Vec<&str> = argv
+            .windows(2)
+            .filter(|pair| pair[0] == "-c" && pair[1].starts_with("credential.helper="))
+            .map(|pair| pair[1].as_str())
+            .collect();
+        // 去重后只留一条
+        assert_eq!(injected, vec!["credential.helper=manager"]);
+    }
+
+    #[test]
+    fn no_credential_helper_configured_adds_nothing() {
+        let (argv, _) = assemble_full(Path::new("C:/repo"), &args(&["status"]), false, &[]);
+        assert!(!argv
+            .iter()
+            .any(|arg| arg.starts_with("credential.helper=")));
+    }
+
     #[test]
     fn skip_value_options_do_not_confuse_subcommand_detection() {
         let (argv, _) = assemble_with(
