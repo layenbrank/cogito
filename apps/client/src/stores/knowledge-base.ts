@@ -8,16 +8,17 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 
 import {
-  insertBase,
+  insertKnowledge,
   discardStaged,
-  exportBundle as bundleExport,
-  listBases,
+  exportKnowledge as bundleExport,
+  listKnowledge,
   listDocs,
   listStaging,
   mergeStaging,
   publishDoc,
-  rescanBase,
-  updateBase,
+  removeKnowledge as removeKnowledgeIPC,
+  rescanKnowledge,
+  updateKnowledge as updateKnowledgeIPC,
   type BasePatch,
   type KnowledgeBase,
   type KnowledgeDocSummary,
@@ -61,6 +62,11 @@ interface KnowledgeBaseState {
   merge: (paths: string[], title: string) => Promise<boolean>
   /** 整包导出：把当前库的 Markdown 打成 zip，弹提示告知落盘路径 */
   exportBundle: () => Promise<void>
+  /**
+   * 删除当前库。`purgeFiles` 缺省为 false：只清库记录，磁盘上的 Markdown 原样保留。
+   * 成功后重拉列表，并把 active 切到剩余的第一个库。
+   */
+  removeKnowledge: (baseID: string, purgeFiles?: boolean) => Promise<boolean>
 }
 
 function toMessage(error: unknown): string {
@@ -128,7 +134,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     })
     if (!base?.autoUpdate) return
     try {
-      await rescanBase(base.id)
+      await rescanKnowledge(base.id)
     } catch (error) {
       reportCaught('knowledgeBase.syncFromDisk', error, 'warning')
     }
@@ -148,7 +154,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     async refresh() {
       setter({ isLoading: true, error: null })
       try {
-        const bases = await listBases()
+        const bases = await listKnowledge()
         const activeBaseID =
           getter().activeBaseID && bases.some((base) => base.id === getter().activeBaseID)
             ? getter().activeBaseID
@@ -211,9 +217,29 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       setter({ query: '', hits: [] })
     },
 
+    /**
+     * 删除知识库。文件默认保留（知识库正文是用户自己的 Markdown），
+     * 删除后立刻重拉列表并切到剩余第一个库 —— 否则界面会停在一个已经不存在的库上。
+     */
+    async removeKnowledge(baseID, purgeFiles = false) {
+      try {
+        await removeKnowledgeIPC(baseID, purgeFiles)
+        await getter().refresh()
+        if (getter().activeBaseID === baseID) {
+          await getter().selectBase(getter().bases[0]?.id ?? null)
+        }
+        toast.success(purgeFiles ? '知识库与磁盘文件已删除' : '已移除知识库（磁盘文件保留）')
+        return true
+      } catch (error) {
+        reportCaught('knowledgeBase.removeKnowledge', error, 'warning')
+        setter({ error: toMessage(error) })
+        return false
+      }
+    },
+
     async insert(name, templateId = WIKI_TEMPLATE_GENERAL) {
       try {
-        const base = await insertBase(name)
+        const base = await insertKnowledge(name)
         await writeWikiTemplate(base.rootPath, templateId)
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
@@ -227,13 +253,13 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
 
     async importExample() {
       try {
-        const base = await insertBase(DEMO_WIKI_NAME)
+        const base = await insertKnowledge(DEMO_WIKI_NAME)
         await writeDemoWikiTree(base.rootPath)
         // 补齐 .agent / raw/parsed 等目录；已有 purpose/schema 不覆盖
         await ensureWikiScaffold(base.rootPath, WIKI_TEMPLATE_GENERAL)
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
-        await rescanBase(base.id)
+        await rescanKnowledge(base.id)
         const settled = await Promise.allSettled([
           fetchDocs(base.id),
           fetchStaging(base.id)
@@ -258,7 +284,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       if (!baseID) return
       setter({ isLoading: true, error: null })
       try {
-        await rescanBase(baseID)
+        await rescanKnowledge(baseID)
         await Promise.all([fetchDocs(baseID), fetchStaging(baseID)])
         setter({ isLoading: false })
       } catch (error) {
@@ -271,7 +297,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       const baseID = getter().activeBaseID
       if (!baseID) return false
       try {
-        const updated = await updateBase(baseID, patch)
+        const updated = await updateKnowledgeIPC(baseID, patch)
         setter({
           bases: getter().bases.map(function (item) {
             return item.id === updated.id ? updated : item

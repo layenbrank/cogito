@@ -168,6 +168,16 @@ pub async fn knowledge_remove_doc(state: State<'_, Storage>, id: String) -> Comm
     Service::toRemoveDoc(state.connection(), &id).await
 }
 
+/// 删除整个知识库。`purgeFiles` 缺省为 false：只删库记录，磁盘上的 Markdown 原样保留。
+#[tauri::command(rename = "knowledge:removeBase")]
+pub async fn knowledge_remove_base(
+    state: State<'_, Storage>,
+    baseId: String,
+    purgeFiles: Option<bool>,
+) -> CommandResult<u64> {
+    Service::toRemoveKnowledge(state.connection(), &baseId, purgeFiles.unwrap_or(false)).await
+}
+
 /// 打开文档时取引用（带库内 hash），保存时用于判断期间是否被别处改过。
 #[tauri::command(rename = "knowledge:resolveDoc")]
 pub async fn knowledge_resolve_doc(

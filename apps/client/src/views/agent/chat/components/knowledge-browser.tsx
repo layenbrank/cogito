@@ -35,9 +35,9 @@ import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { joinWorkspacePath, toAgentPath } from '@/features/agent/workspace/paths.ts'
 import {
-  listBases,
+  listKnowledge,
   listDocs,
-  rescanBase,
+  rescanKnowledge,
   searchDocs,
   writeDoc,
   type KnowledgeBase,
@@ -123,7 +123,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         try {
           updateLoading(true)
           updateError(null)
-          const rows = await listBases()
+          const rows = await listKnowledge()
           if (cancelled) return
           updateBases(rows)
           updateBaseID(function (current) {
@@ -365,7 +365,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   /** 重扫：磁盘上被别处加进来 / 改过的文件重新入库 */
   function rescan() {
     if (!baseID) return
-    void rescanBase(baseID)
+    void rescanKnowledge(baseID)
       .then(function (count) {
         refreshDocs()
         toast.success(`已重新扫描，更新 ${count} 篇`)

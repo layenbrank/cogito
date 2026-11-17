@@ -236,6 +236,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::knowledge::knowledge_merge_staging,
         cogito_command::knowledge::knowledge_rescan,
         cogito_command::knowledge::knowledge_remove_doc,
+        cogito_command::knowledge::knowledge_remove_base,
         cogito_command::knowledge::knowledge_resolve_doc,
         cogito_command::knowledge::knowledge_write_doc,
         cogito_command::knowledge::knowledge_export_bundle,

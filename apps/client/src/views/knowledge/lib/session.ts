@@ -2,7 +2,7 @@ import { openPath as openExternal } from '@tauri-apps/plugin-opener'
 import { exists } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
-import { listBases, resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
+import { listKnowledge, resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
 import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -41,7 +41,7 @@ async function ensureRootDir(): Promise<string> {
 
 async function findActiveBaseRoot(): Promise<string> {
   try {
-    const bases = await listBases()
+    const bases = await listKnowledge()
     const active = bases.find(function (base) {
       return base.id === useKnowledgeBaseStore.getState().activeBaseID
     })

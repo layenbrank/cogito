@@ -571,6 +571,34 @@ impl Service {
         Ok(result.rows_affected)
     }
 
+    /// 删除整个知识库：索引状态 + 文档行 + 库行；`purge_files` 为真时连目录一起删。
+    ///
+    /// 文件默认**保留**：知识库正文是用户磁盘上的 Markdown，误点一次就把整个目录清掉
+    /// 是不可接受的风险。要连文件一起删必须由调用方显式传 `purge_files`，UI 侧再二次确认。
+    pub async fn toRemoveKnowledge(
+        db: &DatabaseConnection,
+        base_id: &str,
+        purge_files: bool,
+    ) -> Result<u64, Exception> {
+        let base = Self::find_base(db, base_id).await?;
+        index_schema::Entity::delete_many()
+            .filter(index_schema::Column::BaseId.eq(base_id))
+            .exec(db)
+            .await?;
+        doc_schema::Entity::delete_many()
+            .filter(doc_schema::Column::BaseId.eq(base_id))
+            .exec(db)
+            .await?;
+        let result = base_schema::Entity::delete_by_id(base.id)
+            .exec(db)
+            .await?;
+        if purge_files {
+            // 删目录失败（占用 / 权限）不阻断入库清理
+            let _ = fs::remove_dir_all(&base.rootPath);
+        }
+        Ok(result.rows_affected)
+    }
+
     /// 一篇文档的云端索引状态；没有行就是 `idle`（从未同步过）。
     ///
     /// 与 `toListCloudStates` 的区别：那个给列表画角标，这个给单篇回写之后确认结果。

@@ -33,7 +33,7 @@ function asError(error: unknown, label: string): Error {
   return new Error(`${label}: ${String(error)}`)
 }
 
-async function listBases(): Promise<KnowledgeBase[]> {
+async function listKnowledge(): Promise<KnowledgeBase[]> {
   try {
     return KnowledgeBaseSchema.array().parse(await invoke(CHANNELS.KNOWLEDGE.LIST_BASES))
   } catch (error) {
@@ -41,7 +41,7 @@ async function listBases(): Promise<KnowledgeBase[]> {
   }
 }
 
-async function insertBase(name: string): Promise<KnowledgeBase> {
+async function insertKnowledge(name: string): Promise<KnowledgeBase> {
   try {
     return KnowledgeBaseSchema.parse(await invoke(CHANNELS.KNOWLEDGE.CREATE_BASE, { name }))
   } catch (error) {
@@ -56,7 +56,7 @@ interface BasePatch {
   citation?: boolean
 }
 
-async function updateBase(baseId: string, patch: BasePatch): Promise<KnowledgeBase> {
+async function updateKnowledge(baseId: string, patch: BasePatch): Promise<KnowledgeBase> {
   try {
     return KnowledgeBaseSchema.parse(
       await invoke(CHANNELS.KNOWLEDGE.UPDATE_BASE, { baseId, ...patch })
@@ -120,7 +120,7 @@ async function discardStaged(path: string): Promise<boolean> {
   }
 }
 
-async function rescanBase(baseId: string): Promise<number> {
+async function rescanKnowledge(baseId: string): Promise<number> {
   try {
     return await invoke<number>(CHANNELS.KNOWLEDGE.RESCAN, { baseId })
   } catch (error) {
@@ -133,6 +133,18 @@ async function removeDoc(id: string): Promise<number> {
     return await invoke<number>(CHANNELS.KNOWLEDGE.REMOVE_DOC, { id })
   } catch (error) {
     throw asError(error, '删除文档失败')
+  }
+}
+
+/**
+ * 删除整个知识库。`purgeFiles` 缺省：只删库记录，磁盘上的 Markdown 原样保留。
+ * 连文件一起删是**不可逆**的，调用方必须先让用户显式选择。
+ */
+async function removeKnowledge(baseId: string, purgeFiles = false): Promise<number> {
+  try {
+    return await invoke<number>(CHANNELS.KNOWLEDGE.REMOVE_BASE, { baseId, purgeFiles })
+  } catch (error) {
+    throw asError(error, '删除知识库失败')
   }
 }
 
@@ -172,7 +184,7 @@ async function writeDoc(input: {
 }
 
 // 整包导出：把库里的 Markdown 打成 zip（后端写在 <库目录>/exports/），返回绝对路径
-async function exportBundle(baseId: string): Promise<string> {
+async function exportKnowledge(baseId: string): Promise<string> {
   try {
     return await invoke<string>(CHANNELS.KNOWLEDGE.EXPORT_BUNDLE, { baseId })
   } catch (error) {
@@ -211,21 +223,22 @@ async function findPdfium(): Promise<string | null> {
 }
 
 export {
-  insertBase,
+  insertKnowledge,
   discardStaged,
-  exportBundle,
+  exportKnowledge,
   extractPdf,
   findPdfium,
-  listBases,
+  listKnowledge,
   listDocs,
   listStaging,
   mergeStaging,
   publishDoc,
+  removeKnowledge,
   removeDoc,
-  rescanBase,
+  rescanKnowledge,
   resolveDoc,
   searchDocs,
-  updateBase,
+  updateKnowledge,
   writeDoc
 }
 export type { PdfExtractResult }

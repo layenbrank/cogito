@@ -75,6 +75,7 @@ export const CHANNELS = {
     MERGE_STAGING: 'knowledge:mergeStaging',
     RESCAN: 'knowledge:rescan',
     REMOVE_DOC: 'knowledge:removeDoc',
+    REMOVE_BASE: 'knowledge:removeBase',
     RESOLVE_DOC: 'knowledge:resolveDoc',
     WRITE_DOC: 'knowledge:writeDoc',
     EXPORT_BUNDLE: 'knowledge:exportBundle'
