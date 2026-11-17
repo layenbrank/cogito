@@ -24,6 +24,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { chatModelPort } from '@/features/agent/port/instance'
+import { findHardDenyReplacement } from '@/features/agent/approval'
 import { findToolActivity } from '@/features/agent/tool-activity'
 import { isShellTool, isWriteTool, toAgentToolLabel } from '@/features/agent/tool-labels'
 import { summarize } from '@/views/agent/chat/components/tool-card-format'
@@ -164,6 +165,15 @@ function ApprovalBar(props: ApprovalBarProps) {
       : approval.prompt?.trim() || labels.approvalDefaultSubtitle
   // 命令已经在等宽面板里：说明别再复述同一句话
   const description = summary && summary !== command && summary !== subtitle ? summary : undefined
+  /**
+   * 硬禁用工具（goose 原厂 write/edit、黑盒 shell）在**询问档**下会推卡，
+   * 但它会绕过 cogito 的写保护（`.git` 拒绝、`.env` / `*.pem` 二次确认、写前快照）。
+   * 卡上必须说出来，否则用户点「允许一次」时以为自己放行的是普通写文件。
+   */
+  const replacement = request ? findHardDenyReplacement(props.toolName) : null
+  const policyNote = replacement
+    ? `该工具会绕过 cogito 的写保护（.git 拒绝、.env / 密钥二次确认、写前快照）。建议拒绝，改用 ${replacement}。`
+    : undefined
 
   const extraActions: readonly ApprovalCardAction[] | undefined = extraReject
     ? [
@@ -184,7 +194,7 @@ function ApprovalBar(props: ApprovalBarProps) {
       title={toAgentToolLabel(props.toolName)}
       subtitle={subtitle}
       // 已经答过的卡只留收据：命令 / 说明再摆一遍，下面还压着一份工具结果
-      description={request ? description : undefined}
+      description={request ? (policyNote ?? description) : undefined}
       command={request ? (command ?? undefined) : undefined}
       icon={
         <Icon

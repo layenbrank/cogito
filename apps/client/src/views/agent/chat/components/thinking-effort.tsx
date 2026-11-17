@@ -109,9 +109,10 @@ function ThinkingEffort() {
           // 先等它写进内存 cache 再下发：applyGooseThinking 读的就是这份偏好，
           // 不等写完就调，推给 goose 的还是**上一档**。
           void writeModelThinking(providerID, model, next).then(function () {
-            // 立即下发：不等下一轮，用户在这里改完就该生效
-            if (!threadID) return undefined
-            return applyGooseThinking(threadID, providerID, model)
+            // 立即下发：不等下一轮，用户在这里改完就该生效。
+            // 没有会话（草稿 / 刷新后）也要走这一趟：函数内部会把档位写进 goose 全局键，
+            // 那是下一轮建会话时真正读到的值 —— 以前这里直接 return，界面只好说「还没确认」。
+            return applyGooseThinking(threadID ?? '', providerID, model)
           })
         }}
       />
@@ -128,7 +129,9 @@ function findNote(
   dispatch: { value: string; matched: boolean; degraded: boolean },
   selected: ThinkingLevel
 ): string {
-  if (!capability) return '该模型的思考档位还没确认，下一轮发送时会一并下发'
+  // 还没写过回执（全新模型 / 刚刷新）：档位本身**已经有值**（模型偏好里的默认档），
+  // 所选档位此刻已经写进 goose 全局键，只是「本模型接受哪几档」还不知道。
+  if (!capability) return `已按「${labelOf(selected)}」写入 goose（新会话生效）`
   const applied = capability.applied
   if (applied) {
     if (dispatch.degraded && applied !== selected) {

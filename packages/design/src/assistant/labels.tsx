@@ -272,6 +272,13 @@ type AssistantLabels = {
   retrievalFuzzyHint: string
   /** 分数条的无障碍名称 */
   retrievalMeter: (source: string) => string
+  // 文档引用卡（document-reference）：同一份文档里的多处定位
+  /** 抬头元信息：`12 页 · 3 处引用` */
+  documentPages: (pages: number, cited: number) => string
+  /** 锚点左侧的页码标签：`第 4 页` */
+  documentPageLabel: (page: number) => string
+  /** 锚点的无障碍名称（点击跳转） */
+  documentJump: (page: number) => string
   // 时间轴卡（timeline）：日历这类「时刻 + 事件」的竖轴
   /** 全天事件在左列写的字（没有具体时刻） */
   timelineAllDay: string
@@ -605,6 +612,10 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   retrievalFuzzy: 'fuzzy',
   retrievalFuzzyHint: 'Short query matched by substring, so there is no relevance score',
   retrievalMeter: (source) => source + ' relevance score',
+  documentPages: (pages, cited) =>
+    (pages === 1 ? '1 page' : pages + ' pages') + ' · ' + (cited === 1 ? '1 cited' : cited + ' cited'),
+  documentPageLabel: (page) => 'p. ' + page,
+  documentJump: (page) => 'Jump to page ' + page,
   timelineAllDay: 'All day',
   timelineUntitled: 'Untitled event',
   timelineUntil: (clock) => 'until ' + clock,

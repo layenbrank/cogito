@@ -36,21 +36,28 @@ describe('硬禁用与档位无关', function () {
     })
   })
 
-  it('goose 原厂写工具在 ask 档也拒，而不是弹卡让人点允许', function () {
+  it('goose 原厂写工具在询问档下推卡，由用户决定（不再静默拒绝）', function () {
     expect(decideApproval(input({ toolName: 'write', approvalMode: 'ask' }))).toEqual({
-      kind: 'deny',
-      optionId: 'reject_once'
+      kind: 'ask'
     })
-    expect(decideApproval(input({ toolName: 'developer__text_editor' }))).toEqual({
+    expect(decideApproval(input({ toolName: 'developer__text_editor' }))).toEqual({ kind: 'ask' })
+  })
+
+  it('计划模式仍然直接拒：那一轮不该落盘，没有「允许一次」的语义', function () {
+    expect(decideApproval(input({ toolName: 'write', planning: true }))).toEqual({
       kind: 'deny',
       optionId: 'reject_once'
     })
   })
 
-  it('拿不到 reject_once 时 fail-closed，而不是把卡推给用户', function () {
+  it('非询问档拿不到 reject_once 时 fail-closed，而不是把卡推给用户', function () {
     expect(
       decideApproval(
-        input({ toolName: 'shell', options: [{ optionId: 'allow_once', kind: 'allow_once' }] })
+        input({
+          toolName: 'shell',
+          approvalMode: 'readonly',
+          options: [{ optionId: 'allow_once', kind: 'allow_once' }]
+        })
       ).kind
     ).toBe('cancel')
   })

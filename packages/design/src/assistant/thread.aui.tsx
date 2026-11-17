@@ -157,6 +157,14 @@ export type ThreadComponents = {
           seconds?: number
           summary?: ProcessSummary
           /**
+           * 过程区里夹着**解说正文**时置为真：这类消息不能自动收起。
+           *
+           * 最终回答只算「最后一段正文」，于是「解说 A → 工具 → 解说 B → 回答」里的
+           * A / B 都落进过程区；结算时把它收起来，用户看到的就是回答凭空少了一半。
+           * 正文是人要看的东西，不应该被「过程」的折叠规则豁进去 —— 工具与思考照旧折。
+           */
+          keepOpen?: boolean
+          /**
            * 这一轮在等人处理（审批 / 补充信息）：`running` 为 false 但**不能自动收起** ——
            * 收起来就把「允许 / 拒绝」按钮藏进折叠里了。用户手动收过仍然以用户为准。
            */
@@ -776,6 +784,7 @@ export function DefaultProcessGroup(
     seconds?: number
     summary?: ProcessSummary
     attention?: boolean
+    keepOpen?: boolean
   }>
 ) {
   const labels = useAssistantLabels()
@@ -790,7 +799,7 @@ export function DefaultProcessGroup(
    * 「该展开」的时机：在跑，或者卡在等人处理。审批按钮（允许 / 拒绝）是必须点到的，
    * 自动收起来等于把它藏了 —— 这一条与「跑完就收」不冲突，只是不把 actionable 的状态算成跑完。
    */
-  const wantsOpen = props.running || props.attention === true
+  const wantsOpen = props.running || props.attention === true || props.keepOpen === true
   /**
    * 自动开合**晚一帧**生效：结算时先把滚动钉住，再由下一帧塌下去。
    * 同一 commit 里收起来，面板高度已经归零，`armCollapsePin` 量不到东西 ——
@@ -1010,6 +1019,18 @@ const AssistantMessage: FC = () => {
     },
     [parts, responseStart]
   )
+  /**
+   * 过程区里有没有**解说正文**：有的话外壳不能自动收起。
+   * 「解说」= 夹在工具之间的正文，用户要读它；折叠规则只该吃掉思考与工具列表。
+   */
+  const processHasNarration = useMemo(
+    function () {
+      return parts.slice(0, responseStart).some(function (part) {
+        return part.type === 'text' && (part.text ?? '').trim().length > 0
+      })
+    },
+    [parts, responseStart]
+  )
   const partComponents = useMemo(
     function () {
       return {
@@ -1176,6 +1197,7 @@ const AssistantMessage: FC = () => {
               steps={processSteps}
               seconds={processSeconds}
               summary={processSummary}
+              keepOpen={processHasNarration}
               attention={runStatus === 'requires-action'}>
               {processBlocks}
               {processFooter}

@@ -21,7 +21,7 @@ import type { Express, Request, Response } from 'express'
 
 import type { ApprovalHub } from './approvals'
 import type { ElicitationDecision, ElicitationHub } from './elicitations'
-import type { EventHub } from './events'
+import type { EventHub, RunEvent } from './events'
 import type { Metrics } from './observability'
 import { isAllowedGooseMethod } from './goose/allowlist'
 
@@ -701,6 +701,31 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       res.setHeader('connection', 'keep-alive')
       res.flushHeaders()
 
+      // 先订阅、再补发：反过来的话，「取快照 → 挂订阅」之间产生的事件既不在补发里，
+      // 也没有订阅者接住 —— 前端会永久缺一段正文，而 `sync` 又告诉它「你已经是最新的」。
+      // 补发与实时尾部会重叠，所以写出口统一按 `seq` 去重。
+      //
+      // 游标初值必须是 0 而**不是** `after`：`seq` 是本进程内的内存计数器，agentd 重启后
+      // 从头开始，而前端手里还留着上一个进程的大游标。若以 `after` 初始化，`send()` 会把
+      // 新进程的每一条事件都判成「已写过」丢掉 —— 前端表现为「重试后一直思考中、零输出」，
+      // 直到一轮的空闲上限（60 分钟）才报超时。补发本身已由 `since(after)` 过滤过，
+      // 从 0 起算不会重复写。
+      let lastWritten = 0
+      let replaying = true
+      const queued: RunEvent[] = []
+      function send(event: RunEvent): void {
+        if (event.seq <= lastWritten) return
+        lastWritten = event.seq
+        writeSse(res, 'run', event)
+      }
+      const unsubscribe = events.subscribe(threadID, function (event) {
+        if (replaying) {
+          queued.push(event)
+          return
+        }
+        send(event)
+      })
+
       // 先按游标补发，再发一份「现状」：审批请求可能发生在连上来之前
       const missed = events.since(threadID, after)
       if (after !== undefined && missed.length > 0) {
@@ -709,17 +734,19 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         logEvent?.('events.replay', { threadID, from: after, count: missed.length })
       }
       for (const event of missed) {
-        writeSse(res, 'run', event)
+        send(event)
       }
+      // `lastSeq` 必须是**已经写到这条连接上**的位置，不是服务端最新：
+      // 报大了会让前端下次从中间开始取，安静地跳过一段正文。
       writeSse(res, 'sync', {
         approvals: approvals ? approvals.pending(threadID) : [],
         elicitations: elicitations ? elicitations.pending(threadID) : [],
-        lastSeq: events.since(threadID).at(-1)?.seq ?? 0
+        lastSeq: lastWritten
       })
-
-      const unsubscribe = events.subscribe(threadID, function (event) {
-        writeSse(res, 'run', event)
-      })
+      replaying = false
+      for (const event of queued) {
+        send(event)
+      }
       res.on('close', function () {
         unsubscribe()
       })

@@ -110,20 +110,37 @@ function deriveChipLabel(type: string, id: string): string {
 }
 
 /**
+ * 目录段太长时只留最后两段：`…/features/agent/`。
+ *
+ * 根路径选得很深时，chip 里那截目录根本没信息量（用户知道自己选的是哪个根），
+ * 但会把它旁边的文件名挤没 —— 而文件名才是要认的东西。完整路径仍在 `id` 与 `title` 里。
+ */
+function shortenDir(dir: string): string {
+  const segments = dir.split('/').filter(function (segment) {
+    return segment.length > 0
+  })
+  if (segments.length <= 2) return dir
+  return `…/${segments.slice(-2).join('/')}/`
+}
+
+/**
  * chip 的两段式显示：「…/src/chat.tsx」。
  *
  * 目录段可以被截断（`min-w-0 truncate`），末段保持完整（`shrink-0`），
  * 这样窄窗口里看到的是「…/chat.tsx」而不是被截成「apps/clien…」。
  * skill chip 的 label 已经去掉 `skill:` 前缀，没有目录段。
+ *
+ * **兼容 Windows 反斜杠**：根路径 / 引用路径带 `\` 时按 `/` 切不出两段，
+ * 整个路径会变成不可截断的长 token，直接把 composer 撑出横向滚动条（实测问题）。
  */
 function splitChipLabel(type: string, label: string, id: string): { dir: string; base: string } {
   if (type === 'skill') return { dir: '', base: label }
   if (type === 'browser') return { dir: '', base: label }
   // 显示文案优先用 label：工作区里的引用可能只给「文件夹/末段名」，完整路径留在 id 里
-  const source = label.trim().length > 0 ? label : id
+  const source = (label.trim().length > 0 ? label : id).replace(/\\/g, '/')
   const slash = source.lastIndexOf('/')
   if (slash <= 0 || slash === source.length - 1) return { dir: '', base: source }
-  return { dir: source.slice(0, slash + 1), base: source.slice(slash + 1) }
+  return { dir: shortenDir(source.slice(0, slash + 1)), base: source.slice(slash + 1) }
 }
 
 function atomLength(atom: ComposerAtom) {

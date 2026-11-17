@@ -205,6 +205,30 @@ describe('事件流 HTTP 面', function () {
     expect(text).not.toContain('"old"')
   })
 
+  it('游标来自上一个进程（agentd 重启、seq 从头开始）时，新事件照常下发', async function () {
+    const hub = createEventHub()
+    const base = await startServer(hub)
+    const threadID = await createThread(base)
+
+    // 模拟 agentd 重启：hub 是新的（seq 从 1 起），但前端手里还留着上一个进程的大游标。
+    // 旧实现用这个游标初始化 `lastWritten`，于是新进程的每条事件都被判成「已写过」丢掉 ——
+    // 前端表现为「重试后一直思考中、零输出」直到空闲超时。
+    const staleCursor = 9_999
+    const controller = new AbortController()
+    const response = await fetch(
+      `${base}/threads/${threadID}/events?after=${staleCursor}`,
+      { headers: authHeaders(), signal: controller.signal }
+    )
+
+    const emitted = hub.emit(threadID, 'status', { phase: 'settled', status: 'success' })
+    const text = await readUntil(response, 'settled', controller)
+    expect(text).toContain('settled')
+    // `sync` 必须报真实进度（本连接已写出的位置），不能照抄客户端游标：
+    // 照抄的话前端会把之后每一帧都当成重放过的旧帧。
+    expect(text).toMatch(/"lastSeq":\s*0/)
+    expect(emitted.seq).toBeLessThan(staleCursor)
+  })
+
   it('审批请求会汇进同一条流（前端只需消费一个通道）', async function () {
     const hub = createEventHub()
     const hubWithApprovals = hub

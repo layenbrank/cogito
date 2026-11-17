@@ -17,6 +17,7 @@ import {
 } from '@/features/agent/acp/goose-usage'
 import {
   contextLevelOf,
+  fitBreakdownToUsed,
   splitContextSegments,
   type ContextLevel,
   type ContextSegment
@@ -107,19 +108,13 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
     [mode]
   )
 
-  const breakdown = useMemo(
+  const estimated = useMemo(
     function () {
       return estimateContextBreakdown({ systemText, messages })
     },
     [messages, systemText]
   )
 
-  const segments = useMemo(
-    function () {
-      return splitContextSegments(breakdown)
-    },
-    [breakdown]
-  )
   const drilldown = useMemo(
     function () {
       return rankMessagesByTokens(messages, 5)
@@ -140,6 +135,23 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
 
   const used = usage?.used ?? 0
   const max = window.tokens
+  /**
+   * 四段口径：有会话统计时**折算到 used**，四段之和恒等于真实占用。
+   * 不折算的话，压缩上下文之后本地线程里那些已不在窗口内的工具结果仍被算进分子，
+   * 气泡就会显示「超出 400% / 2000%」—— 不是没压缩，是两套口径被加在了一起。
+   */
+  const breakdown = useMemo(
+    function () {
+      return used > 0 ? fitBreakdownToUsed(estimated, used) : estimated
+    },
+    [estimated, used]
+  )
+  const segments = useMemo(
+    function () {
+      return splitContextSegments(breakdown)
+    },
+    [breakdown]
+  )
   // 分母被偏好覆盖时不能用 goose 的 label：否则气泡写「12k / 128k」、环画的是 1M
   const label =
     window.source === 'stats' && usage && usage.size > 0

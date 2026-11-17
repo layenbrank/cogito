@@ -95,6 +95,21 @@ const OrchestrationState = Annotation.Root({
     }
   }),
   /**
+   * 建会话那一刻用的 MCP 配置指纹（见 `fingerprintMcpServers`）。
+   *
+   * 必须有它才能判断「当前这轮的 MCP 配置和会话实际挂的一致吗」：桥地址是内核随机端口，
+   * app 一重启就换，而复用旧会话不会重挂 MCP —— `cogito-mcp` 会去连一个没人监听的端口，
+   * 日志里留一行「桥不可达 … os error 10061」，前端看到的是整个本地工具面消失。
+   */
+  mcpFingerprint: Annotation<string>({
+    reducer: function (_prev, next) {
+      return next
+    },
+    default: function () {
+      return ''
+    }
+  }),
+  /**
    * 附加到会话上的系统提示（`append` 模式，key=`cogito`）。
    *
    * 必须由 agentd 写：session 是在它内部建的，前端拿不到「刚建好」那个时机。
@@ -118,6 +133,40 @@ interface TextChunk {
 interface TurnResult {
   reply: string
   sessionId: string
+  /** 本次建会话用的 MCP 指纹；复用会话时原样带回 */
+  mcpFingerprint: string
+}
+
+/**
+ * MCP 配置指纹：`name` + `command` + `args` + 排序后的 `env`。
+ *
+ * 只取会影响「子进程怎么被拉起」的字段。`COGITO_BRIDGE_URL` 每次 app 重启都变，
+ * 所以这个指纹天然能反映「旧会话挂的 MCP 已经连不上了」。
+ */
+function fingerprintMcpServers(servers: readonly unknown[]): string {
+  if (servers.length === 0) return ''
+  const rows = servers.map(function (server) {
+    const item = (server ?? {}) as {
+      name?: unknown
+      command?: unknown
+      args?: unknown
+      env?: unknown
+    }
+    const env = Array.isArray(item.env) ? item.env : []
+    const pairs = env
+      .map(function (entry) {
+        const pair = (entry ?? {}) as { name?: unknown; value?: unknown }
+        return `${String(pair.name ?? '')}=${String(pair.value ?? '')}`
+      })
+      .sort()
+    return [
+      String(item.name ?? ''),
+      String(item.command ?? ''),
+      JSON.stringify(item.args ?? []),
+      pairs.join('&')
+    ].join('|')
+  })
+  return rows.sort().join('\n')
 }
 
 /** 判断错误是不是「会话没了」（goose 重启 / session/load 失败）。 */
@@ -299,7 +348,13 @@ function createGooseGraph(options: GooseGraphOptions) {
     }
     bindIncoming(client)
 
-    if (state.sessionId) {
+    const fingerprint = fingerprintMcpServers(state.mcpServers)
+    // 会话能复用，前提是**工具面配置没变**。桥地址是内核随机端口，app 重启就换一个；
+    // 复用旧会话不会重挂 MCP，于是 `cogito-mcp` 仍去连旧端口 —— 表现是本地工具面整体
+    // 消失（只有 `cogito_ping`），并且要等用户重启会话才恢复。指纹不同就重开一个会话。
+    const serversChanged = Boolean(state.sessionId) && state.mcpFingerprint !== fingerprint
+
+    if (state.sessionId && !serversChanged) {
       try {
         await applyMode(client, state.sessionId, state.mode)
         await ensureHardDeny(client, state.sessionId)
@@ -307,7 +362,8 @@ function createGooseGraph(options: GooseGraphOptions) {
         await applySystemText(client, state.sessionId, state.systemText)
         return {
           reply: await runTurn(client, state.sessionId, state.prompt, state.threadID),
-          sessionId: state.sessionId
+          sessionId: state.sessionId,
+          mcpFingerprint: state.mcpFingerprint
         }
       } catch (error) {
         // goose 重启会让旧 session 消失：重开一次比把错误抛给用户更有用
@@ -321,7 +377,7 @@ function createGooseGraph(options: GooseGraphOptions) {
     await ensureHardDeny(client, session.sessionId)
     await applySystemText(client, session.sessionId, state.systemText)
     const reply = await runTurn(client, session.sessionId, state.prompt, state.threadID)
-    return { reply, sessionId: session.sessionId }
+    return { reply, sessionId: session.sessionId, mcpFingerprint: fingerprint }
   }
 
   const builder = new StateGraph(OrchestrationState)

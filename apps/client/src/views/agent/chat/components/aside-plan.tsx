@@ -38,7 +38,7 @@ import { toast } from 'sonner'
 
 import { readNextGoalBudget, subscribeGoalBudget, useGoalRun } from '@/features/agent/goal-run'
 import { findLatestPlan } from '@/features/agent/plan'
-import { findPlanDraft } from '@/features/agent/plan-draft'
+import { findLastAssistantText, findPlanDraft, isPlanDocument } from '@/features/agent/plan-draft'
 import {
   listPlanFiles,
   readPlanFile,
@@ -153,7 +153,10 @@ function AsidePlan(props: AsidePlanProps) {
         }
       }
       if (!draftDigest) return null
-      return findPlanDraft(aui.thread.getState().messages)
+      const messages = aui.thread.getState().messages
+      // 兜底只认「真计划文档」：随便一句带编号的回答不该占据计划页签
+      if (!isPlanDocument(findLastAssistantText(messages) ?? '')) return null
+      return findPlanDraft(messages)
     },
     [aui, draftDigest, record]
   )

@@ -10,13 +10,13 @@ import {
   CONTEXT_SEGMENT_META,
   contextLevel,
   contextLevelOf,
+  fitBreakdownToUsed,
   rankContextSegments,
   splitContextSegments,
   totalContextTokens
 } from '@/features/agent/context-breakdown'
 
-describe('上下文分段', function () {
-  it('四段求和等于总量，比例加起来是 1', function () {
+describe('上下文分段', function () {  it('四段求和等于总量，比例加起来是 1', function () {
     const usage = { systemTokens: 100, historyTokens: 300, toolTokens: 500, attachmentTokens: 100 }
     const segments = splitContextSegments(usage)
     expect(segments).toHaveLength(CONTEXT_SEGMENT_META.length)
@@ -88,5 +88,52 @@ describe('上下文分段', function () {
     )
     expect(tones.size).toBe(CONTEXT_SEGMENT_META.length)
     expect(icons.size).toBe(CONTEXT_SEGMENT_META.length)
+  })
+})
+
+/**
+ * 压缩上下文之后，本地线程里的工具结果仍然在，而会话统计（`used`）已经掉下来了。
+ * 直接拿估算值当分子会显示「超出 2000%」—— 折算的目标就是让四段之和恒等于 `used`。
+ */
+describe('按真实占用折算', function () {
+  function sum(usage: ReturnType<typeof fitBreakdownToUsed>): number {
+    return (
+      (usage.systemTokens ?? 0) +
+      (usage.historyTokens ?? 0) +
+      (usage.toolTokens ?? 0) +
+      (usage.attachmentTokens ?? 0)
+    )
+  }
+
+  it('估算远大于真实占用时按比例压缩，和恰好等于 used', function () {
+    const usage = fitBreakdownToUsed(
+      { systemTokens: 3_000, historyTokens: 20_000, toolTokens: 80_000, attachmentTokens: 0 },
+      5_000
+    )
+    expect(sum(usage)).toBe(5_000)
+    // 比例保持：工具仍然是最占的那一段
+    expect(usage.toolTokens).toBeGreaterThan(usage.historyTokens ?? 0)
+  })
+
+  it('估算小于真实占用时差额记到对话段（工具 schema 这类本地看不到的部分）', function () {
+    const usage = fitBreakdownToUsed(
+      { systemTokens: 1_000, historyTokens: 2_000, toolTokens: 0, attachmentTokens: 0 },
+      10_000
+    )
+    expect(sum(usage)).toBe(10_000)
+    expect(usage.historyTokens).toBe(9_000)
+  })
+
+  it('还没拿到统计（used <= 0）时原样返回估算值', function () {
+    const estimated = { systemTokens: 10, historyTokens: 20, toolTokens: 30 }
+    expect(fitBreakdownToUsed(estimated, 0)).toEqual(estimated)
+  })
+
+  it('取整误差不会让和漂移一格', function () {
+    const usage = fitBreakdownToUsed(
+      { systemTokens: 1, historyTokens: 1, toolTokens: 1, attachmentTokens: 1 },
+      3
+    )
+    expect(sum(usage)).toBe(3)
   })
 })

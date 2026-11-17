@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AUTO_COMPACT_THRESHOLD } from '@/features/agent/acp/goose-providers'
-import { compactThreadSession, hasThreadSession } from '@/features/agent/port/session'
+import { compactThreadSession } from '@/features/agent/port/session'
 import {
   CONTEXT_SEGMENT_META,
   type ContextLevel,
@@ -67,25 +67,27 @@ function AsideContextSection() {
   const remain = Math.max(0, max - used)
 
   /**
-   * 四段 → 明细卡要的形状。会话统计优先：对话段收口成
-   * `已用 - 系统 - 工具 - 附件`，四段之和正好等于真实占用，不会出现
-   * 「图例加起来比表头还多」；还没拿到统计时退回估算值。
+   * 四段 → 明细卡要的形状。分段已在 `use-context-usage` 里按会话统计折算过
+   * （四段之和 = 真实占用），这里直接照排，不再做减法。
    */
   const cardSegments = useMemo(
     function () {
-      const system = breakdown.systemTokens ?? 0
-      const tools = breakdown.toolTokens ?? 0
-      const attachments = breakdown.attachmentTokens ?? 0
-      const estimatedHistory = breakdown.historyTokens ?? 0
-      const history = used > 0 ? Math.max(0, used - system - tools - attachments) : estimatedHistory
       return [
-        { label: labels.contextSystem, tokens: system, tint: findTone('system') },
-        { label: labels.contextTools, tokens: tools, tint: findTone('tool') },
-        { label: labels.contextAttachments, tokens: attachments, tint: findTone('attachment') },
-        { label: labels.contextMessages, tokens: history, tint: findTone('history') }
+        { label: labels.contextSystem, tokens: breakdown.systemTokens ?? 0, tint: findTone('system') },
+        { label: labels.contextTools, tokens: breakdown.toolTokens ?? 0, tint: findTone('tool') },
+        {
+          label: labels.contextAttachments,
+          tokens: breakdown.attachmentTokens ?? 0,
+          tint: findTone('attachment')
+        },
+        {
+          label: labels.contextMessages,
+          tokens: breakdown.historyTokens ?? 0,
+          tint: findTone('history')
+        }
       ]
     },
-    [breakdown, labels, used]
+    [breakdown, labels]
   )
 
   /** 展开卡片并滚到它（同一张卡，不再切页签） */
@@ -128,8 +130,8 @@ function AsideContextSection() {
           <Button
             type="button"
             variant="link"
-            size="xs"
-            className="h-5 px-1 text-xs"
+            size="sm"
+            className="h-7 px-2 text-xs"
             onClick={function () {
               updateOpen(!isOpen)
             }}>
@@ -217,24 +219,18 @@ function AsideContextSection() {
           <Button
             type="button"
             variant="outline"
-            size="xs"
-            className="h-6 shrink-0 px-2 text-xs"
+            size="sm"
+            className="h-7 shrink-0 px-3 text-xs"
             disabled={!threadID || isRunning || isCompacting}
             title={
               !threadID
                 ? '当前没有打开的会话'
                 : isRunning
                   ? '这一轮还在进行中，等它结束再压缩'
-                  : hasThreadSession(threadID)
-                    ? '把已有上下文压成摘要，释放窗口'
-                    : '先发一条消息建立会话，再压缩上下文'
+                  : '把已有上下文压成摘要，释放窗口'
             }
             onClick={function () {
               if (!threadID) return
-              if (!hasThreadSession(threadID)) {
-                toast.info('先发一条消息建立会话，再压缩上下文')
-                return
-              }
               updateCompacting(true)
               void compactThreadSession(threadID)
                 .then(function () {

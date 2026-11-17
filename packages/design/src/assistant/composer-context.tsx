@@ -81,7 +81,11 @@ function ComposerContext({ usage, level, tones, className, ...props }: ComposerC
   const total = toThousands(usage.total)
   const used = system + tools + messages
   const ratio = total > 0 ? used / total : 0
-  const percent = Math.round(ratio * 100)
+  /**
+   * 百分比封顶 100：估算口径（尤其是压缩后本地仍留着的历史）可能算超窗口，
+   * 写「2000%」只会让用户以为坏了。超限该说的是「接近上限」，不是算错的那个数。
+   */
+  const percent = Math.min(100, Math.round(ratio * 100))
   const alert = total > 0 && ratio > COMPOSER_CONTEXT_ALERT_RATIO
   /** 元素自己的红线优先：过 85% 一定是 danger，不受调用方 level 影响 */
   const resolved: ContextTone = alert ? 'danger' : (level ?? 'ok')

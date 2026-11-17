@@ -316,7 +316,13 @@ function findThreadAcpSessionID(threadID: string): string | null {
 }
 
 function hasThreadSession(threadID: string): boolean {
-  return sessionByThread.has(threadID)
+  const key = threadID.trim()
+  if (!key) return false
+  if (sessionByThread.get(key)?.sessionId) return true
+  // 刷新 / 重开应用后内存表是空的，但库里存着上一轮的 ACP session id ——
+  // 以前只看 `Map.has`，于是「有历史但没内存记录」的对话被当成「还没有会话」，
+  // 压缩按钮点了只回一句「先发一条消息建立会话」。
+  return Boolean(recallBinding(key)?.acpSessionId)
 }
 
 /**
@@ -519,13 +525,49 @@ async function probeWorkspacePath(path: string): Promise<boolean | null> {
 // ── goose 配置（走白名单透传） ──────────────────────────────────────────────
 
 const GOOSE_DEFAULTS_SAVE = '_goose/unstable/defaults/save'
+const GOOSE_CONFIG_READ = '_goose/unstable/config/read'
 const GOOSE_CONFIG_UPSERT = '_goose/unstable/config/upsert'
 const CONFIG_TEMPERATURE = 'GOOSE_TEMPERATURE'
+/** 自动压缩阈值：goose 侧读的就是这个全局键 */
+const CONFIG_AUTO_COMPACT_THRESHOLD = 'GOOSE_AUTO_COMPACT_THRESHOLD'
+/** Desktop 同款 0.8：占用到 80% 就压 */
+const AUTO_COMPACT_THRESHOLD = 0.8
 /** 思考强度：goose 全局键，枚举 off/low/medium/high/max（与 cogito 五档同名） */
 const CONFIG_THINKING_EFFORT = 'GOOSE_THINKING_EFFORT'
 
 /** 上一次写进 goose 全局键的值：没变就不重复 upsert */
 let lastThinkingEffort: string | null = null
+
+/**
+ * 自动压缩阈值：没配过就写 Desktop 默认 0.8。
+ *
+ * `aside-context` 一直在告诉用户「达到阈值会自动压缩」，但那个阈值在本仓
+ * **从未被写过**（`goose-providers.ts` 里的 `ensureAutoCompactThreshold` 没有调用方，
+ * 且它依赖已经被移除的直连 ACP）。于是 goose 只能用它自己的默认值，界面上那句
+ * 承诺与实际行为不对应。这里走 agentd 的白名单通道补一次，成功一次就不再写。
+ */
+let autoCompactEnsured = false
+async function ensureGooseAutoCompact(): Promise<void> {
+  if (autoCompactEnsured) return
+  try {
+    const current = await invokeGoose<{ value?: unknown } | null>(GOOSE_CONFIG_READ, {
+      key: CONFIG_AUTO_COMPACT_THRESHOLD,
+      isSecret: false
+    })
+    const value = typeof current?.value === 'number' ? current.value : 0
+    if (!(value > 0 && value <= 1)) {
+      await invokeGoose(GOOSE_CONFIG_UPSERT, {
+        key: CONFIG_AUTO_COMPACT_THRESHOLD,
+        value: AUTO_COMPACT_THRESHOLD,
+        isSecret: false
+      })
+    }
+    autoCompactEnsured = true
+  } catch (error) {
+    // 软参数：写不进去不影响这一轮，下一轮再试
+    console.warn('[agent/session] 自动压缩阈值同步跳过:', error)
+  }
+}
 
 /**
  * 温度写进 goose 全局配置（对新会话生效）。
@@ -583,6 +625,7 @@ async function applyGooseThinking(
       lastThinkingEffort = level
     }
     // 会话内立刻生效：模型没有这个选项时 goose 会拒，按软参数处理（不拦发送）
+    let sessionApplied = false
     if (sessionId) {
       try {
         await invokeGoose('session/set_config_option', {
@@ -590,13 +633,16 @@ async function applyGooseThinking(
           configId: 'thinking_effort',
           value: dispatch.value
         })
+        sessionApplied = true
       } catch (error) {
         console.info('[agent/session] 本会话不支持 thinking_effort，只写了全局键:', error)
       }
     }
 
+    // 作用域只由「这一值到底写进了哪一层」决定：会话拒了还报 session，
+    // 界面就会说「本轮已生效」，而实际只有下一轮（新会话）才会变。
     const applied = dispatch.matched ? dispatch.value : level
-    recordThinkingApplied(key, applied, dispatch.matched ? 'session' : 'global')
+    recordThinkingApplied(key, applied, sessionApplied ? 'session' : 'global')
     return applied
   } catch (error) {
     console.warn('[agent/session] 思考强度同步跳过:', error)
@@ -811,6 +857,7 @@ async function* runThreadPrompt(
   }
 
   await waitGooseReady()
+  void ensureGooseAutoCompact()
   const record = await ensureThreadSession(key)
 
   const cwd = await findWorkspaceCwd(input.workspaceID ?? null, input.cwd ?? null)
@@ -883,6 +930,8 @@ async function* runThreadPrompt(
 
     const frames = readSse(eventsResponse, controller.signal)
     const deadline = Date.now() + RUN_IDLE_TIMEOUT_MS
+    /** 已经应用到消息里的最大 seq：重放的旧事件到此为止 */
+    let appliedSeq = after
 
     while (!settled && Date.now() < deadline) {
       // 两个来源抢同一个循环：SSE 帧 与 本地注入（审批结论）
@@ -902,7 +951,15 @@ async function* runThreadPrompt(
       if (raced.result.done) break
       const frame = raced.result.value
       if (frame.event === 'sync') {
-        if (typeof frame.data.lastSeq === 'number') record.lastSeq = frame.data.lastSeq
+        if (typeof frame.data.lastSeq === 'number') {
+          // `sync.lastSeq` 是服务端**已经写到这条连接上**的位置，它就是权威游标。
+          // 不能只用 `Math.max` 抬高：agentd 重启后 `seq` 从 0 重新开始，而本地游标还是
+          // 上一个进程的大数字 —— 不回退的话，新一轮的每一条事件（含 `status/running` 与
+          // `settled`）都会被当成「重放过的旧帧」丢掉，界面就卡在「思考中」直到空闲超时。
+          record.lastSeq = frame.data.lastSeq
+          appliedSeq = frame.data.lastSeq
+          seqByThread.set(key, frame.data.lastSeq)
+        }
         continue
       }
       if (frame.event !== 'run') continue
@@ -910,6 +967,9 @@ async function* runThreadPrompt(
       const kind = frame.data.kind
       const payload = frame.data.payload as Record<string, unknown>
       if (typeof frame.data.seq === 'number') {
+        // 补发 + 实时尾部可能重叠：同一条事件只应用一次，否则正文会出现「用用」「直接直接」这类叠字
+        if (frame.data.seq <= appliedSeq) continue
+        appliedSeq = frame.data.seq
         record.lastSeq = frame.data.seq
         seqByThread.set(key, frame.data.seq)
       }
@@ -1077,6 +1137,8 @@ async function* resumeThreadRun(
       return messageId ? `${kind}:${messageId}` : `${kind}:run`
     }
   }
+  /** 已经应用的最大 seq：重放只能从它后面接 */
+  let appliedSeq = record.lastSeq
   try {
     const response = await callAgentd(
       `${EVENTS_PATH}/${encodeURIComponent(key)}/events?after=${record.lastSeq}`,
@@ -1088,7 +1150,20 @@ async function* resumeThreadRun(
       return
     }
     for await (const frame of readSse(response, controller.signal)) {
+      if (frame.event === 'sync') {
+        // 与 `runThreadPrompt` 同一口径：服务端报的 `lastSeq` 才是权威游标，
+        // agentd 重启后它会比本地小，必须跟着回退，否则续播的每一帧都被当成旧帧丢掉。
+        if (typeof frame.data.lastSeq === 'number') {
+          appliedSeq = frame.data.lastSeq
+          record.lastSeq = frame.data.lastSeq
+          seqByThread.set(key, frame.data.lastSeq)
+        }
+        continue
+      }
       if (typeof frame.data.seq === 'number') {
+        // 同一条事件只应用一次（补发与实时尾部会重叠）
+        if (frame.data.seq <= appliedSeq) continue
+        appliedSeq = frame.data.seq
         record.lastSeq = frame.data.seq
         seqByThread.set(key, frame.data.seq)
       }

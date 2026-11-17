@@ -152,6 +152,9 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   retrievalFuzzy: '模糊',
   retrievalFuzzyHint: '查询不足 3 字，走子串回退，没有相关度分数',
   retrievalMeter: (source) => source + ' 的相关度',
+  documentPages: (pages, cited) => pages + ' 页 · ' + cited + ' 处引用',
+  documentPageLabel: (page) => '第 ' + page + ' 页',
+  documentJump: (page) => '跳到第 ' + page + ' 页',
   // 时间轴卡（timeline）
   timelineAllDay: '全天',
   timelineUntitled: '未命名日程',

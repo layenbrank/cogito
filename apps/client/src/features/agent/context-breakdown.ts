@@ -65,6 +65,63 @@ function splitContextSegments(usage: ModelUsageBreakdown | undefined): ContextSe
   })
 }
 
+/**
+ * 把**估算**的四段折算到会话统计给出的真实占用（`used`）。
+ *
+ * 为什么需要这一步：会话统计（`usage_update.used`）是压缩后**真的**变小了的，
+ * 而本地线程里的消息 / 工具结果不会因为压缩而消失。直接拿估算值求和当分子，
+ * 压缩完会看到「已用 2000%」——不是压缩失败，是两套口径被加在了一起。
+ *
+ * 口径：
+ * - 估算 ≤ 真实：差额（工具 schema 这类本地看不到的部分）记到对话段，四段之和 = `used`；
+ * - 估算 > 真实：整体按比例缩放到 `used`（最大余数法，保证整数的和仍等于 `used`）。
+ *
+ * `used <= 0`（还没拿到统计）时原样返回 —— 那时只能信估算。
+ */
+function fitBreakdownToUsed(
+  usage: ModelUsageBreakdown | undefined,
+  usedTokens: number
+): ModelUsageBreakdown {
+  const used = Number.isFinite(usedTokens) && usedTokens > 0 ? Math.round(usedTokens) : 0
+  const total = totalContextTokens(usage)
+  if (used <= 0 || total <= 0) return usage ?? {}
+  if (total <= used) {
+    return {
+      ...usage,
+      historyTokens: segmentTokens(usage, 'history') + (used - total)
+    }
+  }
+
+  const keys: readonly ContextSegmentKey[] = ['system', 'history', 'tool', 'attachment']
+  const exact = keys.map(function (key) {
+    return (segmentTokens(usage, key) * used) / total
+  })
+  const floored = exact.map(function (value) {
+    return Math.floor(value)
+  })
+  let remainder = used - floored.reduce(function (sum, value) {
+    return sum + value
+  }, 0)
+  // 最大余数法：按小数部分从大到小补 1，避免缩放后四段之和对不上 `used`
+  const order = exact
+    .map(function (value, index) {
+      return { index, fraction: value - floored[index] }
+    })
+    .sort(function (a, b) {
+      return b.fraction - a.fraction
+    })
+  for (let cursor = 0; remainder > 0 && cursor < order.length; cursor += 1) {
+    floored[order[cursor].index] += 1
+    remainder -= 1
+  }
+  return {
+    systemTokens: floored[0],
+    historyTokens: floored[1],
+    toolTokens: floored[2],
+    attachmentTokens: floored[3]
+  }
+}
+
 /** 占用率 → 档位（含边界：0.70 算提醒、0.90 算告警） */
 function contextLevel(ratio: number): ContextLevel {
   if (!Number.isFinite(ratio) || ratio <= 0) return 'ok'
@@ -106,6 +163,7 @@ export {
   CONTEXT_WARN_RATIO,
   contextLevel,
   contextLevelOf,
+  fitBreakdownToUsed,
   rankContextSegments,
   segmentTokens,
   splitContextSegments,

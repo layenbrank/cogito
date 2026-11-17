@@ -455,13 +455,17 @@ async function* mapChatStreamToRunResults(
         const soft = flushSoftIfNeeded()
         if (soft) yield soft
         toolCallCount += 1
-        content.updateTool(event.toolCallId, function () {
+        // 同一个 `toolCallId` 可能再来一次 `tool_call`（重连补发 / 同一事件被重放）。
+        // 以前这里用「新建」而不是「合并」，已回填的 result / approval / completedAt
+        // 会被整体清空 —— 表现是「工具明明跑完了，卡片却退回执行中/未审批」。
+        content.updateTool(event.toolCallId, function (previous) {
           return {
+            ...previous,
             toolCallId: event.toolCallId,
             toolName: event.toolName,
             args: event.input,
             argsText: JSON.stringify(event.input ?? {}),
-            startedAt: Date.now()
+            startedAt: previous?.startedAt ?? Date.now()
           }
         })
         yield { content: content.parts() }
@@ -673,10 +677,19 @@ function createChatModelAdapter(
   return {
     async *run(runOptions) {
       const target = await port.findTarget()
-      if (!target) throw new Error('[CHAT] 没有可用的模型：请先在设置里添加或启用一个 provider')
-
       const messages = toRunMessages(runOptions.messages)
-      if (messages.length === 0) throw new Error('[CHAT] 没有可发送的消息')
+      if (!target || messages.length === 0) {
+        // 首帧之前直接 `throw` 是反模式：assistant-ui 只在「流已经开始」时才把异常折进
+        // 消息的错误态，否则只打一行 `[assistant-ui] Message reload failed` 并把界面停在
+        // 「思考中」—— 用户看到的正是「点重试一直转圈、没有任何输出」。
+        // 先交一帧空内容（与 `case 'error'` 同款收尾），异常才会落成原位错误块 + 重试按钮。
+        yield { content: [] }
+        throw new Error(
+          target
+            ? '[CHAT] 没有可发送的消息'
+            : '[CHAT] 没有可用的模型：请先在设置里添加或启用一个 provider'
+        )
+      }
 
       const host = (await options.findHost?.(target)) ?? {}
       const extras = Object.keys(host).length > 0 ? { host } : {}

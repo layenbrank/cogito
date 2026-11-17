@@ -93,7 +93,7 @@ function ComposerThinking() {
 
   const dispatchNote = capability
     ? `实际下发：${dispatch.value}${dispatch.degraded ? '（本模型没有这一档，落到了相邻档）' : ''}`
-    : '发过一条消息后，这里会显示该模型实际接受哪些档位。'
+    : `已按「${option.label}」下发；该模型接受哪几档要等会话回报后才能确认。`
 
   return (
     <DropdownMenu

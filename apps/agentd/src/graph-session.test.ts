@@ -148,4 +148,69 @@ describe('goose 图的会话复用', function () {
     expect(isStaleSession(new Error('ACP session/prompt 超时'))).toBe(false)
     expect(isStaleSession(new Error('network down'))).toBe(false)
   })
+
+  it('MCP 配置变了（app 重启换了桥端口）就重开会话，不沿用旧工具面', async function () {
+    const fake = buildFakeGoose([{ reply: '第一轮' }, { reply: '第二轮' }])
+    const graph = createGooseGraph({ supervisor: fake.supervisor, checkpointer: new MemorySaver() })
+    const config = { configurable: { thread_id: 'thread-c' } }
+    const servers = function (url: string) {
+      return [
+        {
+          name: 'local',
+          command: 'cogito-mcp.exe',
+          args: [],
+          env: [{ name: 'COGITO_BRIDGE_URL', value: url }]
+        }
+      ]
+    }
+
+    await graph.invoke(
+      { prompt: 'first', cwd: '/w', mcpServers: servers('http://127.0.0.1:50001') },
+      config
+    )
+    // 桥端口变了：旧会话挂的 cogito-mcp 再也连不上，必须换会话而不是复用
+    const second = await graph.invoke(
+      { prompt: 'second', cwd: '/w', mcpServers: servers('http://127.0.0.1:50002') },
+      config
+    )
+
+    expect(second.sessionId).toBe('session-2')
+    expect(fake.newSessions).toEqual(['session-1', 'session-2'])
+  })
+
+  it('MCP 配置没变时继续复用（指纹稳定，不白丢上下文）', async function () {
+    const fake = buildFakeGoose([{ reply: '第一轮' }, { reply: '第二轮' }])
+    const graph = createGooseGraph({ supervisor: fake.supervisor, checkpointer: new MemorySaver() })
+    const config = { configurable: { thread_id: 'thread-d' } }
+    const servers = [
+      {
+        name: 'local',
+        command: 'cogito-mcp.exe',
+        args: [],
+        // env 顺序变了不算变化：指纹排序后再比
+        env: [
+          { name: 'COGITO_BRIDGE_URL', value: 'http://127.0.0.1:50001' },
+          { name: 'COGITO_SESSION_ID', value: 'goose-acp:t' }
+        ]
+      }
+    ]
+    const reordered = [
+      {
+        ...servers[0],
+        env: [
+          { name: 'COGITO_SESSION_ID', value: 'goose-acp:t' },
+          { name: 'COGITO_BRIDGE_URL', value: 'http://127.0.0.1:50001' }
+        ]
+      }
+    ]
+
+    await graph.invoke({ prompt: 'first', cwd: '/w', mcpServers: servers }, config)
+    const second = await graph.invoke(
+      { prompt: 'second', cwd: '/w', mcpServers: reordered },
+      config
+    )
+
+    expect(second.sessionId).toBe('session-1')
+    expect(fake.newSessions).toEqual(['session-1'])
+  })
 })

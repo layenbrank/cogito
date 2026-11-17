@@ -63,10 +63,17 @@ function pickOnce(options: readonly ApprovalOption[], kind: string): string | nu
 }
 
 function decideApproval(input: ApprovalDecisionInput): ApprovalOutcome {
-  // 1. 硬禁用与档位无关。goose 侧本来会靠 permission.yaml 的 never_allow 拦，但那是
+  // 1. 硬禁用。goose 侧本来会靠 permission.yaml 的 never_allow 拦，但那是
   //    一份可被清空、可被用户改的全局文件 —— auto 档下它是**唯一**拦住黑盒 shell 的
   //    屏障，不能只有这一道。
+  //
+  //    **询问档例外**：用户选的就是「让我决定」。以前这里一律替用户拒，结果是
+  //    「选了询问审批，工具却没人问就被拒」—— goose 的写入会被记成用户拒绝，模型据此
+  //    反复改道，而用户完全不知道发生过什么。现在把卡推给用户，卡上标出风险与替代工具
+  //    （`findHardDenyReplacement`，见 `tool-card-approval-bar.tsx`）。
+  //    计划模式仍然直接拒：那一轮本来就不该落盘，没有「允许一次」的语义。
   if (findHardDenyLevel(input.toolName) !== null) {
+    if (input.approvalMode === 'ask' && !input.planning) return { kind: 'ask' }
     const optionId = pickOnce(input.options, 'reject_once')
     return optionId
       ? { kind: 'deny', optionId }

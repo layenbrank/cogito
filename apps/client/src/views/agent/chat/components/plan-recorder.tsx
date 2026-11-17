@@ -5,7 +5,7 @@
  * 「这个函数在哪」，最后一条正文就变成问答，计划立刻消失。这里在每轮结束后
  * 把计划抽出来写进 `agent_plan`：
  *
- * - 还没有档案 + 本轮是计划文档 → 新建 `draft`；
+ * - 还没有档案 + 本轮是计划模式产出的计划文档 → 新建 `draft`；
  * - 已有档案 + digest 变了 → `revision + 1`（`running` 回落 `draft`）；
  * - 本轮不是计划文档 → **不动档案、绝不删行**（计划不会因为一次问答而消失）；
  * - 档案来自文件（`source = 'file'`）→ 以文件为准，对话里的回声不改它。
@@ -15,6 +15,7 @@
 import { useAuiState } from '@assistant-ui/react'
 import { useEffect, useRef } from 'react'
 
+import { resolveRunMode } from '@/features/agent/mode'
 import { findLastAssistantText, isPlanDocument, parsePlanText } from '@/features/agent/plan-draft'
 import { bumpRevision, digestPlan, readPlan, savePlan } from '@/features/agent/plan-store'
 
@@ -26,6 +27,9 @@ function PlanRecorder() {
   const tail = useAuiState(function (state) {
     // 跑的时候正文还在长：等这一轮结束再判定，避免把半截计划录进去
     if (state.thread.isRunning) return ''
+    // **只录计划模式那一轮**：以前只看正文形状，普通回答里带个 H1 + 两条编号
+    // （「1. 先跑 lint 2. 再跑单测」）就被当成计划塞进右栏，页签一直挂着不是计划的计划。
+    if (resolveRunMode(state.thread.messages) !== 'plan') return ''
     return findLastAssistantText(state.thread.messages) ?? ''
   })
   /** 已处理过的「线程 + 正文」：同一段正文不重复写库 */

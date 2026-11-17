@@ -34,7 +34,7 @@ import { useGoalRun } from '@/features/agent/goal-run'
 import { findAgentMode, readAgentMode, subscribeAgentMode } from '@/features/agent/mode.ts'
 import { savePlanToWorkspace } from '@/features/agent/plan-file'
 import { findLatestPlan } from '@/features/agent/plan'
-import { findPlanDraft } from '@/features/agent/plan-draft'
+import { findLastAssistantText, findPlanDraft, isPlanDocument } from '@/features/agent/plan-draft'
 import { usePlanRecord } from '@/features/agent/plan-store'
 import type { PlanDraft } from '@/features/agent/plan-draft'
 import { useSessionCommands } from '@/features/agent/running-commands'
@@ -1225,6 +1225,8 @@ function PlanSection(props: {
           body: storedPlan.body
         }
       }
+      // 兜底同样只认计划文档（与右栏计划页签同一口径）
+      if (!isPlanDocument(findLastAssistantText(messages) ?? '')) return null
       return findPlanDraft(messages)
     },
     [messages, plan, storedPlan]

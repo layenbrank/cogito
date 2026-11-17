@@ -64,11 +64,12 @@ function findSegmentTone(key: string): string | undefined {
 }
 
 function UsageDisplay() {
-  const { used, max, breakdown, level } = useContextUsageSnapshot()
+  const { max, breakdown, level } = useContextUsageSnapshot()
+  // 四段已按会话真实占用折算过（见 `use-context-usage.ts`），这里直接取，
+  // 不再用 `used - system - tools` 反推 —— 反推在压缩后会把估算值顶成超过窗口的数字
   const system = breakdown.systemTokens ?? 0
   const tools = breakdown.toolTokens ?? 0
-  const estimatedMessages = (breakdown.historyTokens ?? 0) + (breakdown.attachmentTokens ?? 0)
-  const messages = used > 0 ? Math.max(0, used - system - tools) : estimatedMessages
+  const messages = (breakdown.historyTokens ?? 0) + (breakdown.attachmentTokens ?? 0)
   /** 三段色调跟右栏「上下文」卡同一份：气泡与详情不能各说一套颜色 */
   const tones = {
     system: findSegmentTone('system'),

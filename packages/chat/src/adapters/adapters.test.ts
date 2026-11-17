@@ -719,15 +719,19 @@ describe('createChatModelAdapter', function () {
       }
     })
 
+    const noTargetFrames: unknown[] = []
     await expect(
       (async function () {
-        for await (const _result of (noTarget.run as (input: never) => AsyncGenerator<unknown>)({
+        for await (const result of (noTarget.run as (input: never) => AsyncGenerator<unknown>)({
           messages: []
         } as never)) {
-          // 不应该有任何事件
+          noTargetFrames.push(result)
         }
       })()
     ).rejects.toThrow('没有可用的模型')
+    // 必须先交一帧再抛：首帧之前抛，assistant-ui 只会打 `Message reload failed`
+    // 并把界面停在「思考中」，用户看不到错误也点不到重试。
+    expect(noTargetFrames).toHaveLength(1)
 
     const noText = createChatModelAdapter({
       findTarget: async function () {
@@ -737,15 +741,17 @@ describe('createChatModelAdapter', function () {
         yield { kind: 'aborted' } as never
       }
     })
+    const noTextFrames: unknown[] = []
     await expect(
       (async function () {
-        for await (const _result of (noText.run as (input: never) => AsyncGenerator<unknown>)({
+        for await (const result of (noText.run as (input: never) => AsyncGenerator<unknown>)({
           messages: []
         } as never)) {
-          // 不应该有任何事件
+          noTextFrames.push(result)
         }
       })()
     ).rejects.toThrow('没有可发送的消息')
+    expect(noTextFrames).toHaveLength(1)
   })
 })
 
