@@ -130,6 +130,10 @@ pub async fn start(storage: Storage, app: AppHandle) -> anyhow::Result<BridgeSta
     let sessions = Arc::new(SessionRegistry::default());
     let app = router_with(storage, token, Some(app), sessions.clone(), true);
 
+    // 端口是内核随机分配的，不回读日志就没法判断「cogito-mcp 报桥不可达」到底是
+    // 桥没起来、还是请求打到了别处。这一行是排查那条链路的唯一锚点。
+    log::info!("本地工具桥监听 http://{address}");
+
     tauri::async_runtime::spawn(async move {
         if let Err(error) = axum::serve(listener, app).await {
             log::error!("cogito 桥退出: {error}");

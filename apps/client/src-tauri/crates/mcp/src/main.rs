@@ -47,6 +47,26 @@ struct Bridge {
     client: reqwest::Client,
 }
 
+/// 桥客户端：**必须禁代理**。
+///
+/// 目标永远是 `127.0.0.1`，但 reqwest 默认会读 `HTTP_PROXY` / `ALL_PROXY` 环境变量
+/// （本机常挂着 Clash 一类代理，变量会从 app 一路继承到 goose、再继承到本进程）。
+/// 一旦请求被送去代理，回环地址在代理侧不可达，报的却是「桥不可达：
+/// error sending request」—— 看上去像 app 没起桥，实际是代理吞掉了连接。
+///
+/// 超时同理：代理挂住时连接可能长期不返回，而 goose 的工具面探测只有几秒耐心，
+/// 于是整轮对话直接降级成「本地工具面不可用」。
+///
+/// 只限**建连**：工具本身可以跑很久（`cogito_terminal_run` 等一条长命令是常态），
+/// 给整轮请求设总超时会把正常的长工具也判成失败。
+fn build_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .no_proxy()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
 impl Bridge {
     fn from_env() -> Option<Self> {
         let url = std::env::var(BRIDGE_URL_ENV).ok()?.trim().to_string();
@@ -66,7 +86,7 @@ impl Bridge {
             url,
             token_file,
             session,
-            client: reqwest::Client::new(),
+            client: build_client(),
         })
     }
 
@@ -136,7 +156,7 @@ impl Bridge {
         let response = request
             .send()
             .await
-            .map_err(|error| format!("桥不可达：{error}"))?;
+            .map_err(|error| format!("桥不可达：{}", describe_error(&error)))?;
         read_json(response).await
     }
 
@@ -146,9 +166,27 @@ impl Bridge {
             .json(&payload)
             .send()
             .await
-            .map_err(|error| format!("桥不可达：{error}"))?;
+            .map_err(|error| format!("桥不可达：{}", describe_error(&error)))?;
         read_json(response).await
     }
+}
+
+/// reqwest 的 `Display` 只有一句「error sending request」，真正的原因（连接被拒 /
+/// 代理拒绝 / 超时）挂在 `source` 链上。不把链带出去的话，「桥没起来」和
+/// 「请求被本机代理吞了」在日志里长得一模一样，排查只能靠猜。
+fn describe_error(error: &reqwest::Error) -> String {
+    use std::error::Error as _;
+    let mut detail = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        detail.push_str(" ← ");
+        detail.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    if error.is_timeout() {
+        detail.push_str("（超时）");
+    }
+    detail
 }
 
 async fn read_json(response: reqwest::Response) -> Result<Value, String> {
