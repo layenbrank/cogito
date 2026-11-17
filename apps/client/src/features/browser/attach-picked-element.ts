@@ -1,8 +1,13 @@
 /**
  * 把 CDP Overlay 拾取的元素写入 Agent composer：
  * browser chip + 可读描述 + 可选区域截图。
+ *
+ * **不再用 `defaultDirectiveFormatter`**：它输出 `:browser[标题]{name=browser-<uuid>}`，
+ * 而 composer 早已改成 `@` 线格式，旧 directive 在输入区与气泡里都只会当普通文本显示 ——
+ * 用户看到的就是一长串自己的 uuid。chip 仍要指向那个 webview label（工具 `tab` 参数用它），
+ * 所以写 `@browser-<uuid>`，显示文案由 `chip-labels` 的标题解析器给。
  */
-import { defaultDirectiveFormatter, type useAui } from '@assistant-ui/react'
+import type { useAui } from '@assistant-ui/react'
 
 import { attachImageData } from '@/features/agent/attachment'
 import type { PickedBrowserElement } from '@/features/browser/api'
@@ -16,13 +21,10 @@ function buildPickedBlock(picked: PickedBrowserElement): string {
     return item.label === picked.label
   })
   const displayTitle = formatTabTitle(picked.url || tab?.url || '', tab?.title)
-  const chip = defaultDirectiveFormatter.serialize({
-    type: 'browser',
-    label: displayTitle,
-    id: picked.label
-  })
+  // chip 后面跟一句人能读的页面名：chip 本身在标签页关掉后只剩通用文案
+  const chip = `@${picked.label}`
   const lines = [
-    chip,
+    `${chip} ${displayTitle}`,
     `选中元素 <${picked.tag}>`,
     `selector: ${picked.selector}`
   ]

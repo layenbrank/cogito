@@ -38,8 +38,10 @@ describe('buildPickedBlock', function () {
       rect: { x: 0, y: 0, width: 80, height: 32 }
     }
     const block = buildPickedBlock(picked)
-    expect(block).toContain(':browser[Example Domain]')
-    expect(block).toContain('name=browser-2')
+    // 线格式是 `@<id>`（composer 只认这个）；页面标题跟在 chip 后面当人读的注
+    expect(block).toContain('@browser-2')
+    expect(block).not.toContain(':browser[')
+    expect(block).toContain('Example Domain')
     expect(block).toContain('selector: main > button:nth-child(1)')
     expect(block).toContain('<button')
     expect(block).toContain('提交')

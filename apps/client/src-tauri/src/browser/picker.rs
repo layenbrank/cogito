@@ -59,7 +59,10 @@ const EXTRACT_FN: &str = r#"function () {
       x: rect.x,
       y: rect.y,
       width: rect.width,
-      height: rect.height
+      height: rect.height,
+      // 视口坐标 + 滚动量 = Page.captureScreenshot 认的文档坐标（见 capture_clip）
+      scrollX: window.scrollX || 0,
+      scrollY: window.scrollY || 0
     },
     url: location.href
   };
@@ -86,6 +89,13 @@ pub struct PickedRect {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    /// 取矩形时的滚动量（CSS px）。`getBoundingClientRect` 是**视口**坐标，
+    /// 而 `Page.captureScreenshot` 的 `clip` 是**文档**坐标 —— 不补这一段，
+    /// 页面一旦滚动，截出来的就不是选中的那个元素。
+    #[serde(default)]
+    pub scroll_x: f64,
+    #[serde(default)]
+    pub scroll_y: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -289,6 +299,14 @@ async fn extract_and_emit(
             .get("height")
             .and_then(Value::as_f64)
             .unwrap_or(0.0),
+        scroll_x: rect_value
+            .get("scrollX")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0),
+        scroll_y: rect_value
+            .get("scrollY")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0),
     };
 
     let screenshot = capture_clip(app, label, &rect).await;
@@ -316,8 +334,9 @@ async fn capture_clip(app: &AppHandle, label: &str, rect: &PickedRect) -> Option
     }
     // 略扩边，避免裁切贴边文字
     let pad = 2.0_f64;
-    let x = (rect.x - pad).max(0.0);
-    let y = (rect.y - pad).max(0.0);
+    // `getBoundingClientRect` 给的是视口坐标，`clip` 要的是文档坐标：补上滚动量
+    let x = (rect.x + rect.scroll_x - pad).max(0.0);
+    let y = (rect.y + rect.scroll_y - pad).max(0.0);
     let width = rect.width + pad * 2.0;
     let height = rect.height + pad * 2.0;
 
