@@ -315,16 +315,24 @@ function SearchIsland() {
         data-orientation={orientation}
         className={cn(
           // iOS 观感：连续大圆角 + 分层投影；40×40 上 28px 会被夹成正圆
-          'fixed z-40 flex shadow-[0_24px_60px_-18px_rgb(0_0_0/0.45),0_2px_8px_-2px_rgb(0_0_0/0.22)]',
+          'fixed z-40 flex',
           keepsLayout
             ? // 展开：搜索条 + 结果面板合成一列，不能再用绝对定位（会露缝、圆角打架）
-              'bg-popover text-popover-foreground flex-col overflow-hidden rounded-[28px] ring-1 ring-black/5 dark:ring-white/10'
+              // 外层用 popover 实底 + 细描边：搜索框是**它里面的输入区**，不是一块浮在上面的灰条
+              'bg-popover text-popover-foreground flex-col overflow-hidden rounded-[28px] shadow-[0_18px_48px_-20px_rgb(0_0_0/0.38),0_1px_3px_rgb(0_0_0/0.12)] ring-1 ring-border/60'
             : // 收起：圆就是品牌底（底色在 CSS 里），SVG 只画字形
-              cn('cursor-grab items-center justify-center overflow-hidden rounded-[28px]', BUBBLE_SKIN),
-          isDragging && 'cursor-grabbing',
+              cn(
+                'cursor-grab items-center justify-center overflow-hidden rounded-[28px]',
+                BUBBLE_SKIN,
+                // 悬停/按下/键盘聚焦都要有反馈：以前只有 cursor 变化，看不出这东西能点
+                !isDragging &&
+                  'transition-[box-shadow,scale] duration-150 ease-out hover:scale-[1.04] hover:ring-white/25 hover:shadow-[0_16px_36px_-16px_rgb(0_0_0/0.5),0_2px_6px_rgb(0_0_0/0.18)] active:scale-95 focus-visible:scale-[1.04] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-reduce:transition-none'
+              ),
+          isDragging && 'cursor-grabbing shadow-[0_24px_60px_-18px_rgb(0_0_0/0.45)]',
           !isDragging &&
             'transition-[left,top,width,max-height] duration-200 ease-out motion-reduce:transition-none'
         )}
+        title={isExpanded ? undefined : '搜索（拖动可停靠到屏幕边缘）'}
         style={
           isExpanded
             ? { left: point.x, top: point.y, width: panelSize.width, maxHeight: panelSize.height }
@@ -366,11 +374,13 @@ function SearchIsland() {
         <div
           className={cn(
             'flex shrink-0 items-center',
-            // 收起态图标居中（距左 12px），展开态套一层 iOS 搜索胶囊
-            keepsLayout ? 'h-12 px-3' : 'size-10 justify-center'
+            // 收起态图标居中（距左 12px）；展开态上下留 4px，给搜索框一个呼吸位
+            keepsLayout ? 'px-3 pt-3 pb-2' : 'size-10 justify-center'
           )}>
           {keepsLayout ? (
-            <div className="bg-muted/60 flex h-10 w-full items-center gap-2 rounded-full px-3">
+            // 搜索框：`field` 底（4% 前景色）+ 一圈淡描边，聚焦时才亮主色 ——
+            // 以前是一整条 `muted/60` 灰底，在白色面板上像「压在顶部的横幅」，不是输入框
+            <div className="flex h-11 w-full items-center gap-2 rounded-full bg-foreground/[0.04] px-3 ring-1 ring-border/60 transition-shadow focus-within:ring-2 focus-within:ring-primary/40 dark:bg-foreground/[0.06]">
               {searchGlyph}
               <Input
                 ref={inputRef}
