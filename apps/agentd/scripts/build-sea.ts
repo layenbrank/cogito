@@ -22,7 +22,15 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync
+} from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,6 +45,11 @@ const BLOB = path.join(AGENTD_DIR, 'dist', 'agentd.blob')
 const SEA_CONFIG = path.join(AGENTD_DIR, 'sea-config.json')
 const SENTINEL = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'
 const LOG_PREFIX = '[agentd:sea]'
+/** 构建中间文件后缀：`agentd-x.exe.staging-<pid>` / `agentd-x.exe.old-<ts>` */
+const STAGING_TAG = '.staging-'
+const DISPLACED_TAG = '.old-'
+/** 超过这个年龄的中间文件视为遗留（还在被跑的删不掉，下次再来） */
+const STALE_MS = 10 * 60 * 1000
 
 /** 当前构建目标的 Rust triple（与 `prepare-binaries.ts` 的 hostTriple 同规则）。 */
 function hostTriple(): string {
@@ -124,31 +137,91 @@ function explainLocked(error: unknown, outFile: string): unknown {
   if (code !== 'EBUSY' && code !== 'EPERM' && code !== 'EACCES') return error
   return new Error(
     `${LOG_PREFIX} 无法写入 ${outFile}：文件正被占用。\n` +
-      '  Windows 上运行中的 exe 不能被覆盖 —— 先**完全退出** cogito 桌面端\n' +
-      '  （agentd 是它的侧车，会被一起收掉），再重新打包。\n' +
+      '  构建会先把旧产物改名挪开再换新的（运行中的 exe 只能改名、不能覆盖）；\n' +
+      '  连改名都失败说明句柄不是普通运行态（杀软扫描 / 目录被别的东西占着）。\n' +
+      '  先**完全退出** cogito 桌面端（agentd 是它的侧车，会被一起收掉）再重试。\n' +
       '  排查残留：Get-Process agentd* , cogito* ，必要时 taskkill /IM cogito.exe /T /F'
   )
 }
 
-/** ③ 复制 node 自身 + postject 注入 */
-function inject(outFile: string): void {
-  console.log(`${LOG_PREFIX} 注入 blob → ${outFile}`)
+/**
+ * 把旧产物挪开，返回挪走后的路径（本来就不存在则 `undefined`）。
+ *
+ * Windows 上**运行中的 exe 不能被覆盖或删除，但可以被改名**：改名不动文件内容，
+ * 正在跑的那个进程继续用着原来那份映像（句柄跟的是文件对象，不是路径）。
+ * 所以「边跑 dev 边重新打包」不必先退出桌面端 —— 新产物落到原路径，
+ * 下次拉起侧车（重启 dev / 重启应用）就是新的了。
+ */
+function displace(outFile: string): string | undefined {
+  if (!existsSync(outFile)) return undefined
+  const displaced = `${outFile}${DISPLACED_TAG}${Date.now()}`
   try {
-    copyFileSync(process.execPath, outFile)
+    renameSync(outFile, displaced)
+    return displaced
   } catch (error) {
     throw explainLocked(error, outFile)
+  }
+}
+
+/**
+ * 上次构建在「挪开旧产物 → 换上新产物」之间被打断时，目标路径会空着。
+ * 这里把最近一份被挪走的旧产物还回原位，避免一次 Ctrl+C 就把侧车弄丢。
+ */
+function restoreDisplaced(outFile: string): void {
+  if (existsSync(outFile)) return
+  const dir = path.dirname(outFile)
+  const prefix = `${path.basename(outFile)}${DISPLACED_TAG}`
+  const displaced = readdirSync(dir)
+    .filter((name) => name.startsWith(prefix))
+    .sort()
+  const newest = displaced[displaced.length - 1]
+  if (!newest) return
+  const from = path.join(dir, newest)
+  try {
+    renameSync(from, outFile)
+    console.log(`${LOG_PREFIX} 上次构建被打断，已把旧产物还原 → ${outFile}`)
+  } catch (error) {
+    console.warn(`${LOG_PREFIX} 旧产物 ${from} 还原失败（可手动改名回 ${outFile}）`, error)
+  }
+}
+
+/** 清掉上次构建遗留的中间文件；还占着句柄的删不掉，跳过。 */
+function sweepStale(outDir: string): void {
+  const now = Date.now()
+  for (const name of readdirSync(outDir)) {
+    if (!name.includes(STAGING_TAG) && !name.includes(DISPLACED_TAG)) continue
+    const file = path.join(outDir, name)
+    try {
+      if (now - statSync(file).mtimeMs < STALE_MS) continue
+      rmSync(file, { force: true })
+    } catch {
+      // 句柄还在（桌面端正跑着这份）：留给下次构建
+    }
+  }
+}
+
+/** ③ 复制 node 自身 + postject 注入，成功后再整体换到目标路径 */
+function inject(outFile: string): void {
+  console.log(`${LOG_PREFIX} 注入 blob → ${outFile}`)
+  // 先在旁边做一份完整的：中途失败时旧产物还在，不会留下半截 exe。
+  const staged = `${outFile}${STAGING_TAG}${process.pid}`
+  if (existsSync(staged)) rmSync(staged, { force: true })
+  try {
+    copyFileSync(process.execPath, staged)
+  } catch (error) {
+    throw explainLocked(error, staged)
   }
   // macOS 的 node 是**签名过**的：复制 + 改段之后签名失效，内核直接 SIGKILL（arm64 更严）。
   // 必须先摘签名再注入。注入完的 ad-hoc 重签放在后面做。
   if (process.platform === 'darwin') {
-    execFileSync('codesign', ['--remove-signature', outFile], { stdio: 'inherit' })
+    execFileSync('codesign', ['--remove-signature', staged], { stdio: 'inherit' })
   }
   try {
     execFileSync(
       process.execPath,
       [
         require.resolve('postject/dist/cli.js'),
-        outFile,
+        staged,
         'NODE_SEA_BLOB',
         BLOB,
         '--sentinel-fuse',
@@ -157,13 +230,35 @@ function inject(outFile: string): void {
       { stdio: 'inherit' }
     )
   } catch (error) {
-    // postject 改的是同一个文件，被占用时的报错更难看懂，一并翻译
-    throw explainLocked(error, outFile)
+    throw explainLocked(error, staged)
   }
   // ad-hoc 重签（`-s -`）：没有开发者证书也能跑，够 CI 校验用。
   // 真分发包由 Tauri 打包时统一重签，这一步不影响它。
   if (process.platform === 'darwin') {
-    execFileSync('codesign', ['--force', '--sign', '-', outFile], { stdio: 'inherit' })
+    execFileSync('codesign', ['--force', '--sign', '-', staged], { stdio: 'inherit' })
+  }
+
+  // 换上去：旧产物先改名挪开（跑着的 exe 只能改名，不能覆盖），失败则回滚。
+  const displaced = displace(outFile)
+  try {
+    renameSync(staged, outFile)
+  } catch (error) {
+    if (displaced) {
+      try {
+        renameSync(displaced, outFile)
+      } catch {
+        // 回滚也失败：把挪走的路径告诉调用方，旧产物还能手动改回去
+        console.error(`${LOG_PREFIX} 回滚失败，旧产物在 ${displaced}`)
+      }
+    }
+    throw explainLocked(error, outFile)
+  }
+  if (displaced) {
+    try {
+      rmSync(displaced, { force: true })
+    } catch {
+      // 旧产物还被跑着的桌面端占着：留给下次构建的 sweepStale
+    }
   }
 }
 
@@ -174,6 +269,8 @@ function main(): void {
   const outFile = path.join(outDir, `agentd-${triple}${suffix}`)
 
   mkdirSync(outDir, { recursive: true })
+  restoreDisplaced(outFile)
+  sweepStale(outDir)
   bundle()
   buildBlob()
   inject(outFile)
