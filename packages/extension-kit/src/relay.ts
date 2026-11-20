@@ -11,26 +11,25 @@ import {
   MESSAGE_CLIP_ACTIVE,
   MESSAGE_CLIP_PAGE,
   MESSAGE_EXTRACT,
-  MESSAGE_HEALTH
+  MESSAGE_HEALTH,
+  STORAGE_CLIP_DELIVERY
 } from './constants.ts'
 import { isArticle, isSnapshot, readArticleExtract, readPageSnapshot } from './extract.ts'
 import { composeMarkdown } from './markdown.ts'
-import { isRecord, parsePayload, readMessageType } from './payload.ts'
+import { parsePayload, readMessageType } from './payload.ts'
 import { findPortOrder, rememberPort } from './ports.ts'
 
-import type { ClipDelivery } from './payload.ts'
+import type { ClipDelivery, ClipPayload } from './payload.ts'
 
-/** 最近一次投递结果：弹窗/页面打开时靠它显示「上次剪藏怎么样了」 */
-const STORAGE_CLIP_DELIVERY = 'cogito.clip.delivery'
-
-const MISSING_TAB = '没有活动标签页'
-
-const HANDLED: ReadonlySet<string> = new Set([
+/** 本 worker 接的消息；其余交还给别的监听器 */
+const HANDLED_TYPES: ReadonlySet<string> = new Set([
   MESSAGE_CLIP_ACTIVE,
   MESSAGE_CLIP_PAGE,
   MESSAGE_EXTRACT,
   MESSAGE_HEALTH
 ])
+
+const MISSING_TAB = '没有活动标签页'
 
 async function findActiveTabId(): Promise<number | null> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -46,7 +45,8 @@ async function rememberDelivery(delivery: ClipDelivery): Promise<void> {
   }
 }
 
-async function deliver(payload: Parameters<typeof deliverClip>[0]): Promise<ClipDelivery> {
+/** 投递 + 记住端口与结果：三处调用都走这里，别各自漏一步 */
+async function deliver(payload: ClipPayload): Promise<ClipDelivery> {
   const ports = await findPortOrder()
   const delivery = await deliverClip(payload, ports)
   if (delivery.ok && typeof delivery.port === 'number') await rememberPort(delivery.port)
@@ -103,10 +103,7 @@ async function extractArticle(): Promise<unknown> {
   }
 }
 
-async function runMessage(message: unknown): Promise<unknown> {
-  const type = readMessageType(message)
-  if (!type || !isRecord(message)) return undefined
-
+async function runMessage(message: Record<string, unknown>, type: string): Promise<unknown> {
   if (type === MESSAGE_CLIP_PAGE) return postPayload(message)
   if (type === MESSAGE_CLIP_ACTIVE) return clipActiveTab()
   if (type === MESSAGE_EXTRACT) return extractArticle()
@@ -121,8 +118,9 @@ async function runMessage(message: unknown): Promise<unknown> {
 function installClipRelay(): void {
   chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     const type = readMessageType(message)
-    if (!type || !HANDLED.has(type)) return false
-    void runMessage(message)
+    // `readMessageType` 已保证是带字符串 type 的对象，这里只需判是否本模块接的消息
+    if (!type || !HANDLED_TYPES.has(type)) return false
+    void runMessage(message as Record<string, unknown>, type)
       .then(function (response) {
         sendResponse(response)
       })
@@ -134,4 +132,4 @@ function installClipRelay(): void {
   })
 }
 
-export { STORAGE_CLIP_DELIVERY, clipActiveTab, installClipRelay }
+export { installClipRelay }

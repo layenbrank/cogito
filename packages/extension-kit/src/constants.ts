@@ -28,6 +28,9 @@ const MESSAGE_EXTRACT = 'cogito-extract'
 /** 问 client 是否在听（弹窗状态点走这条或直接 fetch `/health`）。 */
 const MESSAGE_HEALTH = 'cogito:health'
 
+/** 最近一次投递结果：worker 写、弹窗读，是跨 worker / 页面的事实源 */
+const STORAGE_CLIP_DELIVERY = 'cogito.clip.delivery'
+
 const MARKDOWN_LIMIT = 80_000
 
 const ARTICLE_LIMIT = 120_000
@@ -42,5 +45,6 @@ export {
   MESSAGE_CLIP_ACTIVE,
   MESSAGE_CLIP_PAGE,
   MESSAGE_EXTRACT,
-  MESSAGE_HEALTH
+  MESSAGE_HEALTH,
+  STORAGE_CLIP_DELIVERY
 }

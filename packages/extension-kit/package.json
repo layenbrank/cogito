@@ -5,7 +5,12 @@
   "type": "module",
   "description": "浏览器扩展共享层：剪藏协议与投递、页面抽取，以及 service worker 里要装的那一半",
   "exports": {
-    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./constants": "./src/constants.ts",
+    "./extract": "./src/extract.ts",
+    "./markdown": "./src/markdown.ts",
+    "./payload": "./src/payload.ts",
+    "./ports": "./src/ports.ts",
     "./relay": "./src/relay.ts"
   },
   "scripts": {

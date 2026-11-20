@@ -1,16 +1,11 @@
-import {
-  CLIP_PORTS,
-  MESSAGE_CLIP_ACTIVE,
-  STORAGE_CLIP_DELIVERY,
-  formatDelivery,
-  parseDelivery,
-  probeClient
-} from '@cogito/extension-kit'
+import { probeClient } from '@cogito/extension-kit/client'
+import { CLIP_PORTS, MESSAGE_CLIP_ACTIVE, STORAGE_CLIP_DELIVERY } from '@cogito/extension-kit/constants'
+import { formatDelivery, parseDelivery } from '@cogito/extension-kit/payload'
 import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
 
-import type { ClientHealth, ClipDelivery } from '@cogito/extension-kit'
+import type { ClientHealth, ClipDelivery } from '@cogito/extension-kit/payload'
 
 /**
  * 工具栏弹窗：剪藏当前页到本机知识库。
@@ -23,11 +18,23 @@ function PopupSurface() {
   const [health, setHealth] = useState<ClientHealth | null>(null)
   const [delivery, setDelivery] = useState<ClipDelivery | null>(null)
   const [isClipping, setClipping] = useState(false)
-  const [status, setStatus] = useState('')
 
   async function refreshClient(): Promise<void> {
-    const next = await probeClient(CLIP_PORTS)
-    setHealth(next)
+    setHealth(await probeClient(CLIP_PORTS))
+  }
+
+  async function onClip(): Promise<void> {
+    setClipping(true)
+    try {
+      const response: unknown = await chrome.runtime.sendMessage({ type: MESSAGE_CLIP_ACTIVE })
+      setDelivery(parseDelivery(response))
+      await refreshClient()
+    } catch (error) {
+      console.error('[clip] 剪藏失败', error)
+      setDelivery({ ok: false, error: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setClipping(false)
+    }
   }
 
   useEffect(function () {
@@ -43,25 +50,6 @@ function PopupSurface() {
         console.error('[clip] 读取上次剪藏失败', error)
       })
   }, [])
-
-  function onClip(): void {
-    setClipping(true)
-    setStatus('提取中…')
-    chrome.runtime.sendMessage({ type: MESSAGE_CLIP_ACTIVE }, function (response: unknown) {
-      const lastError = chrome.runtime.lastError
-      if (lastError) {
-        console.error('[clip] 剪藏失败', lastError)
-        setStatus(lastError.message ?? '失败')
-        setClipping(false)
-        return
-      }
-      const next = parseDelivery(response)
-      setDelivery(next)
-      setStatus(formatDelivery(next))
-      setClipping(false)
-      void refreshClient()
-    })
-  }
 
   return (
     <main className="flex w-80 flex-col gap-3 bg-background p-4 text-foreground">
@@ -85,23 +73,28 @@ function PopupSurface() {
         className="h-11 w-full"
         disabled={isClipping}
         aria-busy={isClipping}
-        onClick={onClip}>
+        onClick={function () {
+          void onClip()
+        }}>
         {isClipping ? '提取中…' : '剪藏当前页'}
       </Button>
 
-      <p
-        className="min-h-5 text-sm whitespace-pre-wrap text-muted-foreground"
-        role="status"
-        aria-live="polite">
-        {status || (delivery ? formatDelivery(delivery) : '')}
-      </p>
-
-      {delivery?.title ? (
-        <p
-          className="truncate text-xs text-muted-foreground"
-          title={delivery.url}>
-          上次：{delivery.title}
-        </p>
+      {delivery ? (
+        <>
+          <p
+            className="min-h-5 text-sm whitespace-pre-wrap text-muted-foreground"
+            role="status"
+            aria-live="polite">
+            {formatDelivery(delivery)}
+          </p>
+          {delivery.title ? (
+            <p
+              className="truncate text-xs text-muted-foreground"
+              title={delivery.url}>
+              上次：{delivery.title}
+            </p>
+          ) : null}
+        </>
       ) : null}
     </main>
   )
