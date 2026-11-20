@@ -1,9 +1,10 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@cogito/design/components/avatar'
 import { clsx } from 'clsx'
-import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useState, type CSSProperties, type MouseEvent } from 'react'
 
 import { buildTileStyle } from '@/features/magnetic-tile/style.ts'
 import { Glyph, type GlyphName } from '@/features/shell/glyph.tsx'
+import { canActivate } from '@/features/wall/activation.ts'
 import { ClockFace } from '@/features/wall/clock-face.tsx'
 import { findTileBox } from '@/features/wall/metrics.ts'
 
@@ -29,12 +30,6 @@ interface WallTileProps {
 function findLabel(title: string): string {
   const trimmed = title.trim()
   return trimmed ? trimmed.slice(0, 1).toUpperCase() : '?'
-}
-
-function canActivate(tile: MagneticTile): boolean {
-  if (tile.component === 'clock') return false
-  if (tile.url) return true
-  return tile.component === 'bookmark' || tile.component === 'settings' || tile.component === 'collection'
 }
 
 /** 磁贴壳：表面在格子里，名称落在格子下方的间距里。 */
@@ -108,16 +103,11 @@ function TileFace(props: { tile: MagneticTile; now: Date; memberCount: number })
 }
 
 function SiteMark(props: { tile: MagneticTile }) {
-  const [isBroken, updateBroken] = useState(false)
+  /** 记下“哪个 src 加载失败了”：换图时它自然不等于新 src，无需 effect 重置 */
+  const [brokenSrc, updateBrokenSrc] = useState<string | null>(null)
   const src = props.tile.mark
   const radius = props.tile.shape === 'circle' ? 'rounded-full' : 'rounded-md'
-
-  useEffect(
-    function () {
-      updateBroken(false)
-    },
-    [src]
-  )
+  const isBroken = Boolean(src) && brokenSrc === src
 
   return (
     <Avatar
@@ -129,7 +119,7 @@ function SiteMark(props: { tile: MagneticTile }) {
           alt=""
           className={clsx('size-full object-contain', radius)}
           onError={function () {
-            updateBroken(true)
+            updateBrokenSrc(src)
           }}
         />
       ) : null}
@@ -140,4 +130,4 @@ function SiteMark(props: { tile: MagneticTile }) {
   )
 }
 
-export { WallTile, canActivate }
+export { WallTile }

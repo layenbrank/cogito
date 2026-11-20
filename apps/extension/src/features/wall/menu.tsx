@@ -54,7 +54,9 @@ function WallMenu(props: WallMenuProps) {
   })
 
   const closeRef = useRef(props.onClose)
-  closeRef.current = props.onClose
+  useEffect(function () {
+    closeRef.current = props.onClose
+  })
 
   useEffect(function () {
     function close(event: PointerEvent): void {

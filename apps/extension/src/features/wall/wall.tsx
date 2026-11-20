@@ -26,10 +26,13 @@ import { TileDialog } from '@/features/magnetic-tile/tile-dialog.tsx'
 import { useMirrorStore } from '@/features/mirror/store.ts'
 import { notify } from '@/features/shell/notice-state.ts'
 import { openSite } from '@/features/shell/open-site.ts'
+import { canActivate } from '@/features/wall/activation.ts'
 import { WallMenu } from '@/features/wall/menu.tsx'
 import { TILE_GAP, TILE_UNIT } from '@/features/wall/metrics.ts'
 import { bindWallSortable } from '@/features/wall/sortable.ts'
-import { canActivate, WallTile } from '@/features/wall/tile-shell.tsx'
+import { WallTile } from '@/features/wall/tile-shell.tsx'
+
+import type { NavigateFunction } from 'react-router-dom'
 
 interface WallProps {
   /** 为空时画墙面根；有值时只画这个集合里的网址 */
@@ -54,7 +57,7 @@ function findTargets(tile: MagneticTile | null, selected: ReadonlySet<string>, t
   })
 }
 
-function activateTile(tile: MagneticTile, navigate: (path: string) => void): void {
+function activateTile(tile: MagneticTile, navigate: NavigateFunction): void {
   if (tile.component === 'collection') {
     void navigate(`/collection/${tile.id}`)
     return
@@ -111,7 +114,9 @@ function Wall(props: WallProps) {
   const navigate = useNavigate()
   const gridRef = useRef<HTMLDivElement>(null)
   const reorderRef = useRef(toReorder)
-  reorderRef.current = toReorder
+  useEffect(function () {
+    reorderRef.current = toReorder
+  })
 
   const [now, updateNow] = useState(function () {
     return new Date()
