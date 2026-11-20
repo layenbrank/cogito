@@ -4,9 +4,11 @@ import {
   findNavigationIconSrc,
   findNavigationLabel
 } from '@/features/magnetic-tile/mark.ts'
+import { findCollectionPreviewLimit } from '@/features/magnetic-tiles/collection/preview-layout'
 import { CHANNELS } from '@/shared/ipc/channels'
 
-const PREVIEW_COUNT = 4
+/** 按最大磁贴能放下的格数取，切换 size / direction 时缓存里已经有下一档图标 */
+const PREVIEW_COUNT = findCollectionPreviewLimit()
 
 interface CollectionPreview {
   /** 成员 mark / 兜底 favicon；无图时用 label */
@@ -105,8 +107,6 @@ function fetchCollectionMarkerPreviews(
     })
     .catch(function (error) {
       console.error('[collection] 预览加载失败:', error)
-      if (revisions.get(collectionId) !== revision) return []
-      cache.set(key, [])
       return []
     })
     .finally(function () {

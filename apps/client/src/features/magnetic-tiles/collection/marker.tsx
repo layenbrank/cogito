@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 
 import {
   MagneticTile,
@@ -12,6 +12,7 @@ import {
   type CollectionPreview,
   readCollectionMarkerPreviews
 } from '@/features/magnetic-tiles/collection/preview-cache'
+import { findCollectionPreviewLayout } from '@/features/magnetic-tiles/collection/preview-layout'
 import { useCollectionStore } from '@/stores/collection'
 
 type Props = Omit<MarkerProps, 'children'> & {
@@ -45,6 +46,7 @@ function PreviewCell(props: { item: CollectionPreview }) {
           alt=""
           className={styles.previewIcon}
           onError={function () {
+            console.warn('[collection] 预览图加载失败:', props.item.src)
             onUpdateBroken(true)
           }}
         />
@@ -80,7 +82,31 @@ export default function Marker(props: Props) {
     [props.id, revision]
   )
 
-  const isEmpty = previews.length === 0
+  const layout = findCollectionPreviewLayout(
+    props.size,
+    props.shape,
+    props.direction,
+    previews.length
+  )
+  const visible = previews.slice(0, layout.count)
+  const isEmpty = visible.length === 0
+  const framePercent = Math.round(layout.frameScale * 1000) / 10
+  const frameStyle = {
+    width: `${framePercent}%`,
+    height: `${framePercent}%`
+  }
+  const gridStyle = {
+    '--cols': String(layout.columns),
+    '--rows': String(layout.rows),
+    '--flow': layout.flow,
+    '--cell': `${layout.cell}px`,
+    '--gap-x': `${layout.gapX}px`,
+    '--gap-y': `${layout.gapY}px`,
+    '--pad-x': `${layout.padX}px`,
+    '--pad-y': `${layout.padY}px`,
+    '--icon': `${Math.round(layout.iconScale * 100)}%`,
+    gridAutoFlow: layout.flow
+  } as CSSProperties
 
   return (
     <MagneticTile.Marker
@@ -93,15 +119,21 @@ export default function Marker(props: Props) {
           aria-hidden
         />
       ) : (
-        <div className={styles.previewGrid}>
-          {previews.map(function (item, index) {
-            return (
-              <PreviewCell
-                key={`${item.label}-${item.src ?? 'glyph'}-${index}`}
-                item={item}
-              />
-            )
-          })}
+        <div
+          className={styles.previewFrame}
+          style={frameStyle}>
+          <div
+            className={styles.previewGrid}
+            style={gridStyle}>
+            {visible.map(function (item, index) {
+              return (
+                <PreviewCell
+                  key={`${item.label}-${item.src ?? 'glyph'}-${index}`}
+                  item={item}
+                />
+              )
+            })}
+          </div>
         </div>
       )}
     </MagneticTile.Marker>
