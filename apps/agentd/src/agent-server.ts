@@ -21,6 +21,7 @@ import type { Express, Request, Response } from 'express'
 
 import type { ApprovalHub } from './approvals'
 import type { ElicitationDecision, ElicitationHub } from './elicitations'
+import { classifyRunFailure, toErrorExcerpt } from './error-kind'
 import type { EventHub, RunEvent } from './events'
 import type { Metrics } from './observability'
 import { isAllowedGooseMethod } from './goose/allowlist'
@@ -267,25 +268,52 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     } finally {
       activeRuns.delete(threadID)
       const durationMs = Date.now() - startedAt
+      /**
+       * 失败归因只算一次：结构化日志、计数器、回给前端的状态事件读同一个词。
+       * 三处分头写正则迟早会漂成三种说法，排查时又要重新对齐。
+       */
+      const errorKind = status === 'error' ? classifyRunFailure(message) : null
       // 三种结局分开计数：`status=error` 里还要把「用户取消」拆出去，否则失败率永远偏高
       if (status === 'error') {
-        if (/abort/i.test(message ?? '')) metrics?.inc('runs.cancelled')
+        if (errorKind === 'cancelled') metrics?.inc('runs.cancelled')
         else metrics?.inc('runs.failed')
       } else {
         metrics?.inc('runs.settled')
       }
-      logEvent?.('run.settled', { threadID, runID, status, durationMs, node: graphName })
+      if (status === 'error') {
+        // 单独的 run.failed 行：`run.settled` 里 success / error 混着，筛失败还要多写一步
+        logEvent?.('run.failed', {
+          threadID,
+          runID,
+          node: graphName,
+          errorKind,
+          durationMs,
+          error: toErrorExcerpt(message)
+        })
+      }
+      logEvent?.('run.settled', {
+        threadID,
+        runID,
+        status,
+        durationMs,
+        node: graphName,
+        ...(errorKind ? { errorKind } : {})
+      })
       const thread = threads.get(threadID)
       if (thread) thread.updated_at = nowIso()
       // 回合已结束却还有待审批/待追问 → 这次不会再有人回执，按取消结掉避免永久挂起
       approvals?.cancelThread(threadID)
       elicitations?.cancelThread(threadID)
-      const statusEvent: { phase: string; runID: string; status: string; message?: string } = {
-        phase: 'settled',
-        runID,
-        status
-      }
+      const statusEvent: {
+        phase: string
+        runID: string
+        status: string
+        message?: string
+        /** 失败归因（`provider` / `tool` / `permission` / `connection` / `unknown`） */
+        errorKind?: string
+      } = { phase: 'settled', runID, status }
       if (message) statusEvent.message = message
+      if (errorKind) statusEvent.errorKind = errorKind
       events?.emit(threadID, 'status', statusEvent)
     }
     return message === undefined ? { runID, status } : { runID, status, message }

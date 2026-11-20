@@ -18,7 +18,9 @@ import type { GooseAcpClient } from './goose/client'
 import type { GooseSupervisor } from './goose/supervisor'
 import type { ApprovalHub } from './approvals'
 import type { ElicitationHub } from './elicitations'
+import { toErrorExcerpt } from './error-kind'
 import type { EventHub } from './events'
+import type { Metrics } from './observability'
 
 const OrchestrationState = Annotation.Root({
   /** 客户端 `agent_session.id` */
@@ -183,6 +185,43 @@ function collectText(chunks: TextChunk[]): string {
     .join('')
 }
 
+/** 工具名：与客户端同一口径（`name` → `title` → 占位），日志与工具卡才对得上 */
+function findToolTraceName(record: Record<string, unknown>): string {
+  const name = typeof record.name === 'string' ? record.name.trim() : ''
+  if (name) return name
+  const title = typeof record.title === 'string' ? record.title.trim() : ''
+  return title || 'tool'
+}
+
+/**
+ * 失败原因摘录：客户端有完整格式化，这里只要「够 grep 的一行」。
+ *
+ * 形状来自 ACP：结构化结果在 `rawOutput`，展示块在 `content`（可能多块）。
+ * 都没有就返回 undefined —— 不拿空串冒充「有原因」。
+ */
+function findToolErrorExcerpt(record: Record<string, unknown>): string | undefined {
+  const raw = record.rawOutput
+  if (typeof raw === 'string' && raw.trim()) return toErrorExcerpt(raw)
+  if (Array.isArray(record.content)) {
+    const parts: string[] = []
+    for (const block of record.content) {
+      if (!block || typeof block !== 'object') continue
+      const item = block as { text?: unknown; content?: unknown }
+      if (typeof item.text === 'string' && item.text.trim()) parts.push(item.text)
+      else if (typeof item.content === 'string' && item.content.trim()) parts.push(item.content)
+    }
+    if (parts.length > 0) return toErrorExcerpt(parts.join('\n'))
+  }
+  if (raw !== undefined && raw !== null) {
+    try {
+      return toErrorExcerpt(JSON.stringify(raw))
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
+
 /** 依赖多了就不该再堆位置参数（`createGooseGraph(a, b, c, d)` 可读性为零）。 */
 interface GooseGraphOptions {
   supervisor: GooseSupervisor
@@ -192,10 +231,17 @@ interface GooseGraphOptions {
   elicitations?: ElicitationHub
   /** 把 goose 的 `session/update` 原样送去 `/threads/:id/events` */
   events?: EventHub
+  /**
+   * 结构化日志（`AGENTD_EVENT`）：工具调用**发生在 goose 内部**，agentd 只在
+   * update 流里看得见它。不在这里记，日志里就只剩「这一轮失败了」这一句话。
+   */
+  logEvent?: ((name: string, fields?: Record<string, unknown>) => void) | null
+  /** 计数器（工具成败）；为 null 时只是不计数 */
+  metrics?: Metrics | null
 }
 
 function createGooseGraph(options: GooseGraphOptions) {
-  const { supervisor, checkpointer, approvals, elicitations, events } = options
+  const { supervisor, checkpointer, approvals, elicitations, events, logEvent, metrics } = options
   /** sessionId → threadID：审批请求只带 sessionId，得靠这张表回到线程。 */
   const sessionThreads = new Map<string, string>()
 
@@ -242,12 +288,55 @@ function createGooseGraph(options: GooseGraphOptions) {
     threadID: string
   ): Promise<string> {
     const chunks: TextChunk[] = []
+    /**
+     * 工具调用的开始时刻，按 `toolCallId` 对账。
+     *
+     * `tool_call_update` 只带终态与 id，不带开始时间：不在这里记，日志里就没有耗时，
+     * 「工具慢」和「模型慢」又会混成一团。
+     */
+    const pendingToolCalls = new Map<string, { name: string; startedAt: number }>()
     const unsubscribe = client.onSessionUpdate(function (updatedSessionId, update) {
       if (updatedSessionId !== sessionId) return
       if (typeof update !== 'object' || update === null) return
       // 事件流是**原始形状**：前端的 ACP 解析器按 session/update 的字段读，不再抄一遍
       events?.emit(threadID, 'update', update)
       const record = update as Record<string, unknown>
+
+      // 工具卡在 goose 内部跑：成败只有这条流看得见，不记下来事后无从对账
+      if (record.sessionUpdate === 'tool_call') {
+        const toolCallId = typeof record.toolCallId === 'string' ? record.toolCallId : ''
+        if (toolCallId) {
+          pendingToolCalls.set(toolCallId, {
+            name: findToolTraceName(record),
+            startedAt: Date.now()
+          })
+        }
+        return
+      }
+
+      if (record.sessionUpdate === 'tool_call_update') {
+        // 中间态（in_progress）不记：一轮里几十条，日志会被进度刷满
+        if (record.status !== 'completed' && record.status !== 'failed') return
+        const toolCallId = typeof record.toolCallId === 'string' ? record.toolCallId : ''
+        const started = toolCallId ? pendingToolCalls.get(toolCallId) : undefined
+        if (toolCallId) pendingToolCalls.delete(toolCallId)
+        const fields = {
+          threadID,
+          gooseSessionId: sessionId,
+          tool: started?.name ?? findToolTraceName(record),
+          toolCallId,
+          durationMs: started ? Date.now() - started.startedAt : undefined
+        }
+        if (record.status === 'failed') {
+          metrics?.inc('tools.failed')
+          logEvent?.('tool.failed', { ...fields, error: findToolErrorExcerpt(record) })
+        } else {
+          metrics?.inc('tools.completed')
+          logEvent?.('tool.completed', fields)
+        }
+        return
+      }
+
       if (record.sessionUpdate !== 'agent_message_chunk') return
       const content = record.content
       if (typeof content === 'object' && content !== null) {

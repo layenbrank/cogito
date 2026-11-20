@@ -49,7 +49,7 @@ import type { AcpStreamContext } from '@/features/agent/acp/stream'
 import { writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { bindSession, recallBinding } from '@/features/agent/acp/session-binding'
 import { callAgentd, callAgentdJson, forgetEndpoint, invokeGoose } from './agentd-rpc'
-import { humanizeRunError } from '@/features/agent/acp/run-error'
+import { annotateRunFailure, humanizeRunError } from '@/features/agent/acp/run-error'
 import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
 import { findGooseMode } from '@/features/agent/approval'
 import { decideApprovalForThread } from '@/features/agent/approval-decision'
@@ -1076,7 +1076,9 @@ async function* runThreadPrompt(
           const status = payload.status
           const message = typeof payload.message === 'string' ? payload.message : ''
           if (status === 'error' && !/abort/i.test(message)) {
-            throw new Error(message || '这一轮失败了')
+            // `errorKind` 是 agentd 的归因（模型/网关、工具、授权、连接）：先把「哪一层坏了」
+            // 摆出来，用户才知道该去看工具卡还是看 provider 配置
+            throw new Error(annotateRunFailure(message, payload.errorKind))
           }
           cancelled = controller.signal.aborted || /abort/i.test(message)
         }
@@ -1229,10 +1231,15 @@ async function* resumeThreadRun(
       }
 
       if (frame.data.kind === 'status') {
-        const payload = frame.data.payload as { phase?: string; status?: string; message?: string }
+        const payload = frame.data.payload as {
+          phase?: string
+          status?: string
+          message?: string
+          errorKind?: unknown
+        }
         if (payload.phase !== 'settled') continue
         if (payload.status === 'error' && payload.message) {
-          yield { kind: 'error', message: payload.message, usage: {} }
+          yield { kind: 'error', message: annotateRunFailure(payload.message, payload.errorKind), usage: {} }
           return
         }
         yield { kind: 'finish', finishReason: 'end_turn', usage: {} }

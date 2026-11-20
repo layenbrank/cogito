@@ -19,7 +19,8 @@
  */
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { CodeBlock } from '@cogito/design/assistant/code-block'
 import { FileTree, FileTreeFile, FileTreeFolder } from '@cogito/design/assistant/file-tree'
 import { ToolFallback } from '@cogito/design/assistant/tool-fallback.aui'
@@ -27,6 +28,11 @@ import { Button } from '@cogito/design/components/button'
 
 import { toolCallSummary } from '@/features/agent/tool-call-summary'
 import { findHardDenyReplacement, isPolicyDeniedText } from '@/features/agent/approval'
+import {
+  buildToolFailureReport,
+  classifyToolFailure,
+  describeToolFailure
+} from '@/features/agent/failure-source'
 import {
   findBrowserToolLabel,
   isBrowserTool,
@@ -168,12 +174,125 @@ function ToolCardFallbackBody(
   )
 }
 
+/**
+ * 失败来源提示条：把「工具失败」拆成「谁的问题 + 下一步」。
+ *
+ * 为什么不做成另一种卡片：这一行的用途是**给人读的诊断**，不是结果本身；
+ * 摆成第三个展开区只会把真正要看的错误原文挤下去。
+ *
+ * 「复制诊断」把工具名、`toolCallId`、归类、原始输出与参数一起带走 ——
+ * `toolCallId` 就是日志里 `Select-String` 能对上的那一条。
+ */
+function ToolFailureNote(props: {
+  toolName: string
+  toolCallId: string
+  output: string
+  args: unknown
+}) {
+  const source = classifyToolFailure(props.output)
+  const copy = describeToolFailure(source)
+
+  function onCopy(): void {
+    const report = buildToolFailureReport({
+      toolName: props.toolName,
+      toolCallId: props.toolCallId,
+      output: props.output,
+      args: props.args
+    })
+    void navigator.clipboard.writeText(report).then(
+      function () {
+        toast.success('已复制诊断信息')
+      },
+      function (error: unknown) {
+        console.warn('[agent] 复制诊断信息失败', error)
+        toast.error('复制失败：可展开卡片手动选取')
+      }
+    )
+  }
+
+  return (
+    <div
+      data-slot="agent-tool-failure"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs leading-relaxed text-muted-foreground">
+      <span className="font-medium text-foreground">失败来源：{copy.label}</span>
+      <span className="min-w-0">{copy.hint}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        className="ml-auto h-5 gap-1 px-1.5 font-normal"
+        title="复制工具名、调用 id、原始输出与参数"
+        onClick={onCopy}>
+        <Icon
+          icon="lucide:copy"
+          className="size-3"
+        />
+        复制诊断
+      </Button>
+    </div>
+  )
+}
+
 function ToolCardShellBody(props: ToolCallMessagePartProps & { parsed: ParsedToolCard }) {
   const { variant } = props.parsed
   const label = toAgentToolLabel(props.toolName)
+  // 策略拒绝在通用行里已经单独解释过（还带替代工具），不再叠一条失败来源
+  const policyDenied = Boolean(props.isError) && isPolicyDeniedText(props.parsed.text)
 
-  // 策略拒绝既不是「写成功」也不是「命令跑完」：一律走通用行，由它把原因说清楚
-  if (props.isError && isPolicyDeniedText(props.parsed.text)) {
+  function renderBody(): ReactNode {
+    // 策略拒绝既不是「写成功」也不是「命令跑完」：一律走通用行，由它把原因说清楚
+    if (policyDenied) {
+      return (
+        <ToolCardFallbackBody
+          {...props}
+          label={label}
+        />
+      )
+    }
+    if (variant === 'write') {
+      return (
+        <WriteToolCard
+          {...props}
+          outputText={props.parsed.text}
+        />
+      )
+    }
+    if (variant === 'command' && toShellCommand(props.args)) {
+      return (
+        <ToolCardTerminalBody
+          {...props}
+          outputText={props.parsed.text}
+        />
+      )
+    }
+    // 联网检索：结果是一组来源而不是一段正文，交给 web-search 那张列表卡。
+    // 失败 / 取消不套列表（要读的是错误原文），继续往通用行走。
+    if (variant === 'web' && !props.isError) {
+      return (
+        <ToolCardWebSearch
+          {...props}
+          outputText={props.parsed.text}
+        />
+      )
+    }
+    // 库内检索：命中是一组段落，交给 retrieval-chunks 那张卡
+    if (variant === 'retrieval' && !props.isError) {
+      return (
+        <ToolCardRetrieval
+          {...props}
+          outputText={props.parsed.text}
+        />
+      )
+    }
+    // 日历：结果是一组带时刻的事件，交给 timeline 那张竖轴卡
+    if (variant === 'timeline' && !props.isError) {
+      return (
+        <ToolCardTimeline
+          {...props}
+          outputText={props.parsed.text}
+        />
+      )
+    }
     return (
       <ToolCardFallbackBody
         {...props}
@@ -182,55 +301,18 @@ function ToolCardShellBody(props: ToolCallMessagePartProps & { parsed: ParsedToo
     )
   }
 
-  if (variant === 'write') {
-    return (
-      <WriteToolCard
-        {...props}
-        outputText={props.parsed.text}
-      />
-    )
-  }
-  if (variant === 'command' && toShellCommand(props.args)) {
-    return (
-      <ToolCardTerminalBody
-        {...props}
-        outputText={props.parsed.text}
-      />
-    )
-  }
-  // 联网检索：结果是一组来源而不是一段正文，交给 web-search 那张列表卡。
-  // 失败 / 取消不套列表（要读的是错误原文），继续往通用行走。
-  if (variant === 'web' && !props.isError) {
-    return (
-      <ToolCardWebSearch
-        {...props}
-        outputText={props.parsed.text}
-      />
-    )
-  }
-  // 库内检索：命中是一组段落，交给 retrieval-chunks 那张卡
-  if (variant === 'retrieval' && !props.isError) {
-    return (
-      <ToolCardRetrieval
-        {...props}
-        outputText={props.parsed.text}
-      />
-    )
-  }
-  // 日历：结果是一组带时刻的事件，交给 timeline 那张竖轴卡
-  if (variant === 'timeline' && !props.isError) {
-    return (
-      <ToolCardTimeline
-        {...props}
-        outputText={props.parsed.text}
-      />
-    )
-  }
   return (
-    <ToolCardFallbackBody
-      {...props}
-      label={label}
-    />
+    <>
+      {renderBody()}
+      {props.isError && !policyDenied ? (
+        <ToolFailureNote
+          toolName={props.toolName}
+          toolCallId={props.toolCallId}
+          output={props.parsed.text}
+          args={props.args as unknown}
+        />
+      ) : null}
+    </>
   )
 }
 

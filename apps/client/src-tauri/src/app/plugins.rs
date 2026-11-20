@@ -43,6 +43,11 @@ fn configure_log_levels(builder: tauri_plugin_log::Builder) -> tauri_plugin_log:
         .level_for("mio", LevelFilter::Warn)
         .level_for("tracing", LevelFilter::Warn)
         .level_for("tracing_subscriber", LevelFilter::Warn)
+        // 每条 SQL 都按 Info 落盘时，一个文件（5MB）几秒钟就刷满、整轮对话的记录被
+        // 挤进轮转文件里 —— 排查「工具为什么失败」需要的恰恰是这种长历史。
+        // 默认只留 Warn+，要逐条看语句用 `--verbose`。
+        .level_for("sqlx", if verbose { LevelFilter::Debug } else { LevelFilter::Warn })
+        .level_for("sea_orm", if verbose { LevelFilter::Debug } else { LevelFilter::Warn })
         // arrow / lance 在 Debug 下极吵；只有 verbose 才放开到 Info
         .level_for(
             "lance",

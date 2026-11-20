@@ -30,7 +30,10 @@ const METRIC_NAMES = [
   'elicitations.timeout',
   'events.sse.connections',
   'events.cursor.replays',
-  'goose.restarts'
+  'goose.restarts',
+  // 工具成败分开数：失败率是「模型/工具/授权」里最容易定位的一根线
+  'tools.completed',
+  'tools.failed'
 ] as const
 
 type MetricName = (typeof METRIC_NAMES)[number]

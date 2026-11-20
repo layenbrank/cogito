@@ -324,7 +324,7 @@ async fn spawn_once(app: &AppHandle) -> Result<(), String> {
                 match event {
                     Some(CommandEvent::Stdout(bytes)) => {
                         buffer.push_str(&String::from_utf8_lossy(&bytes));
-                        if let Some(ready) = take_ready_line(&mut buffer) {
+                        if let Some(ready) = take_ready_line(&mut buffer, &mut log_agentd_line) {
                             // 交叉校验：握手行里的 pid 应该是我们刚 spawn 的那个
                             if ready.pid != 0 && ready.pid != child_pid {
                                 warn!(
@@ -418,59 +418,80 @@ async fn spawn_once(app: &AppHandle) -> Result<(), String> {
 }
 
 /// 进程退出后的收尾：非预期退出则按上限自动重启。
+///
+/// 同时负责把就绪之后的 stdout / stderr 转发进应用日志：`AGENTD_EVENT`、`[acp]`、
+/// goose 的 stderr 全从这里上来，不转发的话「模型失败还是工具失败」就没有任何一手材料。
 fn watch_process(app: AppHandle, mut rx: tauri::async_runtime::Receiver<CommandEvent>) {
     tauri::async_runtime::spawn(async move {
+        let mut stdout_buffer = String::new();
+        let mut stderr_buffer = String::new();
         while let Some(event) = rx.recv().await {
-            let CommandEvent::Terminated(payload) = event else {
-                continue;
-            };
-            warn!(
-                "agentd 已退出 (code={:?}, signal={:?})",
-                payload.code, payload.signal
-            );
-
-            let Some(state) = app.try_state::<AgentdState>() else {
-                return;
-            };
-            let stopping = state.stopping.swap(false, Ordering::Relaxed);
-            state.fail();
-            if let Ok(mut guard) = state.child.lock() {
-                *guard = None;
-            }
-
-            if stopping {
-                info!("agentd 已按请求停止");
-                return;
-            }
-
-            let attempt = state.restarts.fetch_add(1, Ordering::Relaxed) + 1;
-            let _ = app.emit(NOT_READY_EVENT, ());
-            emit_status(
-                &app,
-                AgentdStatus {
-                    state: "failed",
-                    ready_ms: None,
-                    port: None,
-                    pid: None,
-                    goose: None,
-                    restarts: Some(attempt),
-                    reason: Some(format!(
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    stdout_buffer.push_str(&String::from_utf8_lossy(&bytes));
+                    for line in drain_complete_lines(&mut stdout_buffer) {
+                        log_agentd_line(&line);
+                    }
+                    continue;
+                }
+                CommandEvent::Stderr(bytes) => {
+                    stderr_buffer.push_str(&String::from_utf8_lossy(&bytes));
+                    for line in drain_complete_lines(&mut stderr_buffer) {
+                        log_agentd_stderr(&line);
+                    }
+                    continue;
+                }
+                CommandEvent::Terminated(payload) => {
+                    warn!(
                         "agentd 已退出 (code={:?}, signal={:?})",
                         payload.code, payload.signal
-                    )),
-                },
-            );
+                    );
 
-            if attempt > MAX_RESTARTS {
-                tracing::error!("agentd 连续退出 {attempt} 次，停止自动重启");
-                return;
+                    let Some(state) = app.try_state::<AgentdState>() else {
+                        return;
+                    };
+                    let stopping = state.stopping.swap(false, Ordering::Relaxed);
+                    state.fail();
+                    if let Ok(mut guard) = state.child.lock() {
+                        *guard = None;
+                    }
+
+                    if stopping {
+                        info!("agentd 已按请求停止");
+                        return;
+                    }
+
+                    let attempt = state.restarts.fetch_add(1, Ordering::Relaxed) + 1;
+                    let _ = app.emit(NOT_READY_EVENT, ());
+                    emit_status(
+                        &app,
+                        AgentdStatus {
+                            state: "failed",
+                            ready_ms: None,
+                            port: None,
+                            pid: None,
+                            goose: None,
+                            restarts: Some(attempt),
+                            reason: Some(format!(
+                                "agentd 已退出 (code={:?}, signal={:?})",
+                                payload.code, payload.signal
+                            )),
+                        },
+                    );
+
+                    if attempt > MAX_RESTARTS {
+                        tracing::error!("agentd 连续退出 {attempt} 次，停止自动重启");
+                        return;
+                    }
+
+                    info!("agentd 将在 {RESTART_BACKOFF:?} 后自动重启（第 {attempt} 次）");
+                    tokio::time::sleep(RESTART_BACKOFF).await;
+                    state.reset_for_restart();
+                    run_until_ready(&app).await;
+                    return;
+                }
+                _ => {}
             }
-
-            info!("agentd 将在 {RESTART_BACKOFF:?} 后自动重启（第 {attempt} 次）");
-            tokio::time::sleep(RESTART_BACKOFF).await;
-            state.reset_for_restart();
-            run_until_ready(&app).await;
-            return;
         }
     });
 }
@@ -619,8 +640,60 @@ fn goose_binary_path() -> Option<String> {
     None
 }
 
+/// agentd 单行日志的上限：一条 10MB 的 stdout 不该把日志文件撑爆。
+const AGENTD_LINE_MAX_CHARS: usize = 4096;
+
+/// agentd 的 stdout（`AGENTD_EVENT {...}` / `[acp] …`）落进应用日志。
+///
+/// tauri-plugin-log 只收 tracing 的输出：不在这里转发，agentd 的日志就只存在于
+/// 它自己的管道里，`logs/` 目录下永远看不到 —— 这正是「没有任何日志」的根因。
+fn log_agentd_line(line: &str) {
+    let text = line.trim_end();
+    if text.is_empty() {
+        return;
+    }
+    info!(target: "agentd", "{}", clip_agentd_line(text));
+}
+
+/// agentd 的 stderr（goose 的 stderr 也经这里上来）按 warn 记。
+fn log_agentd_stderr(line: &str) {
+    let text = line.trim_end();
+    if text.is_empty() {
+        return;
+    }
+    warn!(target: "agentd", "{}", clip_agentd_line(text));
+}
+
+fn clip_agentd_line(line: &str) -> String {
+    if line.chars().count() <= AGENTD_LINE_MAX_CHARS {
+        return line.to_string();
+    }
+    let mut clipped: String = line.chars().take(AGENTD_LINE_MAX_CHARS).collect();
+    clipped.push_str("…（截断）");
+    clipped
+}
+
+/// 从缓冲里摘出完整行；半行留在缓冲里等下一批（stdio 的 chunk 与行边界无关）。
+fn drain_complete_lines(buffer: &mut String) -> Vec<String> {
+    let mut lines = Vec::new();
+    while let Some(index) = buffer.find('\n') {
+        let mut line: String = buffer.drain(..=index).collect();
+        line.pop();
+        if line.ends_with('\r') {
+            line.pop();
+        }
+        if !line.trim().is_empty() {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
 /// 从 stdout 缓冲里取 `AGENTD_READY {json}` 行（半行会留在缓冲里等下一批）。
-fn take_ready_line(buffer: &mut String) -> Option<ReadyHandshake> {
+///
+/// 其余完整行交给 `on_other`：它们同样有诊断价值（就绪前的 `AGENTD_EVENT`、
+/// 配置错误提示），不能随着握手解析一起被丢掉。
+fn take_ready_line(buffer: &mut String, on_other: &mut impl FnMut(&str)) -> Option<ReadyHandshake> {
     loop {
         let newline = buffer.find('\n')?;
         let mut line = buffer.drain(..=newline).collect::<String>();
@@ -631,6 +704,7 @@ fn take_ready_line(buffer: &mut String) -> Option<ReadyHandshake> {
             line.pop();
         }
         let Some(rest) = line.strip_prefix(READY_PREFIX) else {
+            on_other(&line);
             continue;
         };
         // 坏行不终止扫描：后面可能还有一条好的握手行（agentd 重启时会出现）
@@ -874,9 +948,9 @@ mod tests {
     #[test]
     fn ready_line_is_parsed_from_partial_chunks() {
         let mut buffer = String::from("noise line\nAGENTD_READY {\"port\":54");
-        assert!(take_ready_line(&mut buffer).is_none());
+        assert!(take_ready_line(&mut buffer, &mut |_| {}).is_none());
         buffer.push_str("183,\"pid\":1234}\n");
-        let ready = take_ready_line(&mut buffer).expect("handshake");
+        let ready = take_ready_line(&mut buffer, &mut |_| {}).expect("handshake");
         assert_eq!(ready.port, 54183);
         assert_eq!(ready.pid, 1234);
     }
@@ -884,10 +958,35 @@ mod tests {
     #[test]
     fn ready_line_tolerates_crlf_and_bad_json() {
         let mut buffer = String::from("AGENTD_READY {\"port\":1}\r\n");
-        assert_eq!(take_ready_line(&mut buffer).expect("handshake").port, 1);
+        assert_eq!(
+            take_ready_line(&mut buffer, &mut |_| {})
+                .expect("handshake")
+                .port,
+            1
+        );
 
         let mut broken = String::from("AGENTD_READY {oops\nAGENTD_READY {\"port\":7}\n");
-        assert_eq!(take_ready_line(&mut broken).expect("handshake").port, 7);
+        assert_eq!(
+            take_ready_line(&mut broken, &mut |_| {})
+                .expect("handshake")
+                .port,
+            7
+        );
+    }
+
+    /// 非握手行不能再被静默吞掉：它们要进日志，否则 agentd 的日志永远不会落盘
+    #[test]
+    fn ready_line_reports_other_lines() {
+        let mut buffer =
+            String::from("AGENTD_EVENT {\"event\":\"goose.restart\"}\nAGENTD_READY {\"port\":9}\n");
+        let mut seen: Vec<String> = Vec::new();
+        let ready = take_ready_line(&mut buffer, &mut |line: &str| seen.push(line.to_string()))
+            .expect("handshake");
+        assert_eq!(ready.port, 9);
+        assert_eq!(
+            seen,
+            vec!["AGENTD_EVENT {\"event\":\"goose.restart\"}".to_string()]
+        );
     }
 
     /// 前端（`shared/ipc/specs/agentdStatus.ts`）按这个 JSON 解析：字段名漂移在这里先炸

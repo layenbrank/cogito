@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { RESET_ERROR_HINT, humanizeRunError, isRunCancelled } from './run-error'
+import { RESET_ERROR_HINT, annotateRunFailure, humanizeRunError, isRunCancelled } from './run-error'
 
 function controller() {
   const abort = new AbortController()
@@ -58,5 +58,30 @@ describe('humanizeRunError', () => {
 
   it('非 Error 入参也能处理', () => {
     expect(humanizeRunError('boom', false).message).toBe('boom')
+  })
+})
+
+describe('annotateRunFailure', () => {
+  it('模型 / 网关失败带上归因，用户才知道不是工具坏了', () => {
+    expect(annotateRunFailure('Upstream 429 rate limit exceeded', 'provider')).toBe(
+      '模型 / 网关：Upstream 429 rate limit exceeded'
+    )
+  })
+
+  it('工具失败指向那张工具卡', () => {
+    expect(annotateRunFailure('tool execution failed: ENOENT', 'tool')).toBe(
+      '工具执行：tool execution failed: ENOENT'
+    )
+  })
+
+  it('归因缺失 / 认不出来就原样透传（不猜）', () => {
+    expect(annotateRunFailure('某种没见过的失败', undefined)).toBe('某种没见过的失败')
+    expect(annotateRunFailure('某种没见过的失败', 'weird')).toBe('某种没见过的失败')
+    expect(annotateRunFailure('某种没见过的失败', 'unknown')).toBe('某种没见过的失败')
+  })
+
+  it('只有归因、没有消息时给一句能操作的说明', () => {
+    expect(annotateRunFailure('', 'connection')).toContain('连接中断：与 goose 的连接断了')
+    expect(annotateRunFailure('   ', undefined)).toBe('这一轮失败了')
   })
 })

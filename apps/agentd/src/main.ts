@@ -118,7 +118,10 @@ async function bootstrap(): Promise<void> {
       checkpointer: createSqliteSaver(db),
       approvals,
       elicitations,
-      events
+      events,
+      // 工具调用在 goose 内部跑：不在这里把日志接上，文件里就只剩「这一轮失败了」
+      logEvent: observability.event,
+      metrics: observability.metrics
     }),
     approvals,
     elicitations,

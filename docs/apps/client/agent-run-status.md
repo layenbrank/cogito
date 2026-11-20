@@ -94,10 +94,10 @@ ACP SDK 的 `ActiveSession.prompt()` 在请求被拒时会把**排队中的 `nex
 唯一写入口是 `features/agent/session-unread.ts` 的 `markSessionUnread(id, unread)`，
 它先比对内存里的值，没变就不打 IPC。两条规则都在 `use-sidebar-branches.ts`：
 
-| 时机                                | 动作     | 为什么这么判                                                                        |
-| ----------------------------------- | -------- | ----------------------------------------------------------------------------------- |
-| 某会话从「在跑」变成「没在跑」      | 记为未读 | 用 running 集合**上一帧 vs 这一帧的差分**，且跳过「当前正在看的那个」与首帧水合      |
-| 当前会话（`mainThreadId` → remoteId） | 记为已读 | 切过去、被自动化自动切过去、会话就在眼前跑完，都覆盖                                |
+| 时机                                  | 动作     | 为什么这么判                                                                    |
+| ------------------------------------- | -------- | ------------------------------------------------------------------------------- |
+| 某会话从「在跑」变成「没在跑」        | 记为未读 | 用 running 集合**上一帧 vs 这一帧的差分**，且跳过「当前正在看的那个」与首帧水合 |
+| 当前会话（`mainThreadId` → remoteId） | 记为已读 | 切过去、被自动化自动切过去、会话就在眼前跑完，都覆盖                            |
 
 **为什么不用 `run-state` 的 `finished` 集合**：它只增不减，分不清「刚刚跑完」和「早就跑完、
 用户看过又标成已读」，会把已读反复写回未读（左栏圆点擦不掉）。
@@ -122,3 +122,44 @@ ACP SDK 的 `ActiveSession.prompt()` 在请求被拒时会把**排队中的 `nex
 `duplicate column name`。守卫在 `migration.rs` 的两条测试：
 `agent_session_unread_is_patched_on_old_db`（删列后能补回、幂等、默认值是 `0`）与
 `entity_columns_match_ddl`（entity 与 DDL 双向对齐）。
+
+## 失败的哪一层：模型、工具、授权、连接
+
+「这一轮失败了」只有一个笼统的错误块时，用户没法判断是模型网关挂了、工具本身报错，
+还是授权闸门拦下了这次调用 —— 三种情况的修法完全不同。现在 agentd、日志、界面共用一套词表：
+
+| 归因         | 典型消息                                  | 下一步                       |
+| ------------ | ----------------------------------------- | ---------------------------- |
+| `cancelled`  | `Abort`、用户按停止                       | 不是失败，不报错             |
+| `connection` | `Active session disposed`、`goose 未就绪` | 重发一次                     |
+| `permission` | `never_allow`、`授权策略`                 | 改策略 / 重新点允许          |
+| `provider`   | `Upstream 429`、`context length`、`401`   | 看 provider 配置 / 配额      |
+| `tool`       | `tool execution failed: ENOENT`、`EINVAL` | 展开工具卡，按同样参数重跑   |
+| `unknown`    | 认不出来的                                | 贴诊断信息 + 查 `run.failed` |
+
+三个落点读同一份判据，不会各说各话：
+
+- agentd `src/error-kind.ts`：`classifyRunFailure()` 产出 `run.failed` 日志行与
+  `runs.failed` 计数，并把 `errorKind` 塞进 `status`（`phase: 'settled'`）事件；
+- 客户端 `features/agent/acp/run-error.ts`：`annotateRunFailure()` 把归因拼到消息前面
+  （`模型 / 网关：Upstream 429 ...`），由 `features/agent/port/session.ts` 在 `settled`
+  分支调用；
+- 工具卡：`views/agent/chat/components/tool-card-body.tsx` 的 `ToolFailureNote` 用
+  `features/agent/failure-source.ts` 判断「这张卡是工具自己坏了，还是授权/连接」，「复制
+  诊断」给出工具名、调用 id、参数与原始输出的 JSON。
+
+判据顺序有讲究，别随手调：**连接 → 文件系统错误码 → 授权 → 模型 → 工具**。连接先判是因为
+那时工具根本没跑；`EACCES` 这类错误码必须先于「permission」，否则文件系统报错会被误报成
+授权拒绝；`provider` 先于 `tool`，因为网关的错误常常自带「tool calling failed」字样。
+
+### 日志
+
+- 位置：`%LOCALAPPDATA%\com.cogito.client\logs\cogito.log`（dev 实例是
+  `com.cogito.client.dev`），单文件 5 MB 轮转、保留 30 天；
+- agentd 的 stdout / stderr 逐行转进同一份日志（target `agentd`）：`AGENTD_EVENT {...}` 是
+  结构化事件（`tool.completed` / `tool.failed` / `run.failed` / `run.settled` /
+  `goose.restart`），单行超过 4096 字符会被截断；
+- 计数：`apps/agentd/src/observability.ts` 的 `METRIC_NAMES` 里有 `tools.completed` /
+  `tools.failed` / `runs.failed` / `runs.cancelled`，失败率看前两个比值；
+- `sqlx::query` / `sea_orm` 默认压到 Warn：每句 SQL 都按 Info 落盘时一个文件几秒就刷满，
+  一整轮对话的记录被挤进轮转文件 —— 排查偶发失败要的是长历史，逐句看 SQL 用 `--verbose`。
