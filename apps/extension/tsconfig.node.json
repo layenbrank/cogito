@@ -3,6 +3,7 @@
   "include": [
     "vite.chunk.*",
     "vite.config.*",
+    "vite.worker.config.*",
     "vitest.config.*",
     "cypress.config.*",
     "nightwatch.conf.*",
