@@ -37,7 +37,10 @@ import {
 } from '@/views/overlay/island/island-geometry.ts'
 import { IslandMark } from '@/views/overlay/island/island-mark.tsx'
 
-/** 收起时是正圆 */
+/**
+ * 收起时是正圆。展开后的搜索条与它对齐（同一高度），
+ * 结果从这条下面长出来，而不是再套一个更高的表单输入框。
+ */
 const BUBBLE = 40
 /**
  * 收起态的底色：深色金属径向渐变，纯 CSS。
@@ -49,9 +52,8 @@ const BUBBLE_SKIN =
   'bg-[radial-gradient(72%_72%_at_48%_36%,#3E4653_0%,#353C47_35%,#2A3039_70%,#1C2129_100%)] text-white/90 ring-1 ring-white/10'
 
 /** 展开宽度上限：要装得下「文件名 + 所在目录」，340 太窄会大量截断 */
-const PANEL_MAX_WIDTH = 460
-const PANEL_HEIGHT = 48
-/** 结果面板的至高（与 `results.tsx` 的 max-h 对齐，用于展开时夹在屏内） */
+const SURFACE_MAX_WIDTH = 460
+/** 结果区的至高（与 `results.tsx` 的 max-h 对齐，用于展开时夹在屏内） */
 const RESULTS_MAX_HEIGHT = 420
 /** 移动超过这个距离才算拖拽，否则按点击处理 */
 const DRAG_THRESHOLD = 4
@@ -60,11 +62,11 @@ const COLLAPSE_MS = 200
 
 const BUBBLE_SIZE = { width: BUBBLE, height: BUBBLE }
 
-/** 展开后整列尺寸：窄屏时按屏宽收窄，但不少于 260 */
-function findPanelSize(viewport: { width: number }): { width: number; height: number } {
+/** 展开后整列尺寸：窄屏时按屏宽收窄，但不少于 260。高度 = 搜索条（与收起圆同高）+ 结果区 */
+function findSurfaceSize(viewport: { width: number }): { width: number; height: number } {
   return {
-    width: Math.min(PANEL_MAX_WIDTH, Math.max(260, viewport.width - 24)),
-    height: PANEL_HEIGHT + RESULTS_MAX_HEIGHT
+    width: Math.min(SURFACE_MAX_WIDTH, Math.max(260, viewport.width - 24)),
+    height: BUBBLE + RESULTS_MAX_HEIGHT
   }
 }
 interface DragSession {
@@ -227,7 +229,7 @@ function SearchIsland() {
     // 展开变宽变高：先夹回屏内，避免贴边展开时被裁
     setClosing(false)
     setPoint(function (prev) {
-      return clampIslandPoint(prev, findPanelSize(viewport), viewport)
+      return clampIslandPoint(prev, findSurfaceSize(viewport), viewport)
     })
     setExpanded(true)
   }
@@ -292,17 +294,14 @@ function SearchIsland() {
   if (!pref?.enabled) return null
 
   const orientation = findIslandOrientation(edge)
-  const panelSize = findPanelSize(viewport)
+  const surfaceSize = findSurfaceSize(viewport)
   /** 收起动画期间仍按展开态排版：只有外框同时在收缩 */
   const keepsLayout = isExpanded || isClosing
   /** 搜索框里的小放大镜（展开态才用到；收起态圆内是品牌 logo） */
   const searchGlyph = (
     <Icon
       icon="lucide:search"
-      className={cn(
-        'size-4 shrink-0 transition-colors',
-        isExpanded ? 'text-muted-foreground' : 'text-foreground'
-      )}
+      className="text-muted-foreground size-3.5 shrink-0"
       aria-hidden
     />
   )
@@ -319,7 +318,7 @@ function SearchIsland() {
           keepsLayout
             ? // 展开：搜索条 + 结果面板合成一列，不能再用绝对定位（会露缝、圆角打架）
               // 外层用 popover 实底 + 细描边：搜索框是**它里面的输入区**，不是一块浮在上面的灰条
-              'bg-popover text-popover-foreground flex-col overflow-hidden rounded-[28px] shadow-[0_18px_48px_-20px_rgb(0_0_0/0.38),0_1px_3px_rgb(0_0_0/0.12)] ring-1 ring-border/60'
+              'bg-popover text-popover-foreground flex-col overflow-hidden rounded-[28px] shadow-[0_18px_48px_-20px_rgb(0_0_0/0.38),0_1px_3px_rgb(0_0_0/0.12)] ring-1 ring-border/60 focus-within:ring-2 focus-within:ring-primary/40'
             : // 收起：圆就是品牌底（底色在 CSS 里），SVG 只画字形
               cn(
                 'cursor-grab items-center justify-center overflow-hidden rounded-[28px]',
@@ -335,7 +334,7 @@ function SearchIsland() {
         title={isExpanded ? undefined : '搜索（拖动可停靠到屏幕边缘）'}
         style={
           isExpanded
-            ? { left: point.x, top: point.y, width: panelSize.width, maxHeight: panelSize.height }
+            ? { left: point.x, top: point.y, width: surfaceSize.width, maxHeight: surfaceSize.height }
             : // 收起用 max-height（与展开态同一个属性）才能插值；直接给 height 会从 auto 硬切
               { left: point.x, top: point.y, width: BUBBLE, maxHeight: BUBBLE }
         }
@@ -374,13 +373,11 @@ function SearchIsland() {
         <div
           className={cn(
             'flex shrink-0 items-center',
-            // 收起态图标居中（距左 12px）；展开态上下留 4px，给搜索框一个呼吸位
-            keepsLayout ? 'px-3 pt-3 pb-2' : 'size-10 justify-center'
+            // 收起态圆 40×40；展开态搜索条同高，文字直接落在岛上，不再内嵌一条更高的圆角输入框
+            keepsLayout ? 'h-10 gap-2 px-3' : 'size-10 justify-center'
           )}>
           {keepsLayout ? (
-            // 搜索框：`field` 底（4% 前景色）+ 一圈淡描边，聚焦时才亮主色 ——
-            // 以前是一整条 `muted/60` 灰底，在白色面板上像「压在顶部的横幅」，不是输入框
-            <div className="flex h-11 w-full items-center gap-2 rounded-full bg-foreground/[0.04] px-3 ring-1 ring-border/60 transition-shadow focus-within:ring-2 focus-within:ring-primary/40 dark:bg-foreground/[0.06]">
+            <>
               {searchGlyph}
               <Input
                 ref={inputRef}
@@ -396,9 +393,9 @@ function SearchIsland() {
                 aria-label="灵动岛搜索"
                 aria-autocomplete="list"
                 aria-expanded={search.isOpen}
-                className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-[13px] leading-none shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
               />
-            </div>
+            </>
           ) : (
             // 收起态的圆**就是** logo：铺满整个圆（底板自带圆形裁剪），不再套白边
             <span className="block size-full">

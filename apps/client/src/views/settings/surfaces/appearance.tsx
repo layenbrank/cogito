@@ -1,6 +1,5 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { Switch } from '@cogito/design/components/switch'
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { cn } from 'cn'
 import { useEffect, useState } from 'react'
@@ -38,6 +37,17 @@ const MOTION_ICONS: Record<MotionPreference, string> = {
 }
 
 const TOGGLE_ITEM = 'cursor-pointer px-3 data-[pressed]:bg-primary/10 data-[pressed]:text-primary'
+
+const ISLAND_TOGGLES = [
+  { value: 'on', label: '开启' },
+  { value: 'off', label: '关闭' }
+] as const
+
+type IslandToggle = (typeof ISLAND_TOGGLES)[number]['value']
+
+function islandToggle(isEnabled: boolean): IslandToggle {
+  return isEnabled ? 'on' : 'off'
+}
 
 function AppearanceSurface() {
   const [appearance, updateAppearance] = useState<Appearance>(readAppearance)
@@ -157,9 +167,7 @@ function AppearanceSurface() {
           </ToggleGroup>
         </SettingsRow>
 
-        <SettingsRow
-          label="界面动效"
-          hint="仅影响本应用；不改系统辅助功能。系统已减少动画时可选手动开启。">
+        <SettingsRow label="界面动效">
           <ToggleGroup
             variant="outline"
             spacing={0}
@@ -187,15 +195,27 @@ function AppearanceSurface() {
       </SettingsSection>
 
       <SettingsSection title="浮层">
-        <SettingsRow
-          label="搜索灵动岛"
-          hint="屏幕边上那个可拖拽的搜索圆点；拖到边会自动吸附并只露出一小截">
-          <Switch
-            checked={isIslandEnabled}
-            onCheckedChange={function (checked) {
-              void onToggleIsland(checked)
-            }}
-          />
+        <SettingsRow label="搜索灵动岛">
+          <ToggleGroup
+            variant="outline"
+            spacing={0}
+            value={[islandToggle(isIslandEnabled)]}
+            onValueChange={function (value) {
+              const next = value[0]
+              if (next !== 'on' && next !== 'off') return
+              void onToggleIsland(next === 'on')
+            }}>
+            {ISLAND_TOGGLES.map(function (option) {
+              return (
+                <ToggleGroupItem
+                  key={option.value}
+                  value={option.value}
+                  className={TOGGLE_ITEM}>
+                  {option.label}
+                </ToggleGroupItem>
+              )
+            })}
+          </ToggleGroup>
         </SettingsRow>
       </SettingsSection>
 
