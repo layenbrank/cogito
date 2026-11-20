@@ -212,9 +212,7 @@ function ShortcutsSurface() {
     <div className={SURFACE_STACK}>
       {customized.length > 0 ? (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3.5 py-2">
-          <span className="text-xs text-muted-foreground">
-            已自定义 {customized.length} 项；恢复默认后跟随代码里的默认键位
-          </span>
+          <span className="text-xs text-muted-foreground">已自定义 {customized.length} 项</span>
           <Button
             variant="ghost"
             size="sm"
@@ -270,10 +268,6 @@ function ShortcutsSurface() {
         )
       })}
 
-      <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-        提示：系统级键会被操作系统拦下，可能被别的应用先占用；此时这里会显示实际生效的组合。
-        展示为「不可修改」的是编辑器与浮层内的固定键位。
-      </p>
     </div>
   )
 }

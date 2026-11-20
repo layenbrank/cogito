@@ -64,10 +64,10 @@ function linkTimeText(ms: number | undefined): string {
 
 function indexStatusText(status: FileIndexStatus | null): string {
   if (!status) return '读取中…'
-  if (status.state === 'scanning') return `正在建立索引 · 已遍历 ${status.scanned} 项`
+  if (status.state === 'scanning') return `正在建立 · 已遍历 ${status.scanned}`
   if (status.state === 'error') return status.message ?? '上次扫描失败'
-  if (status.state === 'ready') return `共 ${status.indexed} 条，可搜文件名`
-  return '还没建立，空闲时会自动开始'
+  if (status.state === 'ready') return ''
+  return '尚未建立'
 }
 
 /** 设置 → 诊断：能力自述 / 日志目录 / 崩溃补报开关。 */
@@ -220,9 +220,7 @@ function DiagnosticSurface() {
   return (
     <div className={SURFACE_STACK}>
       <SettingsSection title="文件索引">
-        <SettingsRow
-          label="全盘文件名搜索"
-          hint="命令栏（Ctrl+K）可直接搜磁盘文件名；索引在启动空闲时建立，也可随时重建">
+        <SettingsRow label="全盘文件名搜索">
           <Button
             type="button"
             variant="outline"
@@ -247,9 +245,7 @@ function DiagnosticSurface() {
         <SettingsRow
           label="版本"
           hint={
-            caps
-              ? `${caps.identifier} · ${caps.platform}/${caps.arch}`
-              : '非 Tauri 环境（浏览器预览）读不到本机信息'
+            caps ? `${caps.identifier} · ${caps.platform}/${caps.arch}` : '无本机信息'
           }>
           <span className="text-sm font-medium text-foreground">
             {caps?.appVersion ?? '—'}
@@ -258,11 +254,7 @@ function DiagnosticSurface() {
 
         <SettingsRow
           label="包档位"
-          hint={
-            caps?.variant === 'full'
-              ? '包含 pandoc / ffmpeg / ffprobe，体积更大'
-              : '默认精简版：只内置运行必需件，媒体/文档转换按需提示'
-          }>
+          hint={caps?.variant === 'full' ? '含 pandoc、ffmpeg' : caps ? '仅运行必需件' : undefined}>
           <Badge variant={caps?.variant === 'full' ? 'default' : 'secondary'}>
             {variantLabel(caps?.variant)}
           </Badge>
@@ -275,7 +267,7 @@ function DiagnosticSurface() {
           hint={
             caps?.logDir
               ? `${caps.logDir} · 单文件上限 ${formatBytes(caps.logMaxFileSize)}`
-              : '日志目录在应用数据目录下的 logs/'
+              : '应用数据 logs/'
           }>
           <Button
             variant="outline"
@@ -306,11 +298,7 @@ function DiagnosticSurface() {
 
         <SettingsRow
           label="会话状态"
-          hint={
-            caps?.sessionState === 'running'
-              ? '本次会话进行中；异常退出会留下 crash 现场并在下次启动补报'
-              : '没有正在记录的会话标记'
-          }>
+          hint={caps?.sessionState === 'running' ? '异常退出下次补报' : undefined}>
           <span className="text-xs text-muted-foreground">{caps?.sessionState ?? '—'}</span>
         </SettingsRow>
       </SettingsSection>
@@ -321,16 +309,14 @@ function DiagnosticSurface() {
           hint={
             build
               ? `${build.exe} · 进程 ${build.pid}`
-              : '读不到构建指纹（非 Tauri 环境，或宿主还是旧二进制）'
+              : '读不到构建指纹'
           }>
           <span className="text-sm font-medium text-foreground">
             {linkTimeText(build?.exeModifiedMs)}
           </span>
         </SettingsRow>
 
-        <SettingsRow
-          label="构建档位"
-          hint="链接时间早于最近一次构建时间，说明这个进程跑的是旧二进制 —— 重启应用后新代码才生效">
+        <SettingsRow label="构建档位">
           <Badge variant={build?.profile === 'release' ? 'default' : 'secondary'}>
             {build ? `${build.profile} · v${build.version}` : '—'}
           </Badge>
@@ -343,9 +329,9 @@ function DiagnosticSurface() {
           hint={
             cache
               ? `${cacheSizeText(cache.bytes)} · ${cache.sessions} 个会话 · ${cache.path}${
-                  cache.legacyPath ? ` · 旧目录 ${cache.legacyPath} 可手动删除` : ''
+                  cache.legacyPath ? ` · 旧目录 ${cache.legacyPath}` : ''
                 }`
-              : '终端里的临时脚本 / 构建日志落这里（默认保留 7 天）'
+              : '默认保留 7 天'
           }>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">
@@ -365,7 +351,7 @@ function DiagnosticSurface() {
 
         <SettingsRow
           label="自动清理"
-          hint={`${cachePruneText(cache)} · 环境变量 COGITO_AGENT_CACHE_RETENTION_DAYS / COGITO_AGENT_CACHE_MAX_BYTES 可覆盖`}>
+          hint={cachePruneText(cache)}>
           <Badge variant="secondary">
             {cache && cache.maxBytes ? `上限 ${cacheSizeText(cache.maxBytes)}` : '默认 512 MB'}
           </Badge>
@@ -375,7 +361,7 @@ function DiagnosticSurface() {
       <SettingsSection title="崩溃上报">
         <SettingsRow
           label="自动上报"
-          hint="复用现有异常上报接口，只发送崩溃现场与日志尾巴，不含文档内容">
+          hint="不含文档内容">
           <Switch
             checked={reportCrashes}
             onCheckedChange={function (checked) {
@@ -407,9 +393,6 @@ function DiagnosticSurface() {
       <SettingsSection title="完整版能力">
         {tools ? (
           <>
-            <p className="pb-1 text-xs leading-snug text-muted-foreground">
-              精简版不内置 pandoc / ffmpeg / ffprobe；下面按实际安装包逐项探测。
-            </p>
             {tools.tools.map(function (tool) {
               const status = toolStatus(tool)
               return (

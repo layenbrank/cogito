@@ -180,7 +180,7 @@ function CaptureSurface() {
       <SettingsSection title="截屏检测">
         <SettingsRow
           label="窗口检测"
-          hint="截图时悬停高亮窗口，单击吸附为选区；关闭后仅自由框选">
+          hint="悬停吸附窗口">
           <Switch
             checked={capture.detect !== DETECT_OFF}
             onCheckedChange={function (checked) {
@@ -190,7 +190,7 @@ function CaptureSurface() {
         </SettingsRow>
         <SettingsRow
           label="元素检测"
-          hint="在窗口内继续识别按钮、输入框等界面元素，按更细的层级吸附">
+          hint="吸附界面元素">
           <Switch
             checked={capture.detect === DETECT_ELEMENT}
             disabled={capture.detect === DETECT_OFF}
@@ -204,7 +204,7 @@ function CaptureSurface() {
       <SettingsSection title="自动清理">
         <SettingsRow
           label="启用清理"
-          hint="按天数、数量与容量自动清理未标记保存的捕获">
+          hint="只清未保存项">
           <Switch
             checked={capture.isRetentionEnabled}
             onCheckedChange={function (checked) {
@@ -243,9 +243,7 @@ function CaptureSurface() {
       </SettingsSection>
 
       <SettingsSection title="截屏保留">
-        <SettingsRow
-          label="天数"
-          hint={`保留最近 ${screenshot.days} 天`}>
+        <SettingsRow label="天数">
           <CompactNumber
             value={screenshot.days}
             ariaLabel="截屏保留天数"
@@ -254,9 +252,7 @@ function CaptureSurface() {
             }}
           />
         </SettingsRow>
-        <SettingsRow
-          label="数量"
-          hint={`最多保留 ${screenshot.count} 张`}>
+        <SettingsRow label="数量">
           <CompactNumber
             value={screenshot.count}
             ariaLabel="截屏保留数量"
@@ -265,9 +261,7 @@ function CaptureSurface() {
             }}
           />
         </SettingsRow>
-        <SettingsRow
-          label="容量"
-          hint={`最多占用 ${screenshotMb} MB`}>
+        <SettingsRow label="容量">
           <CompactNumber
             value={screenshotMb}
             ariaLabel="截屏保留容量（MB）"
@@ -280,9 +274,7 @@ function CaptureSurface() {
       </SettingsSection>
 
       <SettingsSection title="录屏保留">
-        <SettingsRow
-          label="天数"
-          hint={`保留最近 ${recording.days} 天`}>
+        <SettingsRow label="天数">
           <CompactNumber
             value={recording.days}
             ariaLabel="录屏保留天数"
@@ -291,9 +283,7 @@ function CaptureSurface() {
             }}
           />
         </SettingsRow>
-        <SettingsRow
-          label="数量"
-          hint={`最多保留 ${recording.count} 个`}>
+        <SettingsRow label="数量">
           <CompactNumber
             value={recording.count}
             ariaLabel="录屏保留数量"
@@ -302,9 +292,7 @@ function CaptureSurface() {
             }}
           />
         </SettingsRow>
-        <SettingsRow
-          label="容量"
-          hint={`最多占用 ${recordingGb} GB`}>
+        <SettingsRow label="容量">
           <CompactNumber
             value={recordingGb}
             ariaLabel="录屏保留容量（GB）"

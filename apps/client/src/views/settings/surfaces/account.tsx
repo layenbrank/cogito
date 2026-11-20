@@ -222,9 +222,7 @@ function AccountSurface() {
   if (!user) {
     return (
       <SettingsSection title="登录状态">
-        <p className="py-2 text-sm text-muted-foreground">
-          当前未登录。请在主窗口标题栏点击「登录」后再编辑资料。
-        </p>
+        <p className="py-2 text-sm text-muted-foreground">未登录。请从标题栏登录。</p>
       </SettingsSection>
     )
   }
@@ -274,7 +272,7 @@ function AccountSurface() {
               />
               {isUploading ? '上传中…' : '更换头像'}
             </Button>
-            <p className="text-xs text-muted-foreground">支持 PNG / JPEG / WebP / GIF，最大 5MB</p>
+            <p className="text-xs text-muted-foreground">≤5MB · PNG/JPEG/WebP/GIF</p>
           </div>
         </div>
       </SettingsSection>
@@ -282,7 +280,7 @@ function AccountSurface() {
       <SettingsSection title="个人资料">
         <SettingsRow
           label="用户名"
-          hint={`2–${USERNAME_MAX} 个字符，全局唯一`}>
+          hint={`2–${USERNAME_MAX} 字，唯一`}>
           <Input
             value={draft.username}
             maxLength={USERNAME_MAX}
@@ -350,7 +348,7 @@ function AccountSurface() {
 
         <SettingsRow
           label="生日"
-          hint="格式 YYYY-MM-DD">
+          hint="YYYY-MM-DD">
           <DatePicker
             className="max-w-xs"
             aria-label="生日"

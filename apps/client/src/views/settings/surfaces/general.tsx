@@ -68,9 +68,7 @@ function GeneralSurface() {
   return (
     <div className={SURFACE_STACK}>
       <SettingsSection title="系统行为">
-        <SettingsRow
-          label="开机自启"
-          hint="开启后登录系统将自动启动，并以托盘形式运行">
+        <SettingsRow label="开机自启">
           <Switch
             checked={general.autostart}
             onCheckedChange={function (checked) {
@@ -107,9 +105,7 @@ function GeneralSurface() {
       </SettingsSection>
 
       <SettingsSection title="出站代理">
-        <SettingsRow
-          label="启用代理"
-          hint="写入 HTTP_PROXY / HTTPS_PROXY，供 reqwest 与插件请求使用">
+        <SettingsRow label="启用代理">
           <Switch
             checked={proxy.enabled}
             onCheckedChange={function (checked) {
@@ -119,7 +115,7 @@ function GeneralSurface() {
         </SettingsRow>
         <SettingsRow
           label="代理 URL"
-          hint="仅支持 http:// 或 https://">
+          hint="仅 http / https">
           <Input
             className="w-56"
             value={proxy.url}
@@ -129,9 +125,7 @@ function GeneralSurface() {
             }}
           />
         </SettingsRow>
-        <SettingsRow
-          label="绕过局域网"
-          hint="设置 NO_PROXY 排除 localhost / 私网段">
+        <SettingsRow label="绕过局域网">
           <Switch
             checked={proxy.bypassLocal}
             onCheckedChange={function (checked) {
@@ -141,7 +135,7 @@ function GeneralSurface() {
         </SettingsRow>
         <SettingsRow
           label="接受无效证书"
-          hint="仅在代理启用时生效，用于企业 MITM 场景">
+          hint="仅代理启用时">
           <Switch
             checked={proxy.acceptInvalidCerts}
             onCheckedChange={function (checked) {
