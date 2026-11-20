@@ -58,14 +58,17 @@ export default function Side() {
           {links.map(function (tile) {
             return (
               <li key={tile.id}>
-                <button
+                <Button
                   type="button"
-                  className={clsx('block w-full truncate rounded-md px-2 py-1 text-left text-sm hover:bg-muted')}
+                  variant="ghost"
+                  className={clsx(
+                    'h-auto w-full justify-start truncate px-2 py-1 text-sm font-normal'
+                  )}
                   onClick={function () {
                     if (tile.url) openSite(tile.url, 'tab')
                   }}>
                   {tile.title}
-                </button>
+                </Button>
               </li>
             )
           })}
