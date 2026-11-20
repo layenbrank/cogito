@@ -182,6 +182,27 @@ vi.mock('@/features/agent/composer-queue', function () {
   return {
     dropPendingItem: vi.fn(),
     sendPendingItem: vi.fn(),
+    // 附件相关：契约与真身一致（解析落库的 JSON、给附件一个人话名字）
+    addQueueAttachments: vi.fn(function () {
+      return Promise.resolve()
+    }),
+    parseQueueAttachments: function (attachments: string) {
+      try {
+        const parsed: unknown = JSON.parse(attachments)
+        return Array.isArray(parsed) ? (parsed as unknown[]) : []
+      } catch (error) {
+        console.warn('[composer-queue] 附件 JSON 解析失败', error)
+        return []
+      }
+    },
+    queueAttachmentLabel: function (part: { filename?: string; type?: string }) {
+      return part.filename ?? (part.type === 'image' ? '图片' : '附件')
+    },
+    queueItemAttachments: function (item: { parts: { type: string }[] }) {
+      return item.parts.filter(function (part) {
+        return part.type !== 'text'
+      })
+    },
     // 自走泵与顺序调整：面板会在 effect / 按钮里调用它们
     markThreadRunning: vi.fn(),
     pumpPendingQueue: vi.fn(),

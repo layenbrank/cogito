@@ -18,20 +18,25 @@ import { MessageQueue, QueueLineBadge, QueueOrderControls, QUEUE_ROW_PAD_CLASS, 
 import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { useCallback, useEffect, useRef, useSyncExternalStore, type FC, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type FC, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
+  addQueueAttachments,
   dropPendingItem,
   markThreadRunning,
   movePendingItem,
+  parseQueueAttachments,
   persistComposerQueue,
   pumpPendingQueue,
+  queueAttachmentLabel,
+  queueItemAttachments,
   readPendingQueue,
   reconcileComposerQueue,
   sendPendingItem,
   subscribePendingQueue,
-  useComposerQueuePersist
+  useComposerQueuePersist,
+  type QueueAttachment
 } from '@/features/agent/composer-queue'
 
 /**
@@ -109,23 +114,58 @@ function moveQueueItem(
   return false
 }
 
-/** 取回编辑：先移出队列，把文本并回输入框，再把焦点交回编辑器 */
-function takeBackToComposer(aui: AssistantClient, id: string, text: string): void {
+/**
+ * 取回编辑：先移出队列，把正文并回输入框、附件挂回 composer，再把焦点交回编辑器。
+ *
+ * 附件必须跟着回来 —— 只还正文的话，用户点一下「取回编辑」，图就再也找不到了。
+ */
+function takeBackToComposer(
+  aui: AssistantClient,
+  id: string,
+  text: string,
+  attachments: readonly QueueAttachment[]
+): void {
   aui.composer.queueItem({ id }).remove()
   const draft = aui.composer.getState().text
   aui.composer.setText(draft.length > 0 ? `${draft} ${text}` : text)
+  void addQueueAttachments(aui, attachments)
   // 按钮会随队列行一起卸载，焦点会掉到 body：这里显式交回编辑器并把光标落到末尾
   focusComposerInput()
+}
+
+/** 队列行上的附件角标：只有一个纸别针 + 条数，文件名放 `title` 里 */
+function QueueAttachmentBadge(props: { attachments: readonly QueueAttachment[] }) {
+  if (props.attachments.length === 0) return null
+  const title = props.attachments.map(queueAttachmentLabel).join('\n')
+  return (
+    <span
+      data-slot="message-queue-attachments"
+      title={title}
+      className={cn(
+        mono,
+        'text-foreground/40 flex shrink-0 items-center gap-1 text-[11px] leading-none'
+      )}>
+      <Icon
+        icon="lucide:paperclip"
+        className="size-3"
+        aria-hidden
+      />
+      {props.attachments.length}
+    </span>
+  )
 }
 
 function renderItemActions(
   aui: AssistantClient,
   ids: readonly string[],
-  labels: AssistantLabels
+  labels: AssistantLabels,
+  attachmentsById: ReadonlyMap<string, readonly QueueAttachment[]>
 ): (item: MessageQueueItemInfo) => ReactNode {
   return function itemActions(item: MessageQueueItemInfo) {
+    const attachments = attachmentsById.get(item.id) ?? []
     return (
       <>
+        <QueueAttachmentBadge attachments={attachments} />
         <TooltipIconButton
           tooltip={labels.queueTakeBack}
           side="top"
@@ -135,7 +175,7 @@ function renderItemActions(
           className={cn(ghostButton, 'size-6 shrink-0')}
           aria-label={labels.queueTakeBack}
           onClick={function () {
-            takeBackToComposer(aui, item.id, item.text)
+            takeBackToComposer(aui, item.id, item.text, attachments)
           }}>
           <Icon
             icon="lucide:pencil-line"
@@ -173,6 +213,12 @@ const ComposerQueue: FC = function ComposerQueue() {
   const queue = useAuiState(function (state) {
     return state.composer.queue
   })
+  /** 排队消息的附件（库的队列状态里带着 part，但只有一个 text 文案被渲染） */
+  const queueAttachments = useMemo(function () {
+    const map = new Map<string, readonly QueueAttachment[]>()
+    for (const item of queue) map.set(item.id, queueItemAttachments(item))
+    return map
+  }, [queue])
   const labels = useAssistantLabels()
 
   // 回灌只在会话就绪那一刻做一次：`isRunning` 故意不进依赖，
@@ -232,13 +278,13 @@ const ComposerQueue: FC = function ComposerQueue() {
         armedSession.current = sessionID
         const timer = window.setTimeout(function () {
           // 窗口过后仍在空闲才真的补发：刷新恢复的那一瞬不足以确认「没有后台回合」
-          if (!aui.thread.getState().isRunning) pumpPendingQueue(aui, sessionID)
+          if (!aui.thread.getState().isRunning) void pumpPendingQueue(aui, sessionID)
         }, RESUME_SETTLE_MS)
         return function () {
           window.clearTimeout(timer)
         }
       }
-      pumpPendingQueue(aui, sessionID)
+      void pumpPendingQueue(aui, sessionID)
       return undefined
     },
     [aui, isRunning, pending, sessionID]
@@ -261,7 +307,12 @@ const ComposerQueue: FC = function ComposerQueue() {
       extraCount={pending.length}
       extraPreview={pending[0]?.text ?? ''}
       renderText={renderQueueText}
-      renderItemActions={renderItemActions(aui, findQueueIds(queue), labels)}>
+      renderItemActions={renderItemActions(
+        aui,
+        findQueueIds(queue),
+        labels,
+        queueAttachments
+      )}>
       {pending.length > 0 ? (
         <div
           data-slot="message-queue-pending"
@@ -290,6 +341,7 @@ const ComposerQueue: FC = function ComposerQueue() {
                     resolveLabel={resolveComposerChipLabel}
                   />
                 </div>
+                <QueueAttachmentBadge attachments={parseQueueAttachments(item.attachments)} />
                 <QueueLineBadge text={item.text} />
                 <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                   <QueueOrderControls
@@ -316,8 +368,9 @@ const ComposerQueue: FC = function ComposerQueue() {
                     aria-label={labels.queuePendingSend}
                     onClick={function () {
                       if (!sessionID) return
-                      if (sendPendingItem(aui, sessionID, item.id)) return
-                      toast.error('现在发不出去：对话未就绪或正在提交，稍后重试')
+                      void sendPendingItem(aui, sessionID, item.id).then(function (sent) {
+                        if (!sent) toast.error('现在发不出去：对话未就绪或正在提交，稍后重试')
+                      })
                     }}>
                     {/* 与队列行同一个语义、同一个图标：这条现在就发（⚡），不是「发送键」 */}
                     <Icon

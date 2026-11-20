@@ -15,7 +15,12 @@
  * 编辑采用「取回式」（对齐 VS Code Copilot Chat）：`remove()` 掉这一条 + 把文本
  * 塞回输入框。只用公开 API，不去 patch 库的 store。
  */
-import type { AssistantClient, QueueItemState } from '@assistant-ui/react'
+import type {
+  AssistantClient,
+  Attachment,
+  QueueItemState,
+  ThreadUserMessagePart
+} from '@assistant-ui/react'
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef } from 'react'
 
@@ -31,6 +36,22 @@ interface ComposerQueueRow {
   attachments: string
   createdAt: number
   updatedAt: number
+}
+
+/**
+ * 队列条目里除正文之外的部分：图片（`image` part，data URL）与文件（`file` part）。
+ *
+ * 形状沿用 assistant-ui 的 message part，原样落库：回灌时把它原样塞回
+ * `composer.addAttachment({ content })`，不在这里做归一化，免得两套形状对不上。
+ */
+interface QueueAttachment {
+  type: string
+  filename?: string
+  mimeType?: string
+  /** `image` part：data URL */
+  image?: string
+  /** `file` part：内容（工作区引用是空串，真身靠 `filename` 指路） */
+  data?: string
 }
 
 /** 回灌出来的一条「待发送」 */
@@ -92,11 +113,20 @@ function textOfQueueItem(item: QueueItemState): string {
   return ''
 }
 
-function attachmentsOfQueueItem(item: QueueItemState): string {
-  const files = (item.parts ?? []).filter(function (part) {
-    return part.type === 'file'
+/**
+ * 队列条目的附件 → JSON 字符串。
+ *
+ * 以前只挑 `type === 'file'`：粘贴 / 截图进来的图片在队列里是 `image` part，
+ * 整类被丢掉 —— 用户看到的就是「一排进队列，图片就没了」。文本以外的部分全都留下。
+ */
+function queueItemAttachments(item: QueueItemState): QueueAttachment[] {
+  return (item.parts ?? []).filter(function (part) {
+    return part.type !== 'text'
   })
-  return JSON.stringify(files)
+}
+
+function attachmentsOfQueueItem(item: QueueItemState): string {
+  return JSON.stringify(queueItemAttachments(item))
 }
 
 function toReplaceItem(item: QueueItemState): ReplaceItem {
@@ -109,6 +139,57 @@ function toReplaceItem(item: QueueItemState): ReplaceItem {
 
 function toReplaceItemFromRestored(item: RestoredQueueItem): ReplaceItem {
   return { lane: 'main', text: item.text, attachments: item.attachments }
+}
+
+/** 落库的附件 JSON → part 列表；坏数据当没有，不要因为一行脏 JSON 让整队回灌失败 */
+function parseQueueAttachments(attachments: string | null | undefined): QueueAttachment[] {
+  if (!attachments) return []
+  try {
+    const parsed: unknown = JSON.parse(attachments)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(function (part): part is QueueAttachment {
+      return (
+        typeof part === 'object' &&
+        part !== null &&
+        typeof (part as { type?: unknown }).type === 'string' &&
+        (part as { type: string }).type !== 'text'
+      )
+    })
+  } catch (error) {
+    console.warn('[composer-queue] 附件 JSON 解析失败', error)
+    return []
+  }
+}
+
+/** 一条附件的人话名字：图片没文件名时给「图片」，别在 UI 上留空白 */
+function queueAttachmentLabel(part: QueueAttachment): string {
+  if (part.filename) return part.filename
+  return part.type === 'image' ? '图片' : '附件'
+}
+
+/**
+ * 把附件挂回 composer。
+ *
+ * 只用公开入口 `addAttachment({ content })`：`content` 就是队列里存的那些 part，
+ * 原样还回去，图片的 data URL 与工作区引用的 `filename` 都不会变形。
+ */
+async function addQueueAttachments(
+  aui: AssistantClient,
+  parts: readonly QueueAttachment[]
+): Promise<void> {
+  for (const part of parts) {
+    try {
+      await aui.composer.addAttachment({
+        type: part.type === 'image' ? 'image' : 'file',
+        name: queueAttachmentLabel(part),
+        ...(part.mimeType ? { contentType: part.mimeType } : {}),
+        content: [part as unknown as ThreadUserMessagePart]
+      })
+    } catch (error) {
+      // 一个附件挂不上不该连累整条消息：正文照发，缺的那张在日志里能查到
+      console.warn('[composer-queue] 附件还原失败', error)
+    }
+  }
 }
 
 /** 落库：队列 + 待发送，顺序即数组顺序（服务端按下标重排 `sort`） */
@@ -147,19 +228,16 @@ function reconcileComposerQueue(
       return
     }
     if (options.isRunning) {
-      // 回灌成真实队列：逐条 `setText` + `send({ steer: false })`。
-      // 输入框里可能正写着下一句 —— 先让位、发完放回去，不再用 `setText` 把它吞掉。
-      const draft = aui.composer.getState().text
+      // 回灌成真实队列：逐条「挂附件 + 正文 + send({ steer: false })」。
+      // 输入框里可能正写着下一句、也可能挂着图 —— 由 `sendQueueEntry` 负责让位与还原。
       const leftovers: RestoredQueueItem[] = []
       for (const row of rows) {
-        aui.composer.setText(row.text)
-        aui.composer.send({ steer: false })
-        // 还是原文 = 这条被闸门挡下了，没进队列：改放「待发送」，别丢
-        if (aui.composer.getState().text === row.text) {
+        const entry = { text: row.text, parts: parseQueueAttachments(row.attachments) }
+        // 被闸门挡下 = 这条没进队列：改放「待发送」，别丢（附件跟着一起留着）
+        if (!(await sendQueueEntry(aui, entry, { steer: false }))) {
           leftovers.push({ id: row.id, text: row.text, attachments: row.attachments })
         }
       }
-      if (draft.length > 0) aui.composer.setText(draft)
       if (leftovers.length > 0) pendingBySession.set(sessionID, leftovers)
       else pendingBySession.delete(sessionID)
       notify()
@@ -211,35 +289,87 @@ function markThreadRunning(sessionID: string): void {
   pumpArmed.set(sessionID, true)
 }
 
+/** 用户此刻在输入框里攒着的东西：正文 + 附件，发完要原样放回去 */
+interface ComposerDraft {
+  text: string
+  attachments: readonly Attachment[]
+}
+
+function readComposerDraft(aui: AssistantClient): ComposerDraft {
+  const state = aui.composer.getState()
+  return { text: state.text, attachments: state.attachments ?? [] }
+}
+
+/** 草稿附件挂回去：有 `content` 就按 content 还原，没有的退回原始 File */
+async function reattachDraftAttachments(
+  aui: AssistantClient,
+  attachments: readonly Attachment[]
+): Promise<void> {
+  for (const attachment of attachments) {
+    try {
+      const content = attachment.content
+      if (content && content.length > 0) {
+        await aui.composer.addAttachment({
+          type: attachment.type,
+          name: attachment.name,
+          ...(attachment.contentType ? { contentType: attachment.contentType } : {}),
+          content: [...content]
+        })
+        continue
+      }
+      if (attachment.file) await aui.composer.addAttachment(attachment.file)
+    } catch (error) {
+      console.warn('[composer-queue] 草稿附件恢复失败', error)
+    }
+  }
+}
+
 /**
- * 发一段文本，但**不动用户手里的草稿**。
+ * 发一条队列条目（正文 + 附件），但**不动用户手里的草稿**。
  *
- * 补发历史队列时，输入框里往往正写着下一句：`setText` 覆盖它再 `send()` 会
- * 把草稿一起发出去（或直接把草稿吞掉）。先让位、发完放回去 —— `send()` 本身
- * 同步清空 composer，所以恢复草稿放在它后面是安全的。
+ * 补发历史队列时，输入框里往往正写着下一句、甚至已经挂了几张图：`setText` 覆盖它
+ * 再 `send()` 会把草稿一起发出去；而 `send()` 发的是 composer 当前的全部附件，
+ * 所以草稿附件必须先摘下来，发完再挂回去 —— 否则它们会粘到这条补发的消息上。
  *
  * 返回是否真的发出去了：`send()` 在 `!canSend` 时**静默返回**（不抛错），
- * 这时文本还留在输入框里 —— 调用方不要把这条从队列里摘掉。
+ * 这时正文还留在输入框里 —— 调用方不要把这条从队列里摘掉。
  */
-function sendTextKeepingDraft(aui: AssistantClient, text: string): boolean {
-  const draft = aui.composer.getState().text
-  aui.composer.setText(text)
-  aui.composer.send()
-  // 发出去的话草稿已被清空；还是原文 = 被闸门挡下（thread 未启用 / 正在提交）
-  const accepted = aui.composer.getState().text !== text
-  if (draft.length > 0) aui.composer.setText(draft)
+async function sendQueueEntry(
+  aui: AssistantClient,
+  entry: { text: string; parts: readonly QueueAttachment[] },
+  options?: { steer?: boolean }
+): Promise<boolean> {
+  const draft = readComposerDraft(aui)
+  aui.composer.setText(entry.text)
+  if (draft.attachments.length > 0) await aui.composer.clearAttachments()
+  await addQueueAttachments(aui, entry.parts)
+  aui.composer.send(options)
+  // 发出去的话正文已被清空；还是原文 = 被闸门挡下（thread 未启用 / 正在提交）
+  const accepted = aui.composer.getState().text !== entry.text
+  // `send()` 同步清空正文：草稿必须紧跟其后写回，晚一拍会被当成新的输入
+  if (draft.text.length > 0) aui.composer.setText(draft.text)
+  // 附件是异步的：我们挂上去的、草稿自己的，一律清掉再按草稿还原
+  if (entry.parts.length > 0 || draft.attachments.length > 0) {
+    if (aui.composer.getState().attachments.length > 0) await aui.composer.clearAttachments()
+    await reattachDraftAttachments(aui, draft.attachments)
+  }
   return accepted
 }
 
 /** 把一条「待发送」发出去（用户手动触发，或由补发泵触发） */
-function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): boolean {
+async function sendPendingItem(
+  aui: AssistantClient,
+  sessionID: string,
+  id: string
+): Promise<boolean> {
   const items = pendingBySession.get(sessionID)
   const target = items?.find(function (item) {
     return item.id === id
   })
   if (!items || !target) return false
   // 先发、成功才播掉：以前先删再发，一旦被拒（没模型 / 线程未启用）这条就凭空消失了
-  if (!sendTextKeepingDraft(aui, target.text)) return false
+  const entry = { text: target.text, parts: parseQueueAttachments(target.attachments) }
+  if (!(await sendQueueEntry(aui, entry))) return false
   pendingBySession.set(
     sessionID,
     items.filter(function (item) {
@@ -257,16 +387,25 @@ function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): b
  * 用户看到承诺、等不到消息。现在每轮结束发一条，发完线程重新进入运行；
  * 下一轮结束时再发下一条，队列就这样自己走完（`markThreadRunning` 负责放行）。
  */
-function pumpPendingQueue(aui: AssistantClient, sessionID: string): boolean {
+/** 正在补发的会话：附件挂载是异步的，别让同一会话的两条补发挤进来的 */
+const pumpingSessions = new Set<string>()
+
+async function pumpPendingQueue(aui: AssistantClient, sessionID: string): Promise<boolean> {
   if (aui.thread.getState().isRunning) return false
   if (pumpArmed.get(sessionID) === false) return false
+  if (pumpingSessions.has(sessionID)) return false
   const head = pendingBySession.get(sessionID)?.[0]
   if (!head) return false
-  const sent = sendPendingItem(aui, sessionID, head.id)
-  // 真发出去了才等线程跑起来（markThreadRunning）再放下一条；被拒时保持放行，
-  // 用户把入口修好（启用对话 / 选模型）后还能接着补
-  if (sent) pumpArmed.set(sessionID, false)
-  return sent
+  pumpingSessions.add(sessionID)
+  try {
+    const sent = await sendPendingItem(aui, sessionID, head.id)
+    // 真发出去了才等线程跑起来（markThreadRunning）再放下一条；被拒时保持放行，
+    // 用户把入口修好（启用对话 / 选模型）后还能接着补
+    if (sent) pumpArmed.set(sessionID, false)
+    return sent
+  } finally {
+    pumpingSessions.delete(sessionID)
+  }
 }
 
 function dropPendingItem(sessionID: string, id: string): void {
@@ -338,21 +477,25 @@ function useComposerQueuePersist(
   )
 }
 
-export type { ComposerQueueRow, RestoredQueueItem }
+export type { ComposerQueueRow, QueueAttachment, RestoredQueueItem }
 export {
   QUEUE_DEBOUNCE_MS,
+  addQueueAttachments,
   dropPendingItem,
   markThreadRunning,
   movePendingItem,
+  parseQueueAttachments,
   persistComposerQueue,
+  queueItemAttachments,
   pumpPendingQueue,
+  queueAttachmentLabel,
   readComposerQueue,
   readPendingQueue,
   reconcileComposerQueue,
   replaceComposerQueue,
   resetComposerQueueState,
   sendPendingItem,
-  sendTextKeepingDraft,
+  sendQueueEntry,
   subscribePendingQueue,
   textOfQueueItem,
   useComposerQueuePersist

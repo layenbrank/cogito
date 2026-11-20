@@ -25,6 +25,7 @@ import type { AssistantClient, QueueItemState } from '@assistant-ui/react'
 import {
   QUEUE_DEBOUNCE_MS,
   dropPendingItem,
+  parseQueueAttachments,
   persistComposerQueue,
   readComposerQueue,
   readPendingQueue,
@@ -57,11 +58,19 @@ function queueItem(id: string, text: string): QueueItemState {
   }
 }
 
+interface FakeAttachment {
+  type: string
+  name: string
+  content?: unknown[]
+}
+
 interface FakeAui {
   composer: {
     setText: Mock<(text: string) => void>
     send: ReturnType<typeof vi.fn>
-    getState: () => { text: string }
+    addAttachment: ReturnType<typeof vi.fn>
+    clearAttachments: ReturnType<typeof vi.fn>
+    getState: () => { text: string; attachments: FakeAttachment[] }
   }
   thread: { getState: () => { isRunning: boolean } }
 }
@@ -69,20 +78,30 @@ interface FakeAui {
 function makeAui(
   isRunning: boolean,
   draft = '',
-  options: { sendRejects?: boolean } = {}
+  options: { sendRejects?: boolean; draftAttachments?: FakeAttachment[] } = {}
 ): FakeAui {
-  // 和真实 composer 一致：`setText` 写进草稿、`send()` 发出后清空；被闸门挡下时原文不动
-  const state = { text: draft }
+  // 和真实 composer 一致：`setText` 写进草稿、`send()` 发出后清空正文与附件；被闸门挡下时原样不动
+  const state = { text: draft, attachments: [...(options.draftAttachments ?? [])] }
   return {
     composer: {
       setText: vi.fn(function (text: string) {
         state.text = text
       }),
+      addAttachment: vi.fn(function (input: FakeAttachment) {
+        state.attachments.push(input)
+        return Promise.resolve()
+      }),
+      clearAttachments: vi.fn(function () {
+        state.attachments = []
+        return Promise.resolve()
+      }),
       send: vi.fn(function () {
-        if (!options.sendRejects) state.text = ''
+        if (options.sendRejects) return
+        state.text = ''
+        state.attachments = []
       }),
       getState: function () {
-        return { text: state.text }
+        return { text: state.text, attachments: state.attachments }
       }
     },
     thread: {
@@ -261,7 +280,7 @@ describe('composer 队列：回灌与待发送', function () {
     const aui = makeAui(false)
     await reconcileComposerQueue(asAui(aui), 's1', { isRunning: false })
 
-    sendPendingItem(asAui(aui), 's1', 'r1')
+    await sendPendingItem(asAui(aui), 's1', 'r1')
 
     expect(aui.composer.setText).toHaveBeenCalledWith('第一条')
     expect(aui.composer.send).toHaveBeenCalledTimes(1)
@@ -275,7 +294,7 @@ describe('composer 队列：回灌与待发送', function () {
     const aui = makeAui(false, '', { sendRejects: true })
     await reconcileComposerQueue(asAui(aui), 's1', { isRunning: false })
 
-    expect(sendPendingItem(asAui(aui), 's1', 'r1')).toBe(false)
+    await expect(sendPendingItem(asAui(aui), 's1', 'r1')).resolves.toBe(false)
     expect(readPendingQueue('s1').map(function (item) { return item.id })).toEqual(['r1', 'r2'])
   })
 
@@ -316,5 +335,106 @@ describe('composer 队列：回灌与待发送', function () {
     expect(readPendingQueue('s1').map(function (item) { return item.text })).toEqual(['s1 的'])
     expect(readPendingQueue('s2').map(function (item) { return item.text })).toEqual(['s2 的'])
     expect(readPendingQueue(null)).toEqual([])
+  })
+})
+
+/**
+ * 附件（图片 / 文件）在队列里最容易丢：落库只挑 `file` part、回灌只 `setText` 不挂附件。
+ * 这组用例把两头都锁住，省得下次重构又只剩正文。
+ */
+describe('composer 队列：附件不能丢', function () {
+  beforeEach(function () {
+    invokeMock.mockClear()
+    resetComposerQueueState()
+  })
+
+  const imagePart = { type: 'image', image: 'data:image/png;base64,AAA', filename: 'shot.png' }
+  const filePart = { type: 'file', filename: '@apps/a.ts', mimeType: 'text/plain', data: '' }
+
+  it('图片 part 也进 attachments（以前只挑 file，截图整类被丢）', async function () {
+    const item = {
+      id: 'q1',
+      prompt: '',
+      parts: [{ type: 'text', text: '看图' }, imagePart, filePart]
+    } as unknown as QueueItemState
+
+    await persistComposerQueue('s1', [item])
+
+    const [, args] = invokeMock.mock.calls.at(-1) as [string, InvokePayload]
+    expect(JSON.parse(args.params.items?.[0]?.attachments ?? '[]')).toEqual([imagePart, filePart])
+  })
+
+  it('坏 JSON 当没有附件处理，别让一条脏数据毁掉整队回灌', function () {
+    expect(parseQueueAttachments('not-json')).toEqual([])
+    expect(parseQueueAttachments('{}')).toEqual([])
+    expect(parseQueueAttachments(null)).toEqual([])
+  })
+
+  it('回灌（会话在跑）：先挂附件、再 send', async function () {
+    invokeMock.mockImplementation(function () {
+      return Promise.resolve([
+        { ...row('r1', '看图', 0), attachments: JSON.stringify([imagePart]) }
+      ])
+    })
+    const aui = makeAui(true)
+
+    await reconcileComposerQueue(asAui(aui), 's1', { isRunning: true })
+
+    expect(aui.composer.addAttachment).toHaveBeenCalledWith({
+      type: 'image',
+      name: 'shot.png',
+      content: [imagePart]
+    })
+    // 顺序有意义：附件没挂上就 send，发出去的就是纯文字
+    expect(aui.composer.addAttachment.mock.invocationCallOrder[0]).toBeLessThan(
+      aui.composer.send.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('补发「待发送」：附件也一起发出去', async function () {
+    invokeMock.mockImplementation(function () {
+      return Promise.resolve([
+        { ...row('r1', '上次那张图', 0), attachments: JSON.stringify([imagePart]) }
+      ])
+    })
+    const aui = makeAui(false)
+    await reconcileComposerQueue(asAui(aui), 's1', { isRunning: false })
+
+    await sendPendingItem(asAui(aui), 's1', 'r1')
+
+    expect(aui.composer.addAttachment).toHaveBeenCalledWith({
+      type: 'image',
+      name: 'shot.png',
+      content: [imagePart]
+    })
+    expect(readPendingQueue('s1')).toEqual([])
+  })
+
+  it('草稿里的附件不会被补发的那条代发出去，发完还挂回去', async function () {
+    invokeMock.mockImplementation(function () {
+      return Promise.resolve([
+        { ...row('r1', '排队那条', 0), attachments: JSON.stringify([filePart]) }
+      ])
+    })
+    const draftAttachment = {
+      type: 'file',
+      name: '我正在写的.txt',
+      content: [{ type: 'text', text: 'x' }]
+    }
+    const aui = makeAui(false, '草稿正文', { draftAttachments: [draftAttachment] })
+    await reconcileComposerQueue(asAui(aui), 's1', { isRunning: false })
+
+    await sendPendingItem(asAui(aui), 's1', 'r1')
+
+    // 发之前先摘下草稿附件（否则它们会被当成这一条的附件发出去）
+    expect(aui.composer.clearAttachments).toHaveBeenCalled()
+    // 发完按 content 原样挂回去
+    expect(aui.composer.addAttachment).toHaveBeenCalledWith({
+      type: 'file',
+      name: '我正在写的.txt',
+      content: [{ type: 'text', text: 'x' }]
+    })
+    // 正文草稿也不能被吞掉
+    expect(aui.composer.getState().text).toBe('草稿正文')
   })
 })
