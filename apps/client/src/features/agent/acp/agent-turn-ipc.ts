@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 import type { ChatStreamEvent } from '@cogito/chat/ports'
 
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 import { CHANNELS } from '@/shared/ipc/channels'
 
 interface FollowR {
@@ -14,9 +15,12 @@ interface FollowR {
   status: 'running' | 'done' | 'missing'
 }
 
+/**
+ * 能不能调 `agentTurn:*`：嵌套预览壳（右栏自载）有 Tauri 运行时，但没有 IPC
+ * （不配 capability `remote.urls`），一律当「不可用」走内存兜底。
+ */
 function hasTauriRuntime(): boolean {
-  if (typeof window === 'undefined') return false
-  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window
+  return canUseTauriIpc()
 }
 
 async function ensureAgentTurn(threadId: string): Promise<FollowR | null> {

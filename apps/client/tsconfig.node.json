@@ -2,6 +2,7 @@
   "include": [
     "vite.config.*",
     "vite.chunk.*",
+    "vite.preview-wall.*",
     "vitest.config.*",
     "cypress.config.*",
     "nightwatch.conf.*",

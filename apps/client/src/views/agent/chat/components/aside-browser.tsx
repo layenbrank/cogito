@@ -752,19 +752,22 @@ function AsideBrowser() {
             className="size-3.5"
           />
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="打开本应用"
-          title="在此面板打开本应用（嵌入调试，无 Tauri IPC）"
-          className="text-muted-foreground hover:text-foreground size-6 shrink-0"
-          onClick={openSelfApp}>
-          <Icon
-            icon="lucide:app-window"
-            className="size-3.5"
-          />
-        </Button>
+        {/* 只在 dev：正式包的右栏是浏览器，不自载本应用的样子 */}
+        {import.meta.env.DEV ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="打开本应用"
+            title="在此面板打开本应用（嵌入调试，无 Tauri IPC）"
+            className="text-muted-foreground hover:text-foreground size-6 shrink-0"
+            onClick={openSelfApp}>
+            <Icon
+              icon="lucide:app-window"
+              className="size-3.5"
+            />
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"

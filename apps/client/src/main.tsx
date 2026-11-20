@@ -14,7 +14,11 @@ import {
   watchIdleClosed
 } from '@/features/terminal/agent-tabs.ts'
 import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
-import { adoptShellMode } from '@/features/window/shell-mode'
+import { adoptShellMode, isEmbeddedShell } from '@/features/window/shell-mode'
+import {
+  adoptMirrorWallSnapshot,
+  startPublishingMirrorWall
+} from '@/features/window/preview-snapshot'
 import { installLogBridge } from '@/lib/diagnostics/log-bridge.ts'
 import { installLongTaskMonitor } from '@/lib/perf/longtask.ts'
 import { installBrowserChipLabels } from '@/features/browser/chip-labels'
@@ -46,13 +50,19 @@ addCollection(ProviderLogos)
 
 // 顺序要紧：先把 console/onerror 送进 Rust 日志，再装异常上报 ——
 // 这样上报自身打的 warn 也会落在 logs/cogito.log 里
-installLogBridge()
+//
+// 但这两件事都要走 Tauri 命令（`diagnostics:append` / `plugin:http|fetch`），
+// 右栏自载的嵌套壳没有任何 IPC，装了只会整片撞 ACL。所以先认壳模式再决定：
+// 嵌套壳里日志留在控制台、不接 Rust 日志桥，也不做异常上报。
+adoptShellMode()
+const isEmbeddedShellMode = isEmbeddedShell()
+if (!isEmbeddedShellMode) {
+  installLogBridge()
+  installExceptionReporting()
+}
 installBrowserChipLabels()
 // 长任务观测：dev 打 warn、生产只计数（window.__cogitoPerf），必须在首屏之前装
 installLongTaskMonitor()
-installExceptionReporting()
-// 右栏自载 / ?embedded=1：尽早打标，避免后续 bootstrap 误当主窗
-adoptShellMode()
 
 const rootElement = document.getElementById('root') as HTMLElement
 const appRoot = createRoot(rootElement, {
@@ -71,7 +81,30 @@ const appRoot = createRoot(rootElement, {
   identifierPrefix: IDENTIFIER_PREFIX
 })
 
+function renderApp() {
+  appRoot.render(
+    <ErrorBoundary
+      boundaryId="root"
+      title="界面加载失败">
+      <App />
+    </ErrorBoundary>
+  )
+}
+
 async function bootstrap() {
+  // 右栏自载 / `?embedded=1`：这是**降级壳**。
+  // 右栏子 webview 不配 capability `remote.urls`（见 src-tauri/src/browser/mod.rs 的
+  // 安全边界），一条 Tauri 命令都调不通。主窗那套 bootstrap（persist / Keyring /
+  // 外观 / 终端 / 字典 / 崩溃补报）在这里只会刷屏 ACL 报错，所以整段跳过 ——
+  // 界面照常渲染，只是不加载 IPC 数据（镜像磁贴、会话、终端这些都来自 Rust）。
+  if (isEmbeddedShellMode) {
+    // 墙面数据走「主窗写同源 localStorage、这里只读」的桥（见 preview-snapshot.ts）：
+    // 没有 IPC 也能看到磁贴，但任何写操作仍会失败（预览不该能改库）。
+    adoptMirrorWallSnapshot()
+    renderApp()
+    return
+  }
+
   try {
     await ensurePersist()
     await ensureSecrets()
@@ -101,22 +134,24 @@ async function bootstrap() {
     watchActiveTenant()
     // 知识库：全局注册 ACP ingest 分析器 + agent 入队桥（不依赖知识库页是否打开）
     registerIngestAnalyzer(analyzeWithAcp)
-    void bootstrapIngestEnqueueBridge()
+    void bootstrapIngestEnqueueBridge().catch(function (error: unknown) {
+      console.warn('[bootstrap] ingest 入队桥安装失败', error)
+    })
     // 状态字典：本地 seed 冷启动；有登录态再主动拉远端（无设置页，用户不可见/不可配）
     const dict = useDictStore.getState()
     void dict.bootstrap().then(function () {
       return dict.syncRemote()
     })
 
+    // 右栏自载预览没有 IPC：把墙面快照发布到同源 localStorage / dev 中继，嵌套壳只读渲染
+    // （挂在这里而不是路由里 —— 不依赖 AppHost 是否已经挂载）。
+    // 发布器内部只认真主窗：overlay 窗也跑这段 bootstrap，但它从不初始化镜像
+    // store，发出去的是一面空墙，会把预览端盖成空的。
+    startPublishingMirrorWall()
+
     // 最外层边界：`App` 函数体里的 hook（useKeyboard / useCaptureCommands /
     // useAutomationRunner）在 App 内部，只有从外面再包一层才能兜住它们的抛错。
-    appRoot.render(
-      <ErrorBoundary
-        boundaryId="root"
-        title="界面加载失败">
-        <App />
-      </ErrorBoundary>
-    )
+    renderApp()
 
     // 崩溃补报放在首屏之后：读磁盘 + 发 HTTP，绝不能拖慢启动
     void reportPendingCrashes()

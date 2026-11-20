@@ -66,8 +66,8 @@ JWT 落在 `%APPDATA%\com.cogito.client.dev\cogito\jwt`，按需复制或重新�
 - **截屏全局热键**：OS 只允许一个进程注册同一个键。正式包先起时，dev 里设热键会失败
   （前端会走 fallback 链并给出提示）。调试截屏请只留一个实例，或两边设不同的键。
 - **托盘图标**：两个图标，靠 tooltip（`cogito` / `cogito (dev)`）区分。
-- **剪藏扩展 / 外部调用**：默认打到 `19828`（正式包）。要指向 dev，改用到 `19829`，
-  dev 的 `/health`、`/api/v1/*` 都在这上面。
+- **剪藏扩展 / 外部调用**：先探测 `19828`（正式包），没有响应再试 `19829`（隔离 dev），并记住上次成功的端口。
+  dev 的 `/health`、`/api/v1/*` 都在 `19829` 上。
 
 ## 两种模式切换会重新编译
 
@@ -82,3 +82,25 @@ identifier 是编译进二进制的（`generate_context!`），所以 `pnpm dev`
   `COGITO_DEV_ISOLATED`（或反过来），改用 `dev:isolated`。
 - 想知道当前进程到底落在哪个目录：设置 → 诊断里的 `identifier` / `appDataDir`
   （`diagnostics:capabilities` 回报的是**当前实例**的值）。
+
+## 右栏自载本应用 / dev server 预览墙：只有 dev 有
+
+嵌套预览（右栏打开 `http://localhost:8200`、或地址带 `?embedded=1`）是**开发手段**，
+正式包里整块被 `import.meta.env.DEV` 剪掉（`src/features/window/shell-mode.ts` 的
+`EMBEDDED_SUPPORTED`）：「打开本应用」按钮不渲染，发布器 / 快照桥 / 兜底提示都不执行。
+正式包的右栏就是浏览器，不自载本应用。
+
+dev 侧看到真磁贴有两条通道（都只读）：
+
+| 场景 | 通道 |
+| ---- | ---- |
+| 在 **dev 实例**的右栏打开本应用（同 profile + 同 origin） | 主窗写同源 `localStorage`（`cogito:preview:mirror-wall`），子 webview 读 + `storage` 事件 |
+| 在**别的实例 / 普通浏览器**打开 `http://localhost:8200` | vite 端点 `GET/POST /__cogito/preview-wall`（`vite.preview-wall.ts`，仅 `apply: "serve"`） |
+
+两条通道的数据都来自**主窗的 store**（`preview-snapshot.ts` 的 `buildSnapshot`，即正常
+读取路径：集合成员已剔除、`background` / `backdrop` 已由实体反序列化）。中继不读库、
+不做额外数据处理 —— 直读 SQLite 的裸行与 IPC 语义不一致，自调试时会把「另一面墙」
+误判成 bug。所以没有主窗在跑时，`?embedded=1` 是空墙（overview 底部有兜底提示）。
+
+预览端没有任何 IPC：新建镜像、登录、终端这些写操作在自载页里一定失败 —— 那是能力表的
+边界（见 `src-tauri/src/browser/mod.rs`），不是 bug。

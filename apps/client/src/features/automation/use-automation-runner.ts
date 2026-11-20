@@ -8,10 +8,13 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useEffect } from 'react'
 
 import { installAutomationRunner } from '@/features/automation/runner'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 import { reportCaught } from '@/utils/exception-report'
 
 function useAutomationRunner(): void {
   useEffect(function () {
+    // 嵌套预览壳没有 IPC：装监听只会拿到 `plugin:event|listen not allowed by ACL`
+    if (!canUseTauriIpc()) return
     let unlisten: UnlistenFn | null = null
     let disposed = false
 

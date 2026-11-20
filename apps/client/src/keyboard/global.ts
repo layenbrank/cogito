@@ -16,11 +16,11 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
+import { isMainShell } from '@/features/window/shell-mode'
 import { toAcceleratorText, validateBinding } from '@/keyboard/binding'
 import { runCommand } from '@/keyboard/commands'
 import { GLOBAL_SHORTCUTS, resolveBinding, SHORTCUT_COMMAND } from '@/keyboard/definitions'
@@ -78,7 +78,10 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 function isMainWindow(): boolean {
   // 环境判定与 `features/window/appearance.ts` 同一套；非 Tauri 环境下不碰全局键
   if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return false
-  return getCurrentWindow().label === MAIN_WINDOW_LABEL
+  // 判定统一走 shell-mode：右栏标签页是挂在主窗上的子 webview，它的
+  // `getCurrentWindow().label` 也是 `main`，只看 window label 会在自载页里
+  // 把全局键 / 设置同步整套跑一遍（然后整片 `not allowed by ACL`）。
+  return isMainShell()
 }
 
 function onGlobalPressed(id: string, definition: GlobalShortcutDefinition): (event: { state?: string }) => void {

@@ -9,6 +9,7 @@ import AutoImport from 'unplugin-auto-import/vite'
 import { defineConfig, loadEnv, type ConfigEnv, type UserConfig } from 'vite'
 import { compression } from 'vite-plugin-compression2'
 import { chunks } from './vite.chunk.ts'
+import { previewWallRelay } from './vite.preview-wall.ts'
 import { chunkReport } from './vite.chunk.report.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -57,6 +58,9 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
   return {
     envDir: resolve(fileURLToPath(new URL('.', import.meta.url))),
     plugins: [
+      // 右栏自载页没有 IPC：dev 期把墙面快照中继给打开本 dev server 的页面（仅 serve）。
+      // 端点：GET/POST /__cogito/preview-wall（内存态，重启即清空）。
+      previewWallRelay(),
       // 构建体检：首屏关键路径 + 各 chunk 构成 + 体积预算断言 → dist/bundle-report.{txt,json}
       chunkReport(),
       tailwindcss(),

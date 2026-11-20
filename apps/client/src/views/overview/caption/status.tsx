@@ -14,6 +14,7 @@ import { listen } from '@tauri-apps/api/event'
 import { cn } from 'cn'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 import {
   autoCheckUpdate,
@@ -37,6 +38,8 @@ function useCorexState() {
 
   /** 只读一次就绪状态；不同步 setState（effect 里调用也不产生级联渲染） */
   const check = useCallback(function () {
+    // 嵌套预览壳没有 IPC：别把「调不通」当成「corex 未就绪」挂在标题栏上
+    if (!canUseTauriIpc()) return
     void invoke<boolean | null>(CHANNELS.IPC.READY)
       .then(function (ready) {
         updateState(ready === false ? 'missing' : 'ready')
@@ -57,6 +60,7 @@ function useCorexState() {
 
   useEffect(
     function () {
+      if (!canUseTauriIpc()) return
       let unlisten: (() => void) | undefined
       let disposed = false
 
@@ -92,6 +96,7 @@ function CaptionStatus() {
 
   // 静默检查一次：有更新就让芯片出现，由用户决定什么时候装
   useEffect(function () {
+    if (!canUseTauriIpc()) return
     const timer = window.setTimeout(function () {
       void autoCheckUpdate()
     }, AUTO_CHECK_DELAY_MS)
