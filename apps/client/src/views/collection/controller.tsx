@@ -109,15 +109,6 @@ function Controller(props: ControllerProps) {
                     }
                   : undefined
               }
-              onTrash={
-                props.onRemove
-                  ? function (event) {
-                      event.stopPropagation()
-                      event.preventDefault()
-                      props.onRemove?.(value.id)
-                    }
-                  : undefined
-              }
             />
           )
         }
@@ -131,15 +122,6 @@ function Controller(props: ControllerProps) {
             direction={direction}
             // 网址仍双击外跳；选贴模式才拦截
             onPrevent={props.onPrevent}
-            onTrash={
-              props.onRemove
-                ? function (event) {
-                    event.stopPropagation()
-                    event.preventDefault()
-                    props.onRemove?.(value.id)
-                  }
-                : undefined
-            }
           />
         )
       })}

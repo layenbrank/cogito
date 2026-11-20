@@ -18,7 +18,6 @@ interface SectionProps extends MagneticTile {
   size: MagneticTile.Size
   shape: MagneticTile.Shape
   direction: MagneticTile.Direction
-  onTrash?: MouseEventHandler<HTMLElement>
   /** 覆盖默认双击打开；传入则不再调用 activateTile */
   onDoubleClick?: MouseEventHandler<HTMLElement>
 }
