@@ -64,6 +64,9 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 
 - **拾取**：`setEmitTouchEventsForMouse` 会把鼠标事件合成 touch，hover 态失效 → `Overlay` 高亮不跟手。
   所以 `picker::start()` 先 `emulate::suspend_mouse()` 关掉合成，`picker::stop()` 再按设备 `resume_mouse()`。
+  **只在真有设备时才发这一趟**（`emulate::has_device`）：桌面态本来就没有这条覆盖，多发一次只是
+  让「点按钮 → 高亮跟手」多等一个 CDP 往返。拾取链路的延迟预算见
+  [browser-picker.md](./browser-picker.md)。
 - **截图**：`Page.captureScreenshot` 走 CSS px，元素 clip 不用按 fit 折算。DPR 3 时整页 jpeg 会大三四倍，
   `agent::screenshot` 在超过阈值时按 CSS px 再拍一张，**只有真的更小才采用**（用体积当判据，不赌 `clip.scale` 的语义）。
 - **网络**：与设备无关 —— 只在 UA 覆盖后会看到服务端按移动端下发的内容，这正是模拟的本意。
@@ -132,10 +135,10 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
   headless Edge（`--headless=new --remote-debugging-port=9333`）+ `Target.attachToTarget{flatten:true}` +
   本地 401 服务（`/page` 返回一段会 `fetch('/api/x')` 的 HTML，其余一律 401），同一连接跑两遍：
 
-  | 跑次       | `Fetch.enable` 入参                                            | `requestPaused` | `/api/x` 发出 | 服务端命中 |
-  | ---------- | -------------------------------------------------------------- | --------------- | ------------- | ---------- |
-  | `empty`    | `{"patterns":[]}`                                              | `0`             | `0`           | `3`        |
-  | `wildcard` | `{"patterns":[{"urlPattern":"*","requestStage":"Request"}]}`    | `3`             | `1`           | `3`        |
+  | 跑次       | `Fetch.enable` 入参                                          | `requestPaused` | `/api/x` 发出 | 服务端命中 |
+  | ---------- | ------------------------------------------------------------ | --------------- | ------------- | ---------- |
+  | `empty`    | `{"patterns":[]}`                                            | `0`             | `0`           | `3`        |
+  | `wildcard` | `{"patterns":[{"urlPattern":"*","requestStage":"Request"}]}` | `3`             | `1`           | `3`        |
 
   `VERDICT: empty_array_intercepts_nothing=true explicit_pattern_intercepts=true`。
   这同时排除了「事件订阅通道不通」这一备选原因：同一连接、同一 target，只把 `patterns`
@@ -195,20 +198,20 @@ pnpm dev:client
 node tmp/device-acceptance.mjs --url http://127.0.0.1:<port> --token <token>
 ```
 
-| #   | 项           | 判据                                                                             | 方式 |
-| --- | ------------ | -------------------------------------------------------------------------------- | ---- |
+| #   | 项           | 判据                                                                                | 方式 |
+| --- | ------------ | ----------------------------------------------------------------------------------- | ---- |
 | 1   | P0 通道      | 工具目录有 `cogito_browser_device`；切 iPhone 后 `innerWidth=393 / innerHeight=852` | 自动 |
-| 2   | 断点         | 393 CSS px 下页面命中 `(max-width: 480px)`                                       | 自动 |
-| 3   | 移动语义     | `pointer: coarse` + `hover: none`，`dpr=3`                                       | 自动 |
-| 4   | 触摸         | `ontouchstart` / `maxTouchPoints > 0`                                            | 自动 |
-| 5   | 拾取         | 模拟态开拾取，鼠标划过高亮跟手（`suspend_mouse` 生效）                           | 手工 |
+| 2   | 断点         | 393 CSS px 下页面命中 `(max-width: 480px)`                                          | 自动 |
+| 3   | 移动语义     | `pointer: coarse` + `hover: none`，`dpr=3`                                          | 自动 |
+| 4   | 触摸         | `ontouchstart` / `maxTouchPoints > 0`                                               | 自动 |
+| 5   | 拾取         | 模拟态开拾取，鼠标划过高亮跟手（`suspend_mouse` 生效）                              | 手工 |
 | 6   | agent 视角   | 模拟态下 `readback` 与 `cogito_browser_screenshot` 都拿得到                         | 自动 |
-| 7   | 导航保持     | 硬导航后视口仍是 393×852（`on_page_load` 的 replay）                             | 自动 |
-| 8   | 多 tab       | 新标签页不继承上一个 tab 的设备                                                  | 自动 |
-| 9   | 退出干净     | `off` 后视口 / `pointer` / UA 全部复原                                           | 自动 |
-| 10  | 菜单浮层     | 设备菜单展开不被面板裁切，选中态与角标一致                                       | 手工 |
-| 11  | 暂停帧不变形 | 切设备后页面按新尺寸重排，不出现拉伸 / 黑边                                      | 手工 |
-| 12  | 400px 工具栏 | 右栏拉窄到 400px：工具栏不换行、角标不重叠                                       | 手工 |
+| 7   | 导航保持     | 硬导航后视口仍是 393×852（`on_page_load` 的 replay）                                | 自动 |
+| 8   | 多 tab       | 新标签页不继承上一个 tab 的设备                                                     | 自动 |
+| 9   | 退出干净     | `off` 后视口 / `pointer` / UA 全部复原                                              | 自动 |
+| 10  | 菜单浮层     | 设备菜单展开不被面板裁切，选中态与角标一致                                          | 手工 |
+| 11  | 暂停帧不变形 | 切设备后页面按新尺寸重排，不出现拉伸 / 黑边                                         | 手工 |
+| 12  | 400px 工具栏 | 右栏拉窄到 400px：工具栏不换行、角标不重叠                                          | 手工 |
 
 夹具是 `tmp/device-fixture.html` / `tmp/device-fixture-b.html`（把视口事实 print 到 `#probe`，
 第二页专门验硬导航）。

@@ -119,6 +119,7 @@ fn prune_missing_webviews(app: &AppHandle, state: &BrowserState) -> bool {
     for label in &removed {
         log::warn!("browser: 清理孤儿 tab（webview 已不在）：{label}");
         super::picker::dispose_label(app, label);
+        super::picker::forget(label);
         super::network::forget(label);
         super::history_sync::forget(label);
         super::toolbar_sync::forget(label);
@@ -358,6 +359,9 @@ fn open_inner(
         super::history_sync::install(app, &label);
         // 前进/后退灰态 + 实时 document.title（WebView2 原生事件）
         super::toolbar_sync::install(app, &label);
+        // 元素拾取的准备工作（事件订阅 + DOM/Overlay 域）在这里做，别等用户点按钮：
+        // 那三件事串起来能吃掉 1~2 秒，见 `picker::warm`
+        super::picker::warm(app, &label);
         emit_tabs_changed(app, state);
         return Ok(tab);
     }
@@ -371,6 +375,9 @@ pub fn close(app: &AppHandle, state: &BrowserState, label: &str) -> Result<(), S
         return Err(format!("没有这个 tab：{label}"));
     };
     super::picker::dispose_label(app, &tab.label);
+    // webview 没了，事件接收器与已开的域也一起没意义：账本要跟着清，否则 UUID
+    // label 一条条攒下去
+    super::picker::forget(&tab.label);
     if let Some(webview) = app.get_webview(&tab.label) {
         if let Err(error) = webview.close() {
             log::warn!("browser: 关闭 webview 失败（{}）: {error}", tab.label);

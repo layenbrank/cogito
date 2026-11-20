@@ -639,6 +639,15 @@ fn device_of(app: &AppHandle, label: &str) -> Option<DeviceProfile> {
     state.tab(label)?.device
 }
 
+/// 这个 tab 是否开着设备模拟。
+///
+/// 拾取用它决定「要不要临时关掉鼠标 → touch 合成」：桌面态本来就没有这条覆盖，
+/// 多发一趟 CDP 只会让「点按钮 → 高亮跟手」又多等一个往返（见 `picker::start`）。
+#[must_use]
+pub fn has_device(app: &AppHandle, label: &str) -> bool {
+    device_of(app, label).is_some()
+}
+
 /// 拾取开始：临时关掉鼠标→touch 合成，否则 hover 高亮不跟手
 /// 直接设置「鼠标事件是否合成 touch」。
 ///
