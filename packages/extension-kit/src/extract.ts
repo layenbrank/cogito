@@ -23,7 +23,8 @@ function readPageSnapshot(): PageSnapshot {
 }
 
 /**
- * 对齐旧 `content.js`：去掉导航和脚本后再收正文。该文件以前没有登记进 manifest。
+ * 去掉导航和脚本后再收正文。
+ * 只抽取、不投递（`MESSAGE_EXTRACT`），弹窗流程用的是 `readPageSnapshot`。
  */
 function readArticleExtract(): ArticleExtract {
   const title = (document.title || '').trim()

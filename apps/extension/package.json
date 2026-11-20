@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "run-s build:core build:post",
+    "build": "run-s build:core build:clip build:post",
     "build:core": "run-p type-check \"build-only {@}\" --",
+    "build:clip": "pnpm --filter @cogito/clipper build",
     "build:post": "node --experimental-strip-types scripts/build-suffix.ts",
     "build-only": "vite build && vite build --config vite.worker.config.ts",
     "type-check": "tsc --build",
@@ -21,8 +22,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@cogito/clipper": "workspace:*",
     "@cogito/design": "workspace:*",
+    "@cogito/extension-kit": "workspace:*",
     "@cogito/shared": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "clsx": "catalog:",

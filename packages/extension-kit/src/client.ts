@@ -3,6 +3,12 @@ import { parseHealth } from './payload.ts'
 
 import type { ClientHealth, ClipDelivery, ClipPayload } from './payload.ts'
 
+/**
+ * 端口顺序：**上次答过的那一个排前面**。
+ *
+ * 装了正式包又同时跑 dev 时，两个实例各占一个端口；写死顺序会让剪藏一直打到
+ * 另一个实例的库里去。
+ */
 function orderPorts(preferred: number | null): number[] {
   if (preferred === CLIP_PORT_ISOLATED) return [CLIP_PORT_ISOLATED, CLIP_PORT_RELEASE]
   return [...CLIP_PORTS]

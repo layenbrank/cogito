@@ -64,7 +64,7 @@ raw/sources → Ingest（ACP 两阶段 → parseFileBlocks → 写 wiki + index/
 
 ### 剪藏
 
-`@cogito/clipper` → `127.0.0.1:19828/clip`（隔离 dev 为 `19829`，或 LAN 绑定时局域网 IP）→ `raw/sources` → 入队。新标签扩展把抽取请求交给剪藏扩展，不另写一份 Markdown。
+浏览器扩展（工具栏弹窗，剪藏页由 `apps/clipper` 打包、扩展本体由 `apps/extension`）→ `127.0.0.1:19828/clip`（隔离 dev 为 `19829`，或 LAN 绑定时局域网 IP）→ `raw/sources` → 入队。抽取与投递在 `@cogito/extension-kit`，与新标签墙共用同一个扩展，不再跨扩展互调。
 
 ### PDF
 

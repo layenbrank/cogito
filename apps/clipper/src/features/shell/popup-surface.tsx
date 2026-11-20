@@ -1,37 +1,46 @@
+import {
+  CLIP_PORTS,
+  MESSAGE_CLIP_ACTIVE,
+  STORAGE_CLIP_DELIVERY,
+  formatDelivery,
+  parseDelivery,
+  probeClient
+} from '@cogito/extension-kit'
 import { Button } from '@cogito/design/components/button'
-import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
-import type { ChangeEvent } from 'react'
 
-import { findExtensionId, findPortOrder, writeExtensionId } from '@/features/relay/session.ts'
-import { MESSAGE_CLIP_ACTIVE } from '@/protocol/constants.ts'
-import { probeClient } from '@/protocol/client.ts'
-import { formatDelivery, parseDelivery } from '@/protocol/payload.ts'
+import type { ClientHealth, ClipDelivery } from '@cogito/extension-kit'
 
-import type { ClientHealth } from '@/protocol/payload.ts'
-
+/**
+ * 工具栏弹窗：剪藏当前页到本机知识库。
+ *
+ * 合并成一个扩展后不再需要「填写对方扩展 ID」——页面抽取与投递都在本扩展的
+ * service worker 里（见 `@cogito/extension-kit/relay`），这里只发一条内部消息，
+ * 再读回 worker 落库的上次结果。
+ */
 function PopupSurface() {
   const [health, setHealth] = useState<ClientHealth | null>(null)
-  const [status, setStatus] = useState('')
+  const [delivery, setDelivery] = useState<ClipDelivery | null>(null)
   const [isClipping, setClipping] = useState(false)
-  const [extensionId, setExtensionId] = useState('')
-  const runtimeId = chrome.runtime.id
+  const [status, setStatus] = useState('')
 
   async function refreshClient(): Promise<void> {
-    const ports = await findPortOrder()
-    const next = await probeClient(ports)
+    const next = await probeClient(CLIP_PORTS)
     setHealth(next)
   }
 
   useEffect(function () {
     void refreshClient()
-    void findExtensionId()
-      .then(function (id) {
-        setExtensionId(id)
+    // 上次结果由 worker 落库，弹窗每次打开都复述一遍
+    void chrome.storage.local
+      .get(STORAGE_CLIP_DELIVERY)
+      .then(function (bag) {
+        const stored = bag[STORAGE_CLIP_DELIVERY]
+        if (stored) setDelivery(parseDelivery(stored))
       })
       .catch(function (error: unknown) {
-        console.error('[clipper] 读取对端失败', error)
+        console.error('[clip] 读取上次剪藏失败', error)
       })
   }, [])
 
@@ -41,29 +50,16 @@ function PopupSurface() {
     chrome.runtime.sendMessage({ type: MESSAGE_CLIP_ACTIVE }, function (response: unknown) {
       const lastError = chrome.runtime.lastError
       if (lastError) {
-        console.error('[clipper] 剪藏失败', lastError)
+        console.error('[clip] 剪藏失败', lastError)
         setStatus(lastError.message ?? '失败')
         setClipping(false)
         return
       }
-      setStatus(formatDelivery(parseDelivery(response)))
+      const next = parseDelivery(response)
+      setDelivery(next)
+      setStatus(formatDelivery(next))
       setClipping(false)
       void refreshClient()
-    })
-  }
-
-  function onCopyId(): void {
-    void navigator.clipboard.writeText(runtimeId).catch(function (error: unknown) {
-      console.error('[clipper] 复制扩展 ID 失败', error)
-      setStatus('复制失败')
-    })
-  }
-
-  function onExtensionId(event: ChangeEvent<HTMLInputElement>): void {
-    const value = event.target.value
-    setExtensionId(value)
-    void writeExtensionId(value).catch(function (error: unknown) {
-      console.error('[clipper] 保存对端失败', error)
     })
   }
 
@@ -74,7 +70,9 @@ function PopupSurface() {
         <p className="text-sm text-muted-foreground">把当前页写入知识库原文</p>
       </header>
 
-      <p className="flex items-center gap-2 text-sm" role="status">
+      <p
+        className="flex items-center gap-2 text-sm"
+        role="status">
         <span
           className={clsx('size-2 rounded-full', health ? 'bg-primary' : 'bg-muted-foreground/50')}
           aria-hidden="true"
@@ -91,29 +89,20 @@ function PopupSurface() {
         {isClipping ? '提取中…' : '剪藏当前页'}
       </Button>
 
-      <p className="min-h-5 text-sm whitespace-pre-wrap text-muted-foreground" role="status" aria-live="polite">
-        {status}
+      <p
+        className="min-h-5 text-sm whitespace-pre-wrap text-muted-foreground"
+        role="status"
+        aria-live="polite">
+        {status || (delivery ? formatDelivery(delivery) : '')}
       </p>
 
-      <section className="flex flex-col gap-2 border-t border-border pt-3">
-        <h2 className="text-xs font-medium tracking-wide text-muted-foreground">连接新标签扩展</h2>
-        <p className="truncate font-mono text-xs text-foreground" title={runtimeId}>
-          {runtimeId}
+      {delivery?.title ? (
+        <p
+          className="truncate text-xs text-muted-foreground"
+          title={delivery.url}>
+          上次：{delivery.title}
         </p>
-        <Button type="button" variant="secondary" className="h-11 w-full" onClick={onCopyId}>
-          复制本扩展 ID
-        </Button>
-        <label className="flex flex-col gap-1 text-sm" htmlFor="extension-id">
-          新标签扩展 ID
-          <Input
-            id="extension-id"
-            value={extensionId}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={onExtensionId}
-          />
-        </label>
-      </section>
+      ) : null}
     </main>
   )
 }

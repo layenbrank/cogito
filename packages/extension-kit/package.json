@@ -1,0 +1,19 @@
+{
+  "name": "@cogito/extension-kit",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "浏览器扩展共享层：剪藏协议与投递、页面抽取，以及 service worker 里要装的那一半",
+  "exports": {
+    ".": "./src/index.ts",
+    "./relay": "./src/relay.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "unit": "vitest run"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.24",
+    "vitest": "catalog:"
+  }
+}

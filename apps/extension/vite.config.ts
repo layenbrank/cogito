@@ -93,7 +93,6 @@ export default defineConfig(function ({ mode, command }: ConfigEnv): UserConfig 
       rolldownOptions: {
         input: {
           index: 'index.html',
-          popup: 'popup.html',
           sidepanel: 'sidepanel.html'
         },
         output: {

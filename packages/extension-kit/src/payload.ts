@@ -1,11 +1,11 @@
-import { MESSAGE_CLIP_RESULT } from './constants.ts'
-
+/** 投递给 client 的正文（`POST /clip` 的 body） */
 interface ClipPayload {
   title: string
   url: string
   markdown: string
 }
 
+/** 一次投递的结果：成功带端口与 HTTP 状态，失败带原因 */
 interface ClipDelivery {
   ok: boolean
   status?: number
@@ -16,16 +16,12 @@ interface ClipDelivery {
   port?: number
 }
 
+/** `GET /health` 的回执（只取界面用得到的两个计数） */
 interface ClientHealth {
   ok: true
   port: number
   clipCount?: number
   lastClipAt?: number
-}
-
-interface ClipResultEnvelope {
-  type: typeof MESSAGE_CLIP_RESULT
-  delivery: ClipDelivery
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,26 +59,16 @@ function parseHealth(port: number, body: unknown): ClientHealth {
   }
 }
 
-function parseHealthMessage(value: unknown): ClientHealth | null {
-  if (!isRecord(value) || value.ok !== true) return null
-  if (typeof value.port !== 'number') return null
-  return parseHealth(value.port, value)
-}
-
-function parseClipResult(value: unknown): ClipResultEnvelope | null {
-  if (!isRecord(value) || value.type !== MESSAGE_CLIP_RESULT) return null
-  return { type: MESSAGE_CLIP_RESULT, delivery: parseDelivery(value.delivery) }
-}
-
 function formatDelivery(delivery: ClipDelivery): string {
   if (delivery.ok) return `已发送 (${delivery.status ?? 200})`
   return `失败：${delivery.error || delivery.body || 'unknown'}`
 }
 
+/** 消息分派前的类型守卫：只认带字符串 `type` 的对象 */
 function readMessageType(value: unknown): string | null {
   if (!isRecord(value) || typeof value.type !== 'string') return null
   return value.type
 }
 
-export { formatDelivery, isRecord, parseClipResult, parseDelivery, parseHealth, parseHealthMessage, parsePayload, readMessageType }
-export type { ClientHealth, ClipDelivery, ClipPayload, ClipResultEnvelope }
+export { formatDelivery, isRecord, parseDelivery, parseHealth, parsePayload, readMessageType }
+export type { ClientHealth, ClipDelivery, ClipPayload }

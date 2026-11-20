@@ -268,7 +268,7 @@ catalogs:
       version: 9.6.0
     '@types/react':
       specifier: ^19.2.2
-      version: 19.2.17
+      version: 19.2.18
     '@types/react-dom':
       specifier: ^19.2.2
       version: 19.2.4
@@ -448,7 +448,7 @@ catalogs:
       version: 4.6.4
     zustand:
       specifier: ^5.0.8
-      version: 5.0.16
+      version: 5.0.15
 
 overrides:
   '@electron/rebuild': ^4.2.0
@@ -1222,6 +1222,9 @@ importers:
       '@cogito/design':
         specifier: workspace:*
         version: link:../../packages/design
+      '@cogito/extension-kit':
+        specifier: workspace:*
+        version: link:../../packages/extension-kit
       clsx:
         specifier: 'catalog:'
         version: 2.1.1
@@ -1253,9 +1256,6 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.13)(yaml@2.9.1)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(happy-dom@20.13.2)(jsdom@27.4.0(supports-color@10.2.2))(msw@2.15.0(@types/node@24.13.3)(typescript@6.0.3))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.13)(yaml@2.9.1))
 
   apps/devtools:
     dependencies:
@@ -1305,12 +1305,12 @@ importers:
 
   apps/extension:
     dependencies:
-      '@cogito/clipper':
-        specifier: workspace:*
-        version: link:../clipper
       '@cogito/design':
         specifier: workspace:*
         version: link:../../packages/design
+      '@cogito/extension-kit':
+        specifier: workspace:*
+        version: link:../../packages/extension-kit
       '@cogito/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -1841,6 +1841,15 @@ importers:
         version: 3.5.42(typescript@6.0.3)
 
   packages/eslint-plugin: {}
+
+  packages/extension-kit:
+    devDependencies:
+      '@types/chrome':
+        specifier: ^0.1.24
+        version: 0.1.43
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(happy-dom@20.13.2)(jsdom@27.4.0(supports-color@10.2.2))(msw@2.15.0(@types/node@24.13.3)(typescript@6.0.3))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.13)(yaml@2.9.1))
 
   packages/hooks: {}
 

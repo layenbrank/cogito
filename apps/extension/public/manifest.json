@@ -2,18 +2,15 @@
   "name": "Cogito",
   "version": "0.1.0",
   "manifest_version": 3,
-  "description": "新标签磁贴墙：把常去的网站、时钟和浏览器书签放在同一面墙上。",
+  "description": "新标签磁贴墙（网址、时钟、书签）+ 网页剪藏到本机知识库。",
   "minimum_chrome_version": "128",
-  "permissions": ["storage", "bookmarks", "tabs", "contextMenus", "sidePanel", "favicon"],
+  "permissions": ["storage", "bookmarks", "tabs", "contextMenus", "sidePanel", "favicon", "scripting"],
   "host_permissions": [
     "http://127.0.0.1:19828/*",
     "http://localhost:19828/*",
     "http://127.0.0.1:19829/*",
     "http://localhost:19829/*"
   ],
-  "externally_connectable": {
-    "ids": ["*"]
-  },
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"
