@@ -19,7 +19,9 @@ import {
 import { clsx } from 'clsx'
 import { useState } from 'react'
 
-import type { MagneticTileInput } from '@/features/mirror/store.ts'
+import type { MagneticTileInput } from '@/features/mirror/input.ts'
+import { parseSiteUrl } from '@/features/mirror/url.ts'
+import { findGridSpan } from './layout.ts'
 
 interface TileDialogProps {
   /** 传 null 表示新建 */
@@ -62,6 +64,7 @@ export function TileDialog(props: TileDialogProps) {
   })
   const [error, updateError] = useState<string | null>(null)
   const isEditing = Boolean(props.tile)
+  const needsUrl = !props.tile || props.tile.component === 'navigation'
 
   async function handleSubmit(): Promise<void> {
     const title = values.title.trim()
@@ -71,13 +74,19 @@ export function TileDialog(props: TileDialogProps) {
       updateError('请填写名称')
       return
     }
-    if (!url) {
-      updateError('请填写链接地址')
+    const parsed = url ? parseSiteUrl(url) : null
+    if (needsUrl && !parsed) {
+      updateError(url ? '请填写 http 或 https 链接' : '请填写链接地址')
       return
     }
 
-    await props.onSubmit({ ...values, title, url })
-    props.onOpenChange(false)
+    try {
+      await props.onSubmit({ ...values, title, url: parsed ?? '' })
+      props.onOpenChange(false)
+    } catch (error) {
+      console.error('[tile] 保存失败', error)
+      updateError('保存失败，请重试')
+    }
   }
 
   return (
@@ -87,7 +96,11 @@ export function TileDialog(props: TileDialogProps) {
       <DialogContent className={clsx('sm:max-w-md')}>
         <DialogHeader>
           <DialogTitle>{isEditing ? '编辑磁贴' : '添加磁贴'}</DialogTitle>
-          <DialogDescription>导航磁贴点击后会在新标签页打开链接。</DialogDescription>
+          <DialogDescription>
+            {needsUrl
+              ? '双击磁贴会打开链接，墙面留在这个标签页。'
+              : '可以改名称和占格，链接留空即可。'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className={clsx('grid gap-4 py-2')}>
@@ -103,17 +116,19 @@ export function TileDialog(props: TileDialogProps) {
             />
           </div>
 
-          <div className={clsx('grid gap-2')}>
-            <Label htmlFor="tile-url">链接</Label>
-            <Input
-              id="tile-url"
-              value={values.url}
-              placeholder="https://github.com"
-              onChange={function (event) {
-                updateValues({ ...values, url: event.target.value })
-              }}
-            />
-          </div>
+          {needsUrl ? (
+            <div className={clsx('grid gap-2')}>
+              <Label htmlFor="tile-url">链接</Label>
+              <Input
+                id="tile-url"
+                value={values.url}
+                placeholder="https://github.com"
+                onChange={function (event) {
+                  updateValues({ ...values, url: event.target.value })
+                }}
+              />
+            </div>
+          ) : null}
 
           <div className={clsx('grid grid-cols-3 gap-3')}>
             <div className={clsx('grid gap-2')}>
@@ -195,6 +210,19 @@ export function TileDialog(props: TileDialogProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className={clsx('flex items-center gap-3')}>
+            <div
+              className={clsx(
+                'flex size-16 items-center justify-center bg-card text-xs text-card-foreground',
+                values.shape === 'circle' ? 'rounded-full' : 'rounded-xl'
+              )}>
+              {(values.title.trim() || '磁贴').slice(0, 1)}
+            </div>
+            <p className={clsx('text-sm text-muted-foreground')}>
+              预览占 {findGridSpan(values).w}×{findGridSpan(values).h} 格，拖到墙上可改顺序。
+            </p>
           </div>
 
           {error ? <p className={clsx('text-sm text-destructive')}>{error}</p> : null}

@@ -1,16 +1,11 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@cogito/design/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@cogito/design/components/dropdown-menu'
 import { clsx } from 'clsx'
 import { useState } from 'react'
 
+import { openSite } from '@/features/shell/open-site.ts'
+import { useTileDrag } from './drag-state.ts'
 import { findGridSpan } from './layout.ts'
 import { buildTileStyle } from './style.ts'
+import { TileMenu } from './tile-menu.tsx'
 
 /**
  * 导航磁贴（shadcn 重写）：点击打开链接，悬停出现操作菜单。
@@ -23,20 +18,24 @@ export function NavigationTile(props: {
 }) {
   const [hasBrokenMark, updateBrokenMark] = useState(false)
   const tile = props.tile
+  const drag = useTileDrag(tile.id)
   const span = findGridSpan(tile)
   const initial = tile.title.trim().charAt(0) || '·'
   const showMark = Boolean(tile.mark) && !hasBrokenMark
 
   function handleOpen(): void {
     if (!tile.url) return
-    window.open(tile.url, '_blank', 'noopener')
+    openSite(tile.url, 'here')
   }
 
   return (
     <div
+      {...drag.dragProps}
       className={clsx(
-        'group relative overflow-hidden rounded-[var(--magnetic-tile-round,16px)] border transition-shadow',
-        'border-border/60 shadow-sm hover:shadow-md focus-within:shadow-md focus-within:ring-2 focus-within:ring-ring/40'
+        'group relative overflow-hidden border transition-shadow',
+        'border-border/60 shadow-sm hover:shadow-md focus-within:shadow-md focus-within:ring-2 focus-within:ring-ring/40',
+        tile.shape === 'circle' ? 'rounded-full' : 'rounded-[var(--magnetic-tile-round,16px)]',
+        drag.isOver ? 'ring-2 ring-ring' : null
       )}
       style={{
         ...buildTileStyle(tile),
@@ -67,40 +66,15 @@ export function NavigationTile(props: {
         </span>
       </button>
 
-      <div
-        className={clsx(
-          'absolute right-1.5 top-1.5 opacity-0 transition-opacity',
-          'group-hover:opacity-100 group-focus-within:opacity-100'
-        )}>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="secondary"
-                aria-label={`${tile.title} 操作`}
-              />
-            }>
-            <Icon icon="lucide:ellipsis" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={function () {
-                props.onEdit(tile)
-              }}>
-              编辑
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={function () {
-                props.onRemove(tile)
-              }}>
-              删除
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <TileMenu
+        title={tile.title}
+        onEdit={function () {
+          props.onEdit(tile)
+        }}
+        onRemove={function () {
+          props.onRemove(tile)
+        }}
+      />
     </div>
   )
 }

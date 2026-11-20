@@ -6,14 +6,8 @@ import { resolve } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, loadEnv, type ConfigEnv, type UserConfig } from 'vite'
-import { compression } from 'vite-plugin-compression2'
 import { chunks } from './vite.chunk.ts'
 // import wasm from 'vite-plugin-wasm'
-
-const entries: readonly RegExp[] = [
-  /src[\\/]libs[\\/]service-worker/,
-  /src[\\/]libs[\\/]content-scripts/
-]
 
 const cssRegex: Readonly<RegExp> = /\.css$/i
 const imageRegex: Readonly<RegExp> = /\.(png|jpe?g|gif|svg|webp|ico)$/i
@@ -35,7 +29,7 @@ const noInlineRegexes: readonly RegExp[] = [
   /background.*\.(png|jpe?g)$/i // 背景图片
 ].concat(svgRegex, jsonRegex, videoRegex, audioRegex, fontRegex)
 
-export default defineConfig(function ({ mode, command: _command }: ConfigEnv): UserConfig {
+export default defineConfig(function ({ mode, command }: ConfigEnv): UserConfig {
   const env = loadEnv(mode || 'development', '')
   const interfaces = networkInterfaces()
   const PORT = 1024
@@ -55,6 +49,7 @@ export default defineConfig(function ({ mode, command: _command }: ConfigEnv): U
   console.log('IP ===>', `http://${HOST}:${PORT}`)
 
   return {
+    base: command === 'serve' ? '/' : './',
     plugins: [
       tailwindcss(),
       React({
@@ -62,13 +57,6 @@ export default defineConfig(function ({ mode, command: _command }: ConfigEnv): U
         jsxImportSource: 'react',
         tsDecorators: true,
         plugins: []
-      }),
-      compression({
-        include: /\.(js|mjs|json|css|less|scss|html)$/i,
-        threshold: 10240,
-        deleteOriginalAssets: false,
-        algorithms: ['gzip'],
-        logLevel: 'info'
       })
     ],
     resolve: {
@@ -105,17 +93,12 @@ export default defineConfig(function ({ mode, command: _command }: ConfigEnv): U
       rolldownOptions: {
         input: {
           index: 'index.html',
-          'service-worker': 'src/libs/service-worker.ts',
-          'content-scripts': 'src/libs/content-scripts.ts'
+          popup: 'popup.html',
+          sidepanel: 'sidepanel.html'
         },
         output: {
           chunkFileNames: 'javascript/[name]-[hash].js',
-          entryFileNames(chunk) {
-            const pattern = entries.some((entry) => entry.test(chunk.facadeModuleId ?? ''))
-
-            if (pattern) return `${chunk.name}-[hash].js`
-            return 'javascript/[name]-[hash].js'
-          },
+          entryFileNames: 'javascript/[name]-[hash].js',
           assetFileNames(chunk) {
             if (!chunk.names) return 'assets/[name]-[hash].[ext]'
 
@@ -157,10 +140,13 @@ export default defineConfig(function ({ mode, command: _command }: ConfigEnv): U
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp'
       },
-      https: {
-        key: readFileSync('key.pem'),
-        cert: readFileSync('cert.pem')
-      },
+      https:
+        process.env.EXTENSION_HTTP === '1'
+          ? undefined
+          : {
+              key: readFileSync('key.pem'),
+              cert: readFileSync('cert.pem')
+            },
       proxy: {
         '/bing': {
           target: 'https://cn.bing.com',

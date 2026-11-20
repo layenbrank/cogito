@@ -4,7 +4,7 @@ export interface GridSpan {
   h: number
 }
 
-export function findGridSpan(tile: MagneticTile): GridSpan {
+export function findGridSpan(tile: Pick<MagneticTile, 'size' | 'shape' | 'direction'>): GridSpan {
   const size = Math.max(1, tile.size)
 
   if (tile.shape !== 'rectangle') return { w: size, h: size }

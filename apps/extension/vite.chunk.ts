@@ -25,6 +25,9 @@ export const chunks: CodeSplitting[] = [
     name: 'core-features',
     priority: 80,
     test(id) {
+      // service worker 会引用镜像写入；不要和带 React 的 feature 打进同一个包
+      if (/[\\/]features[\\/]mirror[\\/]/.test(id)) return false
+      if (/[\\/]features[\\/]magnetic-tile[\\/]mark\./.test(id)) return false
       return /[\\/]src[\\/]features[\\/]/.test(id)
     }
   },
@@ -48,7 +51,9 @@ export const chunks: CodeSplitting[] = [
     name: 'utils',
     priority: 40,
     test(id) {
-      return /[\\/]node_modules[\\/](dexie|zod|clsx|@iconify|@tanstack)[\\/]/.test(id)
+      // dexie 同时被 service worker 和页面用，单独成包，避免把 iconify 拖进后台
+      if (/[\\/]node_modules[\\/]dexie[\\/]/.test(id)) return false
+      return /[\\/]node_modules[\\/](zod|clsx|@iconify|@tanstack)[\\/]/.test(id)
     }
   }
 ]

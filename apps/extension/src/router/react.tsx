@@ -1,12 +1,26 @@
 import React, { lazy } from 'react'
 import { createHashRouter, Navigate, type RouteObject } from 'react-router-dom'
 
+import { Frame } from '@/features/shell/frame.tsx'
+
 /**
- * 应用路由表（唯一的 SSOT —— Vue 侧已全部迁完，不再有 catch-all island）。
+ * 新标签页路由。弹窗和侧栏是独立入口，不走这里。
  */
 
 const Overview = lazy(function () {
   return import('@/views/overview/overview.tsx')
+})
+
+const Bookmarks = lazy(function () {
+  return import('@/views/bookmarks/bookmarks.tsx')
+})
+
+const Settings = lazy(function () {
+  return import('@/views/settings/settings.tsx')
+})
+
+const Collection = lazy(function () {
+  return import('@/views/collection/collection.tsx')
 })
 
 const NotFound = lazy(function () {
@@ -16,20 +30,38 @@ const NotFound = lazy(function () {
 const routes: RouteObject[] = [
   {
     path: '/',
-    element: (
-      <Navigate
-        replace
-        to="/overview"
-      />
-    )
-  },
-  {
-    path: '/overview',
-    element: React.createElement(Overview)
-  },
-  {
-    path: '*',
-    element: React.createElement(NotFound)
+    element: React.createElement(Frame),
+    children: [
+      {
+        index: true,
+        element: (
+          <Navigate
+            replace
+            to="/overview"
+          />
+        )
+      },
+      {
+        path: 'overview',
+        element: React.createElement(Overview)
+      },
+      {
+        path: 'bookmarks',
+        element: React.createElement(Bookmarks)
+      },
+      {
+        path: 'settings',
+        element: React.createElement(Settings)
+      },
+      {
+        path: 'collection/:id',
+        element: React.createElement(Collection)
+      },
+      {
+        path: '*',
+        element: React.createElement(NotFound)
+      }
+    ]
   }
 ]
 

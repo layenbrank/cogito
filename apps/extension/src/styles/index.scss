@@ -52,3 +52,18 @@
     background-color: rgba(0, 0, 0, 0.4);
   }
 }
+
+.magnetic-tile-ghost {
+  opacity: 0.35;
+}
+
+.magnetic-tile-drag {
+  z-index: 10000;
+  cursor: grabbing;
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+.magnetic-tile-chosen {
+  cursor: grabbing;
+}

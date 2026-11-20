@@ -136,10 +136,12 @@ function log(label: string, msg: string) {
   )
 }
 
-window.addEventListener('unhandledrejection', function (event: PromiseRejectionEvent) {
-  if (!isClosedError(event.reason)) return
-  alert('数据库异常关闭，请刷新页面')
-})
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', function (event: PromiseRejectionEvent) {
+    if (!isClosedError(event.reason)) return
+    alert('数据库异常关闭，请刷新页面')
+  })
+}
 
 /** Dexie 在库被关闭后抛的错误（`DataBaseClosedError`） */
 function isClosedError(value: unknown): boolean {

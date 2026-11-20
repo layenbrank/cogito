@@ -1,43 +1,38 @@
 {
-  "name": "cogito",
-  "version": "1.0.0",
-  "incognito": "split",
+  "name": "Cogito",
+  "version": "0.1.0",
   "manifest_version": 3,
-  "host_permissions": ["<all_urls>", "https://*/*", "http://*/*"],
-  "description": "cogito is a privacy-first extension that enhances your browsing experience with intelligent features while prioritizing your data security.",
-  "permissions": [
-    "tts",
-    "tabs",
-    "proxy",
-    "storage",
-    "history",
-    "sidePanel",
-    "activeTab",
-    "bookmarks",
-    "ttsEngine",
-    "geolocation",
-    "contextMenus",
-    "declarativeNetRequest"
+  "description": "新标签磁贴墙：把常去的网站、时钟和浏览器书签放在同一面墙上。",
+  "minimum_chrome_version": "128",
+  "permissions": ["storage", "bookmarks", "tabs", "contextMenus", "sidePanel", "favicon"],
+  "host_permissions": [
+    "http://127.0.0.1:19828/*",
+    "http://localhost:19828/*",
+    "http://127.0.0.1:19829/*",
+    "http://localhost:19829/*"
   ],
+  "externally_connectable": {
+    "ids": ["*"]
+  },
   "background": {
     "service_worker": "service-worker.js",
-    "content_scripts": [
-      {
-        "matches": ["<all_urls>"],
-        "js": ["content-scripts.js"]
-      }
-    ]
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cogito",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "32": "icons/32.png"
+    }
   },
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
-  "externally_connectable": {
-    "matches": ["<all_urls>"]
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
-  "web_accessible_resources": [
-    {
-      "matches": ["<all_urls>"],
-      "resources": ["*"]
-    }
-  ]
+  "icons": {
+    "32": "icons/32.png",
+    "128": "icons/128.png"
+  }
 }

@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { openSite } from '@/features/shell/open-site.ts'
 
 import { NavigationTile } from './navigation'
+
+vi.mock('@/features/shell/open-site.ts', function () {
+  return { openSite: vi.fn() }
+})
 
 function buildTile(overrides: Partial<MagneticTile> = {}): MagneticTile {
   return {
@@ -40,6 +46,10 @@ function renderTile(tile: MagneticTile) {
 }
 
 describe('NavigationTile', function () {
+  beforeEach(function () {
+    vi.clearAllMocks()
+  })
+
   it('没有图标时用标题首字占位', function () {
     renderTile(buildTile())
 
@@ -47,27 +57,17 @@ describe('NavigationTile', function () {
     expect(screen.getByText('GitHub')).toBeTruthy()
   })
 
-  it('点击在新标签页打开链接', function () {
-    const open = vi.spyOn(window, 'open').mockImplementation(function () {
-      return null
-    })
-
+  it('点击在当前标签打开链接', function () {
     renderTile(buildTile())
     fireEvent.click(screen.getByText('GitHub'))
 
-    expect(open).toHaveBeenCalledWith('https://github.com', '_blank', 'noopener')
-    open.mockRestore()
+    expect(openSite).toHaveBeenCalledWith('https://github.com', 'here')
   })
 
-  it('没有链接时不打开窗口', function () {
-    const open = vi.spyOn(window, 'open').mockImplementation(function () {
-      return null
-    })
-
+  it('没有链接时不打开', function () {
     renderTile(buildTile({ url: null }))
     fireEvent.click(screen.getByText('GitHub'))
 
-    expect(open).not.toHaveBeenCalled()
-    open.mockRestore()
+    expect(openSite).not.toHaveBeenCalled()
   })
 })
