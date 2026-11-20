@@ -70,9 +70,9 @@ function Preview(props: PreviewProps) {
   })
 
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="flex h-full min-h-0 w-full flex-1">
       <div
-        className="relative aspect-video w-full overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat shadow-md transition-colors"
+        className="relative h-full min-h-48 w-full overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat shadow-md transition-colors"
         style={surfaceStyle}>
         {props.component === 'navigation' ? (
           <div

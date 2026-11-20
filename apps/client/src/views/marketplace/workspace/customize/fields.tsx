@@ -15,8 +15,7 @@ import { useLayoutEffect, useRef } from 'react'
 import type { Control } from 'react-hook-form'
 
 import { Glide } from '@/components/glide/glide'
-import { TEXT_COLOR, type ColorFieldName } from '@/views/marketplace/workspace/customize/colors.ts'
-import { ColorField } from '@/views/marketplace/workspace/customize/color-field'
+import { ColorPalette } from './color-palette'
 import {
   BLUR_MAX,
   IMAGE_NONE,
@@ -32,17 +31,10 @@ import {
 interface FieldsProps {
   control: Control<FormValues>
   canEditUrl: boolean
-  colorShades: string[]
-  textShades: string[]
-  hues: string[]
-  values: Partial<FormValues>
   themePrimary: string
   images: PicsumImage[]
   isImagesLoading: boolean
-  submitting: boolean
-  isCreateMode: boolean
   isFaviconLoading: boolean
-  onPickColor: (field: ColorFieldName) => (value: string) => void
   onClearKeptImage: () => void
 }
 
@@ -142,11 +134,7 @@ function ImageFieldBody(props: ImageFieldBodyProps) {
                 )
               })
             : props.images.map(function (image) {
-                const thumbUrl = buildPicsumUrl(
-                  image,
-                  PICSUM_THUMB_WIDTH,
-                  PICSUM_THUMB_HEIGHT
-                )
+                const thumbUrl = buildPicsumUrl(image, PICSUM_THUMB_WIDTH, PICSUM_THUMB_HEIGHT)
                 const isSelected = props.selected === image.id
 
                 return (
@@ -193,17 +181,10 @@ function Fields(props: FieldsProps) {
   const {
     control,
     canEditUrl,
-    colorShades,
-    textShades,
-    hues,
-    values,
     themePrimary,
     images,
     isImagesLoading,
-    submitting,
-    isCreateMode,
     isFaviconLoading,
-    onPickColor,
     onClearKeptImage
   } = props
 
@@ -268,24 +249,9 @@ function Fields(props: FieldsProps) {
         }}
       />
 
-      <ColorField
-        name="color"
-        label="背景颜色"
-        shades={colorShades}
-        hues={hues}
-        value={values.color}
-        fallback={themePrimary}
-        onPick={onPickColor('color')}
-      />
-
-      <ColorField
-        name="textColor"
-        label="文字颜色"
-        shades={textShades}
-        hues={hues}
-        value={values.textColor}
-        fallback={TEXT_COLOR}
-        onPick={onPickColor('textColor')}
+      <ColorPalette
+        control={control}
+        themePrimary={themePrimary}
       />
 
       <FormField
@@ -353,16 +319,6 @@ function Fields(props: FieldsProps) {
         isImagesLoading={isImagesLoading}
         onClearKeptImage={onClearKeptImage}
       />
-
-      <div className="flex justify-end">
-        <Button
-          type="submit"
-          aria-busy={submitting}
-          disabled={submitting}>
-          {submitting ? <Spinner /> : null}
-          {isCreateMode ? '添加' : '保存'}
-        </Button>
-      </div>
     </>
   )
 }

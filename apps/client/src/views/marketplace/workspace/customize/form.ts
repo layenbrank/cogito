@@ -1,10 +1,7 @@
 import { z } from 'zod'
 
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
-import {
-  findShade,
-  TEXT_COLOR
-} from '@/views/marketplace/workspace/customize/colors.ts'
+import { parseHexColor, TEXT_COLOR } from '@/views/marketplace/workspace/customize/colors.ts'
 import type { MagneticTileWrite } from '@/stores/mirror.ts'
 
 interface PicsumImage {
@@ -26,8 +23,6 @@ const PICSUM_THUMB_WIDTH = 160
 const PICSUM_THUMB_HEIGHT = 90
 const PICSUM_PREVIEW_WIDTH = 800
 const PICSUM_PREVIEW_HEIGHT = 450
-const SWATCH_SIZE_CLASS = 'size-11'
-const PRESET_SWATCH_CLASS = 'size-6'
 const IMAGE_SWATCH_CLASS = 'h-18 w-32'
 const PREVIEW_TITLE_PLACEHOLDER = '未命名应用'
 const PREVIEW_URL_PLACEHOLDER = '请输入链接预览'
@@ -112,11 +107,7 @@ function parseBackgroundImage(
   return keptImageUrl ?? undefined
 }
 
-function parseSurface(
-  value: FormValues,
-  images: PicsumImage[],
-  keptImageUrl: string | null
-) {
+function parseSurface(value: FormValues, images: PicsumImage[], keptImageUrl: string | null) {
   const title = value.title.trim()
   return {
     title,
@@ -183,7 +174,14 @@ function findTileLabel(tile: MagneticTile) {
 }
 
 function findTileDescription(tile: MagneticTile) {
-  return tile.description.trim() || findComponentLabel(tile.component)
+  const label = findTileLabel(tile)
+  const description = tile.description.trim()
+  // 副标题与主标题相同（保存时 description 会写成 title，空描述又会退回组件名）
+  // 会在选项里叠出一条更淡的重复文案，看起来像文字阴影。
+  if (description && description !== label) return description
+  const componentLabel = findComponentLabel(tile.component)
+  if (componentLabel !== label) return componentLabel
+  return undefined
 }
 
 function parseTileOptions(tiles: MagneticTile[]): TileSelectOption[] {
@@ -221,9 +219,10 @@ function parseTileToForm(
       title: tile.title,
       url: tile.url ?? '',
       mark: tile.mark ?? '',
-      color: tile.background?.color ?? fallbackColor,
+      color:
+        parseHexColor(tile.background?.color ?? '') ?? parseHexColor(fallbackColor) ?? TEXT_COLOR,
       image: picsumId ?? imageUrl ?? IMAGE_NONE,
-      textColor: tile.textColor ?? TEXT_COLOR,
+      textColor: parseHexColor(tile.textColor ?? '') ?? TEXT_COLOR,
       backdropBlur: parseCssNumber(tile.backdrop?.blur, 0),
       backdropOpacity: parseCssNumber(tile.backdrop?.opacity, OPACITY_DEFAULT)
     }
@@ -285,18 +284,14 @@ const TILE_IMPORT_ITEM = z
 
 const TILE_IMPORT_SCHEMA = z.array(TILE_IMPORT_ITEM).min(1, '导入文件为空')
 
-function buildCreateValues(
-  colorShades: string[],
-  textShades: string[],
-  themePrimary: string
-): FormValues {
+function buildCreateValues(themePrimary: string): FormValues {
   return {
     title: '',
     url: '',
     mark: '',
-    color: findShade(colorShades, themePrimary),
+    color: parseHexColor(themePrimary) ?? TEXT_COLOR,
     image: IMAGE_NONE,
-    textColor: findShade(textShades, TEXT_COLOR),
+    textColor: TEXT_COLOR,
     backdropBlur: 0,
     backdropOpacity: OPACITY_DEFAULT
   }
@@ -319,10 +314,8 @@ export {
   PICSUM_PREVIEW_WIDTH,
   PICSUM_THUMB_HEIGHT,
   PICSUM_THUMB_WIDTH,
-  PRESET_SWATCH_CLASS,
   PREVIEW_TITLE_PLACEHOLDER,
   PREVIEW_URL_PLACEHOLDER,
-  SWATCH_SIZE_CLASS,
   TILE_IMPORT_SCHEMA,
   buildCreateValues,
   buildPicsumUrl,

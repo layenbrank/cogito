@@ -81,8 +81,8 @@ function NavigateRows() {
 
 function CustomizeSkeleton() {
   return (
-    <div className="flex flex-1 gap-4 p-4 max-md:flex-col">
-      <div className="flex w-full max-w-[28rem] flex-col gap-3 rounded-2xl bg-card p-6 shadow-sm">
+    <div className="flex h-full min-h-0 flex-1 gap-4 p-4 max-md:flex-col">
+      <div className="flex w-full shrink-0 flex-col gap-3 rounded-2xl bg-card p-6 shadow-sm max-md:h-[54%] md:w-[23rem]">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-9 w-full" />
         <Skeleton className="h-9 w-full" />
@@ -90,7 +90,7 @@ function CustomizeSkeleton() {
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-9 w-full" />
       </div>
-      <Skeleton className="aspect-video min-w-0 flex-1 rounded-2xl shadow-md" />
+      <Skeleton className="min-h-48 min-w-0 flex-1 rounded-2xl shadow-md" />
     </div>
   )
 }

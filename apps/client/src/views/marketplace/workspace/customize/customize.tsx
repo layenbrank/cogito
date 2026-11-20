@@ -1,6 +1,8 @@
+import { Button } from '@cogito/design/components/button'
 import { Card } from '@cogito/design/components/card'
 import { Form } from '@cogito/design/components/form'
 import { Label } from '@cogito/design/components/label'
+import { Spinner } from '@cogito/design/components/spinner'
 import {
   Select,
   SelectContent,
@@ -16,18 +18,10 @@ import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
 
-import { parsePresetHues } from '@/features/capture/components/colors'
 import { readAppearance } from '@/features/window/appearance'
 import { fetchSiteFavicon } from '@/lib/site-favicon.ts'
 import { useMirrorStore, type MagneticTileUpdate } from '@/stores/mirror.ts'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
-import {
-  findShade,
-  parseFieldShades,
-  TEXT_COLOR,
-  TEXT_SEED,
-  type ColorFieldName
-} from '@/views/marketplace/workspace/customize/colors.ts'
 import { Fields } from '@/views/marketplace/workspace/customize/fields'
 import {
   CREATE_KEY,
@@ -72,12 +66,6 @@ function Customize() {
   const [selectedKey, updateSelectedKey] = useState(CREATE_KEY)
   const [keptImageUrl, updateKeptImageUrl] = useState<string | null>(null)
   const faviconRequestRef = useRef(0)
-  const [colorShades, updateColorShades] = useState(function () {
-    return parseFieldShades('color', themePrimary)
-  })
-  const [textShades, updateTextShades] = useState(function () {
-    return parseFieldShades('textColor', TEXT_SEED)
-  })
   const images = useSyncExternalStore(
     subscribePicsumImages,
     readPicsumImages,
@@ -115,7 +103,7 @@ function Customize() {
     resolver: function (values, context, options) {
       return zodResolver(findFormSchema(canEditUrlRef.current))(values, context, options)
     },
-    defaultValues: buildCreateValues(colorShades, textShades, themePrimary)
+    defaultValues: buildCreateValues(themePrimary)
   })
   const watched = useWatch({ control: form.control })
   const values = watched ?? form.getValues()
@@ -161,13 +149,6 @@ function Customize() {
     [canEditUrl, watchedUrl, form]
   )
 
-  const hues = useMemo(
-    function () {
-      return parsePresetHues(themePrimary)
-    },
-    [themePrimary]
-  )
-
   const tileOptions = useMemo(
     function () {
       return parseTileOptions(tiles)
@@ -185,20 +166,9 @@ function Customize() {
     [mirrors, targetMirrorID]
   )
 
-  function syncPalette(field: ColorFieldName, primary: string) {
-    const shades = parseFieldShades(field, primary)
-    if (field === 'color') updateColorShades(shades)
-    else updateTextShades(shades)
-    form.setValue(field, findShade(shades, primary))
-  }
-
   function resetCreate() {
-    const nextColorShades = parseFieldShades('color', themePrimary)
-    const nextTextShades = parseFieldShades('textColor', TEXT_SEED)
-    updateColorShades(nextColorShades)
-    updateTextShades(nextTextShades)
     updateKeptImageUrl(null)
-    form.reset(buildCreateValues(nextColorShades, nextTextShades, themePrimary))
+    form.reset(buildCreateValues(themePrimary))
   }
 
   function onSelectTile(key: string) {
@@ -215,25 +185,8 @@ function Customize() {
     if (!tile) return
 
     const parsed = parseTileToForm(tile, images, themePrimary)
-    const bgPrimary = parsed.values.color || themePrimary
-    const textPrimary = parsed.values.textColor || TEXT_COLOR
-    const nextColorShades = parseFieldShades('color', bgPrimary)
-    const nextTextShades = parseFieldShades('textColor', textPrimary)
-
     updateKeptImageUrl(parsed.keptImageUrl)
-    updateColorShades(nextColorShades)
-    updateTextShades(nextTextShades)
-    form.reset({
-      ...parsed.values,
-      color: findShade(nextColorShades, bgPrimary),
-      textColor: findShade(nextTextShades, textPrimary)
-    })
-  }
-
-  function onPickColor(field: ColorFieldName) {
-    return function (value: string) {
-      syncPalette(field, value)
-    }
+    form.reset(parsed.values)
   }
 
   async function handleFinish(value: FormValues) {
@@ -247,13 +200,7 @@ function Customize() {
     updateSubmitting(true)
     try {
       if (isCreateMode) {
-        const write = parseFormWrite(
-          value,
-          images,
-          mirrorID,
-          magneticTiles.length,
-          keptImageUrl
-        )
+        const write = parseFormWrite(value, images, mirrorID, magneticTiles.length, keptImageUrl)
         await toInsertMagneticTile([write])
         toast.success('添加成功')
         resetCreate()
@@ -279,11 +226,15 @@ function Customize() {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 min-[900px]:flex-row min-[900px]:p-4">
-        <div className="w-full shrink-0 min-[900px]:max-w-[28rem]">
-          <Card className="gap-4 border-0 bg-card py-4 shadow-sm">
-            <div className="flex flex-col gap-4 px-6">
+    <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden p-3 min-[900px]:p-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-3 min-[900px]:flex-row min-[900px]:gap-4">
+        <Card className="flex w-full shrink-0 flex-col gap-0 overflow-hidden border-0 bg-card py-0 shadow-sm max-[899px]:h-[54%] min-[900px]:h-full min-[900px]:w-[23rem]">
+          <Form {...form}>
+            <form
+              noValidate
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={form.handleSubmit(handleFinish)}>
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain px-4 py-4">
               {targetMirror ? (
                 <p className="text-xs text-muted-foreground">
                   写入：
@@ -330,7 +281,7 @@ function Customize() {
                                 value={item.value}>
                                 <span className="flex min-w-0 flex-col">
                                   <span className="truncate">{item.label}</span>
-                                  {item.description ? (
+                                  {item.description && item.description !== item.label ? (
                                     <span className="truncate text-xs text-muted-foreground">
                                       {item.description}
                                     </span>
@@ -346,36 +297,32 @@ function Customize() {
                 </Select>
               </div>
 
-              <Form {...form}>
-                <form
-                  noValidate
-                  className="flex flex-col gap-4"
-                  onSubmit={form.handleSubmit(handleFinish)}>
-                  <Fields
-                    control={form.control}
-                    canEditUrl={canEditUrl}
-                    colorShades={colorShades}
-                    textShades={textShades}
-                    hues={hues}
-                    values={values}
-                    themePrimary={themePrimary}
-                    images={images}
-                    isImagesLoading={isImagesLoading}
-                    submitting={submitting}
-                    isCreateMode={isCreateMode}
-                    isFaviconLoading={isFaviconLoading}
-                    onPickColor={onPickColor}
-                    onClearKeptImage={function () {
-                      updateKeptImageUrl(null)
-                    }}
-                  />
-                </form>
-              </Form>
-            </div>
-          </Card>
-        </div>
+                <Fields
+                  control={form.control}
+                  canEditUrl={canEditUrl}
+                  themePrimary={themePrimary}
+                  images={images}
+                  isImagesLoading={isImagesLoading}
+                  isFaviconLoading={isFaviconLoading}
+                  onClearKeptImage={function () {
+                    updateKeptImageUrl(null)
+                  }}
+                />
+              </div>
+              <div className="flex shrink-0 justify-end border-t border-border px-4 py-3">
+                <Button
+                  type="submit"
+                  aria-busy={submitting}
+                  disabled={submitting}>
+                  {submitting ? <Spinner /> : null}
+                  {isCreateMode ? '添加' : '保存'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </Card>
 
-        <div className="min-w-0 flex-1 self-stretch min-[900px]:sticky min-[900px]:top-3 min-[900px]:self-start">
+        <div className="flex min-h-0 min-w-0 flex-1">
           <Preview
             watched={values}
             images={images}
