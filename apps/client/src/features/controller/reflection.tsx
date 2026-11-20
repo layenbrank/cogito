@@ -55,6 +55,9 @@ const Capture = React.lazy(function () {
 const Directive = React.lazy(function () {
   return import('@/features/magnetic-tiles/directive/directive.tsx')
 })
+const Wallpaper = React.lazy(function () {
+  return import('@/features/magnetic-tiles/wallpaper/wallpaper.tsx')
+})
 
 const Reflection: Readonly<MagneticTile.Reflection> = {
   bookmark: Bookmark,
@@ -74,6 +77,7 @@ const Reflection: Readonly<MagneticTile.Reflection> = {
   gallery: Gallery,
   signboard: Signboard,
   capture: Capture,
+  wallpaper: Wallpaper,
   directive: Directive
 }
 
@@ -95,7 +99,8 @@ export {
   Navigation,
   Reflection,
   Settings,
-  Signboard
+  Signboard,
+  Wallpaper
 }
 
 // const Applications = import.meta.glob<(props: ProviderProps) => JSX.Element>(

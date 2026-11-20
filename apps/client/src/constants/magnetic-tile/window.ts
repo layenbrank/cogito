@@ -85,6 +85,7 @@ const WINDOW: WindowConfigure = {
   capture: {
     ...DEFAULT
   },
+  wallpaper: DEFAULT,
   settings: DEFAULT,
   signboard: DEFAULT,
   directive: DEFAULT

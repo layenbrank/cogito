@@ -66,6 +66,9 @@ const CaptureMarker = lazyMarker(function () {
 const DirectiveMarker = lazyMarker(function () {
   return import('@/features/magnetic-tiles/directive/marker')
 })
+const WallpaperMarker = lazyMarker(function () {
+  return import('@/features/magnetic-tiles/wallpaper/marker')
+})
 const ExampleMarker = lazyMarker(function () {
   return import('@/features/magnetic-tiles/example/marker')
 })
@@ -105,6 +108,7 @@ const MARKERS: Partial<Record<MagneticTile.Component, (props: MarkerRenderProps)
   signboard: bindMarker(SignboardMarker),
   gallery: bindMarker(GalleryMarker),
   capture: bindMarker(CaptureMarker),
+  wallpaper: bindMarker(WallpaperMarker),
   directive: bindMarker(DirectiveMarker),
   example: bindMarker(ExampleMarker)
 }

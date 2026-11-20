@@ -7,7 +7,7 @@ import { admitSession } from '@/features/magnetic-tile/session'
 import { ensureTilePrefs, findSessionPath } from '@/features/magnetic-tile/tile-prefs'
 import { reportCaught } from '@/utils/exception-report'
 
-type Tile = Pick<MagneticTile, 'component' | 'url' | 'id'>
+type Tile = Pick<MagneticTile, 'component' | 'url' | 'id' | 'title'>
 
 type ActivateHandler = (tile: Tile) => void | Promise<void>
 
@@ -24,6 +24,15 @@ function findTileWindowUrl(tile: Tile) {
   const route = findTileRoute(tile.component)
   if (tile.component === 'collection') {
     return `${route}?id=${encodeURIComponent(tile.id)}`
+  }
+  if (tile.component === 'wallpaper') {
+    const params = new URLSearchParams()
+    const url = tile.url?.trim()
+    const title = tile.title?.trim()
+    if (url) params.set('url', url)
+    if (title) params.set('title', title)
+    const query = params.toString()
+    return query ? `${route}?${query}` : route
   }
   if (!tile.url) return route
   return `${route}?url=${encodeURIComponent(tile.url)}`

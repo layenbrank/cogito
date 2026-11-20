@@ -20,6 +20,7 @@ const MAGNETIC_TILE_COMPONENTS = [
   'signboard',
   'gallery',
   'capture',
+  'wallpaper',
   'directive',
   'example'
 ] as const satisfies readonly MagneticTile.Component[]

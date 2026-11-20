@@ -62,6 +62,7 @@ declare namespace MagneticTile {
     | 'signboard'
     | 'gallery' // 图库
     | 'capture' // 截屏
+    | 'wallpaper' // 壁纸
     | 'directive' // 指令
     | 'agent' // 智能体（原 intelligence）
     | 'example'

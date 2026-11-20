@@ -117,6 +117,10 @@ const Signboard = lazy(function () {
   return import('@/views/signboard/signboard.tsx')
 })
 
+const Wallpaper = lazy(function () {
+  return import('@/views/wallpaper/wallpaper.tsx')
+})
+
 /**
  * AppHost → WorkspaceShell（磁贴墙 Activity 常驻）→ RouteTransition（应用页转场）。
  * `/overview` 由 WorkspaceShell 渲染，outlet 只挂应用页，避免双挂 / 整墙 remount。
@@ -193,7 +197,8 @@ const routes: RouteObject[] = [
               { path: '/morph', element: <Morph /> },
               { path: '/navigation', element: <Navigate replace to="/overview" /> },
               { path: '/settings', element: <Settings /> },
-              { path: '/signboard', element: <Signboard /> }
+              { path: '/signboard', element: <Signboard /> },
+              { path: '/wallpaper', element: <Wallpaper /> }
             ]
           }
         ]

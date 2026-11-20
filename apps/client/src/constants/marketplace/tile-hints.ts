@@ -14,6 +14,7 @@ const COMPONENT_LABELS: Partial<Record<MagneticTile.Component, string>> = {
   gallery: '图库',
   signboard: '看板',
   capture: '截录',
+  wallpaper: '壁纸库',
   directive: '指令',
   example: '示例',
   navigation: '网址'
@@ -35,6 +36,7 @@ const TILE_HINTS: Partial<Record<MagneticTile.Component, string>> = {
   gallery: '本地媒体库、精选集与灯箱',
   signboard: '看板、甘特与卡片自动化',
   capture: '截屏与录屏历史库',
+  wallpaper: 'NASA 公有、维基共享可商用，以及必应每日壁纸',
   directive: '可保存的动作编排与定时运行；可与副驾联用',
   example: '示例磁贴与演示',
   navigation: '网址快捷入口'
