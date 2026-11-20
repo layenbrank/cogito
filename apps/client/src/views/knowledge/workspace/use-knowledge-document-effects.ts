@@ -133,8 +133,8 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
           }
           unwatch = fn
         })
-        .catch(function () {
-          /* Command watch not found */
+        .catch(function (error) {
+          console.debug('[knowledge] 文件监视不可用:', error)
         })
       return function () {
         disposed = true
@@ -179,8 +179,8 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
           }
           unwatch = fn
         })
-        .catch(function () {
-          /* Command watch not found */
+        .catch(function (error) {
+          console.debug('[knowledge] 目录树监视不可用:', error)
         })
       return function () {
         disposed = true

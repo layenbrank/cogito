@@ -77,16 +77,20 @@ async function loadSnapshot(rootPath: string): Promise<SnapshotData> {
   const probe = await WorkspaceGit.probe(rootPath)
   if (!probe.isRepo) return EMPTY_DATA
   const [status, upstream, branches, state] = await Promise.all([
-    WorkspaceGit.status(rootPath).catch(function () {
+    WorkspaceGit.status(rootPath).catch(function (error) {
+      console.warn('[agent/git] status 失败:', error)
       return null
     }),
-    WorkspaceGit.upstream(rootPath).catch(function () {
+    WorkspaceGit.upstream(rootPath).catch(function (error) {
+      console.warn('[agent/git] upstream 失败:', error)
       return null
     }),
-    WorkspaceGit.fetchBranches(rootPath).catch(function () {
+    WorkspaceGit.fetchBranches(rootPath).catch(function (error) {
+      console.warn('[agent/git] branches 失败:', error)
       return null
     }),
-    WorkspaceGit.state(rootPath).catch(function () {
+    WorkspaceGit.state(rootPath).catch(function (error) {
+      console.warn('[agent/git] state 失败:', error)
       return null
     })
   ])

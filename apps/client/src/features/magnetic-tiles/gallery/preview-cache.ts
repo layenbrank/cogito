@@ -48,9 +48,9 @@ function fetchGalleryMarkerThumbs(): Promise<string[]> {
       cachedThumbs = thumbs
       return thumbs
     })
-    .catch(function () {
+    .catch(function (error) {
+      console.warn('[gallery] 缩略图加载失败:', error)
       if (requestGeneration !== generation) return []
-      cachedThumbs = []
       return []
     })
     .finally(function () {

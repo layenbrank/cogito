@@ -330,7 +330,8 @@ const Controller = {
           isPersisting = true
           void store
             .toUpdateMagneticTile(updates)
-            .catch(function () {
+            .catch(function (error) {
+              console.warn('[overview] 磁贴排序保存失败:', error)
               const mirrorID = useMirrorStore.getState().active.mirror?.id
               if (mirrorID) {
                 void useMirrorStore.getState().toReadMirror(mirrorID)
