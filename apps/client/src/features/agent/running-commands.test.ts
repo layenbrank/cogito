@@ -40,7 +40,7 @@ describe('正在执行的命令', function () {
     ])
   })
 
-  it('cogito_terminal_* 标为 panel，goose shell 标为 external', function () {
+  it('cogito_terminal_* 标为 surface，goose shell 标为 external', function () {
     const messages = [
       assistant(
         { type: 'tool-call', toolCallId: 'p', toolName: 'cogito_terminal_run', args: { command: 'ls' }, argsText: '' },
@@ -49,7 +49,7 @@ describe('正在执行的命令', function () {
     ]
     expect(findSessionCommands(messages).map(function (command) {
       return `${command.toolCallId}:${command.source}`
-    })).toEqual(['p:panel', 'e:external'])
+    })).toEqual(['p:surface', 'e:external'])
   })
 
   it('带 workdir 与 background 原样带出', function () {

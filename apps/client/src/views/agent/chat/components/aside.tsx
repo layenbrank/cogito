@@ -193,7 +193,7 @@ function AgentAside(props: AsideProps) {
    * 换会话或换文件夹都重挂面板：展开态 / diff / 浏览位置只对一个目录成立。
    * 文件夹是全局「当前文件夹」，审阅、历史、文件、composer 看到的是同一个根。
    */
-  const panelKey = `${threadID ?? 'none'}:${rootPath ?? ''}`
+  const surfaceKey = `${threadID ?? 'none'}:${rootPath ?? ''}`
 
   /**
    * 计划确认执行：先切到对应模式再发消息。
@@ -358,7 +358,7 @@ function AgentAside(props: AsideProps) {
   async function openTerminal(
     command: string,
     workdir?: string | null,
-    source: 'panel' | 'external' = 'panel'
+    source: 'surface' | 'external' = 'surface'
   ) {
     function normalizePath(path: string): string {
       return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
@@ -566,7 +566,7 @@ function AgentAside(props: AsideProps) {
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {mode === 'files' ? (
           <AsideFiles
-            key={panelKey}
+            key={surfaceKey}
             aui={aui}
             initialRelative={focusRelative}
             onOpenReview={function (relative) {
@@ -577,13 +577,13 @@ function AgentAside(props: AsideProps) {
 
         {mode === 'review' ? (
           <AsideReview
-            key={panelKey}
+            key={surfaceKey}
             initialRelative={focusRelative}
             onOpenFile={openFiles}
           />
         ) : null}
 
-        {mode === 'history' ? <AsideHistory key={panelKey} /> : null}
+        {mode === 'history' ? <AsideHistory key={surfaceKey} /> : null}
 
         {mode === 'knowledge' ? <AsideKnowledge aui={aui} /> : null}
 
@@ -597,7 +597,7 @@ function AgentAside(props: AsideProps) {
 
         {mode === 'plan' ? (
           <AsidePlan
-            key={panelKey}
+            key={surfaceKey}
             isPlanMode={agentMode === 'plan'}
             onStartImplement={startImplement}
           />
@@ -606,7 +606,7 @@ function AgentAside(props: AsideProps) {
         {mode === 'home' ? (
           hasUserMessage ? (
             <AsideBusy
-              key={panelKey}
+              key={surfaceKey}
               onOpenFiles={openFiles}
               onOpenReview={openReview}
               onOpenPlan={function () {

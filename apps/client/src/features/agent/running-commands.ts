@@ -19,12 +19,12 @@ import { toShellCommand } from '@/views/agent/chat/components/tool-output'
  */
 type CommandStatus = 'running' | 'done' | 'error' | 'waiting' | 'interrupted'
 
-/** `panel` = cogito_terminal_*（右栏可见）；`external` = goose shell 等黑盒 */
-type CommandSource = 'panel' | 'external'
+/** `surface` = cogito_terminal_*（右栏可见）；`external` = goose shell 等黑盒 */
+type CommandSource = 'surface' | 'external'
 
 function findCommandSource(toolName: string): CommandSource {
   const lower = toolName.toLowerCase()
-  if (lower.includes('cogito_terminal')) return 'panel'
+  if (lower.includes('cogito_terminal')) return 'surface'
   return 'external'
 }
 
