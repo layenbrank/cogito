@@ -58,19 +58,19 @@ function Catalog(props: CatalogProps) {
                 <Button
                   variant="ghost"
                   type="button"
-                  className="h-auto w-full rounded-md border border-transparent px-2 py-1.5 text-left text-xs transition-colors hover:border-border hover:bg-muted/70"
+                  className="h-auto w-full min-w-0 flex-col items-stretch justify-start gap-0.5 whitespace-normal rounded-md border border-transparent px-2 py-1.5 text-left text-xs transition-colors hover:border-border hover:bg-muted/70"
                   onClick={function () {
                     props.onInsertAction(entry.id)
                   }}>
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate font-medium">{entry.id}</span>
+                  <span className="flex w-full min-w-0 items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-left font-medium">{entry.id}</span>
                     <Badge
                       variant="outline"
                       className="shrink-0 px-1.5 py-0 text-xs">
                       {entry.bucket}
                     </Badge>
                   </span>
-                  <span className="mt-0.5 block text-muted-foreground line-clamp-1">
+                  <span className="w-full min-w-0 truncate text-left text-muted-foreground">
                     {entry.description || '无描述'}
                   </span>
                 </Button>
