@@ -447,7 +447,7 @@ pub fn apply_safe_mode(app: &AppHandle) {
 }
 
 /// 前端在「用户选完路径」后调用：立刻放行，避免 plugin-fs / asset: 读取被 scope 拦下。
-#[tauri::command]
+#[tauri::command(rename = "security:grant-paths")]
 pub async fn security_grant_paths(
     app: AppHandle,
     paths: Vec<String>,
@@ -468,7 +468,7 @@ pub async fn security_grant_paths(
 }
 
 /// 诊断 / 设置页用：重建后把结果回给前端（授权集是否为空、哪些路径被跳过）。
-#[tauri::command]
+#[tauri::command(rename = "security:rebuild-grants")]
 pub async fn security_grants_rebuild(app: AppHandle) -> Result<GrantReport, String> {
     rebuild(&app).await
 }

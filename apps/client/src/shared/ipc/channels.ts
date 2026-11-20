@@ -83,7 +83,7 @@ export const CHANNELS = {
   AUTOMATION: {
     SAVE: 'automation:save',
     LIST: 'automation:list',
-    SET_ENABLED: 'automation:setEnabled',
+    UPDATE_ENABLED: 'automation:update-enabled',
     REMOVE: 'automation:remove',
     RUN_NOW: 'automation:runNow',
     FINISH_RUN: 'automation:finishRun',
@@ -124,12 +124,12 @@ export const CHANNELS = {
    * 由这里在用户选完路径后追加；落盘后下次启动由 rebuild 重新放行。
    */
   SECURITY: {
-    GRANT_PATHS: 'security_grant_paths',
-    REBUILD: 'security_grants_rebuild',
+    GRANT_PATHS: 'security:grant-paths',
+    REBUILD: 'security:rebuild-grants',
     /** 工具审计导出（S6）：最近 N 条 → JSON，诊断页用 */
-    AUDIT_EXPORT: 'security_audit_export',
+    AUDIT_EXPORT: 'security:export-audit',
     /** 成本账本导出（S8）：最近 N 条 + 汇总 → JSON，诊断页用 */
-    COST_EXPORT: 'agent_cost_export'
+    COST_EXPORT: 'security:export-cost'
   },
   OVERLAY: {
     ENSURE: 'overlay:ensure',
@@ -327,15 +327,15 @@ export const CHANNELS = {
     TOKEN_WRITE: 'cogito:token:write',
     TOKEN_CLEAR: 'cogito:token:clear',
     PROVIDER_ENSURE: 'cogito:provider:ensure',
-    PROVIDER_SET_TENANT: 'cogito:provider:set-tenant'
+    PROVIDER_UPDATE_TENANT: 'cogito:provider:update-tenant'
   },
   CURSOR_AGENT: {
     STATUS: 'cursor-agent:status'
   },
   SECRET: {
-    GET: 'secret:get',
-    SET: 'secret:set',
-    DELETE: 'secret:delete'
+    FIND: 'secret:find',
+    WRITE: 'secret:write',
+    REMOVE: 'secret:remove'
   },
   WORKSPACE_GIT: {
     PROBE: 'workspaceGit:probe',

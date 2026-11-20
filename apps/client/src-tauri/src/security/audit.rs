@@ -31,7 +31,7 @@ pub struct AuditExport {
 }
 
 /// 导出最近 N 条工具审计（默认上限 2000 条）。
-#[tauri::command]
+#[tauri::command(rename = "security:export-audit")]
 pub async fn security_audit_export(
     app: AppHandle,
     limit: Option<u32>,

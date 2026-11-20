@@ -29,7 +29,7 @@ async function ensureSecrets(): Promise<void> {
     return
   }
   try {
-    jwtCache = await invoke<string | null>(CHANNELS.SECRET.GET, {
+    jwtCache = await invoke<string | null>(CHANNELS.SECRET.FIND, {
       service: SECRET_SERVICE,
       account: 'jwt'
     })
@@ -57,13 +57,13 @@ async function writeJwtSecret(token: string | null): Promise<void> {
   if (!isTauriRuntime()) return
   try {
     if (token) {
-      await invoke(CHANNELS.SECRET.SET, {
+      await invoke(CHANNELS.SECRET.WRITE, {
         service: SECRET_SERVICE,
         account: 'jwt',
         secret: token
       })
     } else {
-      await invoke(CHANNELS.SECRET.DELETE, {
+      await invoke(CHANNELS.SECRET.REMOVE, {
         service: SECRET_SERVICE,
         account: 'jwt'
       })
@@ -89,7 +89,7 @@ async function writeJwtSecret(token: string | null): Promise<void> {
 async function findProviderSecret(providerID: string): Promise<string | null> {
   if (!isTauriRuntime()) return null
   try {
-    return await invoke<string | null>(CHANNELS.SECRET.GET, {
+    return await invoke<string | null>(CHANNELS.SECRET.FIND, {
       service: SECRET_SERVICE,
       account: `provider:${providerID}`
     })
@@ -104,14 +104,14 @@ async function writeProviderSecret(providerID: string, apiKey: string | null): P
   const account: SecretAccount = `provider:${providerID}`
   try {
     if (apiKey) {
-      await invoke(CHANNELS.SECRET.SET, {
+      await invoke(CHANNELS.SECRET.WRITE, {
         service: SECRET_SERVICE,
         account,
         secret: apiKey
       })
       return
     }
-    await invoke(CHANNELS.SECRET.DELETE, {
+    await invoke(CHANNELS.SECRET.REMOVE, {
       service: SECRET_SERVICE,
       account
     })
@@ -128,9 +128,14 @@ function subscribeAuthChanged(onChange: () => void): () => void {
   void listen<{ token: string | null }>(AUTH_CHANGED, function (event) {
     jwtCache = event.payload?.token ?? null
     onChange()
-  }).then(function (stop) {
-    unlisten = stop
   })
+    .then(function (stop) {
+      unlisten = stop
+    })
+    .catch(function (error: unknown) {
+      // 嵌套预览壳没有 IPC：订阅失败只该留一行日志，不能变成未处理的 rejection
+      console.warn('[secrets] 订阅 auth:changed 失败', error)
+    })
   return function () {
     unlisten?.()
   }

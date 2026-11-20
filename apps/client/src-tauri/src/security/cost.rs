@@ -33,7 +33,7 @@ pub struct CostExport {
 }
 
 /// 导出最近 N 条成本账（默认上限 5000 条）。
-#[tauri::command]
+#[tauri::command(rename = "security:export-cost")]
 pub async fn agent_cost_export(app: AppHandle, limit: Option<u32>) -> Result<CostExport, String> {
     let storage = app.state::<Storage>().inner().clone();
     export(&storage, limit).await

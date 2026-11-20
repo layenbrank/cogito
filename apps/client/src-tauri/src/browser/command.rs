@@ -20,7 +20,7 @@ use super::state::{BrowserState, BrowserTab};
 /// 「投递到主线程 → `rx.recv()` 阻塞等结果」，而同步 command 本身就占着主线程，
 /// 于是自己等自己，命令永不返回（表现为：地址栏回车没反应、没有报错、没有 tab）。
 /// `force_new` 默认 true（用户点 + 总是新建）；agent 工具面默认 false 走复用。
-#[tauri::command]
+#[tauri::command(rename = "browser:open")]
 pub async fn browser_open(
     app: AppHandle,
     url: String,
@@ -35,7 +35,7 @@ pub async fn browser_open(
     .map_err(|error| format!("打开浏览器视图失败：{error}"))?
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:close")]
 pub fn browser_close(
     app: AppHandle,
     state: State<'_, BrowserState>,
@@ -44,7 +44,7 @@ pub fn browser_close(
     lifecycle::close(&app, state.inner(), &label)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:activate")]
 pub fn browser_activate(
     app: AppHandle,
     state: State<'_, BrowserState>,
@@ -53,7 +53,7 @@ pub fn browser_activate(
     lifecycle::activate(&app, state.inner(), &label)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:layout")]
 pub fn browser_layout(
     app: AppHandle,
     state: State<'_, BrowserState>,
@@ -65,7 +65,7 @@ pub fn browser_layout(
     lifecycle::layout(&app, state.inner(), x, y, width, height)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:visible")]
 pub fn browser_visible(
     app: AppHandle,
     state: State<'_, BrowserState>,
@@ -80,7 +80,7 @@ pub fn browser_visible(
 /// 同步执行等于「在 WebView2 自己的回调栈上再调它的导航 API」—— 实测表现是
 /// 返回成功、页面不动、日志里只有一行「导航」（没有报错也没有加载）。
 /// 丢到阻塞线程池后消息经事件循环代理派发，才是 Tauri 期望的时序。
-#[tauri::command]
+#[tauri::command(rename = "browser:navigate")]
 pub async fn browser_navigate(app: AppHandle, label: String, url: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<BrowserState>();
@@ -90,31 +90,31 @@ pub async fn browser_navigate(app: AppHandle, label: String, url: String) -> Res
     .map_err(|error| format!("导航失败：{error}"))?
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:current-url")]
 pub fn browser_current_url(app: AppHandle, label: String) -> Result<String, String> {
     lifecycle::current_url(&app, &label)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:reload")]
 pub async fn browser_reload(app: AppHandle, label: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || lifecycle::reload(&app, &label))
         .await
         .map_err(|error| format!("刷新失败：{error}"))?
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:devtools")]
 pub fn browser_devtools(app: AppHandle, label: String) -> Result<(), String> {
     lifecycle::open_devtools(&app, &label)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:history")]
 pub async fn browser_history(app: AppHandle, label: String, backward: bool) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || lifecycle::step_history(&app, &label, backward))
         .await
         .map_err(|error| format!("历史导航失败：{error}"))?
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:history-state")]
 pub fn browser_history_state(
     app: AppHandle,
     label: String,
@@ -123,7 +123,7 @@ pub fn browser_history_state(
 }
 
 /// 当前 tab 会话历史（CDP Page.getNavigationHistory），供 omnibox 本地建议
-#[tauri::command]
+#[tauri::command(rename = "browser:navigation-history")]
 pub async fn browser_navigation_history(
     app: AppHandle,
     label: String,
@@ -134,13 +134,13 @@ pub async fn browser_navigation_history(
 /// 当前浏览器快照（tabs + 活动 label + 布局）。
 ///
 /// 前端页面刷新后内存态丢失，靠它把仍然活着的 webview 重新挂回 UI。
-#[tauri::command]
+#[tauri::command(rename = "browser:snapshot")]
 pub fn browser_snapshot(state: State<'_, BrowserState>) -> crate::browser::state::LayoutSnapshot {
     state.snapshot()
 }
 
 /// 网络请求列表（最新在前）
-#[tauri::command]
+#[tauri::command(rename = "browser:network-list")]
 pub fn browser_network_list(
     label: String,
     filter: Option<String>,
@@ -150,7 +150,7 @@ pub fn browser_network_list(
 }
 
 /// 设置拦截规则；空数组 = 关闭。返回生效条数 + paused/matched 计数。
-#[tauri::command]
+#[tauri::command(rename = "browser:update-intercept")]
 pub async fn browser_intercept_set(
     app: AppHandle,
     label: String,
@@ -163,7 +163,7 @@ pub async fn browser_intercept_set(
 ///
 /// 面板靠它判断「拦截到底有没有生效」：`paused` 恒为 0 说明 `Fetch.requestPaused`
 /// 根本没到（enable 参数 / 事件订阅问题），`paused > 0` 而 `matched` 为 0 说明规则没命中。
-#[tauri::command]
+#[tauri::command(rename = "browser:intercept-status")]
 pub async fn browser_intercept_status(label: String) -> Result<intercept::InterceptStatus, String> {
     let snapshot = intercept::counters(&label);
     Ok(intercept::InterceptStatus {
@@ -174,18 +174,18 @@ pub async fn browser_intercept_status(label: String) -> Result<intercept::Interc
 }
 
 /// 当前生效的拦截规则（agent 也可能改过，UI 靠它对齐）
-#[tauri::command]
+#[tauri::command(rename = "browser:intercept-list")]
 pub fn browser_intercept_list(label: String) -> Vec<Rule> {
     intercept::rules(&label)
 }
 
 /// 诊断探针：验证 CDP 通道（`Runtime` / `Network` / `Fetch`）在本机可用
-#[tauri::command]
+#[tauri::command(rename = "browser:probe")]
 pub async fn browser_probe(app: AppHandle, label: String) -> Result<serde_json::Value, String> {
     agent::probe(&app, &label).await
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:agent-read")]
 pub async fn browser_agent_read(
     app: AppHandle,
     label: String,
@@ -207,7 +207,7 @@ pub async fn browser_agent_read(
     .await
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:agent-screenshot")]
 pub async fn browser_agent_screenshot(
     app: AppHandle,
     label: String,
@@ -217,7 +217,7 @@ pub async fn browser_agent_screenshot(
     agent::screenshot(&app, &label, format.as_deref()).await
 }
 
-#[tauri::command]
+#[tauri::command(rename = "browser:agent-act")]
 pub async fn browser_agent_act(
     app: AppHandle,
     label: String,
@@ -229,19 +229,19 @@ pub async fn browser_agent_act(
 }
 
 /// 开始 CDP Overlay 元素拾取（VS Code 同款）
-#[tauri::command]
+#[tauri::command(rename = "browser:picker-start")]
 pub async fn browser_picker_start(app: AppHandle, label: String) -> Result<(), String> {
     picker::start(&app, &label).await
 }
 
 /// 取消元素拾取
-#[tauri::command]
+#[tauri::command(rename = "browser:picker-stop")]
 pub async fn browser_picker_stop(app: AppHandle, label: String) -> Result<(), String> {
     picker::stop(&app, &label).await
 }
 
 /// 当前 tab 的设备档案（`null` = 桌面态）。UI 切 tab 时用来对齐。
-#[tauri::command]
+#[tauri::command(rename = "browser:find-device")]
 pub fn browser_device_get(state: State<'_, BrowserState>, label: String) -> Option<DeviceProfile> {
     state.tab(&label).and_then(|tab| tab.device)
 }
@@ -254,7 +254,7 @@ pub fn browser_device_get(state: State<'_, BrowserState>, label: String) -> Opti
 /// 覆盖先下发、成功了才落状态：CDP 失败时前端仍显示旧设备，重试语义干净。
 /// 但 `apply` 内部可能已经改了一部分 —— 所以失败时按状态里的那份重放一次，
 /// 让页面回到记录中的设备，而不是半新半旧。
-#[tauri::command]
+#[tauri::command(rename = "browser:update-device")]
 pub async fn browser_device_set(
     app: AppHandle,
     state: State<'_, BrowserState>,

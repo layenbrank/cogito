@@ -45,7 +45,7 @@ pub async fn automation_list(state: State<'_, Storage>) -> CommandResult<Vec<Mod
     Service::toList(state.connection()).await
 }
 
-#[tauri::command(rename = "automation:setEnabled")]
+#[tauri::command(rename = "automation:update-enabled")]
 pub async fn automation_set_enabled(
     app: AppHandle,
     state: State<'_, Storage>,
@@ -147,7 +147,7 @@ fn remote_id_of(model: &Model) -> Option<String> {
 async fn sync(app: &AppHandle, state: &State<'_, Storage>, model: &Model) -> Result<(), String> {
     if model.owner != "goose" {
         // 从 goose 改成别的执行方：goose 侧那条排期得删掉，否则两边都跑（双发通知、双写副作用）
-        if model.remoteId.is_some() {
+        if model.remote_id.is_some() {
             if let Err(error) = GooseSchedule::remove(app, &model.id).await {
                 tracing::warn!("automation: 清理 goose 残留排期失败: {error}");
             }

@@ -42,7 +42,7 @@ async function listAutomations(): Promise<Automation[]> {
 async function writeAutomationEnabled(id: string, enabled: boolean): Promise<Automation> {
   try {
     return AutomationSchema.parse(
-      await invoke(CHANNELS.AUTOMATION.SET_ENABLED, { id, enabled })
+      await invoke(CHANNELS.AUTOMATION.UPDATE_ENABLED, { id, enabled })
     )
   } catch (error) {
     throw asError(error, '切换定时任务状态失败')

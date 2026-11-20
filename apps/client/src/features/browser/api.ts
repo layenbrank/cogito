@@ -20,31 +20,31 @@ interface BrowserTab {
 
 /** `forceNew` 默认 true：UI 开页总新建；agent 工具面自己走 bridge 复用逻辑 */
 async function openBrowserTab(url: string, forceNew = true): Promise<BrowserTab> {
-  return invoke<BrowserTab>('browser_open', { url, forceNew })
+  return invoke<BrowserTab>('browser:open', { url, forceNew })
 }
 
 async function closeBrowserTab(label: string): Promise<void> {
-  await invoke('browser_close', { label })
+  await invoke('browser:close', { label })
 }
 
 async function activateBrowserTab(label: string): Promise<void> {
-  await invoke('browser_activate', { label })
+  await invoke('browser:activate', { label })
 }
 
 async function navigateBrowser(label: string, url: string): Promise<void> {
-  await invoke('browser_navigate', { label, url })
+  await invoke('browser:navigate', { label, url })
 }
 
 async function fetchBrowserUrl(label: string): Promise<string> {
-  return invoke<string>('browser_current_url', { label })
+  return invoke<string>('browser:current-url', { label })
 }
 
 async function reloadBrowser(label: string): Promise<void> {
-  await invoke('browser_reload', { label })
+  await invoke('browser:reload', { label })
 }
 
 async function stepBrowserHistory(label: string, backward: boolean): Promise<void> {
-  await invoke('browser_history', { label, backward })
+  await invoke('browser:history', { label, backward })
 }
 
 interface BrowserHistoryState {
@@ -53,7 +53,7 @@ interface BrowserHistoryState {
 }
 
 async function fetchBrowserHistoryState(label: string): Promise<BrowserHistoryState> {
-  return invoke<BrowserHistoryState>('browser_history_state', { label })
+  return invoke<BrowserHistoryState>('browser:history-state', { label })
 }
 
 interface BrowserNavigationEntry {
@@ -63,12 +63,12 @@ interface BrowserNavigationEntry {
 
 /** 当前 tab 会话历史（关 tab 即消失） */
 async function fetchBrowserNavigationHistory(label: string): Promise<BrowserNavigationEntry[]> {
-  return invoke<BrowserNavigationEntry[]>('browser_navigation_history', { label })
+  return invoke<BrowserNavigationEntry[]>('browser:navigation-history', { label })
 }
 
 /** 打开这个 tab 的 DevTools（独立窗口） */
 async function openBrowserDevtools(label: string): Promise<void> {
-  await invoke('browser_devtools', { label })
+  await invoke('browser:devtools', { label })
 }
 
 /** 单项能力探测结果 */
@@ -116,7 +116,7 @@ interface BrowserDeviceResult {
 
 /** 诊断：确认 CDP 通道（读取 / 网络 / 拦截 / 截图）在本机可用 */
 async function probeBrowser(label: string): Promise<BrowserProbe> {
-  return invoke<BrowserProbe>('browser_probe', { label })
+  return invoke<BrowserProbe>('browser:probe', { label })
 }
 
 interface BrowserOutlineItem {
@@ -146,7 +146,7 @@ async function readBrowserPage(
   maxChars = 8000
 ): Promise<BrowserReadResult> {
   // `limit` 只管 outline 条目数，`maxChars` 只管 text 正文字符数（Rust 侧默认 8000）
-  return invoke<BrowserReadResult>('browser_agent_read', {
+  return invoke<BrowserReadResult>('browser:agent-read', {
     label,
     mode,
     limit,
@@ -166,7 +166,7 @@ async function screenshotBrowser(
   label: string,
   format?: 'png' | 'jpeg'
 ): Promise<BrowserShot> {
-  return invoke<BrowserShot>('browser_agent_screenshot', {
+  return invoke<BrowserShot>('browser:agent-screenshot', {
     label,
     format: format ?? null
   })
@@ -187,7 +187,7 @@ interface BrowserSnapshot {
 }
 
 async function fetchBrowserSnapshot(): Promise<BrowserSnapshot> {
-  return invoke<BrowserSnapshot>('browser_snapshot')
+  return invoke<BrowserSnapshot>('browser:snapshot')
 }
 
 /**
@@ -230,7 +230,7 @@ async function listBrowserNetwork(
   filter?: string,
   limit = 200
 ): Promise<NetworkEntry[]> {
-  return invoke<NetworkEntry[]>('browser_network_list', { label, filter, limit })
+  return invoke<NetworkEntry[]>('browser:network-list', { label, filter, limit })
 }
 
 /** 一条拦截规则：与 Rust `browser::intercept::Rule` 同形（camelCase） */
@@ -262,7 +262,7 @@ async function setBrowserInterceptRules(
   label: string,
   rules: InterceptRule[]
 ): Promise<InterceptStatus> {
-  return invoke<InterceptStatus>('browser_intercept_set', { label, rules })
+  return invoke<InterceptStatus>('browser:update-intercept', { label, rules })
 }
 
 /**
@@ -272,12 +272,12 @@ async function setBrowserInterceptRules(
  * 两个都停在 0 时不要怀疑页面，先看拦截通道本身。
  */
 async function fetchBrowserInterceptStatus(label: string): Promise<InterceptStatus> {
-  return invoke<InterceptStatus>('browser_intercept_status', { label })
+  return invoke<InterceptStatus>('browser:intercept-status', { label })
 }
 
 /** 当前生效的规则（agent 也会改，UI 进视图时用它对齐） */
 async function listBrowserInterceptRules(label: string): Promise<InterceptRule[]> {
-  return invoke<InterceptRule[]>('browser_intercept_list', { label })
+  return invoke<InterceptRule[]>('browser:intercept-list', { label })
 }
 
 /** 上报内容区 rect（CSS px，相对窗口客户区；Tauri 会按 scale factor 换成物理像素） */
@@ -287,21 +287,21 @@ async function writeBrowserRect(
   width: number,
   height: number
 ): Promise<void> {
-  await invoke('browser_layout', { x, y, width, height })
+  await invoke('browser:layout', { x, y, width, height })
 }
 
 /** 前端要弹浮层 / 切走页签时让位 —— 原生子 webview 永远盖在 HTML 之上 */
 async function writeBrowserVisible(visible: boolean): Promise<void> {
-  await invoke('browser_visible', { visible })
+  await invoke('browser:visible', { visible })
 }
 
 /** CDP Overlay 元素拾取（VS Code 同款） */
 async function startBrowserPicker(label: string): Promise<void> {
-  await invoke('browser_picker_start', { label })
+  await invoke('browser:picker-start', { label })
 }
 
 async function stopBrowserPicker(label: string): Promise<void> {
-  await invoke('browser_picker_stop', { label })
+  await invoke('browser:picker-stop', { label })
 }
 
 /**
@@ -315,12 +315,12 @@ async function setBrowserDevice(
   device: DeviceProfile | null,
   fit: number
 ): Promise<BrowserDeviceResult> {
-  return invoke<BrowserDeviceResult>('browser_device_set', { label, device, fit })
+  return invoke<BrowserDeviceResult>('browser:update-device', { label, device, fit })
 }
 
 /** 当前 tab 的设备档案（agent 也可能改过，UI 靠它对齐） */
 async function getBrowserDevice(label: string): Promise<DeviceProfile | null> {
-  return invoke<DeviceProfile | null>('browser_device_get', { label })
+  return invoke<DeviceProfile | null>('browser:find-device', { label })
 }
 
 interface PickedBrowserRect {

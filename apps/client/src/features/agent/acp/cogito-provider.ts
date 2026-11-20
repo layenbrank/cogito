@@ -319,7 +319,7 @@ async function ensureCogitoProvider(): Promise<void> {
 async function writeCogitoTenant(tenantID: string): Promise<void> {
   try {
     // 键名须为 `tenantId`，与 `writeGooseProvider` 同一套 Tauri 解包规则
-    await invoke<boolean>(CHANNELS.COGITO.PROVIDER_SET_TENANT, { tenantId: tenantID })
+    await invoke<boolean>(CHANNELS.COGITO.PROVIDER_UPDATE_TENANT, { tenantId: tenantID })
   } catch (error) {
     reportCaught('acp.cogito-provider.setTenant', error, 'warning')
   }

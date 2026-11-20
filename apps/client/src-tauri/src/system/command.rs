@@ -175,17 +175,17 @@ pub async fn goose_permissions_reset(app: tauri::AppHandle) -> Result<Option<Str
     Ok(backup)
 }
 
-#[tauri::command(rename = "secret:get")]
+#[tauri::command(rename = "secret:find")]
 pub fn secret_get(service: String, account: String) -> Result<Option<String>, String> {
     crate::utils::secret::get_secret(&service, &account)
 }
 
-#[tauri::command(rename = "secret:set")]
+#[tauri::command(rename = "secret:write")]
 pub fn secret_set(service: String, account: String, secret: String) -> Result<(), String> {
     crate::utils::secret::set_secret(&service, &account, &secret)
 }
 
-#[tauri::command(rename = "secret:delete")]
+#[tauri::command(rename = "secret:remove")]
 pub fn secret_delete(service: String, account: String) -> Result<(), String> {
     crate::utils::secret::delete_secret(&service, &account)
 }
@@ -226,7 +226,7 @@ pub async fn cogito_provider_ensure(
 
 /// 租户切换：只更新 provider 的 `X-Tenant-ID` 头，必要时重启 goose。返回是否重启过。
 /// IPC 键名：`tenantId`（见 `cogito_provider_ensure`）。
-#[tauri::command(rename = "cogito:provider:set-tenant")]
+#[tauri::command(rename = "cogito:provider:update-tenant")]
 pub async fn cogito_provider_set_tenant(
     app: tauri::AppHandle,
     tenant_id: String,
