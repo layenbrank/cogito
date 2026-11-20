@@ -148,9 +148,9 @@ pub struct WriteDocOutcome {
     pub revision: Option<i64>,
 }
 
-/// 一篇文档的云端索引坐标（本地 docID ↔ 云端 assetID）。
+/// 一篇文档的云端索引坐标（本地 doc_id ↔ 云端 asset_id）。
 ///
-/// 云端检索按资产 id 命中，本地按 docID 命中；两路要对齐才能去重，这里就是那张对照表。
+/// 云端检索按资产 id 命中，本地按 doc_id 命中；两路要对齐才能去重，这里就是那张对照表。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloudDoc {
@@ -161,7 +161,7 @@ pub struct CloudDoc {
 /// 一篇文档的云端索引状态：界面据此显示角标，同步流程据此决定该不该重传。
 ///
 /// `status` 取 `idle` / `pending` / `running` / `succeeded` / `failed`
-/// （与 `knowledge_index_state.cloudStatus` 同一套字面量）。
+/// （与 `knowledge_index_state.cloud_status` 同一套字面量）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloudState {
@@ -200,11 +200,11 @@ impl Service {
             let wanted = root_path.join(DEFAULT_SLUG);
             fs::create_dir_all(&wanted)?;
             let _ = ensure_wiki_layout(&wanted);
-            if existing.rootPath != wanted.to_string_lossy() {
+            if existing.root_path != wanted.to_string_lossy() {
                 // 应用数据目录搬过：以当前路径为准（旧文件不自动搬，回灌时再扫）
                 let mut active: base_schema::ActiveModel = existing.clone().into();
-                active.rootPath = Set(wanted.to_string_lossy().into_owned());
-                active.updatedAt = Set(now);
+                active.root_path = Set(wanted.to_string_lossy().into_owned());
+                active.updated_at = Set(now);
                 return Ok(active.update(db).await?);
             }
             return Ok(existing);
@@ -219,16 +219,16 @@ impl Service {
             slug: DEFAULT_SLUG.to_string(),
             description: None,
             scope: knowledge_base_scope::USER.to_string(),
-            tenantID: None,
-            rootPath: dir.to_string_lossy().into_owned(),
-            autoUpdate: false,
-            autoExport: false,
+            tenant_id: None,
+            root_path: dir.to_string_lossy().into_owned(),
+            auto_update: false,
+            auto_export: false,
             citation: true,
-            cloudModel: None,
-            cloudDimensions: None,
-            archivedAt: None,
-            createdAt: now,
-            updatedAt: now,
+            cloud_model: None,
+            cloud_dimensions: None,
+            archived_at: None,
+            created_at: now,
+            updated_at: now,
         };
         // 不用 `exec_with_returning`：TEXT 主键 + SQLite 下它要再发 SELECT，拿不到就报
         // "Failed to find inserted item"；直接把建好的 Model 返回更确定。
@@ -283,16 +283,16 @@ impl Service {
             slug,
             description: None,
             scope: knowledge_base_scope::USER.to_string(),
-            tenantID: None,
-            rootPath: dir.to_string_lossy().into_owned(),
-            autoUpdate: false,
-            autoExport: false,
+            tenant_id: None,
+            root_path: dir.to_string_lossy().into_owned(),
+            auto_update: false,
+            auto_export: false,
             citation: true,
-            cloudModel: None,
-            cloudDimensions: None,
-            archivedAt: None,
-            createdAt: now,
-            updatedAt: now,
+            cloud_model: None,
+            cloud_dimensions: None,
+            archived_at: None,
+            created_at: now,
+            updated_at: now,
         };
         base_schema::Entity::insert(base_schema::ActiveModel::from(model.clone()))
             .exec(db)
@@ -300,7 +300,7 @@ impl Service {
         Ok(model)
     }
 
-    /// 改库级选项（`autoUpdate` / `autoExport` / `citation`）：三者都可缺省，传 `None` 表示不动。
+    /// 改库级选项（`auto_update` / `auto_export` / `citation`）：三者都可缺省，传 `None` 表示不动。
     ///
     /// 这些选项眼下只影响**本机行为**（面板打开时自动回灌、发布后另存 HTML、生成带引用），
     /// 所以不触碰文档与索引，只更新这一行。
@@ -314,15 +314,15 @@ impl Service {
         let existing = Self::find_base(db, base_id).await?;
         let mut active: base_schema::ActiveModel = existing.into();
         if let Some(value) = auto_update {
-            active.autoUpdate = Set(value);
+            active.auto_update = Set(value);
         }
         if let Some(value) = auto_export {
-            active.autoExport = Set(value);
+            active.auto_export = Set(value);
         }
         if let Some(value) = citation {
             active.citation = Set(value);
         }
-        active.updatedAt = Set(Utc::now().timestamp_millis());
+        active.updated_at = Set(Utc::now().timestamp_millis());
         Ok(active.update(db).await?)
     }
 
@@ -339,7 +339,7 @@ impl Service {
         Ok(query.all(db).await?)
     }
 
-    /// 已建好云端索引的文档（`cloudStatus=succeeded` 且有 assetID）。
+    /// 已建好云端索引的文档（`cloud_status=succeeded` 且有 asset_id）。
     ///
     /// 只给**可用**的那些：在途、失败、「模型换了」的文档进不去云端召回，
     /// 把它们混进来只会让 `assetIDs` 变长而召回不变。
@@ -357,8 +357,8 @@ impl Service {
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                row.cloudAssetID.map(|asset_id| CloudDoc {
-                    doc_id: row.docID,
+                row.cloud_asset_id.map(|asset_id| CloudDoc {
+                    doc_id: row.doc_id,
                     asset_id,
                 })
             })
@@ -389,8 +389,8 @@ impl Service {
         db: &DatabaseConnection,
         doc: &doc_schema::Model,
     ) -> Result<String, Exception> {
-        let base = Self::find_base(db, &doc.baseID).await?;
-        let path = Path::new(&base.rootPath).join(&doc.relPath);
+        let base = Self::find_base(db, &doc.base_id).await?;
+        let path = Path::new(&base.root_path).join(&doc.rel_path);
         match fs::read_to_string(&path) {
             Ok(content) => Ok(content),
             Err(_) => Ok(doc.content.clone()),
@@ -437,8 +437,8 @@ impl Service {
 
         for doc in &docs {
             // 压缩包内用相对路径还原目录结构，解压后与库目录同形
-            let entry = doc.relPath.replace('\\', "/");
-            let content = match fs::read_to_string(Path::new(&base.rootPath).join(&doc.relPath)) {
+            let entry = doc.rel_path.replace('\\', "/");
+            let content = match fs::read_to_string(Path::new(&base.root_path).join(&doc.rel_path)) {
                 Ok(content) => content,
                 Err(_) => doc.content.clone(),
             };
@@ -502,8 +502,8 @@ impl Service {
         let content = fs::read_to_string(&staging)?;
         let title = find_title(&content, &base.name);
         let rel_path = Self::unique_rel_path(db, &base, &title, mode).await?;
-        let target = Path::new(&base.rootPath).join(&rel_path);
-        ensure_inside(&target, Path::new(&base.rootPath))?;
+        let target = Path::new(&base.root_path).join(&rel_path);
+        ensure_inside(&target, Path::new(&base.root_path))?;
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -517,7 +517,7 @@ impl Service {
     /// 从磁盘回灌：新增/改动入库，文件已消失的行删掉。返回处理的文件数。
     pub async fn toRescanBase(db: &DatabaseConnection, base_id: &str) -> Result<usize, Exception> {
         let base = Self::find_base(db, base_id).await?;
-        let root = PathBuf::from(&base.rootPath);
+        let root = PathBuf::from(&base.root_path);
         fs::create_dir_all(&root)?;
 
         let mut seen: HashSet<String> = HashSet::new();
@@ -542,10 +542,10 @@ impl Service {
             .all(db)
             .await?;
         for row in rows {
-            if seen.contains(&row.relPath) {
+            if seen.contains(&row.rel_path) {
                 continue;
             }
-            if root.join(&row.relPath).exists() {
+            if root.join(&row.rel_path).exists() {
                 continue;
             }
             doc_schema::Entity::delete_by_id(row.id.clone())
@@ -560,8 +560,8 @@ impl Service {
         let Some(doc) = Self::toReadDoc(db, id).await? else {
             return Ok(0);
         };
-        if let Ok(base) = Self::find_base(db, &doc.baseID).await {
-            let path = Path::new(&base.rootPath).join(&doc.relPath);
+        if let Ok(base) = Self::find_base(db, &doc.base_id).await {
+            let path = Path::new(&base.root_path).join(&doc.rel_path);
             let _ = fs::remove_file(path);
         }
         index_schema::Entity::delete_by_id(doc.id.clone())
@@ -594,7 +594,7 @@ impl Service {
             .await?;
         if purge_files {
             // 删目录失败（占用 / 权限）不阻断入库清理
-            let _ = fs::remove_dir_all(&base.rootPath);
+            let _ = fs::remove_dir_all(&base.root_path);
         }
         Ok(result.rows_affected)
     }
@@ -648,28 +648,28 @@ impl Service {
         let row = match existing {
             Some(current) => {
                 let mut active: index_schema::ActiveModel = current.into();
-                active.cloudStatus = Set(patch.status);
-                active.cloudAssetID = Set(patch.asset_id);
-                active.cloudIndexedAt = Set(patch.indexed_at);
-                active.lastError = Set(patch.error);
-                active.updatedAt = Set(now);
+                active.cloud_status = Set(patch.status);
+                active.cloud_asset_id = Set(patch.asset_id);
+                active.cloud_indexed_at = Set(patch.indexed_at);
+                active.last_error = Set(patch.error);
+                active.updated_at = Set(now);
                 active.update(db).await?
             }
             None => {
                 let model = index_schema::Model {
-                    docID: doc_id.to_string(),
-                    baseID: doc.baseID.clone(),
-                    tenantID: None,
-                    localIndexedAt: None,
-                    cloudStatus: patch.status,
-                    cloudAssetID: patch.asset_id,
-                    cloudAssetHash: None,
-                    cloudModel: None,
-                    cloudDimensions: None,
-                    cloudIndexedAt: patch.indexed_at,
-                    lastError: patch.error,
-                    createdAt: now,
-                    updatedAt: now,
+                    doc_id: doc_id.to_string(),
+                    base_id: doc.base_id.clone(),
+                    tenant_id: None,
+                    local_indexed_at: None,
+                    cloud_status: patch.status,
+                    cloud_asset_id: patch.asset_id,
+                    cloud_asset_hash: None,
+                    cloud_model: None,
+                    cloud_dimensions: None,
+                    cloud_indexed_at: patch.indexed_at,
+                    last_error: patch.error,
+                    created_at: now,
+                    updated_at: now,
                 };
                 index_schema::Entity::insert(index_schema::ActiveModel::from(model.clone()))
                     .exec(db)
@@ -682,11 +682,11 @@ impl Service {
 
     fn to_cloud_state(row: index_schema::Model) -> CloudState {
         CloudState {
-            doc_id: row.docID,
-            status: row.cloudStatus,
-            asset_id: row.cloudAssetID,
-            indexed_at: row.cloudIndexedAt,
-            error: row.lastError,
+            doc_id: row.doc_id,
+            status: row.cloud_status,
+            asset_id: row.cloud_asset_id,
+            indexed_at: row.cloud_indexed_at,
+            error: row.last_error,
         }
     }
 
@@ -769,7 +769,7 @@ impl Service {
             });
         }
 
-        ensure_inside(&target, Path::new(&base.rootPath))?;
+        ensure_inside(&target, Path::new(&base.root_path))?;
         fs::write(&target, content)?;
 
         let doc = Self::upsert_from_content(
@@ -809,7 +809,7 @@ impl Service {
 
         let mut best: Option<(base_schema::Model, String)> = None;
         for base in Self::toListBases(db).await? {
-            let Ok(root) = fs::canonicalize(&base.rootPath) else {
+            let Ok(root) = fs::canonicalize(&base.root_path) else {
                 continue;
             };
             let Ok(rel) = target.strip_prefix(&root) else {
@@ -833,14 +833,14 @@ impl Service {
     fn to_summary(doc: doc_schema::Model) -> DocSummary {
         DocSummary {
             id: doc.id,
-            base_id: doc.baseID,
+            base_id: doc.base_id,
             title: doc.title,
-            rel_path: doc.relPath,
-            word_count: doc.wordCount,
+            rel_path: doc.rel_path,
+            word_count: doc.word_count,
             revision: doc.revision,
             status: doc.status,
             source: doc.source,
-            updated_at: doc.updatedAt,
+            updated_at: doc.updated_at,
         }
     }
 
@@ -1005,7 +1005,7 @@ impl Service {
 
     /// 知识库总目录 = 某个 base 目录的父目录（staging 与各 base 平级）。
     fn knowledge_root(base: &base_schema::Model) -> Result<PathBuf, Exception> {
-        Path::new(&base.rootPath)
+        Path::new(&base.root_path)
             .parent()
             .map(Path::to_path_buf)
             .ok_or_else(|| Exception::Validation("知识库目录缺少父目录".to_string()))
@@ -1040,7 +1040,7 @@ impl Service {
                 .one(db)
                 .await?
                 .is_some();
-            if !taken && !Path::new(&base.rootPath).join(&candidate).exists() {
+            if !taken && !Path::new(&base.root_path).join(&candidate).exists() {
                 return Ok(candidate);
             }
             attempt += 1;
@@ -1052,7 +1052,7 @@ impl Service {
         }
     }
 
-    /// 落库（按 `baseId + relPath` 幂等）。hash 未变时不动 revision —— 回灌不该制造假变更。
+    /// 落库（按 `baseID + relPath` 幂等）。hash 未变时不动 revision —— 回灌不该制造假变更。
     async fn upsert_from_content(
         db: &DatabaseConnection,
         base: &base_schema::Model,
@@ -1074,7 +1074,7 @@ impl Service {
 
         let model = match existing {
             Some(existing) => {
-                if existing.hash == hash && existing.relPath == rel_path {
+                if existing.hash == hash && existing.rel_path == rel_path {
                     return Ok(existing);
                 }
                 let revision = existing.revision + 1;
@@ -1083,34 +1083,34 @@ impl Service {
                 active.hash = Set(hash);
                 active.content = Set(content.to_string());
                 active.size = Set(size);
-                active.wordCount = Set(words);
+                active.word_count = Set(words);
                 active.revision = Set(revision);
                 active.status = Set(knowledge_doc_status::PUBLISHED.to_string());
                 active.source = Set(source.to_string());
                 active.error = Set(None);
-                active.updatedAt = Set(now);
+                active.updated_at = Set(now);
                 active.update(db).await?
             }
             None => {
                 let model = doc_schema::Model {
                     id: Uuid::new_v4().to_string(),
-                    baseID: base.id.clone(),
+                    base_id: base.id.clone(),
                     title,
-                    relPath: rel_path.to_string(),
+                    rel_path: rel_path.to_string(),
                     hash,
                     content: content.to_string(),
                     size,
-                    wordCount: words,
+                    word_count: words,
                     revision: 1,
                     status: knowledge_doc_status::PUBLISHED.to_string(),
                     source: source.to_string(),
                     error: None,
-                    sessionID: None,
-                    assetID: None,
-                    assetHash: None,
-                    archivedAt: None,
-                    createdAt: now,
-                    updatedAt: now,
+                    session_id: None,
+                    asset_id: None,
+                    asset_hash: None,
+                    archived_at: None,
+                    created_at: now,
+                    updated_at: now,
                 };
                 doc_schema::Entity::insert(doc_schema::ActiveModel::from(model.clone()))
                     .exec(db)
@@ -1134,25 +1134,25 @@ impl Service {
         match existing {
             Some(existing) => {
                 let mut active: index_schema::ActiveModel = existing.into();
-                active.localIndexedAt = Set(Some(now));
-                active.updatedAt = Set(now);
+                active.local_indexed_at = Set(Some(now));
+                active.updated_at = Set(now);
                 active.update(db).await?;
             }
             None => {
                 let model = index_schema::ActiveModel {
-                    docID: Set(doc.id.clone()),
-                    baseID: Set(doc.baseID.clone()),
-                    tenantID: Set(None),
-                    localIndexedAt: Set(Some(now)),
-                    cloudStatus: Set(knowledge_cloud_status::IDLE.to_string()),
-                    cloudAssetID: Set(None),
-                    cloudAssetHash: Set(None),
-                    cloudModel: Set(None),
-                    cloudDimensions: Set(None),
-                    cloudIndexedAt: Set(None),
-                    lastError: Set(None),
-                    createdAt: Set(now),
-                    updatedAt: Set(now),
+                    doc_id: Set(doc.id.clone()),
+                    base_id: Set(doc.base_id.clone()),
+                    tenant_id: Set(None),
+                    local_indexed_at: Set(Some(now)),
+                    cloud_status: Set(knowledge_cloud_status::IDLE.to_string()),
+                    cloud_asset_id: Set(None),
+                    cloud_asset_hash: Set(None),
+                    cloud_model: Set(None),
+                    cloud_dimensions: Set(None),
+                    cloud_indexed_at: Set(None),
+                    last_error: Set(None),
+                    created_at: Set(now),
+                    updated_at: Set(now),
                 };
                 index_schema::Entity::insert(model).exec(db).await?;
             }
@@ -1253,14 +1253,14 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        assert!(!base.autoUpdate);
+        assert!(!base.auto_update);
         assert!(base.citation, "默认库生成带引用");
 
         let changed = Service::toUpdateBase(db, &base.id, Some(true), Some(true), None)
             .await
             .expect("更新");
-        assert!(changed.autoUpdate);
-        assert!(changed.autoExport);
+        assert!(changed.auto_update);
+        assert!(changed.auto_export);
         assert!(changed.citation, "没传的 citation 不该被改");
 
         let reloaded = Service::toListBases(db).await.expect("列表");
@@ -1268,7 +1268,7 @@ mod tests {
             .into_iter()
             .find(|item| item.id == base.id)
             .expect("应还在列表里");
-        assert!(row.autoUpdate && row.autoExport && row.citation);
+        assert!(row.auto_update && row.auto_export && row.citation);
     }
 
     /// 云端召回只认「已建好索引」的文档：在途与失败的文档混进来只会让 assetIDs 变长。
@@ -1295,19 +1295,19 @@ mod tests {
             ("doc-failed", knowledge_cloud_status::FAILED, None),
         ] {
             index_schema::Entity::insert(index_schema::ActiveModel {
-                docID: Set(doc_id.to_string()),
-                baseID: Set(base.id.clone()),
-                tenantID: Set(None),
-                localIndexedAt: Set(Some(now)),
-                cloudStatus: Set(status.to_string()),
-                cloudAssetID: Set(asset.map(str::to_string)),
-                cloudAssetHash: Set(None),
-                cloudModel: Set(None),
-                cloudDimensions: Set(None),
-                cloudIndexedAt: Set(None),
-                lastError: Set(None),
-                createdAt: Set(now),
-                updatedAt: Set(now),
+                doc_id: Set(doc_id.to_string()),
+                base_id: Set(base.id.clone()),
+                tenant_id: Set(None),
+                local_indexed_at: Set(Some(now)),
+                cloud_status: Set(status.to_string()),
+                cloud_asset_id: Set(asset.map(str::to_string)),
+                cloud_asset_hash: Set(None),
+                cloud_model: Set(None),
+                cloud_dimensions: Set(None),
+                cloud_indexed_at: Set(None),
+                last_error: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
             })
             .exec(db)
             .await
@@ -1334,23 +1334,23 @@ mod tests {
         let now = Utc::now().timestamp_millis();
         doc_schema::Entity::insert(doc_schema::ActiveModel {
             id: Set("doc-1".to_string()),
-            baseID: Set(base.id.clone()),
+            base_id: Set(base.id.clone()),
             title: Set("第一篇".to_string()),
-            relPath: Set("第一篇.md".to_string()),
+            rel_path: Set("第一篇.md".to_string()),
             hash: Set("h".to_string()),
             content: Set("正文".to_string()),
             size: Set(6),
-            wordCount: Set(2),
+            word_count: Set(2),
             revision: Set(1),
             status: Set(knowledge_doc_status::PUBLISHED.to_string()),
             source: Set(knowledge_doc_source::AUTHORED.to_string()),
             error: Set(None),
-            sessionID: Set(None),
-            assetID: Set(None),
-            assetHash: Set(None),
-            archivedAt: Set(None),
-            createdAt: Set(now),
-            updatedAt: Set(now),
+            session_id: Set(None),
+            asset_id: Set(None),
+            asset_hash: Set(None),
+            archived_at: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
         })
         .exec(db)
         .await
@@ -1437,7 +1437,7 @@ mod tests {
         let second = Service::toEnsureDefaultBase(db, &root).await.expect("再次");
         assert_eq!(first.id, second.id);
         assert_eq!(first.slug, "default");
-        assert!(Path::new(&first.rootPath).is_dir());
+        assert!(Path::new(&first.root_path).is_dir());
     }
 
     #[tokio::test]
@@ -1466,7 +1466,7 @@ mod tests {
         .await
         .expect("发布");
         assert_eq!(doc.status, knowledge_doc_status::PUBLISHED);
-        assert!(Path::new(&base.rootPath).join(&doc.relPath).exists());
+        assert!(Path::new(&base.root_path).join(&doc.rel_path).exists());
         // staging 副本已清理
         assert!(!Path::new(&staged.path).exists());
 
@@ -1527,7 +1527,7 @@ mod tests {
             .len();
         assert!(seeded >= 3, "默认库应带种子文档");
 
-        let file = Path::new(&base.rootPath).join("外部写入.md");
+        let file = Path::new(&base.root_path).join("外部写入.md");
         fs::write(&file, "# 外部写入\n\n由编辑器直接落盘。").expect("写文件");
         let handled = Service::toRescanBase(db, &base.id).await.expect("回灌");
         assert_eq!(handled, seeded + 1);
@@ -1537,7 +1537,7 @@ mod tests {
         assert_eq!(docs.len(), seeded + 1);
         let hit = docs
             .iter()
-            .find(|doc| doc.relPath == "外部写入.md")
+            .find(|doc| doc.rel_path == "外部写入.md")
             .expect("新文件应入库");
         assert_eq!(hit.title, "外部写入");
         assert_eq!(hit.source, knowledge_doc_source::IMPORT);
@@ -1548,7 +1548,7 @@ mod tests {
             .await
             .expect("列文档");
         assert_eq!(docs.len(), seeded, "文件消失后行应被清掉");
-        assert!(!docs.iter().any(|doc| doc.relPath == "外部写入.md"));
+        assert!(!docs.iter().any(|doc| doc.rel_path == "外部写入.md"));
     }
 
     #[tokio::test]
@@ -1559,7 +1559,7 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        let file = Path::new(&base.rootPath).join("稳定.md");
+        let file = Path::new(&base.root_path).join("稳定.md");
         fs::write(&file, "# 稳定\n\n内容不变。").expect("写文件");
 
         Service::toRescanBase(db, &base.id).await.expect("首次回灌");
@@ -1569,7 +1569,7 @@ mod tests {
             .expect("列文档");
         let doc = docs
             .iter()
-            .find(|doc| doc.relPath == "稳定.md")
+            .find(|doc| doc.rel_path == "稳定.md")
             .expect("稳定.md 应入库");
         assert_eq!(doc.revision, 1, "内容没变不该制造新版本");
 
@@ -1582,7 +1582,7 @@ mod tests {
             .expect("列文档");
         let doc = docs
             .iter()
-            .find(|doc| doc.relPath == "稳定.md")
+            .find(|doc| doc.rel_path == "稳定.md")
             .expect("稳定.md 应还在");
         assert_eq!(doc.revision, 2);
     }
@@ -1632,7 +1632,7 @@ mod tests {
         );
 
         // staging 之外的文件不允许「丢弃」
-        let outside = Path::new(&base.rootPath).join("正式.md");
+        let outside = Path::new(&base.root_path).join("正式.md");
         fs::write(&outside, "# 正式\n").expect("写正式文件");
         let error = Service::toDiscardStaging(db, &outside.to_string_lossy())
             .await
@@ -1648,7 +1648,7 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        let file = Path::new(&base.rootPath).join("摘要.md");
+        let file = Path::new(&base.root_path).join("摘要.md");
         fs::write(&file, "# 摘要标题\n\n正文内容。").expect("写文件");
         Service::toRescanBase(db, &base.id).await.expect("回灌");
 
@@ -1676,7 +1676,7 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        let file = Path::new(&base.rootPath).join("手写.md");
+        let file = Path::new(&base.root_path).join("手写.md");
         let path = file.to_string_lossy().into_owned();
 
         // 新文件：create 一次，revision 从 1 起
@@ -1723,7 +1723,7 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        let file = Path::new(&base.rootPath).join("冲突.md");
+        let file = Path::new(&base.root_path).join("冲突.md");
         let path = file.to_string_lossy().into_owned();
 
         let opened = Service::toWriteDoc(db, &path, "# 冲突\n\n我的版本", None, false)
@@ -1794,7 +1794,7 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        let dir = Path::new(&base.rootPath)
+        let dir = Path::new(&base.root_path)
             .parent()
             .expect("父目录")
             .join(".staging")
@@ -1840,7 +1840,7 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
-        let outside = Path::new(&base.rootPath).join("正文.md");
+        let outside = Path::new(&base.root_path).join("正文.md");
         fs::write(&outside, "# 正文\n").expect("写正式文件");
 
         let error = Service::toMergeStaging(

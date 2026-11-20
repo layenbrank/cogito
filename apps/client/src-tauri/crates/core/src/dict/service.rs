@@ -340,8 +340,8 @@ impl Service {
 
         for row in catalog.tenant_items {
             tenant_schema::ActiveModel {
-                tenantId: Set(row.tenant_id),
-                typeCode: Set(row.type_code),
+                tenant_id: Set(row.tenant_id),
+                type_code: Set(row.type_code),
                 value: Set(row.value),
                 label: Set(row.label),
                 enabled: Set(row.enabled),

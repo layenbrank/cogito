@@ -1084,43 +1084,43 @@ impl MigrationTrait for Migration {
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_column_board_id_index ON signboard_column (board_id, \"index\")",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_column_boardID_index ON signboard_column (\"boardID\", \"index\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_column_id_index ON signboard_entry (column_id, \"index\")",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_columnID_index ON signboard_entry (\"columnID\", \"index\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_reminder_id ON signboard_entry (reminder_id)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_reminderID ON signboard_entry (\"reminderID\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_due_at ON signboard_entry (due_at)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_dueAt ON signboard_entry (\"dueAt\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_start_at ON signboard_entry (start_at)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_startAt ON signboard_entry (\"startAt\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_tag_board_id ON signboard_tag (board_id)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_tag_boardID ON signboard_tag (\"boardID\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_signboard_tag_board_id_title ON signboard_tag (board_id, title)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_signboard_tag_boardID_title ON signboard_tag (\"boardID\", title)",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_tagged_tag_id ON signboard_tagged (tag_id)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_tagged_tagID ON signboard_tagged (\"tagID\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_check_entry_id_index ON signboard_check (entry_id, \"index\")",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_check_entryID_index ON signboard_check (\"entryID\", \"index\")",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_signboard_automation_board_id_index ON signboard_automation (board_id, \"index\")",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_automation_boardID_index ON signboard_automation (\"boardID\", \"index\")",
         )
         .await?;
 
@@ -1153,27 +1153,27 @@ impl MigrationTrait for Migration {
             "CREATE INDEX IF NOT EXISTS idx_bookmark_mirror_url ON bookmark (\"mirrorID\", url)",
             // v004：signboard_entry_asset（卡片 ↔ 本地 asset）
             "CREATE TABLE IF NOT EXISTS signboard_entry_asset (\
-                 entry_id TEXT NOT NULL, \
-                 asset_id TEXT NOT NULL, \
+                 \"entryID\" TEXT NOT NULL, \
+                 \"assetID\" TEXT NOT NULL, \
                  \"index\" INTEGER NOT NULL DEFAULT 0, \
                  \"createdAt\" INTEGER NOT NULL, \
-                 PRIMARY KEY (entry_id, asset_id), \
-                 CONSTRAINT fk_signboard_entry_asset_entry FOREIGN KEY (entry_id) \
+                 PRIMARY KEY (\"entryID\", \"assetID\"), \
+                 CONSTRAINT fk_signboard_entry_asset_entry FOREIGN KEY (\"entryID\") \
                      REFERENCES signboard_entry (id) ON DELETE CASCADE ON UPDATE CASCADE, \
-                 CONSTRAINT fk_signboard_entry_asset_asset FOREIGN KEY (asset_id) \
+                 CONSTRAINT fk_signboard_entry_asset_asset FOREIGN KEY (\"assetID\") \
                      REFERENCES asset (id) ON DELETE CASCADE ON UPDATE CASCADE)",
-            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_entry_id_index ON signboard_entry_asset (entry_id, \"index\")",
-            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_asset_id ON signboard_entry_asset (asset_id)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_entryID_index ON signboard_entry_asset (\"entryID\", \"index\")",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_assetID ON signboard_entry_asset (\"assetID\")",
             // 看板进度与列角色
             // ── Knowledge（知识库）──
-            // scope=user 属个人；scope=tenant 为团队共享（用 \"tenantId\" 圈定租户）
+            // scope=user 属个人；scope=tenant 为团队共享（用 \"tenantID\" 圈定租户）
             "CREATE TABLE IF NOT EXISTS knowledge_base (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  name TEXT NOT NULL, \
                  slug TEXT NOT NULL, \
                  description TEXT NULL, \
                  scope TEXT NOT NULL DEFAULT '012', \
-                 \"tenantId\" TEXT NULL, \
+                 \"tenantID\" TEXT NULL, \
                  \"rootPath\" TEXT NOT NULL, \
                  \"autoUpdate\" INTEGER NOT NULL DEFAULT 0, \
                  \"autoExport\" INTEGER NOT NULL DEFAULT 0, \
@@ -1184,10 +1184,10 @@ impl MigrationTrait for Migration {
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_base_slug ON knowledge_base (slug)",
-            "CREATE INDEX IF NOT EXISTS idx_knowledge_base_scope ON knowledge_base (scope, \"tenantId\")",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_base_scope ON knowledge_base (scope, \"tenantID\")",
             "CREATE TABLE IF NOT EXISTS knowledge_doc (\
                  id TEXT PRIMARY KEY NOT NULL, \
-                 \"baseId\" TEXT NOT NULL, \
+                 \"baseID\" TEXT NOT NULL, \
                  title TEXT NOT NULL, \
                  \"relPath\" TEXT NOT NULL, \
                  hash TEXT NOT NULL, \
@@ -1198,16 +1198,16 @@ impl MigrationTrait for Migration {
                  status TEXT NOT NULL DEFAULT '001', \
                  source TEXT NOT NULL DEFAULT '003', \
                  error TEXT NULL, \
-                 \"sessionId\" TEXT NULL, \
-                 \"assetId\" TEXT NULL, \
+                 \"sessionID\" TEXT NULL, \
+                 \"assetID\" TEXT NULL, \
                  \"assetHash\" TEXT NULL, \
                  \"archivedAt\" INTEGER NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL, \
-                 CONSTRAINT fk_knowledge_doc_base FOREIGN KEY (\"baseId\") \
+                 CONSTRAINT fk_knowledge_doc_base FOREIGN KEY (\"baseID\") \
                      REFERENCES knowledge_base (id) ON DELETE CASCADE ON UPDATE CASCADE)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_doc_base_path ON knowledge_doc (\"baseId\", \"relPath\")",
-            "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_base_updated ON knowledge_doc (\"baseId\", \"updatedAt\")",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_doc_base_path ON knowledge_doc (\"baseID\", \"relPath\")",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_base_updated ON knowledge_doc (\"baseID\", \"updatedAt\")",
             "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_status ON knowledge_doc (status)",
             // FTS5 外部内容表：正文由 knowledge_doc.content 镜像，触发器保持同步
             "CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_doc_fts USING fts5(\
@@ -1225,12 +1225,12 @@ impl MigrationTrait for Migration {
                  INSERT INTO knowledge_doc_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content); \
              END",
             "CREATE TABLE IF NOT EXISTS knowledge_index_state (\
-                 \"docId\" TEXT PRIMARY KEY NOT NULL, \
-                 \"baseId\" TEXT NOT NULL, \
-                 \"tenantId\" TEXT NULL, \
+                 \"docID\" TEXT PRIMARY KEY NOT NULL, \
+                 \"baseID\" TEXT NOT NULL, \
+                 \"tenantID\" TEXT NULL, \
                  \"localIndexedAt\" INTEGER NULL, \
                  \"cloudStatus\" TEXT NOT NULL DEFAULT '007', \
-                 \"cloudAssetId\" TEXT NULL, \
+                 \"cloudAssetID\" TEXT NULL, \
                  \"cloudAssetHash\" TEXT NULL, \
                  \"cloudModel\" TEXT NULL, \
                  \"cloudDimensions\" INTEGER NULL, \
@@ -1240,20 +1240,20 @@ impl MigrationTrait for Migration {
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_knowledge_index_state_cloud ON knowledge_index_state (\"cloudStatus\", \"updatedAt\")",
             // ── 自动化 ──
-            // owner=client 由本机 worker 跑；owner=cloud 时 \"remoteId\" 记服务端任务 id，本地只镜像状态。
+            // owner=client 由本机 worker 跑；owner=cloud 时 \"remoteID\" 记服务端任务 id，本地只镜像状态。
             // \"runAsKind\"=user 以创建者身份跑（需校验仍是租户成员）；=tenant 以租户服务身份跑（团队共享库）。
             "CREATE TABLE IF NOT EXISTS automation (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  name TEXT NOT NULL, \
                  prompt TEXT NOT NULL, \
-                 \"knowledgeBaseId\" TEXT NULL, \
-                 \"workspaceId\" TEXT NULL, \
+                 \"knowledgeBaseID\" TEXT NULL, \
+                 \"workspaceID\" TEXT NULL, \
                  \"workspacePath\" TEXT NULL, \
                  \"sessionMode\" TEXT NOT NULL DEFAULT 'new', \
-                 \"sessionId\" TEXT NULL, \
+                 \"sessionID\" TEXT NULL, \
                  approval TEXT NOT NULL DEFAULT 'readonly', \
-                 \"providerId\" TEXT NULL, \
-                 \"modelId\" TEXT NULL, \
+                 \"providerID\" TEXT NULL, \
+                 \"modelID\" TEXT NULL, \
                  mode TEXT NOT NULL DEFAULT 'agent', \
                  \"goalBudget\" INTEGER NOT NULL DEFAULT 6, \
                  \"planThenGoal\" INTEGER NOT NULL DEFAULT 0, \
@@ -1264,9 +1264,9 @@ impl MigrationTrait for Migration {
                  enabled INTEGER NOT NULL DEFAULT 1, \
                  owner TEXT NOT NULL DEFAULT '021', \
                  \"runAsKind\" TEXT NOT NULL DEFAULT '024', \
-                 \"runAsUserId\" TEXT NULL, \
-                 \"tenantId\" TEXT NULL, \
-                 \"remoteId\" TEXT NULL, \
+                 \"runAsUserID\" TEXT NULL, \
+                 \"tenantID\" TEXT NULL, \
+                 \"remoteID\" TEXT NULL, \
                  \"nextRunAt\" INTEGER NULL, \
                  \"lastRunAt\" INTEGER NULL, \
                  \"lastStatus\" TEXT NULL, \
@@ -1275,31 +1275,31 @@ impl MigrationTrait for Migration {
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_automation_due ON automation (enabled, \"nextRunAt\")",
             // \"triggerKind\" 区分准点 / 手动 / 重启补跑（补跑只补一次）；
-            // \"runAsKind\"+\"runAsUserId\" 留档本次实际以谁的身份执行。
+            // \"runAsKind\"+\"runAsUserID\" 留档本次实际以谁的身份执行。
             "CREATE TABLE IF NOT EXISTS automation_run (\
                  id TEXT PRIMARY KEY NOT NULL, \
-                 \"automationId\" TEXT NOT NULL, \
+                 \"automationID\" TEXT NOT NULL, \
                  \"scheduledFor\" INTEGER NOT NULL, \
                  \"triggerKind\" TEXT NOT NULL DEFAULT '018', \
                  \"runAsKind\" TEXT NOT NULL DEFAULT '024', \
-                 \"runAsUserId\" TEXT NULL, \
+                 \"runAsUserID\" TEXT NULL, \
                  \"startedAt\" INTEGER NULL, \
                  \"finishedAt\" INTEGER NULL, \
                  status TEXT NOT NULL DEFAULT '014', \
-                 \"sessionId\" TEXT NULL, \
+                 \"sessionID\" TEXT NULL, \
                  phase TEXT NULL, \
                  output TEXT NULL, \
                  error TEXT NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
-                 CONSTRAINT fk_automation_run_automation FOREIGN KEY (\"automationId\") \
+                 CONSTRAINT fk_automation_run_automation FOREIGN KEY (\"automationID\") \
                      REFERENCES automation (id) ON DELETE CASCADE ON UPDATE CASCADE)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_run_slot ON automation_run (\"automationId\", \"scheduledFor\")",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_run_slot ON automation_run (\"automationID\", \"scheduledFor\")",
             "CREATE INDEX IF NOT EXISTS idx_automation_run_status ON automation_run (status, \"createdAt\")",
             // ── 指令草稿收件箱（agent 生成，用户确认后才写入 corex.db）──
             "CREATE TABLE IF NOT EXISTS directive_draft (\
                  id TEXT PRIMARY KEY NOT NULL, \
-                 \"threadId\" TEXT NULL, \
-                 \"workspaceId\" TEXT NULL, \
+                 \"threadID\" TEXT NULL, \
+                 \"workspaceID\" TEXT NULL, \
                  name TEXT NOT NULL, \
                  definition TEXT NOT NULL, \
                  status TEXT NOT NULL DEFAULT '026', \
@@ -1362,16 +1362,16 @@ impl MigrationTrait for Migration {
                 .await?;
         }
         for index in [
-            "idx_signboard_automation_board_id_index",
-            "idx_signboard_check_entry_id_index",
-            "idx_signboard_tagged_tag_id",
-            "idx_signboard_tag_board_id_title",
-            "idx_signboard_tag_board_id",
-            "idx_signboard_entry_start_at",
-            "idx_signboard_entry_due_at",
-            "idx_signboard_entry_reminder_id",
-            "idx_signboard_entry_column_id_index",
-            "idx_signboard_column_board_id_index",
+            "idx_signboard_automation_boardID_index",
+            "idx_signboard_check_entryID_index",
+            "idx_signboard_tagged_tagID",
+            "idx_signboard_tag_boardID_title",
+            "idx_signboard_tag_boardID",
+            "idx_signboard_entry_startAt",
+            "idx_signboard_entry_dueAt",
+            "idx_signboard_entry_reminderID",
+            "idx_signboard_entry_columnID_index",
+            "idx_signboard_column_boardID_index",
             "idx_signboard_index",
         ] {
             db.execute_unprepared(&format!("DROP INDEX IF EXISTS {index}"))
@@ -1743,9 +1743,13 @@ enum Signboard {
     Id,
     Title,
     Index,
+    #[iden = "archivedAt"]
     ArchivedAt,
+    #[iden = "syncedAt"]
     SyncedAt,
+    #[iden = "createdAt"]
     CreatedAt,
+    #[iden = "updatedAt"]
     UpdatedAt,
 }
 
@@ -1754,14 +1758,19 @@ enum SignboardColumn {
     #[iden = "signboard_column"]
     Table,
     Id,
+    #[iden = "boardID"]
     BoardId,
     Title,
     Index,
     Color,
+    #[iden = "wipLimit"]
     WipLimit,
     Role,
+    #[iden = "archivedAt"]
     ArchivedAt,
+    #[iden = "createdAt"]
     CreatedAt,
+    #[iden = "updatedAt"]
     UpdatedAt,
 }
 
@@ -1770,18 +1779,25 @@ enum SignboardEntry {
     #[iden = "signboard_entry"]
     Table,
     Id,
+    #[iden = "columnID"]
     ColumnId,
     Title,
     Notes,
     Index,
+    #[iden = "dueAt"]
     DueAt,
+    #[iden = "startAt"]
     StartAt,
+    #[iden = "reminderID"]
     ReminderId,
     Priority,
     Color,
     Progress,
+    #[iden = "archivedAt"]
     ArchivedAt,
+    #[iden = "createdAt"]
     CreatedAt,
+    #[iden = "updatedAt"]
     UpdatedAt,
 }
 
@@ -1790,10 +1806,13 @@ enum SignboardTag {
     #[iden = "signboard_tag"]
     Table,
     Id,
+    #[iden = "boardID"]
     BoardId,
     Title,
     Color,
+    #[iden = "createdAt"]
     CreatedAt,
+    #[iden = "updatedAt"]
     UpdatedAt,
 }
 
@@ -1801,7 +1820,9 @@ enum SignboardTag {
 enum SignboardTagged {
     #[iden = "signboard_tagged"]
     Table,
+    #[iden = "entryID"]
     EntryId,
+    #[iden = "tagID"]
     TagId,
 }
 
@@ -1810,11 +1831,14 @@ enum SignboardCheck {
     #[iden = "signboard_check"]
     Table,
     Id,
+    #[iden = "entryID"]
     EntryId,
     Title,
     Done,
     Index,
+    #[iden = "createdAt"]
     CreatedAt,
+    #[iden = "updatedAt"]
     UpdatedAt,
 }
 
@@ -1823,13 +1847,18 @@ enum SignboardAutomation {
     #[iden = "signboard_automation"]
     Table,
     Id,
+    #[iden = "boardID"]
     BoardId,
     Title,
     Enabled,
     Trigger,
+    #[iden = "conditionJson"]
     ConditionJson,
+    #[iden = "actionJson"]
     ActionJson,
     Index,
+    #[iden = "createdAt"]
     CreatedAt,
+    #[iden = "updatedAt"]
     UpdatedAt,
 }

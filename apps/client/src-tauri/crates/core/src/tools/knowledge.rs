@@ -261,13 +261,13 @@ async fn list_bases(db: &DatabaseConnection) -> Result<Value, String> {
     let items: Vec<Value> = bases
         .into_iter()
         .map(|base| {
-            let doc_count = docs.iter().filter(|doc| doc.baseID == base.id).count();
+            let doc_count = docs.iter().filter(|doc| doc.base_id == base.id).count();
             json!({
                 "id": base.id,
                 "name": base.name,
                 "slug": base.slug,
                 "scope": base.scope,
-                "rootPath": base.rootPath,
+                "rootPath": base.root_path,
                 "docCount": doc_count,
             })
         })
@@ -285,13 +285,13 @@ async fn list_docs(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
         .map(|doc| {
             json!({
                 "id": doc.id,
-                "baseId": doc.baseID,
+                "baseId": doc.base_id,
                 "title": doc.title,
-                "relPath": doc.relPath,
-                "wordCount": doc.wordCount,
+                "relPath": doc.rel_path,
+                "wordCount": doc.word_count,
                 "status": doc.status,
                 "source": doc.source,
-                "updatedAt": doc.updatedAt,
+                "updatedAt": doc.updated_at,
             })
         })
         .collect();
@@ -337,10 +337,10 @@ async fn read_doc(db: &DatabaseConnection, arguments: &Value) -> Result<Value, S
 
     Ok(json!({
         "id": doc.id,
-        "baseId": doc.baseID,
+        "baseId": doc.base_id,
         "title": doc.title,
-        "relPath": doc.relPath,
-        "wordCount": doc.wordCount,
+        "relPath": doc.rel_path,
+        "wordCount": doc.word_count,
         "revision": doc.revision,
         "totalChars": total_chars,
         "truncated": truncated,
@@ -391,7 +391,7 @@ async fn read_wiki(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
         let doc = docs
             .into_iter()
             .find(|doc| {
-                let rel = doc.relPath.replace('\\', "/");
+                let rel = doc.rel_path.replace('\\', "/");
                 rel.eq_ignore_ascii_case(&needle) || rel.ends_with(&needle)
             })
             .ok_or_else(|| format!("找不到 wiki 路径：{path}"))?;
@@ -428,7 +428,7 @@ async fn lint(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Strin
             .await
             .map_err(|error| error.to_string())?;
         titles.insert(doc.title.trim().to_lowercase());
-        pages.push((doc.relPath.clone(), doc.title.clone(), content));
+        pages.push((doc.rel_path.clone(), doc.title.clone(), content));
     }
 
     let mut issues = Vec::new();
@@ -484,7 +484,7 @@ async fn ingest(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Str
         .find(|item| item.id == base_id)
         .ok_or_else(|| format!("知识库不存在：{base_id}"))?;
 
-    let absolute = PathBuf::from(&base.rootPath).join(&normalized);
+    let absolute = PathBuf::from(&base.root_path).join(&normalized);
     if !absolute.is_file() {
         return Err(format!("源文件不存在：{}", absolute.display()));
     }
@@ -494,7 +494,7 @@ async fn ingest(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Str
         "status": "queued",
         "baseId": base_id,
         "path": normalized,
-        "rootPath": base.rootPath,
+        "rootPath": base.root_path,
         "hint": "已请求加入 ingest 队列；打开知识库 Activity 可查看进度",
     }))
 }
@@ -534,17 +534,17 @@ async fn graph_search(db: &DatabaseConnection, arguments: &Value) -> Result<Valu
     let mut inbound: HashMap<String, HashSet<String>> = HashMap::new();
 
     for doc in docs {
-        let rel = doc.relPath.replace('\\', "/");
+        let rel = doc.rel_path.replace('\\', "/");
         if !rel.starts_with("wiki/") || !rel.ends_with(".md") {
             continue;
         }
         let content = Service::toReadDocContent(db, &doc)
             .await
             .map_err(|error| error.to_string())?;
-        let key = page_key(&doc.relPath, &doc.title);
+        let key = page_key(&doc.rel_path, &doc.title);
         by_key.insert(
             key.clone(),
-            (doc.id.clone(), doc.title.clone(), doc.relPath.clone()),
+            (doc.id.clone(), doc.title.clone(), doc.rel_path.clone()),
         );
         let mut outs = HashSet::new();
         for link in parse_wikilinks(&content) {
@@ -679,7 +679,7 @@ async fn workspace_write(db: &DatabaseConnection, arguments: &Value) -> Result<V
         .ok_or_else(|| format!("知识库不存在：{base_id}"))?;
 
     let relative = sanitize_agent_relative(path)?;
-    let absolute = PathBuf::from(&base.rootPath)
+    let absolute = PathBuf::from(&base.root_path)
         .join(AGENT_DIR)
         .join(&relative);
     if let Some(parent) = absolute.parent() {
@@ -740,10 +740,10 @@ async fn write_doc(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
         .map_err(|error| error.to_string())?;
     let published = publish(db, &base_id, &staged.path, PublishMode::Replace).await?;
     Ok(json!({
-        "baseId": published.baseID,
+        "baseId": published.base_id,
         "docId": published.id,
         "title": published.title,
-        "relPath": published.relPath,
+        "relPath": published.rel_path,
         "slug": staged.slug,
         "status": "published",
         "layer": "wiki",

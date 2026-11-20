@@ -8,21 +8,28 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     #[serde(rename = "columnID")]
+    #[sea_orm(column_name = "columnID")]
     pub column_id: String,
     pub title: String,
     pub notes: String,
     pub index: i32,
+    #[sea_orm(column_name = "dueAt")]
     pub due_at: Option<i64>,
+    #[sea_orm(column_name = "startAt")]
     pub start_at: Option<i64>,
     #[serde(rename = "reminderID")]
+    #[sea_orm(column_name = "reminderID")]
     pub reminder_id: Option<String>,
     pub priority: i32,
     /// 0–100 卡片进度；有子任务时由清单同步
     #[serde(default)]
     pub progress: i32,
     pub color: Option<String>,
+    #[sea_orm(column_name = "archivedAt")]
     pub archived_at: Option<i64>,
+    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
+    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 

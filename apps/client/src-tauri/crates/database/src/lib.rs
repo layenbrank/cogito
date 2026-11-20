@@ -33,6 +33,8 @@ pub mod entity {
 
     #[allow(non_snake_case)]
     pub mod agent_message;
+    pub mod agent_run_cost;
+    pub mod agent_tool_audit;
     #[allow(non_snake_case)]
     pub mod agent_provider;
     #[allow(non_snake_case)]
@@ -54,6 +56,8 @@ pub mod entity {
     pub use agent_composer_queue::Entity as AgentComposerQueueEntity;
     pub use agent_goal::Entity as AgentGoalEntity;
     pub use agent_message::Entity as AgentMessageEntity;
+    pub use agent_run_cost::Entity as AgentRunCostEntity;
+    pub use agent_tool_audit::Entity as AgentToolAuditEntity;
     pub use agent_plan::Entity as AgentPlanEntity;
     pub use agent_provider::Entity as AgentProviderEntity;
     pub use agent_session::Entity as AgentSessionEntity;

@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 #[sea_orm(table_name = "signboard_entry_asset")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
+    #[sea_orm(primary_key, auto_increment = false, column_name = "entryID")]
     #[serde(rename = "entryID")]
     pub entry_id: String,
-    #[sea_orm(primary_key, auto_increment = false)]
+    #[sea_orm(primary_key, auto_increment = false, column_name = "assetID")]
     #[serde(rename = "assetID")]
     pub asset_id: String,
     pub index: i32,

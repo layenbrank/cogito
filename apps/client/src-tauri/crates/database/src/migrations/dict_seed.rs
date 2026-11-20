@@ -37,12 +37,12 @@ pub fn statements() -> Vec<String> {
                  REFERENCES dict_item (value) ON DELETE CASCADE ON UPDATE CASCADE)"
             .to_string(),
         "CREATE TABLE IF NOT EXISTS dict_tenant_item (\
-             \"tenantId\" TEXT NOT NULL, \
+             \"tenantID\" TEXT NOT NULL, \
              \"typeCode\" TEXT NOT NULL, \
              value TEXT NOT NULL, \
              label TEXT NULL, \
              enabled INTEGER NULL, \
-             PRIMARY KEY (\"tenantId\", \"typeCode\", value))"
+             PRIMARY KEY (\"tenantID\", \"typeCode\", value))"
             .to_string(),
         "CREATE INDEX IF NOT EXISTS idx_dict_type_item_type ON dict_type_item (\"typeCode\", sort)"
             .to_string(),

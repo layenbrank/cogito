@@ -8,15 +8,20 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     #[serde(rename = "boardID")]
+    #[sea_orm(column_name = "boardID")]
     pub board_id: String,
     pub title: String,
     pub index: i32,
     pub color: Option<String>,
+    #[sea_orm(column_name = "wipLimit")]
     pub wip_limit: Option<i32>,
     /// todo | doing | done；驱动漏斗完成率
     pub role: Option<String>,
+    #[sea_orm(column_name = "archivedAt")]
     pub archived_at: Option<i64>,
+    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
+    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 

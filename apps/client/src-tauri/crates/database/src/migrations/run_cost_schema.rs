@@ -1,4 +1,4 @@
-//! 成本账本 DDL 单源（S8）。
+//! 成本账本建表 SQL（S8）。列名以 `entity::agent_run_cost` 为准。
 //!
 //! 为什么不给 `agent_usage` 加列、而是单独一张 `agent_run_cost`：
 //!

@@ -1,6 +1,4 @@
-#![allow(non_snake_case)]
-
-//! 定时任务的执行记录。一次触发行 = 一条记录，`(automationId, scheduledFor)`
+//! 定时任务的执行记录。一次触发行 = 一条记录，`(automationID, scheduledFor)`
 //! 上有唯一索引：重复 tick、补跑、多副本都只会落一条。
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -11,35 +9,35 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    #[sea_orm(column_name = "automationId")]
-    pub automationId: String,
+    #[sea_orm(column_name = "automationID")]
+    pub automation_id: String,
     /// 本次对应的计划时间（epoch ms）；手动执行取触发那一刻
     #[sea_orm(column_name = "scheduledFor")]
-    pub scheduledFor: i64,
+    pub scheduled_for: i64,
     /// schedule | manual | catchup
     #[sea_orm(column_name = "triggerKind")]
-    pub triggerKind: String,
+    pub trigger_kind: String,
     /// 本次实际以谁的身份执行（任务定义可能中途改过）
     #[sea_orm(column_name = "runAsKind")]
-    pub runAsKind: String,
-    #[sea_orm(column_name = "runAsUserId")]
-    pub runAsUserId: Option<String>,
+    pub run_as_kind: String,
+    #[sea_orm(column_name = "runAsUserID")]
+    pub run_as_user_id: Option<String>,
     #[sea_orm(column_name = "startedAt")]
-    pub startedAt: Option<i64>,
+    pub started_at: Option<i64>,
     #[sea_orm(column_name = "finishedAt")]
-    pub finishedAt: Option<i64>,
+    pub finished_at: Option<i64>,
     /// 字典 automation_run_status：001 等待 … 004 失败
     pub status: String,
-    /// 对应落库会话 id（`automation-<runId>`）；空 = 尚未建会话
-    #[sea_orm(column_name = "sessionId")]
-    pub sessionId: Option<String>,
+    /// 对应落库会话 id（`automation-<run id>`）；空 = 尚未建会话
+    #[sea_orm(column_name = "sessionID")]
+    pub session_id: Option<String>,
     /// 当前阶段：agent | plan | goal（流水线进度）
     pub phase: Option<String>,
     /// 智能体最后一段输出（截断后存）
     pub output: Option<String>,
     pub error: Option<String>,
     #[sea_orm(column_name = "createdAt")]
-    pub createdAt: i64,
+    pub created_at: i64,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

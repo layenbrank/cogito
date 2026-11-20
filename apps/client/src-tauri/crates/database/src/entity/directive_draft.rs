@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 //! 指令草稿收件箱：agent 生成的指令先落这里，用户确认后才经 corex daemon 写入 `corex.db`。
 //!
 //! 与 corex 的指令库**不共享存储**：corex.db 的唯一写者是 corex-daemon，客户端只有 IPC；
@@ -13,10 +11,14 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    #[sea_orm(column_name = "threadId")]
-    pub threadID: Option<String>,
-    #[sea_orm(column_name = "workspaceId")]
-    pub workspaceID: Option<String>,
+    /// JSON 键保持 `threadID`。
+    #[sea_orm(column_name = "threadID")]
+    #[serde(rename = "threadID")]
+    pub thread_id: Option<String>,
+    /// JSON 键保持 `workspaceID`。
+    #[sea_orm(column_name = "workspaceID")]
+    #[serde(rename = "workspaceID")]
+    pub workspace_id: Option<String>,
     pub name: String,
     /// 指令定义 JSON（与指令编辑器文档同形）
     pub definition: String,
@@ -24,9 +26,9 @@ pub struct Model {
     pub status: String,
     pub error: Option<String>,
     #[sea_orm(column_name = "createdAt")]
-    pub createdAt: i64,
+    pub created_at: i64,
     #[sea_orm(column_name = "updatedAt")]
-    pub updatedAt: i64,
+    pub updated_at: i64,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

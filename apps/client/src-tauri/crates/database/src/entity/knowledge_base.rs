@@ -1,8 +1,6 @@
-#![allow(non_snake_case)]
-
 //! 知识库（一个 base = 一个目录 + 一批文档）。
 //!
-//! `scope` 为字典 knowledge_base_scope（001 个人 / 002 租户，用 `tenantId` 圈定）。
+//! `scope` 为字典 knowledge_base_scope（001 个人 / 002 租户，用 `tenantID` 圈定）。
 //! 正文永远以文件为准，`knowledge_doc.content` 只是快照。
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -19,27 +17,29 @@ pub struct Model {
     pub description: Option<String>,
     /// 字典 knowledge_base_scope：001 个人 / 002 租户
     pub scope: String,
-    #[sea_orm(column_name = "tenantId")]
-    pub tenantID: Option<String>,
+    /// 序列化键与列名同为 `tenantID`。
+    #[sea_orm(column_name = "tenantID")]
+    #[serde(rename = "tenantID")]
+    pub tenant_id: Option<String>,
     /// 该 base 的文件根目录（绝对路径）
     #[sea_orm(column_name = "rootPath")]
-    pub rootPath: String,
+    pub root_path: String,
     #[sea_orm(column_name = "autoUpdate")]
-    pub autoUpdate: bool,
+    pub auto_update: bool,
     #[sea_orm(column_name = "autoExport")]
-    pub autoExport: bool,
+    pub auto_export: bool,
     /// 生成内容是否带 `[doc:title#ordinal]` 引用
     pub citation: bool,
     #[sea_orm(column_name = "cloudModel")]
-    pub cloudModel: Option<String>,
+    pub cloud_model: Option<String>,
     #[sea_orm(column_name = "cloudDimensions")]
-    pub cloudDimensions: Option<i64>,
+    pub cloud_dimensions: Option<i64>,
     #[sea_orm(column_name = "archivedAt")]
-    pub archivedAt: Option<i64>,
+    pub archived_at: Option<i64>,
     #[sea_orm(column_name = "createdAt")]
-    pub createdAt: i64,
+    pub created_at: i64,
     #[sea_orm(column_name = "updatedAt")]
-    pub updatedAt: i64,
+    pub updated_at: i64,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

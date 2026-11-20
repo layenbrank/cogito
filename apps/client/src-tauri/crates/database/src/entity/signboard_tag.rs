@@ -8,10 +8,13 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     #[serde(rename = "boardID")]
+    #[sea_orm(column_name = "boardID")]
     pub board_id: String,
     pub title: String,
     pub color: Option<String>,
+    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
+    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 

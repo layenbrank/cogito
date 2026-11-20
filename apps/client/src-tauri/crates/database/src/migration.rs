@@ -27,6 +27,7 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
         }
     }
     // 单文件 0001 已打标记后追加的表不会再跑；dict seed 全是 IF NOT EXISTS / OR IGNORE，启动兜底补齐。
+    // 开发期改列名走 `migrate:fresh`，这里不再改写已有列名。
     ensure_dict(db).await?;
     // `agent_plan` / `agent_goal` 同样是 0001 之后追加的表：老库已打过 0001 标记，
     // 不加这层兜底就永远查不到这两张表（`no such table`）。
@@ -44,6 +45,27 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // `agent_session` 是老表：`unread`（已读 / 未读）是 0001 之后加的列，老库只能靠
     // 启动时 ALTER 补齐 —— 不动 0001 基线，也不新增迁移版本。
     ensure_agent_session(db).await?;
+    // 壁纸磁贴写在已发布的 0001 里。老库不会重跑基线，这里按种子标记补一次。
+    // 标记留下之后，用户删掉这块磁贴不会在下次启动被插回来。
+    ensure_wallpaper_tile(db).await?;
+    Ok(())
+}
+
+async fn ensure_wallpaper_tile(db: &Connection) -> Result<(), DbErr> {
+    db.execute_unprepared(
+        "CREATE TABLE IF NOT EXISTS seedMark (id TEXT PRIMARY KEY NOT NULL)",
+    )
+    .await?;
+    let marked = db
+        .execute_unprepared(
+            "INSERT OR IGNORE INTO seedMark (id) VALUES ('builtin-wallpaper')",
+        )
+        .await?;
+    if marked.rows_affected() == 0 {
+        return Ok(());
+    }
+    db.execute_unprepared(&crate::migrations::builtin_seed::wallpaper_statement())
+        .await?;
     Ok(())
 }
 
@@ -90,7 +112,7 @@ async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
     Ok(())
 }
 
-/// 给老库的 `automation` 补执行配置列（`workspaceId` / `approval`）。
+/// 给老库的 `automation` 补执行配置列（`workspaceID` / `approval`）。
 ///
 /// 判定方式与 `ensure_agent_plan()` 一致：先 `pragma_table_info` 查列，缺了才 `ALTER`
 /// —— SQLite 的 `ADD COLUMN` 不幂等，每次启动都会重复执行。
@@ -199,6 +221,7 @@ mod tests {
     use super::*;
     use crate::entity::{
         AgentComposerQueueEntity, AgentGoalEntity, AgentMessageEntity, AgentPlanEntity,
+        AgentRunCostEntity, AgentToolAuditEntity,
         AgentProviderEntity, AgentSessionEntity, AgentUsageEntity, AgentWorkspaceEntity,
         AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
         AutomationRunEntity, BookmarkEntity, CalendarEntity, CountdownEntity, DictItemEntity,
@@ -372,6 +395,30 @@ mod tests {
         )
         .await;
         assert_eq!(background, r##"{"color":"#047857"}"##);
+        let knowledge_size = scalar_i64(
+            &db,
+            "SELECT size AS v FROM magneticTile WHERE id = '63e46df5-44a7-494f-a9ca-b4303186a511'",
+        )
+        .await;
+        assert_eq!(knowledge_size, 1);
+        let knowledge_shape = scalar_string(
+            &db,
+            "SELECT shape AS v FROM magneticTile WHERE id = '63e46df5-44a7-494f-a9ca-b4303186a511'",
+        )
+        .await;
+        assert_eq!(knowledge_shape, "rectangle");
+        let knowledge_direction = scalar_string(
+            &db,
+            "SELECT direction AS v FROM magneticTile WHERE id = '63e46df5-44a7-494f-a9ca-b4303186a511'",
+        )
+        .await;
+        assert_eq!(knowledge_direction, "horizontal");
+        let knowledge_index = scalar_i64(
+            &db,
+            "SELECT \"index\" AS v FROM magneticTile WHERE id = '63e46df5-44a7-494f-a9ca-b4303186a511'",
+        )
+        .await;
+        assert_eq!(knowledge_index, 7);
 
         let agent_title = scalar_string(
             &db,
@@ -385,12 +432,48 @@ mod tests {
         )
         .await;
         assert_eq!(calendar_bg, r##"{"color":"#FFFFFF"}"##);
+        let calendar_size = scalar_i64(
+            &db,
+            "SELECT size AS v FROM magneticTile WHERE id = 'a9908a07-e685-49d9-a517-0caf7ce27e75'",
+        )
+        .await;
+        assert_eq!(calendar_size, 2);
+        let calendar_index = scalar_i64(
+            &db,
+            "SELECT \"index\" AS v FROM magneticTile WHERE id = 'a9908a07-e685-49d9-a517-0caf7ce27e75'",
+        )
+        .await;
+        assert_eq!(calendar_index, 0);
+        let calendar_shape = scalar_string(
+            &db,
+            "SELECT shape AS v FROM magneticTile WHERE id = 'a9908a07-e685-49d9-a517-0caf7ce27e75'",
+        )
+        .await;
+        assert_eq!(calendar_shape, "rectangle");
         let countdown_bg = scalar_string(
             &db,
             "SELECT background AS v FROM magneticTile WHERE id = '0dac7ddf-c4ee-46cd-88cf-802d0f32ee08'",
         )
         .await;
         assert_eq!(countdown_bg, r##"{"color":"#FFFFFF"}"##);
+        let countdown_size = scalar_i64(
+            &db,
+            "SELECT size AS v FROM magneticTile WHERE id = '0dac7ddf-c4ee-46cd-88cf-802d0f32ee08'",
+        )
+        .await;
+        assert_eq!(countdown_size, 2);
+        let clock_size = scalar_i64(
+            &db,
+            "SELECT size AS v FROM magneticTile WHERE id = 'b0ed3c9e-9bec-409f-9303-e4b51f361d0d'",
+        )
+        .await;
+        assert_eq!(clock_size, 2);
+        let bookmark_index = scalar_i64(
+            &db,
+            "SELECT \"index\" AS v FROM magneticTile WHERE id = 'd50246f5-1a28-4659-b002-a31448c1382d'",
+        )
+        .await;
+        assert_eq!(bookmark_index, 3);
         let capture_bg = scalar_string(
             &db,
             "SELECT background AS v FROM magneticTile WHERE id = 'f4e10078-03d0-45b8-86f9-4f7cab94abf9'",
@@ -569,28 +652,28 @@ mod tests {
         // 团队（tenant）场景与自动化身份/失败态所需的列：缺了会在 Phase 5/7 再改一次迁移
         for (table, column) in [
             ("knowledge_base", "scope"),
-            ("knowledge_base", "tenantId"),
+            ("knowledge_base", "tenantID"),
             ("knowledge_doc", "revision"),
             ("knowledge_doc", "error"),
             ("automation", "runAsKind"),
-            ("automation", "runAsUserId"),
-            ("automation", "tenantId"),
+            ("automation", "runAsUserID"),
+            ("automation", "tenantID"),
             // 执行配置：在哪个目录跑、能不能不问就动手（老库靠 ensure_automation 补）
-            ("automation", "workspaceId"),
+            ("automation", "workspaceID"),
             ("automation", "approval"),
-            ("automation", "providerId"),
-            ("automation", "modelId"),
+            ("automation", "providerID"),
+            ("automation", "modelID"),
             ("automation", "mode"),
             ("automation", "goalBudget"),
             ("automation", "planThenGoal"),
             ("automation", "planFilePath"),
-            ("automation", "remoteId"),
+            ("automation", "remoteID"),
             ("automation", "lastStatus"),
             ("automation", "lastError"),
             ("automation_run", "triggerKind"),
             ("automation_run", "runAsKind"),
-            ("automation_run", "runAsUserId"),
-            ("automation_run", "sessionId"),
+            ("automation_run", "runAsUserID"),
+            ("automation_run", "sessionID"),
             ("automation_run", "phase"),
         ] {
             let found = scalar_i64(
@@ -605,7 +688,7 @@ mod tests {
 
         for statement in [
             "INSERT INTO knowledge_base (id,name,slug,\"rootPath\",\"createdAt\",\"updatedAt\") VALUES ('b1','默认','default','/tmp/kb',1,1)",
-            "INSERT INTO knowledge_doc (id,\"baseId\",title,\"relPath\",hash,content,\"createdAt\",\"updatedAt\") VALUES ('d1','b1','知识库设计','a.md','h1','这是知识库正文内容',1,1)",
+            "INSERT INTO knowledge_doc (id,\"baseID\",title,\"relPath\",hash,content,\"createdAt\",\"updatedAt\") VALUES ('d1','b1','知识库设计','a.md','h1','这是知识库正文内容',1,1)",
         ] {
             db.execute(Statement::from_string(
                 DatabaseBackend::Sqlite,
@@ -642,7 +725,7 @@ mod tests {
         let db = fresh().await;
         // 模拟「0001 基线之后新增两列之前」的老库：把列删掉再让启动兜底补回来
         for statement in [
-            "ALTER TABLE automation DROP COLUMN \"workspaceId\"",
+            "ALTER TABLE automation DROP COLUMN \"workspaceID\"",
             "ALTER TABLE automation DROP COLUMN approval",
         ] {
             db.execute(Statement::from_string(
@@ -652,7 +735,7 @@ mod tests {
             .await
             .expect("drop column should succeed");
         }
-        for column in ["workspaceId", "approval"] {
+        for column in ["workspaceID", "approval"] {
             let found = scalar_i64(
                 &db,
                 &format!(
@@ -665,7 +748,7 @@ mod tests {
 
         ensure_automation(&db).await.expect("补列应成功");
 
-        for column in ["workspaceId", "approval"] {
+        for column in ["workspaceID", "approval"] {
             let found = scalar_i64(
                 &db,
                 &format!(
@@ -740,6 +823,20 @@ mod tests {
             .collect()
     }
 
+    /// 列名：camelCase，且标识列以 `ID` 结尾（主键单词 `id` 除外）。
+    fn assert_column_style(table: &str, column: &str) {
+        let camel = column
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_lowercase())
+            && column.chars().all(|ch| ch.is_ascii_alphanumeric())
+            && !column.contains('_');
+        assert!(
+            camel && !column.ends_with("Id"),
+            "{table}.{column} 必须是 camelCase，标识列写成 xxxID"
+        );
+    }
+
     /// entity 声明的列名（`Column` 枚举 + `#[sea_orm(column_name = ...)]`）。
     fn entity_columns<E>() -> Vec<String>
     where
@@ -801,6 +898,8 @@ mod tests {
                 entity_columns::<SignboardTaggedEntity>(),
             ),
             ("agent_message", entity_columns::<AgentMessageEntity>()),
+            ("agent_run_cost", entity_columns::<AgentRunCostEntity>()),
+            ("agent_tool_audit", entity_columns::<AgentToolAuditEntity>()),
             (
                 "agent_composer_queue",
                 entity_columns::<AgentComposerQueueEntity>(),
@@ -821,6 +920,7 @@ mod tests {
         for (table, expected) in entities {
             let actual = ddl_columns(&db, table).await;
             for column in &expected {
+                assert_column_style(table, column);
                 if !actual.contains(column) {
                     problems.push(format!("{table}.{column}：entity 有，DDL 缺"));
                 }

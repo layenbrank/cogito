@@ -4,8 +4,8 @@
 //!
 //! 三条不变量：
 //! 1. **保存即校验**：cron / 时区写错在保存时就报 `Validation`，不等 worker tick 才发现；
-//! 2. **只补一次**：`nextRunAt` 推进到「下一个未来的时间点」，错过多轮也只执行一次；
-//! 3. **一次触发一条记录**：`(automationId, scheduledFor)` 唯一，重复 tick / 动手执行都不会重跑。
+//! 2. **只补一次**：`next_run_at` 推进到「下一个未来的时间点」，错过多轮也只执行一次；
+//! 3. **一次触发一条记录**：`(automation_id, scheduled_for)` 唯一，重复 tick / 动手执行都不会重跑。
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
@@ -331,7 +331,7 @@ impl Service {
         }
 
         let now = Utc::now().timestamp_millis();
-        // 只有本机 worker 需要 nextRunAt；其它 owner 由远端排期，这里留空
+        // 只有本机 worker 需要 next_run_at；其它 owner 由远端排期，这里留空
         let next_run = if enabled && owner == automation_owner::CLIENT {
             Some(Self::toNext(&schedule, &timezone, now)?)
         } else {
@@ -346,28 +346,28 @@ impl Service {
             let mut active: schema::ActiveModel = existing.into();
             active.name = Set(name);
             active.prompt = Set(prompt);
-            active.knowledgeBaseId = Set(input.knowledgeBaseId);
-            active.workspaceId = Set(workspace_id);
-            active.workspacePath = Set(workspace_path);
-            active.sessionMode = Set(session_mode);
-            active.sessionId = Set(session_id);
+            active.knowledge_base_id = Set(input.knowledgeBaseId);
+            active.workspace_id = Set(workspace_id);
+            active.workspace_path = Set(workspace_path);
+            active.session_mode = Set(session_mode);
+            active.session_id = Set(session_id);
             active.approval = Set(approval);
-            active.providerId = Set(provider_id);
-            active.modelId = Set(model_id);
+            active.provider_id = Set(provider_id);
+            active.model_id = Set(model_id);
             active.mode = Set(mode);
-            active.goalBudget = Set(goal_budget);
-            active.planThenGoal = Set(plan_then_goal);
-            active.planFilePath = Set(plan_file_path);
+            active.goal_budget = Set(goal_budget);
+            active.plan_then_goal = Set(plan_then_goal);
+            active.plan_file_path = Set(plan_file_path);
             active.thinking = Set(thinking);
             active.schedule = Set(schedule);
             active.timezone = Set(timezone);
             active.enabled = Set(enabled);
             active.owner = Set(owner);
-            active.runAsKind = Set(run_as_kind);
-            active.runAsUserId = Set(input.runAsUserId);
-            active.tenantId = Set(input.tenantId);
-            active.nextRunAt = Set(next_run);
-            active.updatedAt = Set(now);
+            active.run_as_kind = Set(run_as_kind);
+            active.run_as_user_id = Set(input.runAsUserId);
+            active.tenant_id = Set(input.tenantId);
+            active.next_run_at = Set(next_run);
+            active.updated_at = Set(now);
             return Ok(active.update(db).await?);
         }
 
@@ -375,33 +375,33 @@ impl Service {
             id: Uuid::new_v4().to_string(),
             name,
             prompt,
-            knowledgeBaseId: input.knowledgeBaseId,
-            workspaceId: workspace_id,
-            workspacePath: workspace_path,
-            sessionMode: session_mode,
-            sessionId: session_id,
+            knowledge_base_id: input.knowledgeBaseId,
+            workspace_id: workspace_id,
+            workspace_path: workspace_path,
+            session_mode: session_mode,
+            session_id: session_id,
             approval,
-            providerId: provider_id,
-            modelId: model_id,
+            provider_id: provider_id,
+            model_id: model_id,
             mode,
-            goalBudget: goal_budget,
-            planThenGoal: plan_then_goal,
-            planFilePath: plan_file_path,
+            goal_budget: goal_budget,
+            plan_then_goal: plan_then_goal,
+            plan_file_path: plan_file_path,
             thinking,
             schedule,
             timezone,
             enabled,
             owner,
-            runAsKind: run_as_kind,
-            runAsUserId: input.runAsUserId,
-            tenantId: input.tenantId,
-            remoteId: None,
-            nextRunAt: next_run,
-            lastRunAt: None,
-            lastStatus: None,
-            lastError: None,
-            createdAt: now,
-            updatedAt: now,
+            run_as_kind: run_as_kind,
+            run_as_user_id: input.runAsUserId,
+            tenant_id: input.tenantId,
+            remote_id: None,
+            next_run_at: next_run,
+            last_run_at: None,
+            last_status: None,
+            last_error: None,
+            created_at: now,
+            updated_at: now,
         };
         // TEXT 主键 + SQLite 下 `insert()` 会再发一次 SELECT，取不到就报错，故用 exec
         schema::Entity::insert(schema::ActiveModel::from(model.clone()))
@@ -445,8 +445,8 @@ impl Service {
         };
         let mut active: schema::ActiveModel = existing.into();
         active.enabled = Set(enabled);
-        active.nextRunAt = Set(next_run);
-        active.updatedAt = Set(now);
+        active.next_run_at = Set(next_run);
+        active.updated_at = Set(now);
         Ok(active.update(db).await?)
     }
 
@@ -462,7 +462,7 @@ impl Service {
     /// 记下「远端（goose）那边同步到了哪一步」。
     ///
     /// `owner=goose` 的排期在 goose 手里，本地这份只是镜像；同步失败把原因写进
-    /// `lastError`，用户能在列表里直接看到，而不是只有日志。
+    /// `last_error`，用户能在列表里直接看到，而不是只有日志。
     pub async fn toSetRemote<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: String,
@@ -479,10 +479,10 @@ impl Service {
             ""
         };
         let mut active: schema::ActiveModel = existing.into();
-        active.remoteId = Set(remote_id);
-        active.lastError = Set(last_error);
-        active.lastStatus = Set(Some(status.to_string()).filter(|value| !value.is_empty()));
-        active.updatedAt = Set(Utc::now().timestamp_millis());
+        active.remote_id = Set(remote_id);
+        active.last_error = Set(last_error);
+        active.last_status = Set(Some(status.to_string()).filter(|value| !value.is_empty()));
+        active.updated_at = Set(Utc::now().timestamp_millis());
         Ok(active.update(db).await?)
     }
 
@@ -506,7 +506,7 @@ impl Service {
         let tx = db.begin().await?;
         let mut claimed = Vec::new();
         for item in due {
-            let scheduled_for = item.nextRunAt.unwrap_or(now_ms);
+            let scheduled_for = item.next_run_at.unwrap_or(now_ms);
             // 表达式在保存时校验过；仍算不出来就停用，不让它每 12 秒刷一次错
             let next = match Self::toNext(&item.schedule, &item.timezone, now_ms.max(scheduled_for))
             {
@@ -514,17 +514,17 @@ impl Service {
                 Err(error) => {
                     let mut broken: schema::ActiveModel = item.into();
                     broken.enabled = Set(false);
-                    broken.nextRunAt = Set(None);
-                    broken.lastStatus = Set(Some(automation_run_status::FAILED.to_string()));
-                    broken.lastError = Set(Some(error.to_string()));
-                    broken.updatedAt = Set(now_ms);
+                    broken.next_run_at = Set(None);
+                    broken.last_status = Set(Some(automation_run_status::FAILED.to_string()));
+                    broken.last_error = Set(Some(error.to_string()));
+                    broken.updated_at = Set(now_ms);
                     broken.update(&tx).await?;
                     continue;
                 }
             };
             let mut active: schema::ActiveModel = item.clone().into();
-            active.nextRunAt = Set(Some(next));
-            active.updatedAt = Set(now_ms);
+            active.next_run_at = Set(Some(next));
+            active.updated_at = Set(now_ms);
             let automation = active.update(&tx).await?;
 
             let trigger = if now_ms - scheduled_for > CATCHUP_GRACE_MS {
@@ -542,7 +542,7 @@ impl Service {
         Ok(claimed)
     }
 
-    /// 手动执行一次（不看 enabled，也不改 nextRunAt）
+    /// 手动执行一次（不看 enabled，也不改 next_run_at）
     pub async fn toRunNow<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: String,
@@ -590,24 +590,24 @@ impl Service {
         active.status = Set(status.to_string());
         active.output = Set(input.output.map(|value| truncate(&value, OUTPUT_LIMIT)));
         active.error = Set(input.error.map(|value| truncate(&value, ERROR_LIMIT)));
-        active.finishedAt = Set(Some(now));
+        active.finished_at = Set(Some(now));
         let run = active.update(db).await?;
 
-        if let Some(automation) = schema::Entity::find_by_id(existing.automationId.clone())
+        if let Some(automation) = schema::Entity::find_by_id(existing.automation_id.clone())
             .one(db)
             .await?
         {
             let mut active: schema::ActiveModel = automation.into();
-            active.lastStatus = Set(Some(status.to_string()));
-            active.lastError = Set(run.error.clone());
-            active.lastRunAt = Set(run.startedAt.or(Some(now)));
-            active.updatedAt = Set(now);
+            active.last_status = Set(Some(status.to_string()));
+            active.last_error = Set(run.error.clone());
+            active.last_run_at = Set(run.started_at.or(Some(now)));
+            active.updated_at = Set(now);
             active.update(db).await?;
         }
         Ok(run)
     }
 
-    /// 真正开跑时把 `startedAt` 补成现在。
+    /// 真正开跑时把 `started_at` 补成现在。
     ///
     /// claim 写的是「排队开始」的时间：串行队列里后来者会把排队时间算进耗时，
     /// 排队超过 30 分钟还会被 `toReapStale` 当成「没回写」直接判失败。前端开跑前调一次。
@@ -625,13 +625,13 @@ impl Service {
             ));
         }
         let mut active: run_schema::ActiveModel = existing.into();
-        active.startedAt = Set(Some(Utc::now().timestamp_millis()));
+        active.started_at = Set(Some(Utc::now().timestamp_millis()));
         Ok(active.update(db).await?)
     }
 
-    /// 补写会话回链 / 阶段：开会话后写 `sessionId`，流水线切阶段写 `phase`。
+    /// 补写会话回链 / 阶段：开会话后写 `session_id`，流水线切阶段写 `phase`。
     ///
-    /// 已结束的记录仍允许补 `sessionId`（finish 与开会话可能并发），但 `phase` 只在仍 running 时改。
+    /// 已结束的记录仍允许补 `session_id`（finish 与开会话可能并发），但 `phase` 只在仍 running 时改。
     pub async fn toPatchRun<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         input: PatchRunInput,
@@ -644,7 +644,7 @@ impl Service {
         if let Some(session_id) = input.sessionId {
             let trimmed = session_id.trim().to_string();
             if !trimmed.is_empty() {
-                active.sessionId = Set(Some(trimmed));
+                active.session_id = Set(Some(trimmed));
             }
         }
         if let Some(phase) = input.phase {
@@ -666,9 +666,9 @@ impl Service {
 
     /// 收尸：running 记录超过阈值还没回写就标失败。两条分支缺一不可：
     ///
-    /// 1. `startedAt < 截止点` —— 开跑了但没回写（会话中断、应用被杀）；
-    /// 2. `startedAt IS NULL AND scheduledFor < 截止点` —— **认领了却从来没开跑**。
-    ///    事件丢在 WebView 重载 / 监听未就绪的那一瞬，认领时不再写 startedAt，
+    /// 1. `started_at < 截止点` —— 开跑了但没回写（会话中断、应用被杀）；
+    /// 2. `started_at IS NULL AND scheduled_for < 截止点` —— **认领了却从来没开跑**。
+    ///    事件丢在 WebView 重载 / 监听未就绪的那一瞬，认领时不再写 started_at，
     ///    而 SQL 里 `NULL < 截止点` 不成立 —— 只写分支 1 的话这条记录会永远停在
     ///    「执行中」，用户看到的就是「任务没跑，记录还一直转圈」。
     pub async fn toReapStale<C: ConnectionTrait + TransactionTrait>(
@@ -694,21 +694,21 @@ impl Service {
         for run in stale {
             let mut active: run_schema::ActiveModel = run.clone().into();
             active.status = Set(automation_run_status::FAILED.to_string());
-            active.error = Set(Some(if run.startedAt.is_none() {
+            active.error = Set(Some(if run.started_at.is_none() {
                 "任务没有被执行（应用没在跑或页面正在重载），已标记失败".to_string()
             } else {
                 "执行没有回写结果（应用退出或会话中断）".to_string()
             }));
-            active.finishedAt = Set(Some(now_ms));
+            active.finished_at = Set(Some(now_ms));
             active.update(db).await?;
-            if let Some(automation) = schema::Entity::find_by_id(run.automationId.clone())
+            if let Some(automation) = schema::Entity::find_by_id(run.automation_id.clone())
                 .one(db)
                 .await?
             {
                 let mut active: schema::ActiveModel = automation.into();
-                active.lastStatus = Set(Some(automation_run_status::FAILED.to_string()));
-                active.lastError = Set(Some("执行没有回写结果（应用退出或会话中断）".to_string()));
-                active.updatedAt = Set(now_ms);
+                active.last_status = Set(Some(automation_run_status::FAILED.to_string()));
+                active.last_error = Set(Some("执行没有回写结果（应用退出或会话中断）".to_string()));
+                active.updated_at = Set(now_ms);
                 active.update(db).await?;
             }
             reaped += 1;
@@ -753,37 +753,37 @@ impl Service {
 
         let model = run_schema::Model {
             id: Uuid::new_v4().to_string(),
-            automationId: automation.id.clone(),
-            scheduledFor: scheduled_for,
-            triggerKind: trigger.to_string(),
-            runAsKind: automation.runAsKind.clone(),
-            runAsUserId: automation.runAsUserId.clone(),
+            automation_id: automation.id.clone(),
+            scheduled_for: scheduled_for,
+            trigger_kind: trigger.to_string(),
+            run_as_kind: automation.run_as_kind.clone(),
+            run_as_user_id: automation.run_as_user_id.clone(),
             // 认领 ≠ 开跑：真正的开始时间由前端就绪后调 `toTouchRun` 补写。
             // 这里留 NULL，才能把「事件丢了、从未执行」与「跑过但没回写」区分开
             // （见 `toReapStale` 的两条分支）。
-            startedAt: None,
-            finishedAt: None,
+            started_at: None,
+            finished_at: None,
             status: automation_run_status::RUNNING.to_string(),
-            sessionId: None,
+            session_id: None,
             // 流水线 / 单模式的首阶段由前端开会话后写；这里先按任务定义给个起点
-            phase: Some(if automation.planThenGoal {
+            phase: Some(if automation.plan_then_goal {
                 MODE_PLAN.to_string()
             } else {
                 automation.mode.clone()
             }),
             output: None,
             error: None,
-            createdAt: now_ms,
+            created_at: now_ms,
         };
         run_schema::Entity::insert(run_schema::ActiveModel::from(model.clone()))
             .exec(db)
             .await?;
 
         let mut active: schema::ActiveModel = automation.clone().into();
-        active.lastRunAt = Set(Some(now_ms));
-        active.lastStatus = Set(Some(automation_run_status::RUNNING.to_string()));
-        active.lastError = Set(None);
-        active.updatedAt = Set(now_ms);
+        active.last_run_at = Set(Some(now_ms));
+        active.last_status = Set(Some(automation_run_status::RUNNING.to_string()));
+        active.last_error = Set(None);
+        active.updated_at = Set(now_ms);
         active.update(db).await?;
         Ok(Some(model))
     }
@@ -1071,16 +1071,16 @@ mod tests {
         let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
-        assert!(saved.nextRunAt.is_some(), "启用中的 client 任务要有排期");
+        assert!(saved.next_run_at.is_some(), "启用中的 client 任务要有排期");
         assert_eq!(saved.owner, automation_owner::CLIENT);
-        assert_eq!(saved.runAsKind, automation_run_as::USER);
+        assert_eq!(saved.run_as_kind, automation_run_as::USER);
 
         // 停用后不再排期
         let off = Service::toSetEnabled(db.as_ref(), saved.id.clone(), false)
             .await
             .expect("停用成功");
         assert!(!off.enabled);
-        assert!(off.nextRunAt.is_none());
+        assert!(off.next_run_at.is_none());
     }
 
     #[tokio::test]
@@ -1092,24 +1092,24 @@ mod tests {
 
         // 未到期：什么都不认领
         assert!(
-            Service::toClaimDue(db.as_ref(), saved.nextRunAt.unwrap() - 1)
+            Service::toClaimDue(db.as_ref(), saved.next_run_at.unwrap() - 1)
                 .await
                 .expect("claim 成功")
                 .is_empty()
         );
-        let due_at = saved.nextRunAt.unwrap();
+        let due_at = saved.next_run_at.unwrap();
         let claimed = Service::toClaimDue(db.as_ref(), due_at)
             .await
             .expect("claim 成功");
         assert_eq!(claimed.len(), 1);
         assert_eq!(
-            claimed[0].run.triggerKind,
+            claimed[0].run.trigger_kind,
             automation_trigger_kind::SCHEDULE
         );
         assert_eq!(claimed[0].run.status, automation_run_status::RUNNING);
-        assert_eq!(claimed[0].run.scheduledFor, due_at);
+        assert_eq!(claimed[0].run.scheduled_for, due_at);
         assert!(
-            claimed[0].automation.nextRunAt.unwrap() > due_at,
+            claimed[0].automation.next_run_at.unwrap() > due_at,
             "排期要往前推"
         );
 
@@ -1129,13 +1129,13 @@ mod tests {
             .await
             .expect("保存成功");
         // 模拟应用关了三天：直接拿很晚的 now 去 claim
-        let much_later = saved.nextRunAt.unwrap() + 3 * 24 * 3600 * 1000;
+        let much_later = saved.next_run_at.unwrap() + 3 * 24 * 3600 * 1000;
         let claimed = Service::toClaimDue(db.as_ref(), much_later)
             .await
             .expect("claim 成功");
         assert_eq!(claimed.len(), 1, "错过多少轮都只补一次");
-        assert_eq!(claimed[0].run.triggerKind, automation_trigger_kind::CATCHUP);
-        assert!(claimed[0].automation.nextRunAt.unwrap() > much_later);
+        assert_eq!(claimed[0].run.trigger_kind, automation_trigger_kind::CATCHUP);
+        assert!(claimed[0].automation.next_run_at.unwrap() > much_later);
     }
 
     #[tokio::test]
@@ -1144,7 +1144,7 @@ mod tests {
         let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
-        let claimed = Service::toClaimDue(db.as_ref(), saved.nextRunAt.unwrap())
+        let claimed = Service::toClaimDue(db.as_ref(), saved.next_run_at.unwrap())
             .await
             .expect("claim 成功");
         let run = claimed[0].run.clone();
@@ -1161,11 +1161,11 @@ mod tests {
         .expect("回写成功");
         assert_eq!(done.status, automation_run_status::SUCCEEDED);
         assert_eq!(done.output.as_deref(), Some("整理完成"));
-        assert!(done.finishedAt.is_some());
+        assert!(done.finished_at.is_some());
 
         let list = Service::toList(db.as_ref()).await.expect("列出任务");
         assert_eq!(
-            list[0].lastStatus.as_deref(),
+            list[0].last_status.as_deref(),
             Some(automation_run_status::SUCCEEDED)
         );
     }
@@ -1183,10 +1183,10 @@ mod tests {
         let due = Service::toRunNow(db.as_ref(), disabled.id.clone())
             .await
             .expect("手动执行应可用");
-        assert_eq!(due.run.triggerKind, automation_trigger_kind::MANUAL);
+        assert_eq!(due.run.trigger_kind, automation_trigger_kind::MANUAL);
         // 手动执行不改排期
         let after = Service::toList(db.as_ref()).await.expect("列出任务");
-        assert!(after[0].nextRunAt.is_none());
+        assert!(after[0].next_run_at.is_none());
     }
 
     #[tokio::test]
@@ -1195,7 +1195,7 @@ mod tests {
         let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
-        let claimed = Service::toClaimDue(db.as_ref(), saved.nextRunAt.unwrap())
+        let claimed = Service::toClaimDue(db.as_ref(), saved.next_run_at.unwrap())
             .await
             .expect("claim 成功");
         // 认领时不再写开跑时间（认领 ≠ 开跑），这里按真实流程补写一次
@@ -1205,7 +1205,7 @@ mod tests {
         let started = Service::toListRuns(db.as_ref(), Some(saved.id.clone()), None)
             .await
             .expect("读回记录")[0]
-            .startedAt
+            .started_at
             .expect("开跑时间已补写");
 
         // 刚跑完还没回写：不算陈旧
@@ -1261,14 +1261,14 @@ mod tests {
         draft.workspaceId = Some("ws-1".to_string());
         let saved = Service::toSave(db.as_ref(), draft).await.expect("保存成功");
         assert_eq!(saved.approval, APPROVAL_AUTO);
-        assert_eq!(saved.workspaceId.as_deref(), Some("ws-1"));
+        assert_eq!(saved.workspace_id.as_deref(), Some("ws-1"));
 
         // 缺省只读：老任务、以及没显式选过授权的任务都锁在只读
         let plain = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
         assert_eq!(plain.approval, APPROVAL_READONLY);
-        assert!(plain.workspaceId.is_none());
+        assert!(plain.workspace_id.is_none());
     }
 
     #[tokio::test]
@@ -1305,14 +1305,14 @@ mod tests {
             .await
             .expect("列出记录");
         assert_eq!(mine.len(), 1);
-        assert_eq!(mine[0].automationId, first.id);
+        assert_eq!(mine[0].automation_id, first.id);
 
         // 不指定任务 = 跨任务聚合（页面级「全部记录」）
         let all = Service::toListRuns(db.as_ref(), None, Some(10))
             .await
             .expect("列出记录");
         assert_eq!(all.len(), 2);
-        assert!(all.iter().any(|run| run.automationId == second.id));
+        assert!(all.iter().any(|run| run.automation_id == second.id));
     }
 
     #[test]
@@ -1329,14 +1329,14 @@ mod tests {
         let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
-        let claimed = Service::toClaimDue(db.as_ref(), saved.nextRunAt.unwrap())
+        let claimed = Service::toClaimDue(db.as_ref(), saved.next_run_at.unwrap())
             .await
             .expect("claim 成功");
         let run = claimed[0].run.clone();
-        // 认领后一直没开跑（事件丢了）：按 scheduledFor 起算回收
+        // 认领后一直没开跑（事件丢了）：按 scheduled_for 起算回收
         Service::toReapStale(
             db.as_ref(),
-            run.scheduledFor + 31 * 60 * 1000,
+            run.scheduled_for + 31 * 60 * 1000,
             30 * 60 * 1000,
         )
         .await
@@ -1363,7 +1363,7 @@ mod tests {
         let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
-        let claimed = Service::toClaimDue(db.as_ref(), saved.nextRunAt.unwrap())
+        let claimed = Service::toClaimDue(db.as_ref(), saved.next_run_at.unwrap())
             .await
             .expect("claim 成功");
         let run = claimed[0].run.clone();
@@ -1372,10 +1372,10 @@ mod tests {
             .await
             .expect("排队结束、真正开跑");
         assert!(
-            run.startedAt.is_none(),
+            run.started_at.is_none(),
             "认领不等于开跑：认领时没有开跑时间"
         );
-        assert!(touched.startedAt.is_some(), "补写后才有开跑时间");
+        assert!(touched.started_at.is_some(), "补写后才有开跑时间");
 
         Service::toFinish(
             db.as_ref(),
@@ -1418,22 +1418,22 @@ mod tests {
         let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
             .await
             .expect("保存成功");
-        let claimed = Service::toClaimDue(db.as_ref(), saved.nextRunAt.unwrap())
+        let claimed = Service::toClaimDue(db.as_ref(), saved.next_run_at.unwrap())
             .await
             .expect("claim 成功");
         let run = claimed[0].run.clone();
-        assert!(run.startedAt.is_none(), "认领时不该有开跑时间");
+        assert!(run.started_at.is_none(), "认领时不该有开跑时间");
 
         // 还在宽限期内：不算陈旧
         assert_eq!(
-            Service::toReapStale(db.as_ref(), run.scheduledFor + 1_000, 60_000)
+            Service::toReapStale(db.as_ref(), run.scheduled_for + 1_000, 60_000)
                 .await
                 .expect("收尸成功"),
             0
         );
         // 超过阈值：标失败，且文案点明「没被执行」
         assert_eq!(
-            Service::toReapStale(db.as_ref(), run.scheduledFor + 120_000, 60_000)
+            Service::toReapStale(db.as_ref(), run.scheduled_for + 120_000, 60_000)
                 .await
                 .expect("收尸成功"),
             1
@@ -1442,7 +1442,7 @@ mod tests {
             .await
             .expect("列出记录");
         assert_eq!(runs[0].status, automation_run_status::FAILED);
-        assert!(runs[0].startedAt.is_none(), "没开跑就不该被补上开跑时间");
+        assert!(runs[0].started_at.is_none(), "没开跑就不该被补上开跑时间");
         assert!(
             runs[0]
                 .error

@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 //! 定时任务的定义。**执行**由 `crates/core/src/automation` 与客户端 worker 负责，
 //! 本表存「什么时候跑、跑什么、以谁的身份跑、在哪个目录跑、授权、模型与模式」。
 //!
@@ -18,42 +16,42 @@ pub struct Model {
     /// 交给智能体的一句话（到期时按它起一次会话）
     pub prompt: String,
     /// 关联知识库；为空表示与具体库无关
-    #[sea_orm(column_name = "knowledgeBaseId")]
-    pub knowledgeBaseId: Option<String>,
+    #[sea_orm(column_name = "knowledgeBaseID")]
+    pub knowledge_base_id: Option<String>,
     /// 执行时的工作区（`agent_workspace` 的 id）；为空 = 家目录
-    #[sea_orm(column_name = "workspaceId")]
-    pub workspaceId: Option<String>,
+    #[sea_orm(column_name = "workspaceID")]
+    pub workspace_id: Option<String>,
     /// 工作区下**具体哪个目录**（文件夹绝对路径）；为空 = 跟随工作区默认（第一个可用目录）
     #[sea_orm(column_name = "workspacePath")]
-    pub workspacePath: Option<String>,
-    /// 会话绑定：new（每次新建）/ fixed（固定写进 sessionId）/ ask（执行前选）
+    pub workspace_path: Option<String>,
+    /// 会话绑定：new（每次新建）/ fixed（固定写进 `sessionID`）/ ask（执行前选）
     ///
     /// 「新建会话」是缺省：任务本来自带一次性的执行记录；绑定会话是为了让结果落进
     /// 用户自己那场对话里（回看上下文、继续追问）。
     #[sea_orm(column_name = "sessionMode")]
-    pub sessionMode: String,
-    /// 绑定到的会话 id（`agent_session.id`）；`sessionMode = fixed` 时必填
-    #[sea_orm(column_name = "sessionId")]
-    pub sessionId: Option<String>,
+    pub session_mode: String,
+    /// 绑定到的会话 id（`agent_session.id`）；`session_mode = fixed` 时必填
+    #[sea_orm(column_name = "sessionID")]
+    pub session_id: Option<String>,
     /// 执行授权档：readonly | auto（无人值守，不出现 ask）
     pub approval: String,
     /// 固定供应商（本地 provider 行 id）；空 = 跟随当前激活
-    #[sea_orm(column_name = "providerId")]
-    pub providerId: Option<String>,
+    #[sea_orm(column_name = "providerID")]
+    pub provider_id: Option<String>,
     /// 固定模型 id；空 = 跟随当前激活
-    #[sea_orm(column_name = "modelId")]
-    pub modelId: Option<String>,
-    /// 单模式：agent | plan | goal；`planThenGoal` 开启时执行侧走流水线
+    #[sea_orm(column_name = "modelID")]
+    pub model_id: Option<String>,
+    /// 单模式：agent | plan | goal；`plan_then_goal` 开启时执行侧走流水线
     pub mode: String,
     /// 目标模式 / 流水线第二段的最大轮次（含首轮）
     #[sea_orm(column_name = "goalBudget")]
-    pub goalBudget: i32,
+    pub goal_budget: i32,
     /// 1 = 先 plan 再 goal；0 = 按 `mode` 单模式跑
     #[sea_orm(column_name = "planThenGoal")]
-    pub planThenGoal: bool,
+    pub plan_then_goal: bool,
     /// 绑定的工作区计划文件（相对路径，如 `.cogito/plans/foo.md`）；空 = 不绑定
     #[sea_orm(column_name = "planFilePath")]
-    pub planFilePath: Option<String>,
+    pub plan_file_path: Option<String>,
     /// 执行时的思考强度：off | low | medium（缺省「标准」）| high | max
     ///
     /// 与 goose 全局键 `GOOSE_THINKING_EFFORT` 同枚举；只作用于本任务起的会话，
@@ -67,28 +65,28 @@ pub struct Model {
     pub owner: String,
     /// user | tenant
     #[sea_orm(column_name = "runAsKind")]
-    pub runAsKind: String,
-    #[sea_orm(column_name = "runAsUserId")]
-    pub runAsUserId: Option<String>,
-    #[sea_orm(column_name = "tenantId")]
-    pub tenantId: Option<String>,
+    pub run_as_kind: String,
+    #[sea_orm(column_name = "runAsUserID")]
+    pub run_as_user_id: Option<String>,
+    #[sea_orm(column_name = "tenantID")]
+    pub tenant_id: Option<String>,
     /// owner=cloud/goose 时对应的远端任务 id；本地只镜像状态
-    #[sea_orm(column_name = "remoteId")]
-    pub remoteId: Option<String>,
+    #[sea_orm(column_name = "remoteID")]
+    pub remote_id: Option<String>,
     /// 下次应触发的时间（epoch ms）；为空 = 已停用或尚未排期
     #[sea_orm(column_name = "nextRunAt")]
-    pub nextRunAt: Option<i64>,
+    pub next_run_at: Option<i64>,
     #[sea_orm(column_name = "lastRunAt")]
-    pub lastRunAt: Option<i64>,
+    pub last_run_at: Option<i64>,
     /// succeeded | failed | running
     #[sea_orm(column_name = "lastStatus")]
-    pub lastStatus: Option<String>,
+    pub last_status: Option<String>,
     #[sea_orm(column_name = "lastError")]
-    pub lastError: Option<String>,
+    pub last_error: Option<String>,
     #[sea_orm(column_name = "createdAt")]
-    pub createdAt: i64,
+    pub created_at: i64,
     #[sea_orm(column_name = "updatedAt")]
-    pub updatedAt: i64,
+    pub updated_at: i64,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

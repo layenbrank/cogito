@@ -15,8 +15,8 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
         (
             "automation",
-            "workspaceId",
-            r#"ALTER TABLE automation ADD COLUMN "workspaceId" TEXT NULL"#,
+            "workspaceID",
+            r#"ALTER TABLE automation ADD COLUMN "workspaceID" TEXT NULL"#,
         ),
         (
             "automation",
@@ -30,8 +30,8 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
         ),
         (
             "automation",
-            "sessionId",
-            r#"ALTER TABLE automation ADD COLUMN "sessionId" TEXT NULL"#,
+            "sessionID",
+            r#"ALTER TABLE automation ADD COLUMN "sessionID" TEXT NULL"#,
         ),
         (
             "automation",
@@ -40,13 +40,13 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
         ),
         (
             "automation",
-            "providerId",
-            r#"ALTER TABLE automation ADD COLUMN "providerId" TEXT NULL"#,
+            "providerID",
+            r#"ALTER TABLE automation ADD COLUMN "providerID" TEXT NULL"#,
         ),
         (
             "automation",
-            "modelId",
-            r#"ALTER TABLE automation ADD COLUMN "modelId" TEXT NULL"#,
+            "modelID",
+            r#"ALTER TABLE automation ADD COLUMN "modelID" TEXT NULL"#,
         ),
         (
             "automation",
@@ -75,8 +75,8 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
         ),
         (
             "automation_run",
-            "sessionId",
-            r#"ALTER TABLE automation_run ADD COLUMN "sessionId" TEXT NULL"#,
+            "sessionID",
+            r#"ALTER TABLE automation_run ADD COLUMN "sessionID" TEXT NULL"#,
         ),
         (
             "automation_run",

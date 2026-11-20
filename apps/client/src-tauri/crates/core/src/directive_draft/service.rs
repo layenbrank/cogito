@@ -53,7 +53,7 @@ impl Service {
                 active.status =
                     sea_orm::ActiveValue::Set(directive_draft_status::PENDING.to_owned());
                 active.error = sea_orm::ActiveValue::Set(None);
-                active.updatedAt = sea_orm::ActiveValue::Set(now);
+                active.updated_at = sea_orm::ActiveValue::Set(now);
                 return Ok(active.update(db).await?);
             }
             return Err(Exception::NotFound(format!("草稿不存在: {id}")));
@@ -61,14 +61,14 @@ impl Service {
 
         let model = schema::Model {
             id: Uuid::new_v4().to_string(),
-            threadID: input.threadID,
-            workspaceID: input.workspaceID,
+            thread_id: input.threadID,
+            workspace_id: input.workspaceID,
             name: input.name,
             definition: input.definition,
             status: directive_draft_status::PENDING.to_owned(),
             error: None,
-            createdAt: now,
-            updatedAt: now,
+            created_at: now,
+            updated_at: now,
         };
         // TEXT 主键 + SQLite 下 `insert()` 会再发一次 SELECT，故用 exec 后直接返回 Model
         schema::Entity::insert(schema::ActiveModel::from(model.clone()))
@@ -108,7 +108,7 @@ impl Service {
         let mut active: schema::ActiveModel = existing.into();
         active.status = sea_orm::ActiveValue::Set(input.status);
         active.error = sea_orm::ActiveValue::Set(input.error);
-        active.updatedAt = sea_orm::ActiveValue::Set(Utc::now().timestamp_millis());
+        active.updated_at = sea_orm::ActiveValue::Set(Utc::now().timestamp_millis());
         Ok(active.update(db).await?)
     }
 

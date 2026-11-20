@@ -8,11 +8,14 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     #[serde(rename = "entryID")]
+    #[sea_orm(column_name = "entryID")]
     pub entry_id: String,
     pub title: String,
     pub done: bool,
     pub index: i32,
+    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
+    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 

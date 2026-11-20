@@ -1,4 +1,7 @@
-//! `agent_tool_audit` 的 DDL 单源（S6 工具审计）。
+//! `agent_tool_audit` 的建表 SQL（S6 工具审计）。
+//!
+//! 列名以 `entity::agent_tool_audit` 为准（camelCase）。这份 SQL 给新库基线和老库
+//! `IF NOT EXISTS` 兜底共用；FTS 以外的普通表能用实体表达的，都走实体。
 //!
 //! 和 `composer_queue_schema` / `agent_plan_schema` 一样：仓库是「单文件 0001 基线」，
 //! 基线打过标记就不再跑，所以新表要两条路都走 —— 进基线（新库 / `migrate:fresh`），

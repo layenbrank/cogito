@@ -101,7 +101,7 @@ async fn search_fts(
     // 包成短语：否则 FTS5 会把 `AND` / 引号当语法
     let phrase = format!("\"{}\"", query.replace('"', "\"\""));
     let mut sql = String::from(
-        "SELECT d.id AS id, d.\"baseId\" AS baseId, d.title AS title, d.\"relPath\" AS relPath, \
+        "SELECT d.id AS id, d.\"baseID\" AS baseId, d.title AS title, d.\"relPath\" AS relPath, \
          snippet(knowledge_doc_fts, -1, '', '', '…', 16) AS snippet, \
          bm25(knowledge_doc_fts) AS score \
          FROM knowledge_doc_fts \
@@ -110,7 +110,7 @@ async fn search_fts(
     );
     let mut values = vec![Value::from(phrase)];
     if let Some(base_id) = base_id {
-        sql.push_str(" AND d.\"baseId\" = ?");
+        sql.push_str(" AND d.\"baseID\" = ?");
         values.push(Value::from(base_id.to_string()));
     }
     sql.push_str(" ORDER BY score ASC LIMIT ?");
@@ -153,12 +153,12 @@ async fn search_like(
             .replace('_', "\\_")
     );
     let mut sql = String::from(
-        "SELECT id, \"baseId\" AS baseId, title, \"relPath\" AS relPath, content \
+        "SELECT id, \"baseID\" AS baseId, title, \"relPath\" AS relPath, content \
          FROM knowledge_doc WHERE \"archivedAt\" IS NULL",
     );
     let mut values: Vec<Value> = Vec::new();
     if let Some(base_id) = base_id {
-        sql.push_str(" AND \"baseId\" = ?");
+        sql.push_str(" AND \"baseID\" = ?");
         values.push(Value::from(base_id.to_string()));
     }
     sql.push_str(" AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')");
