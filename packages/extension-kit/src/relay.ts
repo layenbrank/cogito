@@ -10,8 +10,8 @@ import { deliverClip, probeClient } from './client.ts'
 import {
   MESSAGE_CLIP_ACTIVE,
   MESSAGE_CLIP_PAGE,
-  MESSAGE_EXTRACT,
-  MESSAGE_HEALTH,
+  MESSAGE_CLIP_EXTRACT,
+  MESSAGE_CLIP_HEALTH,
   STORAGE_CLIP_DELIVERY
 } from './constants.ts'
 import { isArticle, isSnapshot, readArticleExtract, readPageSnapshot } from './extract.ts'
@@ -25,8 +25,8 @@ import type { ClipDelivery, ClipPayload } from './payload.ts'
 const HANDLED_TYPES: ReadonlySet<string> = new Set([
   MESSAGE_CLIP_ACTIVE,
   MESSAGE_CLIP_PAGE,
-  MESSAGE_EXTRACT,
-  MESSAGE_HEALTH
+  MESSAGE_CLIP_EXTRACT,
+  MESSAGE_CLIP_HEALTH
 ])
 
 const MISSING_TAB = '没有活动标签页'
@@ -106,8 +106,8 @@ async function extractArticle(): Promise<unknown> {
 async function runMessage(message: Record<string, unknown>, type: string): Promise<unknown> {
   if (type === MESSAGE_CLIP_PAGE) return postPayload(message)
   if (type === MESSAGE_CLIP_ACTIVE) return clipActiveTab()
-  if (type === MESSAGE_EXTRACT) return extractArticle()
-  if (type === MESSAGE_HEALTH) {
+  if (type === MESSAGE_CLIP_EXTRACT) return extractArticle()
+  if (type === MESSAGE_CLIP_HEALTH) {
     const ports = await findPortOrder()
     return probeClient(ports)
   }

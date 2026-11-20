@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CLIP_PORT_RELEASE,
   MESSAGE_CLIP_ACTIVE,
-  MESSAGE_HEALTH,
+  MESSAGE_CLIP_HEALTH,
   STORAGE_CLIP_DELIVERY
 } from './constants.ts'
 import { installClipRelay } from './relay.ts'
@@ -145,7 +145,7 @@ describe('剪藏 relay（service worker 那一半）', function () {
   it('健康检查回 client 的端口与计数', async function () {
     const env = installFake()
 
-    const response = await send(env, { type: MESSAGE_HEALTH })
+    const response = await send(env, { type: MESSAGE_CLIP_HEALTH })
 
     expect(response).toMatchObject({ ok: true, port: CLIP_PORT_RELEASE, clipCount: 3 })
   })

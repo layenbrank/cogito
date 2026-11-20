@@ -23,10 +23,10 @@ const MESSAGE_CLIP_PAGE = 'clip-page'
 const MESSAGE_CLIP_ACTIVE = 'clip-active'
 
 /** 只抽取正文、不投递（取正文给别处用）。 */
-const MESSAGE_EXTRACT = 'cogito-extract'
+const MESSAGE_CLIP_EXTRACT = 'clip-extract'
 
 /** 问 client 是否在听（弹窗状态点走这条或直接 fetch `/health`）。 */
-const MESSAGE_HEALTH = 'cogito:health'
+const MESSAGE_CLIP_HEALTH = 'clip-health'
 
 /** 最近一次投递结果：worker 写、弹窗读，是跨 worker / 页面的事实源 */
 const STORAGE_CLIP_DELIVERY = 'cogito.clip.delivery'
@@ -44,7 +44,7 @@ export {
   MARKDOWN_LIMIT,
   MESSAGE_CLIP_ACTIVE,
   MESSAGE_CLIP_PAGE,
-  MESSAGE_EXTRACT,
-  MESSAGE_HEALTH,
+  MESSAGE_CLIP_EXTRACT,
+  MESSAGE_CLIP_HEALTH,
   STORAGE_CLIP_DELIVERY
 }
