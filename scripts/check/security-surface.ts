@@ -16,9 +16,9 @@
  *      app 侧工具）不许被删（S6）。
  *
  * 用法：
- *   node scripts/check/security-surface.mjs                  # 门禁模式（CI / pnpm check）
- *   node scripts/check/security-surface.mjs --write-baseline  # 引用面缩小后重写基线
- *   node scripts/check/security-surface.mjs --strict          # 1B 完成后用：任何 fs 通配都算违规
+ *   node scripts/check/security-surface.ts                  # 门禁模式（CI / pnpm check）
+ *   node scripts/check/security-surface.ts --write-baseline  # 引用面缩小后重写基线
+ *   node scripts/check/security-surface.ts --strict          # 1B 完成后用：任何 fs 通配都算违规
  *
  * 退出码：0 = 全过；1 = 有违规。
  */
@@ -42,27 +42,46 @@ const FS_IMPORT_PATTERN = /@tauri-apps\/plugin-fs/
 /** 系统 git 的 spawn 形态（S5：只许出现在 git/cli.rs） */
 const GIT_SPAWN_PATTERN = /Command::new\("git"\)/
 
-const failures = []
-const warnings = []
+/** capability 里我们真正读的两个字段（其余保持原样，不做泛化） */
+interface CapabilityPermission {
+  identifier?: unknown
+  allow?: unknown
+}
 
-function fail(message) {
+/** tauri.conf.json 里要断言的那一小块 */
+interface TauriConf {
+  app?: {
+    withGlobalTauri?: unknown
+    security?: { csp?: unknown }
+  }
+}
+
+const failures: string[] = []
+const warnings: string[] = []
+
+function fail(message: string): void {
   failures.push(message)
 }
 
-function warn(message) {
+function warn(message: string): void {
   warnings.push(message)
 }
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, 'utf8'))
+/**
+ * 读 JSON 当**对象**用：这几份配置本来就都是对象，非对象的脏文件当空对象
+ * （后续断言会自然报「缺字段」，不用在这儿抛一个看不懂的解析栈）。
+ */
+function readJson(path: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
 }
 
-function toPosix(path) {
+function toPosix(path: string): string {
   return path.split('\\').join('/')
 }
 
 /** 递归列出 src 下的 ts/tsx */
-function listSources(dir, out = []) {
+function listSources(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
@@ -77,9 +96,8 @@ function listSources(dir, out = []) {
   return out
 }
 
-/** 收集 fs:scope 里的全盘通配：{ 文件名: [通配...] } */
 /** 递归列出 Rust 源码（跳过 target / node_modules） */
-function listRustSources(dir, out = []) {
+function listRustSources(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
@@ -94,18 +112,22 @@ function listRustSources(dir, out = []) {
   return out
 }
 
-function collectFsScopeWildcards() {
-  const ledger = {}
+/** 收集 fs:scope 里的全盘通配：{ 文件名: [通配...] } */
+function collectFsScopeWildcards(): Record<string, string[]> {
+  const ledger: Record<string, string[]> = {}
   if (!existsSync(CAPS_DIR)) return ledger
   for (const name of readdirSync(CAPS_DIR)) {
     if (!name.endsWith('.json')) continue
     const capability = readJson(join(CAPS_DIR, name))
-    const permissions = Array.isArray(capability.permissions) ? capability.permissions : []
+    const permissions: unknown[] = Array.isArray(capability.permissions) ? capability.permissions : []
     for (const permission of permissions) {
       if (typeof permission !== 'object' || permission === null) continue
-      if (!String(permission.identifier ?? '').startsWith('fs:scope')) continue
-      const allow = Array.isArray(permission.allow) ? permission.allow : []
-      const hits = allow.filter((entry) => typeof entry === 'string' && FORBIDDEN_FS_SCOPES.has(entry))
+      const entry = permission as CapabilityPermission
+      if (!String(entry.identifier ?? '').startsWith('fs:scope')) continue
+      const allow: unknown[] = Array.isArray(entry.allow) ? entry.allow : []
+      const hits = allow.filter(
+        (item): item is string => typeof item === 'string' && FORBIDDEN_FS_SCOPES.has(item)
+      )
       if (hits.length > 0) ledger[name] = hits
     }
   }
@@ -113,7 +135,7 @@ function collectFsScopeWildcards() {
 }
 
 /** 1 + 4：capabilities 断言（fs 通配只许留在基线账目里） */
-function checkCapabilities(ledger, strict) {
+function checkCapabilities(ledger: Record<string, string[]>, strict: boolean): void {
   if (!existsSync(CAPS_DIR)) {
     fail(`找不到 capabilities 目录：${toPosix(relative(ROOT, CAPS_DIR))}`)
     return
@@ -121,26 +143,28 @@ function checkCapabilities(ledger, strict) {
   for (const name of readdirSync(CAPS_DIR)) {
     if (!name.endsWith('.json')) continue
     const capability = readJson(join(CAPS_DIR, name))
-    const permissions = Array.isArray(capability.permissions) ? capability.permissions : []
+    const permissions: unknown[] = Array.isArray(capability.permissions) ? capability.permissions : []
     for (const permission of permissions) {
       // 字符串形态（`fs:default`）没有 scope，跳过
       if (typeof permission !== 'object' || permission === null) continue
-      const identifier = String(permission.identifier ?? '')
-      const allow = Array.isArray(permission.allow) ? permission.allow : []
+      const entry = permission as CapabilityPermission
+      const identifier = String(entry.identifier ?? '')
+      const allow: unknown[] = Array.isArray(entry.allow) ? entry.allow : []
       if (identifier.startsWith('fs:scope')) {
         const known = new Set(ledger[name] ?? [])
-        for (const entry of allow) {
-          if (typeof entry !== 'string' || !FORBIDDEN_FS_SCOPES.has(entry)) continue
-          if (!strict && known.has(entry)) {
-            warn(`${name}: fs:scope 全盘通配 "${entry}" 属 1B 待清账目（授权集落地后清掉）`)
+        for (const item of allow) {
+          if (typeof item !== 'string' || !FORBIDDEN_FS_SCOPES.has(item)) continue
+          if (!strict && known.has(item)) {
+            warn(`${name}: fs:scope 全盘通配 "${item}" 属 1B 待清账目（授权集落地后清掉）`)
             continue
           }
-          fail(`${name}: ${identifier} 出现全盘通配 "${entry}"（1B 收口前必须先有授权集，且不许新增）`)
+          fail(`${name}: ${identifier} 出现全盘通配 "${item}"（1B 收口前必须先有授权集，且不许新增）`)
         }
       }
       if (identifier.startsWith('http:')) {
-        for (const entry of allow) {
-          const url = typeof entry === 'string' ? entry : entry?.url
+        for (const item of allow) {
+          const url =
+            typeof item === 'string' ? item : (item as { url?: unknown } | null | undefined)?.url
           if (typeof url === 'string' && FORBIDDEN_HTTP_URLS.has(url)) {
             fail(`${name}: ${identifier} 仍有明文 http 通配 "${url}"`)
           }
@@ -151,22 +175,23 @@ function checkCapabilities(ledger, strict) {
 }
 
 /** 2 + 5：tauri.conf.json 断言 */
-function checkTauriConf() {
+function checkTauriConf(): void {
   if (!existsSync(TAURI_CONF)) {
     fail('找不到 apps/client/src-tauri/tauri.conf.json')
     return
   }
-  const conf = readJson(TAURI_CONF)
-  if (conf?.app?.withGlobalTauri !== false) {
+  const conf = readJson(TAURI_CONF) as TauriConf
+  if (conf.app?.withGlobalTauri !== false) {
     fail('tauri.conf.json: app.withGlobalTauri 必须是 false（渲染进程不该拿到 __TAURI__ 全局）')
   }
-  const csp = conf?.app?.security?.csp
+  const csp = conf.app?.security?.csp
   if (!csp || typeof csp !== 'object') {
     fail('tauri.conf.json: 生产 CSP 缺失')
     return
   }
+  const directives = csp as Record<string, unknown>
   for (const key of ['default-src', 'connect-src']) {
-    const value = String(csp[key] ?? '')
+    const value = String(directives[key] ?? '')
     if (value.split(/\s+/).includes('*')) {
       fail(`tauri.conf.json: csp.${key} 仍是通配 "*"`)
     }
@@ -174,8 +199,8 @@ function checkTauriConf() {
 }
 
 /** 3：plugin-fs 引用面 */
-function collectFsImports() {
-  const hits = []
+function collectFsImports(): string[] {
+  const hits: string[] = []
   for (const file of listSources(SRC_DIR)) {
     const text = readFileSync(file, 'utf8')
     if (!FS_IMPORT_PATTERN.test(text)) continue
@@ -185,7 +210,7 @@ function collectFsImports() {
 }
 
 /** 3b：渲染进程不许读 __TAURI__ 全局（withGlobalTauri=false 之后的第二道防线） */
-function checkGlobalTauriReads() {
+function checkGlobalTauriReads(): void {
   for (const file of listSources(SRC_DIR)) {
     const text = readFileSync(file, 'utf8')
     if (!/window\.__TAURI__\s*\./.test(text) && !/__TAURI__\?\./.test(text)) continue
@@ -193,16 +218,20 @@ function checkGlobalTauriReads() {
   }
 }
 
-function checkFsImportSurface() {
+function checkFsImportSurface(): void {
   const found = collectFsImports()
   if (!existsSync(BASELINE)) {
     fail(
-      `缺少基线文件 ${toPosix(relative(ROOT, BASELINE))}；先跑 node scripts/check/security-surface.mjs --write-baseline`
+      `缺少基线文件 ${toPosix(relative(ROOT, BASELINE))}；先跑 node scripts/check/security-surface.ts --write-baseline`
     )
     return
   }
   const baseline = readJson(BASELINE)
-  const allowed = new Set(Array.isArray(baseline.files) ? baseline.files : [])
+  const allowed = new Set<string>(
+    Array.isArray(baseline.files)
+      ? baseline.files.filter((file): file is string => typeof file === 'string')
+      : []
+  )
   for (const file of found) {
     if (!allowed.has(file)) {
       fail(`${file}: 新引入 @tauri-apps/plugin-fs（1A 要求走 Rust 命令；确需放行请显式改基线并说明）`)
@@ -217,7 +246,7 @@ function checkFsImportSurface() {
 const DIALOG_IMPORT_PATTERN = /from '@tauri-apps\/plugin-dialog'/
 const DIALOG_FACADE = 'src/shared/ipc/dialog.ts'
 
-function checkDialogFacade() {
+function checkDialogFacade(): void {
   for (const file of listSources(SRC_DIR)) {
     const rel = toPosix(relative(CLIENT, file))
     if (rel === DIALOG_FACADE) continue
@@ -227,10 +256,11 @@ function checkDialogFacade() {
     fail(`${rel}: 直接 import @tauri-apps/plugin-dialog（选路点必须走 ${DIALOG_FACADE}，否则选出目录不进授权集）`)
   }
 }
+
 /** 3d：系统 git 只允许一个 spawn 点（S5）——加固只写在这一处，别处再 spawn 就漏了 */
 const GIT_SPAWN_ALLOWED = 'src-tauri/crates/command/src/git/cli.rs'
 
-function checkGitSpawn() {
+function checkGitSpawn(): void {
   const dirs = [join(CLIENT, 'src-tauri', 'src'), join(CLIENT, 'src-tauri', 'crates')]
   for (const dir of dirs) {
     for (const file of listRustSources(dir)) {
@@ -256,12 +286,12 @@ const AUDIT_SCHEMA = join(
   'migrations',
   'tool_audit_schema.rs'
 )
-const AUDIT_CALL_SITES = [
+const AUDIT_CALL_SITES: readonly string[] = [
   join(CLIENT, 'src-tauri', 'crates', 'core', 'src', 'tools', 'mod.rs'),
   join(CLIENT, 'src-tauri', 'src', 'bridge', 'http.rs')
 ]
 
-function checkToolAudit() {
+function checkToolAudit(): void {
   if (!existsSync(AUDIT_SCHEMA)) {
     fail('工具审计表 DDL 不见了（S6）：agent_tool_audit 的列定义在 tool_audit_schema.rs')
     return
@@ -296,7 +326,7 @@ function checkToolAudit() {
   }
 }
 
-function writeBaseline() {
+function writeBaseline(): void {
   const payload = {
     $comment:
       'plugin-fs 引用面基线（只许缩小）。S1/1A 会把下列文件逐个搬进 Rust 命令；新增文件必须显式改这里。',
@@ -312,13 +342,14 @@ function writeBaseline() {
   )
 }
 
-function readLedger() {
+function readLedger(): Record<string, string[]> {
   if (!existsSync(BASELINE)) return {}
   const baseline = readJson(BASELINE)
-  return baseline.fsScopeWildcards ?? {}
+  const ledger = baseline.fsScopeWildcards
+  return typeof ledger === 'object' && ledger !== null ? (ledger as Record<string, string[]>) : {}
 }
 
-function main() {
+function main(): void {
   if (process.argv.includes('--write-baseline')) {
     writeBaseline()
     return

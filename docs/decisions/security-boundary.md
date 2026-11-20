@@ -2,7 +2,7 @@
 
 - 状态：已采纳（S1 的 1A / 1B / 1C、S2「令牌不出进程」、S3「沙箱统一」、S4「就绪状态机」、S5「Git 加固」、S6「工具审计」、S7「提示词装配」、S8「成本账本」、S9「会话绑定下沉」、S10「子 agent 调度」、S11「分层路由」、S12「代码索引」全部落地；本计划的 12 个阶段至此收口，余下是欠账而不是未做项）
 - 日期：2026-11-10
-- 关联：`docs/apps/client/agent-terminal.md`、`docs/apps/client/tauri-remote.md`、`scripts/check/security-surface.mjs`
+- 关联：`docs/apps/client/agent-terminal.md`、`docs/apps/client/tauri-remote.md`、`scripts/check/security-surface.ts`
 
 ## 背景
 

@@ -17,7 +17,7 @@
  *    ESLint 找配置也是 `eslint.config.js` 先于 `.ts`，于是测试与 lint 静默跑旧代码。
  *    构建侧该用 `noEmit`，再补 `outDir` 兜底（产物只该落 `node_modules/.tmp`）。
  *
- * 用法：`node scripts/check/agent-junk.mjs [root]`（root 省略时用仓库根，便于测试）
+ * 用法：`node scripts/check/agent-junk.ts [root]`（root 省略时用仓库根，便于测试）
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -30,7 +30,7 @@ const DEFAULT_ROOT = resolve(HERE, '..', '..')
 const JUNK_DIRS = new Set(['tmp', '.tmp', 'temp', '.temp', 'scratch', '.scratch', 'scratchpad'])
 
 /** 顶层文件名模式：命中即算临时文件 */
-const JUNK_FILES = [
+const JUNK_FILES: readonly RegExp[] = [
   /\.log$/i,
   /\.bat$/i,
   /\.cmd$/i,
@@ -46,53 +46,8 @@ const JUNK_FILES = [
 /** 草稿目录里最多列多少个文件（避免一次刷屏，超出的只报目录） */
 const MAX_FILES_PER_DIR = 20
 
-function slash(path) {
-  return path.replaceAll('\\', '/')
-}
-
-function collectFromDir(root, dir) {
-  const files = []
-  const walk = (current) => {
-    let entries
-    try {
-      entries = readdirSync(current, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (files.length >= MAX_FILES_PER_DIR) return
-      const full = join(current, entry.name)
-      if (entry.isDirectory()) {
-        walk(full)
-      } else {
-        files.push(slash(relative(root, full)))
-      }
-    }
-  }
-  walk(dir)
-  return files
-}
-
-function collect(root) {
-  const found = []
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (!JUNK_DIRS.has(entry.name)) continue
-      const dir = join(root, entry.name)
-      const files = collectFromDir(root, dir)
-      // 空目录也要报：本身就是草稿区
-      found.push(...(files.length > 0 ? files : [slash(relative(root, dir))]))
-      continue
-    }
-    if (JUNK_FILES.some((pattern) => pattern.test(entry.name))) {
-      found.push(slash(relative(root, entry.name)))
-    }
-  }
-  return found
-}
-
 /** 走源码树找「同名 .js」时用的顶层目录 */
-const SOURCE_ROOTS = ['apps', 'packages', 'scripts']
+const SOURCE_ROOTS: readonly string[] = ['apps', 'packages', 'scripts']
 
 /**
  * 走源码树时跳过的目录名：依赖、构建产物、生成物、移动端原生工程。
@@ -123,10 +78,58 @@ const SKIP_DIRS = new Set([
 ])
 
 /** 有同名源码就算「编译产物」的后缀 */
-const SOURCE_SUFFIXES = ['.ts', '.tsx', '.mts', '.cts']
+const SOURCE_SUFFIXES: readonly string[] = ['.ts', '.tsx', '.mts', '.cts']
 
 /** 同名 .js 最多列多少个（刷屏没意义，数量本身已经是信号） */
 const MAX_STRAY_REPORT = 40
+
+function slash(path: string): string {
+  return path.replaceAll('\\', '/')
+}
+
+/** `readdir` 的 `withFileTypes` 形态；读不到（权限 / 竞态）当空目录 */
+function entriesOf(dir: string) {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+}
+
+function collectFromDir(root: string, dir: string): string[] {
+  const files: string[] = []
+  const walk = (current: string): void => {
+    for (const entry of entriesOf(current)) {
+      if (files.length >= MAX_FILES_PER_DIR) return
+      const full = join(current, entry.name)
+      if (entry.isDirectory()) {
+        walk(full)
+      } else {
+        files.push(slash(relative(root, full)))
+      }
+    }
+  }
+  walk(dir)
+  return files
+}
+
+function collect(root: string): string[] {
+  const found: string[] = []
+  for (const entry of entriesOf(root)) {
+    if (entry.isDirectory()) {
+      if (!JUNK_DIRS.has(entry.name)) continue
+      const dir = join(root, entry.name)
+      const files = collectFromDir(root, dir)
+      // 空目录也要报：本身就是草稿区
+      found.push(...(files.length > 0 ? files : [slash(relative(root, dir))]))
+      continue
+    }
+    if (JUNK_FILES.some((pattern) => pattern.test(entry.name))) {
+      found.push(slash(relative(root, entry.name)))
+    }
+  }
+  return found
+}
 
 /**
  * 源码树里与 `.ts` / `.tsx` 同名的 `.js`。
@@ -136,16 +139,10 @@ const MAX_STRAY_REPORT = 40
  * Vite 的 `resolve.extensions` 里 `.js` 排在 `.ts` 之前，无扩展名 import 会解析到产物；
  * ESLint 找配置也是 `eslint.config.js` 先于 `.ts`。两边都会静默跑旧代码。
  */
-function collectStrayJs(root) {
-  const found = []
-  const walk = (dir) => {
-    let entries
-    try {
-      entries = readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
+function collectStrayJs(root: string): string[] {
+  const found: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of entriesOf(dir)) {
       if (found.length >= MAX_STRAY_REPORT) return
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue
