@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Cogito 剪藏",
+  "version": "0.1.0",
+  "description": "抽取当前页并写入 Cogito 知识库，供客户端与新标签扩展共用。",
+  "minimum_chrome_version": "128",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "剪藏到知识库"
+  },
+  "background": {
+    "service_worker": "worker.js",
+    "type": "module"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "http://127.0.0.1:19828/*",
+    "http://localhost:19828/*",
+    "http://127.0.0.1:19829/*",
+    "http://localhost:19829/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "externally_connectable": {
+    "ids": ["*"]
+  }
+}
