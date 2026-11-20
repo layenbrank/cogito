@@ -4,7 +4,7 @@
   "manifest_version": 3,
   "description": "新标签磁贴墙（网址、时钟、书签）+ 网页剪藏到本机知识库。",
   "minimum_chrome_version": "128",
-  "permissions": ["storage", "bookmarks", "tabs", "contextMenus", "sidePanel", "favicon", "scripting"],
+  "permissions": ["storage", "bookmarks", "tabs", "contextMenus", "sidePanel", "favicon", "scripting", "activeTab"],
   "host_permissions": [
     "http://127.0.0.1:19828/*",
     "http://localhost:19828/*",
