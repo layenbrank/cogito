@@ -2,6 +2,9 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// 只为了给 `importOriginal` 提供模块类型；类型导入在运行时被抹掉，不影响 mock 提升
+import type * as ShellMode from '@/features/window/shell-mode'
+
 const checkUpdate = vi.fn(function () {
   return Promise.resolve()
 })
@@ -51,7 +54,7 @@ vi.mock('@tauri-apps/api/event', function () {
  * 否则一次检查都不会发出去，芯片永远不出现。其余导出保持真实实现。
  */
 vi.mock('@/features/window/shell-mode', async function (importOriginal) {
-  const actual = await importOriginal<typeof import('@/features/window/shell-mode')>()
+  const actual = await importOriginal<typeof ShellMode>()
   return {
     ...actual,
     canUseTauriIpc: function () {
