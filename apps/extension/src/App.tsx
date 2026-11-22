@@ -1,8 +1,16 @@
+import { TooltipProvider } from '@cogito/design/components/tooltip'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import 'dayjs/locale/zh-cn'
+import localeData from 'dayjs/plugin/localeData'
+import { LazyMotion, domMax } from 'motion/react'
 import { useMemo } from 'react'
 import { RouterProvider } from 'react-router-dom'
 
 import { buildReactRouter } from '@/router/react.tsx'
+
+dayjs.extend(localeData)
+dayjs.locale('zh-cn')
 
 /**
  * 应用壳：全局 provider + 路由。
@@ -33,7 +41,11 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <LazyMotion features={domMax}>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
+      </LazyMotion>
     </QueryClientProvider>
   )
 }

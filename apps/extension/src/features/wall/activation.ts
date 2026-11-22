@@ -1,13 +1,12 @@
-/**
- * 这个磁贴双击能不能打开。
- *
- * 单独一个文件：它是纯谓词，跟 `tile-shell.tsx` 里的渲染组件放一起会触发
- * `react-refresh/only-export-components`（组件文件只该导出组件）。
- */
+import { findTileKind } from '@/features/magnetic-tile/registry.ts'
+
+/** 右键「打开」是否出现：有链接、是集合，或扩展里有对应页面。 */
 function canActivate(tile: MagneticTile): boolean {
-  if (tile.component === 'clock') return false
   if (tile.url) return true
-  return tile.component === 'bookmark' || tile.component === 'settings' || tile.component === 'collection'
+  // 集合走自己的集合页，和网址一样总能打开
+  if (tile.component === 'collection') return true
+  // 其余看种类表：`path: null` 才是「只有桌面端有能力」
+  return findTileKind(tile.component).path !== null
 }
 
 export { canActivate }

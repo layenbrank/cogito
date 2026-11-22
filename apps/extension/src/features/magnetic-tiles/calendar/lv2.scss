@@ -1,0 +1,93 @@
+.marker {
+  &.lv2 {
+    &.square {
+      padding: 8px;
+      .expandedBody { gap: 6px; }
+      .mainPane { column-gap: 8px; }
+      .dayRail {
+        min-width: 3.25em;
+        padding: 6px 7px;
+        gap: 4px;
+      }
+      .bigDay { font-size: 30px; }
+      .dayRailWeek { font-size: 11px; }
+      .infoRail {
+        justify-content: flex-start;
+        gap: 3px;
+      }
+      .infoTop .ymd { font-size: 13px; font-weight: 600; }
+      .holidayTag { font-size: 10px; padding: 1px 5px; }
+      .lunar, .ganzhi { font-size: 12px; line-height: 1.3; }
+      .chip {
+        font-size: 10px;
+        padding: 1px 5px;
+      }
+      .chipRow { gap: 4px; }
+      .yiLine, .jiLine { font-size: 11px; }
+      .yiJiLabel, .jiLabel { font-size: 10px; padding: 1px 4px; }
+      .agendaTitle { font-size: 12px; }
+      .agendaCount {
+        min-width: 1.2em;
+        height: 1.2em;
+        font-size: 10px;
+        line-height: 1.2em;
+      }
+      .agendaText, .agendaTime, .agendaEmpty { font-size: 11px; }
+      .agenda { gap: 4px; }
+      .agendaList { gap: 4px; }
+    }
+    &.circle {
+      padding: 8px;
+      .bigDay { font-size: 36px; }
+    }
+    &.rectangle {
+      &.horizontal {
+        padding: 8px 10px;
+        .dayRail {
+          min-width: 4.5em;
+          padding: 8px 10px;
+          gap: 8px;
+        }
+        .bigDay { font-size: 40px; }
+        .dayRailWeek { font-size: 13px; }
+        .infoTop .ymd { font-size: 15px; }
+        .infoSub, .lunar, .ganzhi { font-size: 13px; }
+        .chip, .holidayTag { font-size: 12px; }
+        .yiLine, .jiLine { font-size: 12px; }
+        .yiJiLabel, .jiLabel { font-size: 11px; }
+        .agendaTitle { font-size: 13px; }
+        .agendaText, .agendaEmpty { font-size: 13px; }
+        .agendaTime, .agendaMore { font-size: 12px; }
+        .mainPane { column-gap: 10px; }
+        .infoRail {
+          justify-content: space-evenly;
+          gap: 0;
+        }
+        .agenda {
+          padding-left: 10px;
+          justify-content: flex-start;
+          gap: 8px;
+        }
+        .agendaList {
+          justify-content: flex-start;
+          gap: 6px;
+        }
+      }
+      &.vertical {
+        padding: 10px 8px;
+        .dayRail { padding: 10px 12px; gap: 10px; }
+        .bigDay { font-size: 36px; }
+        .dayRailWeek { font-size: 13px; }
+        .infoTop .ymd { font-size: 14px; }
+        .infoSub, .lunar, .ganzhi { font-size: 12px; }
+        .chip, .holidayTag { font-size: 11px; }
+        .yiLine, .jiLine { font-size: 12px; }
+        .agendaTitle { font-size: 13px; }
+        .agendaText { font-size: 12px; }
+        .agendaTime, .agendaEmpty { font-size: 11px; }
+        .infoRail { gap: 6px; }
+        .expandedBody { gap: 8px; }
+      }
+    }
+  }
+}

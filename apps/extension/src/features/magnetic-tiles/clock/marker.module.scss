@@ -1,0 +1,108 @@
+@use 'sizes.scss' as *;
+
+/* ── 时钟磁贴基础布局 ── */
+
+.lv1,
+.lv2,
+.lv3,
+.lv4,
+.lv5,
+.lv6,
+.lv7,
+.square,
+.circle,
+.rectangle,
+.horizontal,
+.vertical,
+.digital,
+.analog,
+.flip,
+.wide,
+.hasAside {
+  min-width: 0;
+}
+
+.marker {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  display: flex;
+  align-items: flex-start;
+  justify-content: stretch;
+  align-self: stretch;
+  overflow: hidden;
+  padding: 12px 14px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  gap: 10px;
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+/* 指针样式：stage 允许指针溢出显示 */
+.analog .stage {
+  overflow: visible;
+}
+
+.wide.analog .stage {
+  overflow: visible;
+}
+
+/* ── 横矩形（wide）布局 ── */
+.wide .body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+
+.wide:not(.hasAside) .body {
+  grid-template-columns: 1fr;
+}
+
+.wide .stage {
+  flex: unset;
+  align-self: stretch;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+  min-width: 0;
+  padding-right: 16px;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: clock-stage;
+  /* 宽横矩形：字号随左栏宽度缩放 */
+  font-size: clamp(16px, 21.5cqi, 56px);
+  /* 跨 CSS Module 桥：替代历史 .wide .digitSlot / .colon（哈希失效） */
+  --clock-font-size: clamp(16px, 21.5cqi, 56px);
+  --clock-digit-slot-width: 0.58em;
+  --clock-colon-padding: 0 2px;
+  --clock-colon-size: 0.86em;
+}
+
+.wide:not(.hasAside) .stage {
+  padding-right: 0;
+}

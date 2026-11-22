@@ -58,3 +58,40 @@ export async function insertNavigation(
 
   return 'added'
 }
+
+/** 从磁贴列表再加一块到当前镜像根上，样式跟来源一致。 */
+export async function appendTileCopy(source: MagneticTile): Promise<void> {
+  await seedIfEmpty()
+
+  const mirror = await database.mirror.orderBy('index').first()
+  if (!mirror) throw new Error('还没有镜像')
+
+  const tiles = await database.magneticTile.where('mirrorID').equals(mirror.id).toArray()
+  const index = tiles.reduce(function (max, tile) {
+    return Math.max(max, tile.index)
+  }, -1)
+  const now = Date.now()
+
+  await database.magneticTile.add({
+    id: crypto.randomUUID(),
+    index: index + 1,
+    title: source.title,
+    url: source.url,
+    round: source.round,
+    mark: source.mark,
+    size: source.size,
+    shape: source.shape,
+    direction: source.direction,
+    mirrorID: mirror.id,
+    updatedAt: now,
+    createdAt: now,
+    textColor: source.textColor,
+    component: source.component,
+    description: source.description,
+    collectionID: null,
+    downloadCount: 0,
+    background: source.background,
+    backdrop: source.backdrop,
+    archivedAt: null
+  })
+}

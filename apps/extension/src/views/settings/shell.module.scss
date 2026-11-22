@@ -1,0 +1,190 @@
+$sidebar-width: 200px;
+
+.layout {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  // 半透明卡片底，透出 mica / 亚克力
+  background-color: color-mix(in oklab, var(--card) 82%, transparent);
+}
+
+.aside {
+  flex: 0 0 $sidebar-width;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+  padding: 12px 8px;
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  border-right: 1px solid var(--border);
+}
+
+.asideHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 8px;
+  gap: 8px;
+}
+
+.asideTitle {
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;
+}
+
+.asideTitleText {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 20%, transparent);
+
+  :global(svg) {
+    width: 16px;
+    height: 16px;
+    color: var(--primary);
+  }
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  column-gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 400;
+  color: var(--foreground);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+  position: relative;
+
+  :global(.iconify),
+  :global(svg) {
+    display: block;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: var(--muted-foreground);
+    transition: color 200ms ease;
+  }
+
+  > span {
+    line-height: 1.25;
+  }
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 6%, transparent);
+    color: var(--foreground);
+
+    :global(.iconify),
+    :global(svg) {
+      color: var(--primary);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--primary) 40%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.navItemActive {
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  color: var(--primary);
+  font-weight: 500;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--primary);
+  }
+
+  :global(.iconify),
+  :global(svg) {
+    color: var(--primary);
+  }
+}
+
+.navItemDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 18px 16px;
+  scroll-padding-bottom: 12px;
+}
+
+.surfaceWrap {
+  min-width: 0;
+  min-height: min-content;
+  width: 100%;
+  max-width: 100%;
+}
+
+:global(html[data-motion='reduce']) {
+  .navItem,
+  .closeBtn {
+    transition: none;
+  }
+}

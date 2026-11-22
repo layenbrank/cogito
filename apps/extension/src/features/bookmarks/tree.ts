@@ -34,8 +34,5 @@ export function filterBookmarkTree(nodes: readonly BookmarkNode[], keyword: stri
 }
 
 export function fetchBookmarkTree(): Promise<BookmarkNode[]> {
-  const bookmarks = globalThis.chrome?.bookmarks
-  if (!bookmarks) return Promise.resolve([])
-
-  return bookmarks.getTree()
+  return chrome.bookmarks.getTree()
 }

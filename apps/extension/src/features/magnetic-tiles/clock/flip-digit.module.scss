@@ -1,0 +1,304 @@
+/* 企业级翻页牌：稳定 DOM + class 驱动；仅 transform/opacity 动画 */
+/* token：antd --ith-color-* → design --card / --foreground / --border / --primary */
+
+.root {
+  --flip-w: 0.76em;
+  --flip-h: 1.18em;
+  --flip-half: 0.4s;
+  --flip-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --flip-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --flip-radius: max(3px, 0.08em);
+  --flip-face: var(--card);
+  --flip-ink: var(--foreground);
+  --flip-edge: color-mix(in oklab, var(--border) 85%, transparent);
+  --flip-rim: color-mix(in oklab, var(--border) 90%, transparent);
+
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--flip-w);
+  height: var(--flip-h);
+  font-size: 1em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  border-radius: var(--flip-radius);
+  border: 1px solid var(--flip-rim);
+  background: var(--flip-face);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transform: translateZ(0);
+  contain: layout style;
+  overflow: hidden;
+}
+
+.list {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  list-style: none;
+}
+
+.item {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  perspective: 240px;
+  visibility: hidden;
+}
+
+.active,
+.previous {
+  visibility: visible;
+}
+
+.active {
+  z-index: 2;
+}
+
+.previous {
+  z-index: 3;
+}
+
+.top,
+.bottom {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.top {
+  top: 0;
+  transform-origin: 50% 100%;
+  border-radius: calc(var(--flip-radius) - 1px) calc(var(--flip-radius) - 1px) 0 0;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    height: 1px;
+    background: var(--flip-edge);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+}
+
+.bottom {
+  bottom: 0;
+  transform-origin: 50% 0%;
+  border-radius: 0 0 calc(var(--flip-radius) - 1px) calc(var(--flip-radius) - 1px);
+}
+
+.text {
+  position: absolute;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 200%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--flip-ink);
+  font-size: 0.9em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  background: var(--flip-face);
+  user-select: none;
+}
+
+.top .text {
+  top: 0;
+}
+
+.bottom .text {
+  bottom: 0;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* class 换位即重启动画（与 Vue 同源，无需 remount） */
+.isFlipping {
+  .previous {
+    z-index: 3;
+  }
+
+  .active {
+    animation: flip-rise var(--flip-half) var(--flip-half) linear both;
+    z-index: 2;
+  }
+
+  .previous .top {
+    z-index: 2;
+    animation: turn-up var(--flip-half) var(--flip-ease-in) both;
+  }
+
+  .active .bottom {
+    z-index: 2;
+    animation: turn-down var(--flip-half) var(--flip-half) var(--flip-ease-out) both;
+  }
+
+  .previous .top .shade {
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.02) 0%,
+      rgba(0, 0, 0, 0.22) 100%
+    );
+    animation: shade-in var(--flip-half) linear both;
+  }
+
+  .active .top .shade {
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.02) 0%,
+      rgba(0, 0, 0, 0.18) 100%
+    );
+    animation: shade-out var(--flip-half) 0.24s linear both;
+  }
+
+  .previous .bottom .shade {
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.2) 0%,
+      rgba(0, 0, 0, 0.02) 100%
+    );
+    animation: shade-in var(--flip-half) linear both;
+  }
+
+  .active .bottom .shade {
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.16) 0%,
+      rgba(0, 0, 0, 0.02) 100%
+    );
+    animation: shade-out var(--flip-half) 0.24s linear both;
+  }
+}
+
+@keyframes turn-up {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes turn-down {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+@keyframes flip-rise {
+  0% {
+    z-index: 2;
+  }
+  5% {
+    z-index: 4;
+  }
+  100% {
+    z-index: 4;
+  }
+}
+
+@keyframes shade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+:global(html[data-motion='reduce']) {
+  .isFlipping {
+    .previous .top,
+    .active .bottom,
+    .previous .top .shade,
+    .active .top .shade,
+    .previous .bottom .shade,
+    .active .bottom .shade,
+    .active {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0s !important;
+    }
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.14em;
+  min-width: 0;
+  max-width: 100%;
+  /* 磁贴由 sizes 注入；预览由 .stageFlip 注入；缺省继承父级（勿裸 var，IACVT 不会落到同元素另一声明） */
+  font-size: var(--clock-font-size, inherit);
+}
+
+.separator {
+  --flip-h: 1.18em;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  align-self: center;
+  box-sizing: border-box;
+  height: var(--flip-h);
+  padding: 0.26em 0.06em;
+  flex-shrink: 0;
+
+  &::before,
+  &::after {
+    content: '';
+    display: block;
+    width: 0.11em;
+    height: 0.11em;
+    border-radius: 50%;
+    background: var(--primary);
+    opacity: 0.85;
+    flex-shrink: 0;
+  }
+}
+
+.colon {
+  --flip-h: 1.18em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  height: var(--flip-h);
+  color: var(--primary);
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 0.02em;
+  flex-shrink: 0;
+  opacity: 0.85;
+}

@@ -1,0 +1,61 @@
+.marker {
+  &.lv4 {
+    &.square {
+      &.horizontal {
+        padding: 14px;
+        .label { font-size: 12px; }
+        .value { font-size: 24px; }
+        .earn .value { font-size: 22px; }
+        .status, .range { font-size: 12px; }
+        .track { height: 4px; }
+        .surfaces { grid-template-columns: 1fr 1fr; }
+        .panelHero { font-size: 22px; }
+      }
+      &.vertical {
+        padding: 14px;
+        .label { font-size: 12px; }
+        .value { font-size: 24px; }
+        .earn .value { font-size: 22px; }
+        .track { height: 4px; }
+        .surfaces { grid-template-columns: 1fr; }
+        .panelHero { font-size: 22px; }
+      }
+    }
+    &.circle {
+      &.horizontal {
+        padding: 14px;
+        .label { font-size: 11px; }
+        .value { font-size: 18px; }
+        .track { height: 4px; }
+        .row { flex-direction: column; }
+      }
+      &.vertical {
+        padding: 14px;
+        .label { font-size: 11px; }
+        .value { font-size: 18px; }
+        .track { height: 4px; }
+        .row { flex-direction: column; }
+      }
+    }
+    &.rectangle {
+      &.horizontal {
+        padding: 14px 20px;
+        .label { font-size: 12px; }
+        .value { font-size: 26px; }
+        .earn .value { font-size: 24px; }
+        .status, .range { font-size: 12px; }
+        .track { height: 5px; }
+        .surfaces { grid-template-columns: repeat(2, 1fr); }
+        .panelHero { font-size: 24px; }
+      }
+      &.vertical {
+        padding: 16px 14px;
+        .label { font-size: 12px; }
+        .value { font-size: 22px; }
+        .track { height: 4px; }
+        .row { flex-direction: column; }
+        .surfaces { grid-template-columns: 1fr; }
+      }
+    }
+  }
+}

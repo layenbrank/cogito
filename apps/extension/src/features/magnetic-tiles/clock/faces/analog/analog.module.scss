@@ -1,0 +1,101 @@
+/* 瑞士简约：平面盘、细刻度、纤针，无数字/无渐变 */
+.analogFace {
+  position: relative;
+  aspect-ratio: 1;
+  width: var(--clock-analog-width, 80px);
+  max-width: 100%;
+  height: auto;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  box-shadow: var(
+    --clock-analog-shadow,
+    0 2px 10px color-mix(in srgb, #000 9%, transparent)
+  );
+  container-type: inline-size;
+  overflow: visible;
+}
+
+.analogDial {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.dialPlate {
+  fill: var(--card);
+}
+
+.dialRim {
+  stroke: color-mix(in oklab, var(--border) 70%, transparent);
+  stroke-width: 0.7;
+}
+
+.tickLine {
+  stroke: var(--muted-foreground);
+  stroke-width: 0.38;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+
+.tickHourLine {
+  stroke: var(--muted-foreground);
+  stroke-width: 0.95;
+  opacity: 0.72;
+}
+
+.tickCardinalLine {
+  stroke: var(--foreground);
+  stroke-width: 1.35;
+  opacity: 0.88;
+}
+
+.handHourLine {
+  stroke: var(--foreground);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+}
+
+.handMinuteLine {
+  stroke: var(--foreground);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  opacity: 0.82;
+}
+
+.handSecondLine {
+  stroke: var(--primary);
+  stroke-width: 0.85;
+  stroke-linecap: round;
+}
+
+.hubOuter {
+  fill: var(--card);
+  stroke: var(--foreground);
+  stroke-width: 0.95;
+  r: 2.8;
+}
+
+.hubInner {
+  fill: var(--primary);
+}
+
+/* 容器查询：小尺寸时隐藏分钟刻度 */
+@container (max-width: 72px) {
+  .tickLine:not(.tickHourLine):not(.tickCardinalLine) {
+    opacity: 0;
+  }
+}
+
+@container (max-width: 48px) {
+  .handHourLine {
+    stroke-width: 2.8;
+  }
+
+  .handMinuteLine {
+    stroke-width: 1.8;
+  }
+}

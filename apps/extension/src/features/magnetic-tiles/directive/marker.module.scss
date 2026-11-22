@@ -1,0 +1,29 @@
+.marker {
+  &.lv1 {
+    font-size: 0.7rem;
+  }
+
+  &.lv2 {
+    font-size: 0.85rem;
+  }
+
+  &.lv3 {
+    font-size: 1rem;
+  }
+
+  &.lv4 {
+    font-size: 1.2rem;
+  }
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+
+  :global(svg) {
+    width: 1.8em;
+    height: 1.8em;
+  }
+}

@@ -6,5 +6,6 @@
  * - Vue→React 重写期间本入口保持可用；重写完成后与 studio 共用同一 token 契约
  */
 @import '@cogito/design/globals.css';
+@import '../features/magnetic-tile/magnetic-tile.css';
 
 @source '../';

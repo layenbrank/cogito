@@ -12,7 +12,7 @@ const Overview = lazy(function () {
 })
 
 const Bookmarks = lazy(function () {
-  return import('@/views/bookmarks/bookmarks.tsx')
+  return import('@/views/bookmark/bookmark.tsx')
 })
 
 const Settings = lazy(function () {
@@ -23,11 +23,44 @@ const Collection = lazy(function () {
   return import('@/views/collection/collection.tsx')
 })
 
+const Marketplace = lazy(function () {
+  return import('@/views/marketplace/marketplace.tsx')
+})
+
+const Calendar = lazy(function () {
+  return import('@/views/calendar/calendar.tsx')
+})
+
+const Clock = lazy(function () {
+  return import('@/views/clock/clock.tsx')
+})
+
+const Countdown = lazy(function () {
+  return import('@/views/countdown/countdown.tsx')
+})
+
+const Wallpaper = lazy(function () {
+  return import('@/views/wallpaper/wallpaper.tsx')
+})
+
+const Gallery = lazy(function () {
+  return import('@/views/gallery/gallery.tsx')
+})
+
+const AgentChat = lazy(function () {
+  return import('@/views/agent/chat/chat.tsx')
+})
+
 const NotFound = lazy(function () {
   return import('@/views/not-found.tsx')
 })
 
 const routes: RouteObject[] = [
+  // 对话页不套镜像外壳：它要独占视口（与 client 的 /agent 同级，而不是嵌在磁贴里）
+  {
+    path: '/agent/chat',
+    element: React.createElement(AgentChat)
+  },
   {
     path: '/',
     element: React.createElement(Frame),
@@ -56,6 +89,30 @@ const routes: RouteObject[] = [
       {
         path: 'collection/:id',
         element: React.createElement(Collection)
+      },
+      {
+        path: 'marketplace',
+        element: React.createElement(Marketplace)
+      },
+      {
+        path: 'calendar',
+        element: React.createElement(Calendar)
+      },
+      {
+        path: 'clock',
+        element: React.createElement(Clock)
+      },
+      {
+        path: 'countdown',
+        element: React.createElement(Countdown)
+      },
+      {
+        path: 'wallpaper',
+        element: React.createElement(Wallpaper)
+      },
+      {
+        path: 'gallery',
+        element: React.createElement(Gallery)
       },
       {
         path: '*',

@@ -125,10 +125,13 @@ export default defineConfig(function ({ mode, command }: ConfigEnv): UserConfig 
         generateScopedName: '[name]-[local]-[hash:base64:6]',
         // 是否驼峰化 CSS 类名
         localsConvention: 'camelCase',
-        // 哪些文件需要使用 CSS Modules（默认：/\.module\./）
         scopeBehaviour: 'local',
-        // 自定义哈希函数
         hashPrefix: 'prefix'
+      },
+      preprocessorOptions: {
+        scss: {
+          additionalData: `@use "@/styles/mixins.scss" as *;\n`
+        }
       }
     },
     clearScreen: false,

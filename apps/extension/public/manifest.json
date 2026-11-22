@@ -2,14 +2,17 @@
   "name": "Cogito",
   "version": "0.1.0",
   "manifest_version": 3,
-  "description": "新标签磁贴墙（网址、时钟、书签）+ 网页剪藏到本机知识库。",
+  "description": "新标签上的镜像与磁贴（网址、时钟、书签）+ 网页剪藏到本机知识库。",
   "minimum_chrome_version": "128",
   "permissions": ["storage", "bookmarks", "tabs", "contextMenus", "sidePanel", "favicon", "scripting", "activeTab"],
   "host_permissions": [
     "http://127.0.0.1:19828/*",
     "http://localhost:19828/*",
     "http://127.0.0.1:19829/*",
-    "http://localhost:19829/*"
+    "http://localhost:19829/*",
+    "https://images-api.nasa.gov/*",
+    "https://commons.wikimedia.org/*",
+    "https://www.bing.com/*"
   ],
   "background": {
     "service_worker": "service-worker.js",
@@ -31,5 +34,13 @@
   "icons": {
     "32": "icons/32.png",
     "128": "icons/128.png"
+  },
+  "commands": {
+    "open-agent": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K"
+      },
+      "description": "打开 Cogito 对话"
+    }
   }
 }

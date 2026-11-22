@@ -1,0 +1,659 @@
+@use 'lv1.scss' as *;
+@use 'lv2.scss' as *;
+@use 'lv3.scss' as *;
+@use 'lv4.scss' as *;
+@use 'lv5.scss' as *;
+@use 'lv6.scss' as *;
+@use 'lv7.scss' as *;
+
+.lv1,
+.lv2,
+.lv3,
+.lv4,
+.lv5,
+.lv6,
+.lv7,
+.square,
+.circle,
+.rectangle,
+.horizontal,
+.vertical,
+.compact,
+.expanded,
+.wide,
+.tall,
+.withAgenda {
+  min-width: 0;
+}
+
+.marker {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+  padding: 8px 10px;
+}
+
+.compactBody,
+.expandedBody {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.compactBody {
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.compactBody .weekday {
+  font-size: 10px;
+}
+
+.compactBody .month {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.compactBody .day {
+  color: var(--primary);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.expandedBody {
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 8px;
+}
+
+.mainPane {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  column-gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  height: 100%;
+}
+
+.weekday {
+  color: var(--primary);
+  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.ymd {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bigDay {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.lunar,
+.ganzhi,
+.iso,
+.gods {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  line-height: 1.35;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.holidayTag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  white-space: nowrap;
+}
+
+.infoSub {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+}
+
+.dotSep {
+  flex-shrink: 0;
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+.yiJiInline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.yiLine,
+.jiLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--foreground);
+  overflow: hidden;
+}
+
+.yiJiBody {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yiJiLabel,
+.jiLabel {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.yiJiLabel {
+  color: var(--success);
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+}
+
+.jiLabel {
+  color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 12%, transparent);
+}
+
+/* —— 日期徽章 —— */
+.dayRail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 4.25em;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent);
+  box-sizing: border-box;
+  align-self: stretch;
+  min-height: 0;
+}
+
+.dayRail .bigDay {
+  flex: 0 0 auto;
+  font-size: 40px;
+  letter-spacing: -0.03em;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.dayRailWeek {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.infoRail {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 4px;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.infoTop {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.infoTop .ymd {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.infoRail .lunar,
+.infoRail .ganzhi {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.infoRail .ganzhi {
+  flex-shrink: 0;
+}
+
+.infoRail .chipRow {
+  gap: 6px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.infoRail .chip {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.infoRail .holidayTag {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+/* —— 横向：主栏 + 日程 —— */
+.wide .expandedBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  column-gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.wide.withAgenda .expandedBody {
+  grid-template-columns: minmax(0, 1.55fr) minmax(7.5em, 0.85fr);
+}
+
+.wide .mainPane {
+  height: 100%;
+}
+
+/* —— 竖矩：主栏纵排 + 底部日程 —— */
+.tall .expandedBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.tall .mainPane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1.1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.tall .dayRail {
+  flex-direction: row;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 10px 12px;
+  flex: 0 0 auto;
+}
+
+.tall .dayRail .bigDay {
+  font-size: 36px;
+}
+
+.tall .infoRail {
+  flex: 1 1 auto;
+  justify-content: space-evenly;
+  gap: 6px;
+  overflow: hidden;
+  height: auto;
+}
+
+.tall .agenda {
+  border-left: none;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  padding: 8px 0 0;
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* —— 方块：左徽章右信息；信息顶对齐吃满；空日程不占高 —— */
+.square .expandedBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  min-height: 0;
+}
+
+.square .mainPane {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  column-gap: 8px;
+}
+
+.square .dayRail {
+  min-width: 3.5em;
+  padding: 6px 8px;
+  gap: 4px;
+}
+
+.square .dayRail .bigDay {
+  font-size: 32px;
+}
+
+.square .dayRailWeek {
+  font-size: 12px;
+}
+
+.square .infoRail {
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 1px 0;
+}
+
+.square .infoTop {
+  gap: 4px 6px;
+}
+
+.square .infoTop .ymd {
+  font-size: 13px;
+}
+
+/* 农历独占一行完整展示，干支另起一行，避免「农…」截断 */
+.square .infoSub {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+}
+
+.square .infoSub .dotSep {
+  display: none;
+}
+
+.square .infoRail .lunar,
+.square .infoRail .ganzhi {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  font-size: 12px;
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.square .chipRow {
+  flex-wrap: nowrap;
+  gap: 4px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.square .chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.square .yiJiInline {
+  gap: 2px;
+  width: 100%;
+}
+
+.square .agenda,
+.circle .agenda {
+  border-left: none;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  padding: 6px 0 0;
+  height: auto;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+/* 有日程条目时再分配高度；空状态保持紧凑 */
+.square .agenda:has(.agendaList) {
+  flex: 0 1 42%;
+  max-height: 42%;
+  min-height: 0;
+}
+
+.square .agenda:has(.agendaEmpty) {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.square .agendaEmpty {
+  padding: 2px 0 0;
+}
+
+/* —— 日程 —— */
+.agenda {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 0 0 10px;
+  border-left: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-sizing: border-box;
+  height: 100%;
+}
+
+.agendaHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.agendaTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.agendaCount {
+  min-width: 1.35em;
+  height: 1.35em;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35em;
+  text-align: center;
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+}
+
+.agendaList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 5px;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+}
+
+.agendaItem {
+  display: grid;
+  grid-template-columns: 6px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 1px 0;
+}
+
+.agendaDotEvent,
+.agendaDotReminder {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agendaDotEvent {
+  background: var(--primary);
+}
+
+.agendaDotReminder {
+  background: var(--warning);
+}
+
+.agendaTime {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.agendaText,
+.agendaTextDone {
+  font-size: 13px;
+  line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+  display: block;
+}
+
+.agendaTextDone {
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+  text-decoration: line-through;
+}
+
+.agendaEmpty {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.agendaMore {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* —— 圆形：仅日期 —— */
+.circle .infoRail,
+.circle .agenda,
+.circle .dayRailWeek {
+  display: none;
+}
+
+.circle .expandedBody {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circle .mainPane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  grid-template-columns: none;
+}
+
+.circle .dayRail {
+  border: none;
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+}
+
+.circle .dayRail .bigDay {
+  color: var(--primary);
+}

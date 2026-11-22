@@ -1,6 +1,6 @@
 import Sortable from 'sortablejs'
 
-/** 墙面磁贴拖拽。松手后先把 DOM 还原给 React，再按 data-id 序落库。 */
+/** 镜像上的磁贴拖拽。松手后先把 DOM 还原给 React，再按 data-id 序落库。 */
 function bindWallSortable(container: HTMLElement, onReorder: (ids: string[]) => void): { destroy(): void } {
   const sortable = Sortable.create(container, {
     animation: 150,

@@ -1,6 +1,6 @@
 import { parseSiteUrl } from './url.ts'
 
-/** 只能固定普通网页；浏览器内部页和扩展页本身不能挂到墙上 */
+/** 只能固定普通网页；浏览器内部页和扩展页本身不能加到镜像 */
 export function canPin(url: string | undefined): url is string {
   if (!url) return false
   return parseSiteUrl(url) !== null

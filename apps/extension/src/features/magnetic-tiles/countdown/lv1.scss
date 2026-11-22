@@ -1,0 +1,64 @@
+.marker {
+  &.lv1 {
+    &.square {
+      &.horizontal {
+        padding: 6px;
+        .compactIcon { font-size: 14px; }
+        .compactTime { font-size: 11px; }
+        .compactTrack { height: 3px; }
+      }
+      &.vertical {
+        padding: 6px;
+        .compactIcon { font-size: 14px; }
+        .compactTime { font-size: 11px; }
+        .compactTrack { height: 3px; }
+      }
+    }
+    &.circle {
+      &.horizontal {
+        padding: 6px;
+        .compactIcon { font-size: 12px; }
+        .compactTime { font-size: 10px; }
+        .compactTrack { height: 2px; width: 60%; }
+      }
+      &.vertical {
+        padding: 6px;
+        .compactIcon { font-size: 12px; }
+        .compactTime { font-size: 10px; }
+        .compactTrack { height: 2px; width: 60%; }
+      }
+    }
+    /*
+     * size1 横矩形 ≈ 150×60
+     * 单行 strip：倒计时 | 进度轨 | % | 状态
+     * 禁止展开 KPI（高度不够会叠字）
+     */
+    &.rectangle {
+      &.horizontal {
+        padding: 0 10px;
+        .stripBody {
+          gap: 6px;
+        }
+        .stripTime {
+          font-size: 12px;
+        }
+        .iconWellSm {
+          font-size: 11px;
+        }
+        .stripTrack {
+          height: 4px;
+        }
+        .stripPct {
+          font-size: 10px;
+          min-width: 1.75em;
+        }
+      }
+      &.vertical {
+        padding: 8px 6px;
+        .compactIcon { font-size: 14px; }
+        .compactTime { font-size: 11px; }
+        .compactTrack { height: 3px; }
+      }
+    }
+  }
+}

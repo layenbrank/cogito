@@ -1,6 +1,7 @@
-export type ThemeName = 'light' | 'dark' | 'system'
+import { bootstrapAppearance, readAppearance, writeAppearance, type AppearanceMode } from '@/features/appearance/appearance.ts'
 
-const THEME_KEY = 'cogito.theme'
+export type ThemeName = AppearanceMode
+
 const THEME_EVENT = 'cogito-theme'
 
 function publish(theme: ThemeName): void {
@@ -30,60 +31,13 @@ export function isDarkTheme(theme: ThemeName, prefersDark: boolean): boolean {
   return prefersDark
 }
 
-let current: ThemeName = 'system'
-
-function paint(theme: ThemeName): void {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  document.documentElement.classList.toggle('dark', isDarkTheme(theme, prefersDark))
-}
-
-function findStorage(): chrome.storage.StorageArea | null {
-  const local = globalThis.chrome?.storage?.local
-  return local ?? null
-}
-
-/** 先用本地缓存上色，再跟扩展存储对齐，避免新标签闪一下 */
-export function bootstrapAppearance(): void {
-  current = parseTheme(localStorage.getItem(THEME_KEY))
-  paint(current)
-
-  const storage = findStorage()
-  if (storage) {
-    void storage
-      .get(THEME_KEY)
-      .then(function (bag) {
-        current = parseTheme(bag[THEME_KEY])
-        localStorage.setItem(THEME_KEY, current)
-        paint(current)
-        publish(current)
-      })
-      .catch(function (error: unknown) {
-        console.error('[theme] 读取外观失败', error)
-      })
-  }
-
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-    if (current === 'system') paint(current)
-  })
-}
+export { bootstrapAppearance }
 
 export async function writeTheme(theme: ThemeName): Promise<void> {
-  current = theme
-  localStorage.setItem(THEME_KEY, theme)
-  paint(theme)
+  writeAppearance({ mode: theme })
   publish(theme)
-
-  const storage = findStorage()
-  if (!storage) return
-
-  try {
-    await storage.set({ [THEME_KEY]: theme })
-  } catch (error) {
-    console.error('[theme] 保存外观失败', error)
-    throw error
-  }
 }
 
 export function findTheme(): ThemeName {
-  return current
+  return readAppearance().mode
 }

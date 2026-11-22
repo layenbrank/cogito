@@ -1,0 +1,526 @@
+/* 时钟专属：对齐 antd Overlay 时代 preview/stage/mini；壳层/fact 见 globals .mt-* */
+/* token：--ith-color-* → --foreground / --muted / --primary / --card / --border */
+
+.preview {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 10px;
+  padding: 12px 14px;
+  align-content: stretch;
+}
+
+.previewHero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.previewMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.previewTime {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.previewDate {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.previewStage {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease;
+}
+
+/* 预览舞台注入 --clock-font-size，与历史 clamp 等价；face 根 var(..., inherit) 可吃到 */
+.stageDigits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  --clock-font-size: clamp(52px, 7.5vw, 96px);
+  font-size: var(--clock-font-size);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  text-align: center;
+}
+
+.stageFlip {
+  display: inline-flex;
+  align-items: center;
+  --clock-font-size: clamp(44px, 6.5vw, 80px);
+  font-size: var(--clock-font-size);
+  max-width: 100%;
+}
+
+.stageFaceWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(248px, 64%);
+  filter: drop-shadow(0 6px 18px color-mix(in srgb, #000 6%, transparent));
+}
+
+.previewStage.analog {
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
+}
+
+.stageFaceWrap .analogFace,
+.stageFace {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  /* 预览表盘吃满 wrap；覆盖 face 默认 80px */
+  --clock-analog-width: 100%;
+}
+
+.flip .previewTime {
+  letter-spacing: 0.04em;
+}
+
+.previewFacts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-content: start;
+  min-height: 0;
+}
+
+.formCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 14px 14px 12px;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.sectionAppearance {
+  flex-shrink: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+
+  :global(.mt-section-title) {
+    margin-bottom: 10px;
+  }
+}
+
+.sectionAlarms {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-top: 8px;
+  overflow: hidden;
+}
+
+.sectionHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: color-mix(in oklab, var(--muted) 22%, var(--card));
+
+  :global(.mt-section-title) {
+    margin: 0;
+  }
+}
+
+.styleList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.styleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  white-space: normal;
+  justify-content: flex-start;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+
+  &:hover {
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--primary) 35%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.styleRowActive {
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent);
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 12%, var(--card));
+  }
+}
+
+.styleMeta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.styleLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.25;
+}
+
+.styleHint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.25;
+}
+
+/* 历史静态缩略图（非实时 face） */
+.mini {
+  flex-shrink: 0;
+  width: 48px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  background: color-mix(in oklab, var(--muted) 35%, var(--card));
+}
+
+.miniTime {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+.mini.flip .miniTime {
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  background: color-mix(in oklab, var(--muted) 45%, var(--card));
+}
+
+.miniFace {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklab, var(--border) 70%, transparent);
+  position: relative;
+  background:
+    radial-gradient(circle at center, var(--card) 55%, transparent 56%),
+    conic-gradient(
+      from -1.5deg,
+      var(--foreground) 0 2deg,
+      transparent 2deg 28deg,
+      var(--border) 28deg 30deg,
+      transparent 30deg 58deg,
+      var(--foreground) 58deg 62deg,
+      transparent 62deg 88deg,
+      var(--border) 88deg 90deg,
+      transparent 90deg 118deg,
+      var(--foreground) 118deg 122deg,
+      transparent 122deg 148deg,
+      var(--border) 148deg 150deg,
+      transparent 150deg 178deg,
+      var(--foreground) 178deg 182deg,
+      transparent 182deg 208deg,
+      var(--border) 208deg 210deg,
+      transparent 210deg 238deg,
+      var(--foreground) 238deg 242deg,
+      transparent 242deg 268deg,
+      var(--border) 268deg 270deg,
+      transparent 270deg 298deg,
+      var(--foreground) 298deg 302deg,
+      transparent 302deg 328deg,
+      var(--border) 328deg 330deg,
+      transparent 330deg 358deg,
+      var(--foreground) 358deg 360deg
+    );
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 50%;
+    width: 1.5px;
+    height: 5px;
+    margin-left: -0.75px;
+    background: var(--foreground);
+    border-radius: 999px;
+    transform-origin: bottom center;
+    transform: rotate(40deg);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    margin: -1.5px 0 0 -1.5px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+}
+
+.accent {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklab, var(--border) 75%, transparent);
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.accentActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: inset 0 0 0 2.5px var(--card);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  flex-shrink: 0;
+}
+
+.editorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.editorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.alarmList {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior-y: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 96px;
+  padding: 20px 16px;
+  margin: 0;
+  border-radius: var(--radius-md);
+  border: 1px dashed color-mix(in oklab, var(--border) 65%, transparent);
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 8%, var(--card));
+    border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+    box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--primary) 35%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.alarmItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.alarmItemActive {
+  border-color: color-mix(in oklab, var(--primary) 28%, transparent);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.alarmMain {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--primary) 35%, transparent);
+    outline-offset: 1px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+.alarmTime {
+  flex-shrink: 0;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.alarmMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alarmTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alarmHint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alarmActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+:global(html[data-motion='reduce']) {
+  .styleRow,
+  .empty,
+  .alarmItem,
+  .previewStage {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .preview {
+    grid-template-rows: auto minmax(200px, 240px) auto auto;
+  }
+
+  .stageDigits {
+    --clock-font-size: clamp(36px, 12vw, 64px);
+    font-size: var(--clock-font-size);
+  }
+
+  .stageFlip {
+    --clock-font-size: clamp(28px, 10vw, 52px);
+    font-size: var(--clock-font-size);
+  }
+
+  .formCard {
+    overflow: visible;
+    min-height: auto;
+  }
+
+  .sectionAlarms {
+    overflow: visible;
+  }
+
+  .alarmList {
+    overflow: visible;
+  }
+
+  .editorGrid {
+    grid-template-columns: 1fr;
+  }
+}

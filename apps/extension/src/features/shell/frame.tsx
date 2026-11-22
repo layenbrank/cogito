@@ -33,7 +33,7 @@ export function Frame() {
         backgroundPosition: 'center'
       }}>
       <div className={clsx('absolute inset-0 bg-background/25')} />
-      <div className={clsx('relative h-full min-h-0')}>
+      <div className={clsx('relative flex h-full min-h-0 flex-col')}>
         <Suspense fallback={null}>
           <Outlet />
         </Suspense>

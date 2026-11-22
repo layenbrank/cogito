@@ -10,6 +10,6 @@ export interface MagneticTileInput {
 }
 
 export interface InsertOptions {
-  /** 同一镜像里已有相同链接时跳过（右键固定、书签挂墙） */
+  /** 同一镜像里已有相同链接时跳过（右键固定、书签加入） */
   skipSameUrl?: boolean
 }

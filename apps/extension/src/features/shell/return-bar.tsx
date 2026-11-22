@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { Glyph } from '@/features/shell/glyph.tsx'
 
-/** 书签库、外观页回到墙面。墙面本身不放顶栏。 */
+/** 书签库、设置页回到当前镜像。镜像本身不放顶栏。 */
 export function ReturnBar(props: { title: string }) {
   const navigate = useNavigate()
 
@@ -18,7 +18,7 @@ export function ReturnBar(props: { title: string }) {
           void navigate('/overview')
         }}>
         <Glyph name="arrow" />
-        返回墙面
+        返回镜像
       </Button>
       <h1 className={clsx('text-base font-medium')}>{props.title}</h1>
     </div>

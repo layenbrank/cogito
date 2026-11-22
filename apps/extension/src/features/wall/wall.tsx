@@ -23,19 +23,25 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { useNavigate } from 'react-router-dom'
 
 import { TileDialog } from '@/features/magnetic-tile/tile-dialog.tsx'
+import { TileLibrary } from '@/features/magnetic-tile/tile-library.tsx'
+import { MagneticTile as TileShell } from '@/features/magnetic-tile/magnetic-tile.tsx'
+import { Reflection } from '@/features/magnetic-tile/reflection.tsx'
+import { findTileKind } from '@/features/magnetic-tile/registry.ts'
 import { useMirrorStore } from '@/features/mirror/store.ts'
 import { notify } from '@/features/shell/notice-state.ts'
 import { openSite } from '@/features/shell/open-site.ts'
 import { canActivate } from '@/features/wall/activation.ts'
 import { WallMenu } from '@/features/wall/menu.tsx'
-import { TILE_GAP, TILE_UNIT } from '@/features/wall/metrics.ts'
 import { bindWallSortable } from '@/features/wall/sortable.ts'
-import { WallTile } from '@/features/wall/tile-shell.tsx'
+import { useCollectionStore } from '@/stores/collection'
+
+import '@/features/wall/selection.css'
+import styles from '@/features/wall/wall.module.scss'
 
 import type { NavigateFunction } from 'react-router-dom'
 
 interface WallProps {
-  /** 为空时画墙面根；有值时只画这个集合里的网址 */
+  /** 为空时画镜像根上的磁贴；有值时只画这个集合里的网址 */
   collectionID: string | null
 }
 
@@ -45,6 +51,7 @@ interface MenuState {
   tileID: string | null
 }
 
+/** 新建或重命名集合时的对话框状态 */
 type Naming =
   | { mode: 'create' }
   | { mode: 'rename'; id: string; title: string }
@@ -62,23 +69,22 @@ function activateTile(tile: MagneticTile, navigate: NavigateFunction): void {
     void navigate(`/collection/${tile.id}`)
     return
   }
-  if (tile.component === 'bookmark') {
-    void navigate('/bookmarks')
+  const kind = findTileKind(tile.component)
+  if (kind.path) {
+    void navigate(kind.path)
     return
   }
-  if (tile.component === 'settings') {
-    void navigate('/settings')
+  // 网址磁贴：种类表里没有它（它的落点是数据里的 url）
+  if (tile.component === 'navigation') {
+    if (tile.url) openSite(tile.url, 'tab')
+    else notify('这个磁贴还没有设置链接')
     return
   }
-  if (tile.url) {
-    openSite(tile.url, 'tab')
-    return
-  }
-  notify('这个磁贴要在桌面端打开')
+  notify(`${kind.label}磁贴要在桌面端打开`)
 }
 
 /**
- * 桌面式墙面：60px 网格、名称在磁贴下方、双击打开、右键改布局和集合、拖动排序。
+ * 镜像上的磁贴：60px 网格、名称在磁贴下方、双击打开、右键改布局和集合、拖动排序。
  */
 function Wall(props: WallProps) {
   const isReady = useMirrorStore(function (state) {
@@ -118,9 +124,6 @@ function Wall(props: WallProps) {
     reorderRef.current = toReorder
   })
 
-  const [now, updateNow] = useState(function () {
-    return new Date()
-  })
   const [selected, updateSelected] = useState<Set<string>>(function () {
     return new Set()
   })
@@ -128,6 +131,9 @@ function Wall(props: WallProps) {
   const [editing, updateEditing] = useState<MagneticTile | null>(null)
   const [isFormOpen, updateFormOpen] = useState(false)
   const [naming, updateNaming] = useState<Naming | null>(null)
+  /** 磁贴库（挑选种类）与新建表单是两步：先选种类，再填名称 */
+  const [isLibraryOpen, updateLibraryOpen] = useState(false)
+  const [createKind, updateCreateKind] = useState<MagneticTile.Component>('navigation')
   const [draft, updateDraft] = useState('')
   const [removing, updateRemoving] = useState<string[] | null>(null)
 
@@ -143,11 +149,6 @@ function Wall(props: WallProps) {
   const collections = tiles.filter(function (tile) {
     return tile.component === 'collection' && tile.id !== props.collectionID
   })
-  const counts = new Map<string, number>()
-  for (const tile of tiles) {
-    if (!tile.collectionID) continue
-    counts.set(tile.collectionID, (counts.get(tile.collectionID) ?? 0) + 1)
-  }
 
   const menuTile = menu?.tileID
     ? (tiles.find(function (tile) {
@@ -156,14 +157,23 @@ function Wall(props: WallProps) {
     : null
   const targets = findTargets(menuTile, selected, tiles)
 
-  useEffect(function () {
-    const timer = window.setInterval(function () {
-      updateNow(new Date())
-    }, 1000)
-    return function () {
-      window.clearInterval(timer)
-    }
-  }, [])
+  useEffect(
+    function () {
+      useCollectionStore.getState().toBumpRevision()
+    },
+    [tiles]
+  )
+
+  useEffect(
+    function () {
+      const grid = gridRef.current
+      if (!grid) return
+      for (const node of grid.querySelectorAll<HTMLElement>('[data-id]')) {
+        node.toggleAttribute('data-selected', selected.has(node.dataset.id ?? ''))
+      }
+    },
+    [selected, visible]
+  )
 
   useEffect(
     function () {
@@ -209,10 +219,9 @@ function Wall(props: WallProps) {
     updateMenu({ x: event.clientX, y: event.clientY, tileID })
   }
 
-  function selectTile(tileID: string, event: ReactMouseEvent<HTMLElement>): void {
-    event.stopPropagation()
-    updateMenu(null)
-    updateSelected(function (current) {
+function selectTile(tileID: string, event: ReactMouseEvent<HTMLElement>): void {
+  updateMenu(null)
+  updateSelected(function (current) {
       if (event.ctrlKey || event.metaKey) {
         const next = new Set(current)
         if (next.has(tileID)) next.delete(tileID)
@@ -248,7 +257,7 @@ function Wall(props: WallProps) {
             onClick={function () {
               void navigate('/overview')
             }}>
-            返回墙面
+            返回镜像
           </Button>
           <span
             className={clsx('text-sm text-foreground')}
@@ -260,32 +269,27 @@ function Wall(props: WallProps) {
 
       <div
         ref={gridRef}
-        className={clsx(
-          'grid h-full content-start justify-center overflow-y-auto overscroll-y-contain px-5 pb-16',
-          props.collectionID ? 'pt-16' : 'pt-8'
-        )}
-        style={{
-          gridTemplateColumns: `repeat(auto-fit, ${TILE_UNIT}px)`,
-          gridAutoRows: `${TILE_UNIT}px`,
-          gridAutoFlow: 'row dense',
-          columnGap: TILE_GAP,
-          rowGap: TILE_GAP
+        className={clsx(styles.grid, 'overscroll-y-contain', props.collectionID && 'pt-16')}
+        onClickCapture={function (event) {
+          const id = (event.target as HTMLElement).closest('[data-id]')?.getAttribute('data-id')
+          if (!id) return
+          selectTile(id, event)
         }}>
-        {visible.map(function (tile) {
+        {visible.map(function (tile, index) {
+          const Face = Reflection[tile.component]
+          if (!Face) return null
           return (
-            <WallTile
+            <TileShell.Enter
               key={tile.id}
-              tile={tile}
-              now={now}
-              isSelected={selected.has(tile.id)}
-              memberCount={counts.get(tile.id) ?? 0}
-              onSelect={function (event) {
-                selectTile(tile.id, event)
-              }}
-              onActivate={function () {
-                activateTile(tile, navigate)
-              }}
-            />
+              index={index}>
+              <TileShell.Suspense
+                id={tile.id}
+                size={tile.size}
+                shape={tile.shape}
+                direction={tile.direction}>
+                <Face {...tile} />
+              </TileShell.Suspense>
+            </TileShell.Enter>
           )
         })}
       </div>
@@ -363,9 +367,9 @@ function Wall(props: WallProps) {
             )
             updateMenu(null)
           }}
-          onAddSite={function () {
+          onAddTile={function () {
             updateEditing(null)
-            updateFormOpen(true)
+            updateLibraryOpen(true)
             updateMenu(null)
           }}
           onOpenBookmarks={function () {
@@ -377,10 +381,22 @@ function Wall(props: WallProps) {
         />
       ) : null}
 
+      {isLibraryOpen ? (
+        <TileLibrary
+          onOpenChange={updateLibraryOpen}
+          onPick={function (component) {
+            updateCreateKind(component)
+            updateLibraryOpen(false)
+            updateFormOpen(true)
+          }}
+        />
+      ) : null}
+
       {isFormOpen ? (
         <TileDialog
           key={editing?.id ?? 'create'}
           tile={editing}
+          component={createKind}
           onOpenChange={updateFormOpen}
           onSubmit={async function (input) {
             if (editing) {
@@ -389,7 +405,7 @@ function Wall(props: WallProps) {
               return
             }
             await toAppendTile(input)
-            notify('已添加到墙上')
+            notify('已加到镜像')
           }}
         />
       ) : null}
@@ -455,7 +471,7 @@ function Wall(props: WallProps) {
               {removing && removing.length > 1 ? `删除 ${removing.length} 个磁贴？` : '删除这个磁贴？'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              磁贴会从墙上拿掉。删掉集合时，里面的网站会回到墙面。
+              磁贴会从镜像里拿掉。删掉集合时，里面的网站会回到镜像。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

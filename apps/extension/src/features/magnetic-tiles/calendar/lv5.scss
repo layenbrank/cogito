@@ -1,0 +1,54 @@
+.marker {
+  &.lv5 {
+    &.square {
+      padding: 12px 14px;
+      .dayRail { min-width: 4.25em; padding: 12px; }
+      .bigDay { font-size: 48px; }
+      .dayRailWeek { font-size: 13px; }
+      .infoTop .ymd { font-size: 15px; }
+      .infoSub, .lunar, .ganzhi { font-size: 13px; }
+      .holidayTag, .chip { font-size: 12px; }
+      .yiLine, .jiLine { font-size: 12px; }
+      .agendaTitle { font-size: 13px; }
+      .agendaText, .agendaTime { font-size: 13px; }
+      .mainPane { column-gap: 12px; }
+    }
+    &.circle {
+      padding: 14px;
+      .bigDay { font-size: 56px; }
+    }
+    &.rectangle {
+      &.horizontal {
+        padding: 12px 16px;
+        .dayRail {
+          min-width: 5.25em;
+          padding: 12px 16px;
+        }
+        .bigDay { font-size: 52px; }
+        .dayRailWeek { font-size: 14px; }
+        .infoTop .ymd { font-size: 17px; }
+        .infoSub, .lunar, .ganzhi { font-size: 14px; }
+        .chip, .holidayTag { font-size: 12px; }
+        .yiLine, .jiLine { font-size: 13px; }
+        .agendaTitle { font-size: 14px; }
+        .agendaText { font-size: 14px; }
+        .agendaTime { font-size: 13px; }
+        .mainPane { column-gap: 14px; }
+        .infoRail { gap: 6px; }
+      }
+      &.vertical {
+        padding: 14px 12px;
+        .dayRail { padding: 14px 16px; gap: 14px; }
+        .bigDay { font-size: 52px; }
+        .dayRailWeek { font-size: 15px; }
+        .infoTop .ymd { font-size: 17px; }
+        .infoSub, .lunar, .ganzhi { font-size: 14px; }
+        .chip, .holidayTag { font-size: 12px; }
+        .yiLine, .jiLine { font-size: 13px; }
+        .agendaTitle, .agendaText { font-size: 14px; }
+        .infoRail { gap: 8px; }
+        .expandedBody { gap: 12px; }
+      }
+    }
+  }
+}

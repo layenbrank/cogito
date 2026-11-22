@@ -1,0 +1,230 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  background: color-mix(in oklab, var(--card) 88%, var(--muted));
+}
+
+.headerMain {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.count {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--muted) 80%, var(--card));
+  line-height: 18px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  flex: 1 0 auto;
+  background: transparent;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  margin: 12px 14px;
+  padding: 14px 12px;
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+}
+
+.emptyTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.emptyDesc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  max-width: 240px;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  background: color-mix(in oklab, var(--muted) 28%, transparent);
+  flex-shrink: 0;
+}
+
+.composerHidden {
+  display: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 35%, transparent);
+  background: transparent;
+  transition: background-color 180ms ease;
+  cursor: default;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: color-mix(in oklab, var(--card) 55%, transparent);
+  }
+}
+
+.itemBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.itemTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  line-height: 1.35;
+}
+
+.itemTitleDone {
+  text-decoration: line-through;
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.kind {
+  color: var(--muted-foreground);
+}
+
+.notes {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.accent {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 1px;
+  background: var(--primary);
+  flex-shrink: 0;
+  margin-block: 2px;
+}
+
+.accentReminder {
+  background: var(--warning);
+}
+
+.remove {
+  opacity: 0.45;
+
+  &:hover {
+    opacity: 1;
+    color: var(--destructive) !important;
+  }
+}
+
+@container calendar (min-height: 480px) {
+  .header {
+    padding: 12px 16px;
+  }
+
+  .title {
+    font-size: 15px;
+  }
+
+  .empty {
+    margin: 14px 16px;
+    padding: 16px 14px;
+    gap: 8px;
+  }
+
+  .emptyTitle {
+    font-size: 14px;
+  }
+
+  .emptyDesc {
+    font-size: 13px;
+    max-width: 280px;
+  }
+
+  .item {
+    padding: 12px 16px;
+  }
+
+  .itemTitle {
+    font-size: 14px;
+  }
+}
+
+@container calendar (min-height: 560px) {
+  .header {
+    padding: 14px 18px;
+  }
+
+  .empty {
+    margin: 16px 18px;
+    padding: 18px 16px;
+  }
+}

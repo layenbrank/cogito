@@ -34,7 +34,8 @@
       "@cogito/shared/mirror",
       "@cogito/shared/backup",
       "@cogito/shared/settings",
-      "@cogito/shared/magnetic-tile"
+      "@cogito/shared/magnetic-tile",
+      "@cogito/shared/magnetic-tile-bookmark"
     ],
     "rootDir": ".",
     "paths": {

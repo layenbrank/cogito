@@ -1,0 +1,242 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  flex: 0 1 auto;
+  max-height: var(--cal-detail-max, 42%);
+  border: none;
+  border-top: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+}
+
+.dayNum {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+.heroMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.solar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+
+.weekday {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.lunar {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.35;
+}
+
+.sep {
+  margin: 0 4px;
+  opacity: 0.55;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.panelTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.yiJi {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.yiJiCard {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--card) 75%, transparent);
+  min-width: 0;
+}
+
+.yiJiLabel {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.yi {
+  color: var(--success);
+}
+
+.ji {
+  color: var(--destructive);
+}
+
+.yiJiBody {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--foreground);
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--card) 65%, transparent);
+  min-width: 0;
+}
+
+.metaLabel {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.metaValue {
+  font-size: 11px;
+  color: var(--foreground);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container calendar (min-height: 480px) {
+  .hero {
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .dayNum {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .solar {
+    font-size: 13px;
+  }
+
+  .lunar {
+    font-size: 12px;
+  }
+
+  .panel {
+    gap: 10px;
+    padding: 12px 16px 16px;
+  }
+
+  .panelTitle {
+    font-size: 13px;
+  }
+
+  .yiJiBody {
+    font-size: 12px;
+    -webkit-line-clamp: 4;
+  }
+
+  .metaValue {
+    font-size: 12px;
+  }
+}
+
+@container calendar (min-height: 560px) {
+  .hero {
+    padding: 14px 18px;
+  }
+
+  .dayNum {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .panel {
+    gap: 10px;
+    padding: 12px 18px 16px;
+  }
+
+  .yiJi {
+    gap: 8px;
+  }
+
+  .yiJiCard,
+  .metaItem {
+    padding: 8px 10px;
+  }
+
+  .yiJiBody {
+    -webkit-line-clamp: 5;
+  }
+}

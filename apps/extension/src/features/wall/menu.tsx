@@ -30,7 +30,7 @@ interface WallMenuProps {
   onAssign: (collectionID: string | null) => void
   onCreateCollection: () => void
   onRemove: () => void
-  onAddSite: () => void
+  onAddTile: () => void
   onOpenBookmarks: () => void
   onOpenSettings: () => void
 }
@@ -41,7 +41,7 @@ function isSameShape(tile: MagneticTile, item: (typeof SHAPES)[number]): boolean
   return tile.direction === item.direction
 }
 
-/** 墙面右键菜单：打开、布局、集合、删除。空白处则是添加入口。 */
+/** 镜像右键菜单：打开、布局、集合、删除。空白处则是添加入口。 */
 function WallMenu(props: WallMenuProps) {
   const nodeRef = useRef<HTMLDivElement>(null)
   const [point, updatePoint] = useState({ x: props.x, y: props.y })
@@ -189,8 +189,8 @@ function WallMenu(props: WallMenuProps) {
       ) : (
         <>
           <MenuRow
-            label="添加网站"
-            onSelect={props.onAddSite}
+            label="添加磁贴"
+            onSelect={props.onAddTile}
           />
           <MenuRow
             label="新建集合"

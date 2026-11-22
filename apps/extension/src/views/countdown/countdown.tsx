@@ -1,0 +1,156 @@
+import { Button } from '@cogito/design/components/button'
+import dayjs from 'dayjs'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+import { notify } from '@/features/shell/notice-state.ts'
+import {
+  computeCountdown,
+  parseWorkDays,
+  STATUS_LABELS
+} from '@/features/magnetic-tiles/countdown/compute'
+import { useClockStore } from '@/stores/clock'
+import { CountdownForm, type LocalConfig } from './countdown-form'
+import { CountdownPreview } from './countdown-preview'
+
+function Countdown() {
+  const navigate = useNavigate()
+  const { config, initialize, updateConfig } = useClockStore()
+  const [now, onUpdateNow] = useState(function () {
+    return dayjs()
+  })
+  const [saving, onUpdateSaving] = useState(false)
+
+  /** 表单草稿：未编辑时为 null，直接跟随 store（避免在 effect 里同步 state） */
+  const [draft, updateDraft] = useState<LocalConfig | null>(null)
+  const localConfig: LocalConfig = draft ?? config
+
+  function onUpdateLocal(updater: (value: LocalConfig) => LocalConfig) {
+    updateDraft(function (current) {
+      return updater(current ?? config)
+    })
+  }
+
+  useEffect(
+    function () {
+      void initialize()
+    },
+    [initialize]
+  )
+
+  useEffect(function () {
+    const timer = setInterval(function () {
+      onUpdateNow(dayjs())
+    }, 1000)
+    return function () {
+      clearInterval(timer)
+    }
+  }, [])
+
+  const localWorkDays = useMemo(
+    function () {
+      return parseWorkDays(localConfig.workDays)
+    },
+    [localConfig.workDays]
+  )
+
+  const localShift = useMemo(
+    function () {
+      return computeCountdown(
+        now,
+        localConfig.workStart,
+        localConfig.workEnd,
+        localWorkDays,
+        localConfig.monthlySalary,
+        localConfig.payDay
+      )
+    },
+    [now, localConfig, localWorkDays]
+  )
+
+  async function handleSave() {
+    if (!localShift.isValidShift) {
+      notify('下班时间必须晚于上班时间')
+      return
+    }
+    onUpdateSaving(true)
+    try {
+      await updateConfig(localConfig)
+      notify('已保存')
+      void navigate('/overview')
+    } catch {
+      notify('保存失败')
+    } finally {
+      onUpdateSaving(false)
+    }
+  }
+
+  const live = localShift
+  const progressPct = Math.round(Math.max(live.progress, live.status === 'after' ? 100 : 0))
+  const footerStatus =
+    live.status === 'working'
+      ? '工作中'
+      : live.status === 'before'
+        ? '未开始'
+        : STATUS_LABELS[live.status]
+  const workRange = `${localConfig.workStart} – ${localConfig.workEnd}`
+  const paydayText = live.isPayday
+    ? '今天发薪'
+    : live.paydayDate
+      ? `${live.daysUntilPayday} 天后`
+      : '—'
+
+  function toggleWorkDay(day: number) {
+    const next = localWorkDays.includes(day)
+      ? localWorkDays.filter(function (d) {
+          return d !== day
+        })
+      : [...localWorkDays, day].sort(function (a, b) {
+          return a - b
+        })
+    onUpdateLocal(function (config) {
+      return { ...config, workDays: JSON.stringify(next) }
+    })
+  }
+
+  return (
+      <div className="mt-stage-split">
+        <div className="flex justify-end gap-2 px-3 pt-3">
+          <Button
+            variant="outline"
+            onClick={function () {
+              void navigate('/overview')
+            }}>
+            取消
+          </Button>
+          <Button
+            disabled={saving}
+            onClick={function () {
+              void handleSave()
+            }}>
+            保存
+          </Button>
+        </div>
+        <CountdownPreview
+          live={live}
+          now={now}
+          workRange={workRange}
+          monthlySalary={localConfig.monthlySalary}
+          paydayText={paydayText}
+          footerStatus={footerStatus}
+          progressPct={progressPct}
+        />
+        <CountdownForm
+          localConfig={localConfig}
+          localWorkDays={localWorkDays}
+          localShift={localShift}
+          live={live}
+          paydayText={paydayText}
+          onUpdateLocal={onUpdateLocal}
+          onToggleWorkDay={toggleWorkDay}
+        />
+      </div>
+  )
+}
+
+export default Countdown

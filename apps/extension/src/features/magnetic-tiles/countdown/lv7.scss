@@ -1,0 +1,56 @@
+.marker {
+  &.lv7 {
+    &.square {
+      &.horizontal {
+        padding: 16px;
+        .label { font-size: 12px; }
+        .value { font-size: 26px; }
+        .track { height: 6px; }
+        .surfaces { grid-template-columns: 1fr 1fr; }
+        .panelHero { font-size: 24px; }
+      }
+      &.vertical {
+        padding: 16px;
+        .label { font-size: 12px; }
+        .value { font-size: 26px; }
+        .track { height: 6px; }
+        .surfaces { grid-template-columns: 1fr 1fr; }
+        .panelHero { font-size: 24px; }
+      }
+    }
+    &.circle {
+      &.horizontal {
+        padding: 16px;
+        .label { font-size: 12px; }
+        .value { font-size: 20px; }
+        .track { height: 5px; }
+        .row { flex-direction: column; }
+      }
+      &.vertical {
+        padding: 16px;
+        .label { font-size: 12px; }
+        .value { font-size: 20px; }
+        .track { height: 5px; }
+        .row { flex-direction: column; }
+      }
+    }
+    &.rectangle {
+      &.horizontal {
+        padding: 16px 24px;
+        .label { font-size: 13px; }
+        .value { font-size: 28px; }
+        .track { height: 6px; }
+        .surfaces { grid-template-columns: repeat(3, 1fr); }
+        .panelHero { font-size: 26px; }
+      }
+      &.vertical {
+        padding: 18px 16px;
+        .label { font-size: 12px; }
+        .value { font-size: 24px; }
+        .track { height: 6px; }
+        .row { flex-direction: column; }
+        .surfaces { grid-template-columns: 1fr 1fr; }
+      }
+    }
+  }
+}

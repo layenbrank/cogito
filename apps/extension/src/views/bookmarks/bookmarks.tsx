@@ -17,17 +17,17 @@ import { notify } from '@/features/shell/notice-state.ts'
 import { openSite } from '@/features/shell/open-site.ts'
 import { ReturnBar } from '@/features/shell/return-bar.tsx'
 
-type Status = 'loading' | 'ready' | 'missing' | 'error'
+type Status = 'loading' | 'ready' | 'error'
 
 const PAGE_SIZE = 80
 
 const RESULT_TEXT: Record<InsertResult, string> = {
-  added: '已挂到墙上',
-  duplicate: '墙上已经有这个链接',
-  missing: '还没有墙面，稍后再试'
+  added: '已加到镜像',
+  duplicate: '镜像里已经有这个链接',
+  missing: '还没有镜像，稍后再试'
 }
 
-/** 浏览器书签树：文件夹默认收起，链接可以另开标签或挂到墙上 */
+/** 浏览器书签树：文件夹默认收起，链接可以另开标签或加到镜像 */
 export default function Bookmarks() {
   const tiles = useMirrorStore(function (state) {
     return state.tiles
@@ -37,17 +37,13 @@ export default function Bookmarks() {
   })
   const [nodes, updateNodes] = useState<BookmarkNode[]>([])
   const [keyword, updateKeyword] = useState('')
-  const [status, updateStatus] = useState<Status>(function () {
-    return globalThis.chrome?.bookmarks ? 'loading' : 'missing'
-  })
+  const [status, updateStatus] = useState<Status>('loading')
 
   useEffect(function () {
     initialize()
   }, [initialize])
 
   useEffect(function () {
-    if (!globalThis.chrome?.bookmarks) return
-
     void fetchBookmarkTree()
       .then(function (tree) {
         updateNodes(tree)
@@ -83,8 +79,8 @@ export default function Bookmarks() {
       )
       notify(RESULT_TEXT[result])
     } catch (error) {
-      console.error('[bookmark] 挂到墙上失败', error)
-      notify('没有挂到墙上')
+      console.error('[bookmark] 加到镜像失败', error)
+      notify('没有加到镜像')
     }
   }
 
@@ -100,9 +96,6 @@ export default function Bookmarks() {
         }}
       />
 
-      {status === 'missing' ? (
-        <p className={clsx('text-sm text-muted-foreground')}>在 Chrome 扩展里打开后才能读取浏览器书签。</p>
-      ) : null}
       {status === 'error' ? (
         <p className={clsx('text-sm text-destructive')}>书签读取失败，请在扩展详情里允许「书签」权限后重试。</p>
       ) : null}
@@ -171,7 +164,7 @@ function BookmarkBranch(props: {
           onClick={function () {
             props.onMount(node)
           }}>
-          {isMounted ? '已在墙上' : '挂到墙上'}
+          {isMounted ? '已在镜像' : '加到镜像'}
         </Button>
       </div>
     )

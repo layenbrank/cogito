@@ -1,0 +1,210 @@
+.marker {
+  &.lv2 {
+    /*
+     * size2 方形 ≈ 150×150
+     * 改为上下指标行（标签左 / 数值右），避免双列截断
+     */
+    &.square {
+      &.horizontal,
+      &.vertical {
+        padding: 8px;
+        .expandedBody {
+          gap: 5px;
+        }
+        .row {
+          flex-direction: column;
+          gap: 4px;
+        }
+        .col {
+          flex-direction: row;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 8px;
+          padding-right: 0;
+        }
+        .col + .col {
+          border-left: none;
+          padding-left: 0;
+          border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+          padding-top: 4px;
+          margin-top: 0;
+        }
+        .row .iconWell {
+          display: inline-flex;
+          font-size: 11px;
+          width: 1.35em;
+          height: 1.35em;
+        }
+        .metricHead {
+          gap: 5px;
+          flex-shrink: 0;
+          min-width: 0;
+        }
+        .label {
+          font-size: 10px;
+        }
+        .value {
+          font-size: 14px;
+          letter-spacing: -0.03em;
+          text-overflow: clip;
+          text-align: right;
+        }
+        .earn .value {
+          font-size: 14px;
+        }
+        .progressTitle,
+        .progressLabel {
+          font-size: 10px;
+        }
+        .inlineIcon {
+          font-size: 10px;
+        }
+        .track {
+          height: 4px;
+        }
+        .footer {
+          padding-top: 4px;
+          gap: 4px;
+        }
+        .status,
+        .range {
+          font-size: 10px;
+        }
+        .status .iconWell {
+          display: inline-flex;
+          font-size: 11px;
+        }
+        .range .inlineIcon {
+          display: inline-flex;
+          font-size: 10px;
+        }
+        .decor {
+          display: none;
+        }
+        .surfaces {
+          display: none;
+        }
+      }
+    }
+    &.circle {
+      &.horizontal {
+        padding: 8px;
+        .label { font-size: 10px; }
+        .value { font-size: 13px; text-overflow: clip; }
+        .row .iconWell { display: none; }
+        .track { height: 4px; }
+        .row { flex-direction: column; gap: 4px; }
+        .col + .col {
+          border-left: none;
+          padding: 4px 0 0;
+          border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+        }
+        .decor { display: none; }
+        .progress { padding: 0; }
+        .surfaces { display: none; }
+      }
+      &.vertical {
+        padding: 8px;
+        .label { font-size: 10px; }
+        .value { font-size: 13px; text-overflow: clip; }
+        .row .iconWell { display: none; }
+        .track { height: 4px; }
+        .row { flex-direction: column; gap: 4px; }
+        .col + .col {
+          border-left: none;
+          padding: 4px 0 0;
+          border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+        }
+        .decor { display: none; }
+        .progress { padding: 0; }
+        .surfaces { display: none; }
+      }
+    }
+    /*
+     * size2 横矩形 ≈ 330×150
+     * 宽度充足：保留图标井与轻水印
+     */
+    &.rectangle {
+      &.horizontal {
+        padding: 10px 12px;
+        .expandedBody {
+          gap: 6px;
+          justify-content: space-between;
+        }
+        .row {
+          gap: 0;
+        }
+        .col {
+          padding-right: 14px;
+        }
+        .col + .col {
+          padding-left: 14px;
+        }
+        .label {
+          font-size: 11px;
+        }
+        .value {
+          font-size: 20px;
+          letter-spacing: -0.02em;
+          text-overflow: clip;
+        }
+        .earn .value {
+          font-size: 18px;
+        }
+        .iconWell {
+          font-size: 13px;
+        }
+        .decor {
+          font-size: 72px;
+          opacity: 0.05;
+        }
+        .progress {
+          padding: 0;
+          gap: 4px;
+        }
+        .progressTitle,
+        .progressLabel {
+          font-size: 11px;
+        }
+        .track {
+          height: 5px;
+        }
+        .footer {
+          padding-top: 6px;
+        }
+        .status,
+        .range {
+          font-size: 11px;
+        }
+        .surfaces {
+          display: none;
+        }
+      }
+      &.vertical {
+        padding: 10px;
+        .label { font-size: 11px; }
+        .value { font-size: 16px; text-overflow: clip; }
+        .row .iconWell {
+          display: inline-flex;
+          font-size: 12px;
+        }
+        .metricHead { gap: 5px; }
+        .track { height: 5px; }
+        .row { flex-direction: column; }
+        .col {
+          flex-direction: row;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .col + .col {
+          border-left: none;
+          padding: 6px 0 0;
+          border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+        }
+        .decor { display: none; }
+        .surfaces { display: none; }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+/* 多选高亮：从光标所在磁贴根节点上的 `data-selected` 生效（由 controller 同步属性） */
+[data-selected] {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 12px;
+}

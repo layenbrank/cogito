@@ -1,0 +1,76 @@
+// 对齐 itab：网格单位固定，size 映射为 span（RxC）
+// track(n) = unit * n + gap * (n - 1)
+// square/circle size k → k×k
+// rectangle horizontal size k → k×(2k)
+// rectangle vertical size k → (2k)×k
+
+$magnetic-tile-levels: 1, 2, 3, 4, 5, 6, 7;
+
+@mixin magnetic-tile-span($rows, $cols) {
+  @if $cols > 1 {
+    grid-column: span $cols;
+  }
+
+  @if $rows > 1 {
+    grid-row: span $rows;
+  }
+
+  @if $cols == 1 {
+    width: var(--magnetic-tile-unit, 60px);
+  } @else {
+    width: calc(
+      var(--magnetic-tile-unit, 60px) * #{$cols} + var(--magnetic-tile-col-gap) * #{$cols - 1}
+    );
+  }
+
+  @if $rows == 1 {
+    height: var(--magnetic-tile-unit, 60px);
+  } @else {
+    height: calc(
+      var(--magnetic-tile-unit, 60px) * #{$rows} + var(--magnetic-tile-row-gap) * #{$rows - 1}
+    );
+  }
+}
+
+@mixin magnetic-tile {
+  @each $lv in $magnetic-tile-levels {
+    &.lv#{$lv} {
+      // 短边轨道长度，供圆形半径等使用
+      @if $lv == 1 {
+        --magnetic-tile-size: var(--magnetic-tile-unit, 60px);
+      } @else {
+        --magnetic-tile-size: calc(
+          var(--magnetic-tile-unit, 60px) * #{$lv} + var(--magnetic-tile-col-gap) * #{$lv - 1}
+        );
+      }
+
+      &.circle {
+        @include magnetic-tile-span($lv, $lv);
+        border-radius: calc(var(--magnetic-tile-size) / 2);
+      }
+
+      &.square {
+        @include magnetic-tile-span($lv, $lv);
+        border-radius: var(--magnetic-tile-round);
+      }
+
+      &.rectangle {
+        &.horizontal {
+          @include magnetic-tile-span($lv, $lv * 2);
+          border-radius: var(--magnetic-tile-round);
+        }
+
+        &.vertical {
+          @include magnetic-tile-span($lv * 2, $lv);
+          border-radius: var(--magnetic-tile-round);
+        }
+      }
+    }
+  }
+
+  transition:
+    width 300ms cubic-bezier(0.165, 0.84, 0.44, 1),
+    height 300ms cubic-bezier(0.165, 0.84, 0.44, 1),
+    row-gap 300ms cubic-bezier(0.165, 0.84, 0.44, 1),
+    column-gap 300ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}

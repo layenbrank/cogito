@@ -22,6 +22,7 @@ interface TileLayout {
 
 interface MirrorState {
   isReady: boolean
+  mirrors: Mirror[]
   mirror: Mirror | null
   tiles: MagneticTile[]
   initialize: () => void
@@ -64,6 +65,7 @@ export const useMirrorStore = create<MirrorState>(function (set) {
 
   return {
     isReady: false,
+    mirrors: [],
     mirror: null,
     tiles: [],
 
@@ -78,7 +80,7 @@ export const useMirrorStore = create<MirrorState>(function (set) {
       }).subscribe({
         next: function (mirrors) {
           const [mirror] = mirrors
-          set({ mirror: mirror ?? null, isReady: Boolean(mirror) })
+          set({ mirrors, mirror: mirror ?? null, isReady: Boolean(mirror) })
           if (mirror) watchTiles(mirror.id)
           else {
             watchedMirrorID = null

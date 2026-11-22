@@ -22,10 +22,13 @@ import { useState } from 'react'
 import type { MagneticTileInput } from '@/features/mirror/input.ts'
 import { parseSiteUrl } from '@/features/mirror/url.ts'
 import { findGridSpan } from './layout.ts'
+import { TILE_CREATABLE } from './registry.ts'
 
 interface TileDialogProps {
   /** 传 null 表示新建 */
   tile: MagneticTile | null
+  /** 新建时预先选中的种类（由磁贴库交过来） */
+  component?: MagneticTile.Component
   onOpenChange: (open: boolean) => void
   onSubmit: (input: MagneticTileInput) => Promise<void>
 }
@@ -43,8 +46,20 @@ const DIRECTIONS: readonly { value: MagneticTile.Direction; label: string }[] = 
 
 const SIZES: readonly MagneticTile.Size[] = [1, 2, 3, 4]
 
-function buildDefaults(tile: MagneticTile | null): MagneticTileInput {
+/**
+ * 种类下拉：与磁贴库（`tile-library.tsx`）共用 `TILE_CREATABLE`。
+ * 只列**真能打开**的：列一个点进去没反应的种类，比不列更糟。
+ */
+const KINDS = TILE_CREATABLE.map(function (item) {
+  return { value: item.component, label: item.label }
+})
+
+function buildDefaults(
+  tile: MagneticTile | null,
+  preset?: MagneticTile.Component
+): MagneticTileInput {
   return {
+    component: tile?.component ?? preset ?? 'navigation',
     title: tile?.title ?? '',
     url: tile?.url ?? '',
     size: tile?.size ?? 2,
@@ -60,11 +75,12 @@ function buildDefaults(tile: MagneticTile | null): MagneticTileInput {
  */
 export function TileDialog(props: TileDialogProps) {
   const [values, updateValues] = useState<MagneticTileInput>(function () {
-    return buildDefaults(props.tile)
+    return buildDefaults(props.tile, props.component)
   })
   const [error, updateError] = useState<string | null>(null)
   const isEditing = Boolean(props.tile)
-  const needsUrl = !props.tile || props.tile.component === 'navigation'
+  /** 只有网址磁贴需要链接；其余种类的落点由 `registry.ts` 决定 */
+  const needsUrl = (values.component ?? 'navigation') === 'navigation'
 
   async function handleSubmit(): Promise<void> {
     const title = values.title.trim()
@@ -98,12 +114,45 @@ export function TileDialog(props: TileDialogProps) {
           <DialogTitle>{isEditing ? '编辑磁贴' : '添加磁贴'}</DialogTitle>
           <DialogDescription>
             {needsUrl
-              ? '双击磁贴会打开链接，墙面留在这个标签页。'
+              ? '双击磁贴会打开链接，镜像留在这个标签页。'
               : '可以改名称和占格，链接留空即可。'}
           </DialogDescription>
         </DialogHeader>
 
         <div className={clsx('grid gap-4 py-2')}>
+          {!isEditing ? (
+            <div className={clsx('grid gap-2')}>
+              <Label>种类</Label>
+              <Select
+                items={KINDS}
+                value={values.component ?? 'navigation'}
+                onValueChange={function (value) {
+                  if (value === null) return
+                  updateValues({
+                    ...values,
+                    component: value,
+                    // 换成不需要链接的种类时把残值清掉，避免写进一条无用的 url
+                    ...(value === 'navigation' ? {} : { url: '' })
+                  })
+                }}>
+                <SelectTrigger aria-label="种类">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KINDS.map(function (item) {
+                    return (
+                      <SelectItem
+                        key={item.value}
+                        value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
           <div className={clsx('grid gap-2')}>
             <Label htmlFor="tile-title">名称</Label>
             <Input
@@ -221,7 +270,7 @@ export function TileDialog(props: TileDialogProps) {
               {(values.title.trim() || '磁贴').slice(0, 1)}
             </div>
             <p className={clsx('text-sm text-muted-foreground')}>
-              预览占 {findGridSpan(values).w}×{findGridSpan(values).h} 格，拖到墙上可改顺序。
+              预览占 {findGridSpan(values).w}×{findGridSpan(values).h} 格，拖动磁贴可改顺序。
             </p>
           </div>
 

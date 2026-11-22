@@ -1,0 +1,57 @@
+.marker {
+  &.lv3 {
+    &.square {
+      &.horizontal {
+        padding: 12px;
+        .label { font-size: 12px; }
+        .value { font-size: 22px; }
+        .earn .value { font-size: 20px; }
+        .status, .range { font-size: 12px; }
+        .track { height: 4px; }
+      }
+      &.vertical {
+        padding: 12px;
+        .label { font-size: 12px; }
+        .value { font-size: 22px; }
+        .earn .value { font-size: 20px; }
+        .status, .range { font-size: 12px; }
+        .track { height: 4px; }
+      }
+    }
+    &.circle {
+      &.horizontal {
+        padding: 12px;
+        .label { font-size: 11px; }
+        .value { font-size: 18px; }
+        .track { height: 4px; }
+        .row { flex-direction: column; }
+      }
+      &.vertical {
+        padding: 12px;
+        .label { font-size: 11px; }
+        .value { font-size: 18px; }
+        .track { height: 4px; }
+        .row { flex-direction: column; }
+      }
+    }
+    &.rectangle {
+      &.horizontal {
+        padding: 14px 16px;
+        .label { font-size: 12px; }
+        .value { font-size: 24px; }
+        .earn .value { font-size: 22px; }
+        .status, .range { font-size: 12px; }
+        .track { height: 6px; }
+        .progress { padding: 7px 10px; }
+        .panelHero { font-size: 22px; }
+      }
+      &.vertical {
+        padding: 14px 12px;
+        .label { font-size: 12px; }
+        .value { font-size: 22px; }
+        .track { height: 4px; }
+        .row { flex-direction: column; }
+      }
+    }
+  }
+}

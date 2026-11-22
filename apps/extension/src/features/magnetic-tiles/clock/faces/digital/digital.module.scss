@@ -1,0 +1,44 @@
+.digital {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* 磁贴/预览注入；缺省继承父级 .stageDigits */
+  font-size: var(--clock-font-size, inherit);
+}
+
+.digitGroup {
+  display: inline-flex;
+}
+
+.digitSlot {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  /* wide 磁贴经 --clock-digit-slot-width 桥接（替代历史跨 module .digitSlot） */
+  width: var(--clock-digit-slot-width, 0.62em);
+  height: 1em;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.digit {
+  grid-area: 1 / 1;
+  display: inline-block;
+  font-size: 1em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--foreground);
+  letter-spacing: -0.02em;
+  transform-origin: center center;
+}
+
+.colon {
+  color: var(--primary);
+  font-weight: 600;
+  line-height: 1;
+  padding: var(--clock-colon-padding, 0 1px);
+  font-size: var(--clock-colon-size, inherit);
+  align-self: center;
+  display: inline-block;
+}

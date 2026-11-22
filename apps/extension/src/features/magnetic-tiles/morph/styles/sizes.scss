@@ -1,0 +1,26 @@
+// Marker size × shape × direction skeletons (hooks for future size-specific styles)
+
+@mixin size-shape-dirs($size) {
+  &.#{$size} {
+    &.square {
+      &.horizontal {
+      }
+      &.vertical {
+      }
+    }
+
+    &.circle {
+      &.horizontal {
+      }
+      &.vertical {
+      }
+    }
+
+    &.rectangle {
+      &.horizontal {
+      }
+      &.vertical {
+      }
+    }
+  }
+}

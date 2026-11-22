@@ -1,5 +1,5 @@
 /**
- * service worker 里的「右键固定到新标签墙」那一半。
+ * service worker 里的「右键固定到镜像」那一半。
  *
  * 为什么要单独导出 installer：MV3 一个扩展只允许一个 `background.service_worker`，
  * 而剪藏那半来自 `@cogito/extension-kit/relay`。入口在 `src/entries/worker.ts`，

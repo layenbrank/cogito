@@ -1,0 +1,23 @@
+.grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding-inline: 20px;
+  padding-bottom: 28px;
+  margin: 0 auto;
+  outline: none;
+  justify-content: center;
+  align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  grid-auto-flow: row dense;
+  --magnetic-tile-unit: 60px;
+  --magnetic-tile-gap-x: 30px;
+  --magnetic-tile-gap-y: 30px;
+  --magnetic-tile-col-gap: 30px;
+  --magnetic-tile-row-gap: 30px;
+  --magnetic-tile-round: 12px;
+  row-gap: var(--magnetic-tile-gap-y, 30px);
+  column-gap: var(--magnetic-tile-gap-x, 30px);
+  grid-template-columns: repeat(auto-fill, var(--magnetic-tile-unit, 60px));
+}

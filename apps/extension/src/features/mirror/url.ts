@@ -1,4 +1,4 @@
-/** 只接受带主机名的 http(s)，避免把浏览器内部页或脚本地址写进墙 */
+/** 只接受带主机名的 http(s)，避免把浏览器内部页或脚本地址写进镜像 */
 export function parseSiteUrl(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null

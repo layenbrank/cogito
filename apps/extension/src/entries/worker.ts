@@ -10,7 +10,14 @@
  */
 import { installClipRelay } from '@cogito/extension-kit/relay'
 
+import { installAskPageMenu } from '@/features/agent/ask-page.ts'
+import { installChatCommand, installChatMenu } from '@/features/agent/chat-entry.ts'
 import { installPinMenu } from '@/features/mirror/pin-menu.ts'
 
 installPinMenu()
 installClipRelay()
+// 对话页入口（Ctrl+Shift+K / 工具栏右键）：同样必须顶层同步注册
+installChatCommand()
+installChatMenu()
+// 选中文字右键「问 Cogito 关于这段内容」
+installAskPageMenu()

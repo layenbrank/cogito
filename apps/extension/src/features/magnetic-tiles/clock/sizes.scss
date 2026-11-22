@@ -1,0 +1,507 @@
+/* ── 统一尺寸规则（替代 lv1-lv7.scss） ── */
+/* 字体大小通过 --clock-font-size CSS 变量传递给各组件，避免跨模块类名哈希不匹配 */
+/* 指针表盘宽度通过 --clock-analog-width CSS 变量传递 */
+
+.marker.lv1 {
+  &.square {
+    &.horizontal {
+      padding: 6px;
+      --clock-font-size: 16px;
+      --clock-analog-width: min(82%, 100px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 61px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 50px); }
+    }
+    &.vertical {
+      padding: 6px;
+      --clock-font-size: 16px;
+      --clock-analog-width: min(82%, 100px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 61px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 50px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 6px;
+      --clock-font-size: 14px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 6px;
+      --clock-font-size: 14px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 8px 12px;
+      --clock-font-size: 22px;
+      .date, .week { font-size: 11px; }
+      --clock-analog-width: min(65%, 110px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(60%, 72px); }
+      &.analog.hasAside { --clock-analog-width: min(44%, 59px); }
+    }
+    &.vertical {
+      padding: 8px 6px;
+      --clock-font-size: 16px;
+      --clock-analog-width: min(80%, 110px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 78px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 64px); }
+    }
+  }
+}
+
+.marker.lv2 {
+  &.square {
+    &.horizontal {
+      padding: 10px;
+      --clock-font-size: 28px;
+      .date, .week { font-size: 11px; }
+      --clock-analog-width: min(85%, 180px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 140px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 120px); }
+    }
+    &.vertical {
+      padding: 10px;
+      --clock-font-size: 28px;
+      .date, .week { font-size: 11px; }
+      --clock-analog-width: min(85%, 180px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 140px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 120px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 10px;
+      --clock-font-size: 22px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 10px;
+      --clock-font-size: 22px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 14px 18px;
+      --clock-font-size: 40px;
+      .date, .week, .weekday { font-size: 12px; }
+      .alarmTime { font-size: 16px; }
+      .alarmLabel, .alarmSummary, .alarmEmpty { font-size: 12px; }
+      --clock-analog-width: min(70%, 220px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 200px); }
+      &.analog.hasAside { --clock-analog-width: min(55%, 160px); }
+      .aside { gap: 8px; }
+      &.wide {
+        padding: 12px 16px;
+        --clock-font-size: clamp(18px, 21.5cqi, 34px);
+        .date { font-size: 13px; }
+        .weekday, .week { font-size: 12px; }
+        .alarmEmpty, .alarmSummary { font-size: 12px; }
+      }
+    }
+    &.vertical {
+      padding: 12px 10px;
+      --clock-font-size: 26px;
+      .date, .week { font-size: 11px; }
+      --clock-analog-width: min(85%, 190px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(85%, 170px); }
+      &.analog.hasAside { --clock-analog-width: min(70%, 140px); }
+    }
+  }
+}
+
+.marker.lv3 {
+  &.square {
+    &.horizontal {
+      padding: 12px;
+      --clock-font-size: 34px;
+      .date, .week { font-size: 12px; }
+      --clock-analog-width: min(80%, 215px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(79%, 182px); }
+      &.analog.hasAside { --clock-analog-width: min(63%, 149px); }
+    }
+    &.vertical {
+      padding: 12px;
+      --clock-font-size: 34px;
+      .date, .week { font-size: 12px; }
+      --clock-analog-width: min(80%, 215px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(79%, 182px); }
+      &.analog.hasAside { --clock-analog-width: min(63%, 149px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 12px;
+      --clock-font-size: 26px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 12px;
+      --clock-font-size: 26px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 14px 18px;
+      --clock-font-size: 42px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(55%, 215px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(52%, 182px); }
+      &.analog.hasAside { --clock-analog-width: min(36%, 149px); }
+    }
+    &.vertical {
+      padding: 14px 12px;
+      --clock-font-size: 32px;
+      .date, .week { font-size: 12px; }
+      --clock-analog-width: min(82%, 230px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(76%, 196px); }
+      &.analog.hasAside { --clock-analog-width: min(60%, 161px); }
+    }
+  }
+}
+
+.marker.lv4 {
+  &.square {
+    &.horizontal {
+      padding: 14px;
+      --clock-font-size: 40px;
+      .date, .week { font-size: 12px; }
+      --clock-analog-width: min(78%, 240px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(76%, 210px); }
+      &.analog.hasAside { --clock-analog-width: min(60%, 172px); }
+    }
+    &.vertical {
+      padding: 14px;
+      --clock-font-size: 40px;
+      .date, .week { font-size: 12px; }
+      --clock-analog-width: min(78%, 240px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(76%, 210px); }
+      &.analog.hasAside { --clock-analog-width: min(60%, 172px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 14px;
+      --clock-font-size: 28px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 14px;
+      --clock-font-size: 28px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 14px 20px;
+      --clock-font-size: 48px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(52%, 240px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(50%, 210px); }
+      &.analog.hasAside { --clock-analog-width: min(34%, 172px); }
+    }
+    &.vertical {
+      padding: 14px;
+      --clock-font-size: 36px;
+      .date, .week { font-size: 12px; }
+      --clock-analog-width: min(78%, 260px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(72%, 224px); }
+      &.analog.hasAside { --clock-analog-width: min(56%, 184px); }
+    }
+  }
+}
+
+.marker.lv5 {
+  &.square {
+    &.horizontal {
+      padding: 14px;
+      --clock-font-size: 44px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(75%, 270px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(72%, 237px); }
+      &.analog.hasAside { --clock-analog-width: min(56%, 195px); }
+    }
+    &.vertical {
+      padding: 14px;
+      --clock-font-size: 44px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(75%, 270px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(72%, 237px); }
+      &.analog.hasAside { --clock-analog-width: min(56%, 195px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 14px;
+      --clock-font-size: 30px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 14px;
+      --clock-font-size: 30px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 14px 20px;
+      --clock-font-size: 52px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(48%, 270px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(48%, 237px); }
+      &.analog.hasAside { --clock-analog-width: min(32%, 195px); }
+    }
+    &.vertical {
+      padding: 16px 14px;
+      --clock-font-size: 40px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(72%, 290px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 251px); }
+      &.analog.hasAside { --clock-analog-width: min(54%, 206px); }
+    }
+  }
+}
+
+.marker.lv6 {
+  &.square {
+    &.horizontal {
+      padding: 16px;
+      --clock-font-size: 48px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(72%, 310px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 266px); }
+      &.analog.hasAside { --clock-analog-width: min(54%, 218px); }
+    }
+    &.vertical {
+      padding: 16px;
+      --clock-font-size: 48px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(72%, 310px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 266px); }
+      &.analog.hasAside { --clock-analog-width: min(54%, 218px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 16px;
+      --clock-font-size: 32px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 16px;
+      --clock-font-size: 32px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 16px 22px;
+      --clock-font-size: 56px;
+      .date, .week { font-size: 14px; }
+      --clock-analog-width: min(45%, 310px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(46%, 266px); }
+      &.analog.hasAside { --clock-analog-width: min(30%, 218px); }
+    }
+    &.vertical {
+      padding: 16px 14px;
+      --clock-font-size: 44px;
+      .date, .week { font-size: 13px; }
+      --clock-analog-width: min(68%, 320px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(68%, 280px); }
+      &.analog.hasAside { --clock-analog-width: min(52%, 229px); }
+    }
+  }
+}
+
+.marker.lv7 {
+  &.square {
+    &.horizontal {
+      padding: 16px;
+      --clock-font-size: 52px;
+      .date, .week { font-size: 14px; }
+      --clock-analog-width: min(68%, 340px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(68%, 294px); }
+      &.analog.hasAside { --clock-analog-width: min(52%, 241px); }
+    }
+    &.vertical {
+      padding: 16px;
+      --clock-font-size: 52px;
+      .date, .week { font-size: 14px; }
+      --clock-analog-width: min(68%, 340px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(68%, 294px); }
+      &.analog.hasAside { --clock-analog-width: min(52%, 241px); }
+    }
+  }
+  &.circle {
+    &.horizontal {
+      padding: 16px;
+      --clock-font-size: 34px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+    &.vertical {
+      padding: 16px;
+      --clock-font-size: 34px;
+      --clock-analog-width: min(96%, 100%);
+      &.analog {
+        padding: 2px;
+        --clock-analog-width: 100%;
+      }
+    }
+  }
+  &.rectangle {
+    &.horizontal {
+      padding: 16px 24px;
+      --clock-font-size: 60px;
+      .date, .week { font-size: 14px; }
+      --clock-analog-width: min(42%, 340px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(44%, 294px); }
+      &.analog.hasAside { --clock-analog-width: min(28%, 241px); }
+    }
+    &.vertical {
+      padding: 18px 16px;
+      --clock-font-size: 48px;
+      .date, .week { font-size: 14px; }
+      --clock-analog-width: min(65%, 350px);
+      &.analog:not(.hasAside) { --clock-analog-width: min(66%, 308px); }
+      &.analog.hasAside { --clock-analog-width: min(50%, 252px); }
+    }
+  }
+}
+
+/* ─── 形状 / 样式特定布局覆盖 ─── */
+
+/* 圆形 */
+.circle .aside {
+  display: none;
+}
+
+.circle .stage {
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+.circle .flipStage {
+  transform: scale(0.96);
+  transform-origin: center;
+}
+
+/* 圆形 + 指针 */
+.circle.analog {
+  --clock-analog-width: 100%;
+  --clock-analog-shadow: none;
+
+  .body {
+    gap: 0;
+    justify-content: center;
+  }
+
+  .stage {
+    flex: 1 1 0;
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    container-type: inline-size;
+  }
+}
+
+/* 方形/竖矩形 + 指针 */
+.square.analog:not(.wide) .stage,
+.rectangle.vertical.analog .stage {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  overflow: visible;
+  container-type: inline-size;
+}
+
+/* 竖矩形 */
+.rectangle.vertical .body {
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.rectangle.vertical .stage {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rectangle.vertical .aside {
+  flex: 0 1 auto;
+  min-height: 0;
+  padding-top: 6px;
+  gap: 4px;
+}
+
+/* Flip 布局 */
+.flip .stage {
+  width: 100%;
+  overflow: visible;
+}
+
+.flipStage {
+  font-size: inherit;
+  max-width: 100%;
+}
+
+/* 宽横矩形：字号随左栏宽度缩放（变量桥接，避免跨 CSS Module 类名哈希失效） */
+.marker.wide.rectangle.horizontal .stage {
+  --clock-font-size: clamp(16px, 21.5cqi, 56px);
+}

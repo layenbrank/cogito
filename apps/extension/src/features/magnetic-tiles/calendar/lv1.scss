@@ -1,0 +1,51 @@
+.marker {
+  &.lv1 {
+    &.square {
+      padding: 6px;
+      .dayRail { min-width: 3.25em; padding: 6px; gap: 4px; }
+      .bigDay { font-size: 24px; }
+      .dayRailWeek { font-size: 10px; }
+      .infoTop .ymd { font-size: 11px; }
+      .lunar, .ganzhi, .chip, .holidayTag { font-size: 10px; }
+      .yiLine, .jiLine { font-size: 10px; }
+      .agendaTitle, .agendaText, .agendaTime { font-size: 10px; }
+      .month { font-size: 10px; }
+      .day { font-size: 20px; }
+    }
+    &.circle {
+      padding: 4px;
+      .month { font-size: 9px; }
+      .day, .bigDay { font-size: 18px; }
+    }
+    &.rectangle {
+      &.horizontal {
+        padding: 4px 8px;
+        .dayRail {
+          flex-direction: row;
+          min-width: 0;
+          padding: 4px 8px;
+          gap: 6px;
+        }
+        .bigDay { font-size: 22px; }
+        .dayRailWeek { font-size: 11px; }
+        .infoTop .ymd { font-size: 12px; }
+        .infoSub, .lunar, .ganzhi { font-size: 11px; }
+        .infoRail {
+          justify-content: center;
+          gap: 2px;
+        }
+        .mainPane { column-gap: 8px; }
+      }
+      &.vertical {
+        padding: 8px 6px;
+        .dayRail { padding: 8px; gap: 8px; }
+        .bigDay { font-size: 28px; }
+        .dayRailWeek { font-size: 12px; }
+        .infoTop .ymd { font-size: 13px; }
+        .lunar, .ganzhi { font-size: 11px; }
+        .holidayTag, .chip { font-size: 10px; }
+        .agendaTitle, .agendaText { font-size: 11px; }
+      }
+    }
+  }
+}
