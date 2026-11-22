@@ -11,6 +11,7 @@ pub mod clip;
 mod http;
 pub mod token;
 
+pub mod agent;
 pub mod app_tools;
 pub mod command;
 

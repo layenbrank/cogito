@@ -38,16 +38,64 @@ pub struct ClipPayload {
 }
 
 #[derive(Clone)]
-struct WikiHttpState {
-    app: AppHandle,
-    storage: Storage,
-    api_enabled: Arc<AtomicBool>,
-    allow_unauthenticated: Arc<AtomicBool>,
-    allow_lan_access: Arc<AtomicBool>,
-    mcp_enabled: Arc<AtomicBool>,
-    api_token: Arc<Mutex<String>>,
-    last_clip_at: Arc<AtomicU64>,
-    clip_count: Arc<AtomicU64>,
+pub(crate) struct WikiHttpState {
+    pub(crate) app: AppHandle,
+    pub(crate) storage: Storage,
+    pub(crate) api_enabled: Arc<AtomicBool>,
+    pub(crate) allow_unauthenticated: Arc<AtomicBool>,
+    pub(crate) allow_lan_access: Arc<AtomicBool>,
+    pub(crate) mcp_enabled: Arc<AtomicBool>,
+    /// agent 代理开关：默认关闭，必须在设置页显式打开（见 `bridge/agent.rs` 的注释）
+    pub(crate) agent_enabled: Arc<AtomicBool>,
+    pub(crate) api_token: Arc<Mutex<String>>,
+    pub(crate) last_clip_at: Arc<AtomicU64>,
+    pub(crate) clip_count: Arc<AtomicU64>,
+}
+
+impl WikiHttpState {
+    /// 请求里带的令牌：`Authorization: Bearer` 或 `x-api-token`。
+    ///
+    /// 两种都支持是因为调用方不同：`cogito-mcp` 用 header，浏览器扩展用 Bearer 更顺手。
+    pub(crate) fn read_presented_token(headers: &HeaderMap) -> String {
+        let bearer = headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .unwrap_or("");
+        if !bearer.is_empty() {
+            return bearer.to_string();
+        }
+        headers
+            .get("x-api-token")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("")
+            .to_string()
+    }
+
+    /// agent 面的鉴权：**永远需要已配置的令牌**，没有「未配置就放行」的退路。
+    ///
+    /// 与 [`authorize`] 的差别就在这里：那个是给只读 Wiki API 用的，允许
+    /// `allow_unauthenticated`；agent 面能写文件、能跑命令，那套空子不能开。
+    pub(crate) fn is_agent_authorized(&self, headers: &HeaderMap) -> bool {
+        let expected = self
+            .api_token
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default();
+        match_agent_token(&expected, headers)
+    }
+}
+
+/// agent 面的令牌判定（纯函数，便于单测）。
+///
+/// 关键一条：**期望值为空时一律拒绝**。如果这里跟着 [`authorize`] 写成「空就放行」，
+/// 那么「装完客户端就有一个能改文件、能跑命令的无鉴权入口」就会静默成立。
+fn match_agent_token(expected: &str, headers: &HeaderMap) -> bool {
+    if expected.trim().is_empty() {
+        return false;
+    }
+    let presented = WikiHttpState::read_presented_token(headers);
+    !presented.is_empty() && presented == expected
 }
 
 static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -57,6 +105,7 @@ struct WikiHttpConfigHandles {
     allow_unauthenticated: Arc<AtomicBool>,
     allow_lan_access: Arc<AtomicBool>,
     mcp_enabled: Arc<AtomicBool>,
+    agent_enabled: Arc<AtomicBool>,
     api_token: Arc<Mutex<String>>,
     shutdown_tx: Mutex<Option<oneshot::Sender<()>>>,
     boot: Mutex<Option<(AppHandle, Storage)>>,
@@ -72,6 +121,7 @@ fn config_handles() -> &'static WikiHttpConfigHandles {
         allow_unauthenticated: Arc::new(AtomicBool::new(true)),
         allow_lan_access: Arc::new(AtomicBool::new(false)),
         mcp_enabled: Arc::new(AtomicBool::new(true)),
+        agent_enabled: Arc::new(AtomicBool::new(false)),
         api_token: Arc::new(Mutex::new(String::new())),
         shutdown_tx: Mutex::new(None),
         boot: Mutex::new(None),
@@ -108,6 +158,7 @@ async fn bind_and_serve(app: AppHandle, storage: Storage) {
         allow_unauthenticated: Arc::clone(&handles.allow_unauthenticated),
         allow_lan_access: Arc::clone(&handles.allow_lan_access),
         mcp_enabled: Arc::clone(&handles.mcp_enabled),
+        agent_enabled: Arc::clone(&handles.agent_enabled),
         api_token: Arc::clone(&handles.api_token),
         last_clip_at: Arc::clone(&handles.last_clip_at),
         clip_count: Arc::clone(&handles.clip_count),
@@ -119,6 +170,8 @@ async fn bind_and_serve(app: AppHandle, storage: Storage) {
         .route("/api/v1/health", get(api_health))
         .route("/api/v1/bases", get(api_bases))
         .route("/api/v1/search", post(api_search).get(api_search_get))
+        // 浏览器扩展用的 agent 代理：令牌不出 Rust 进程（见 `bridge/agent.rs`）
+        .merge(super::agent::router())
         .with_state(state);
 
     let (tx, rx) = oneshot::channel::<()>();
@@ -177,7 +230,12 @@ pub fn is_running() -> bool {
     SERVER_RUNNING.load(Ordering::Relaxed)
 }
 
-fn with_cors(mut response: Response) -> Response {
+/// 给本机 HTTP 面的回包补 CORS。
+///
+/// `Access-Control-Allow-Origin: *` 在这里是安全的：没有「靠 cookie 才生效」的语义，
+/// 身份一律走 `Authorization`。扩展有 host permission，本来不受 CORS 约束；这条是给
+/// `curl` 与本地调试页用的。
+pub(crate) fn with_cors(mut response: Response) -> Response {
     response.headers_mut().insert(
         header::ACCESS_CONTROL_ALLOW_ORIGIN,
         HeaderValue::from_static("*"),
@@ -261,16 +319,8 @@ fn authorize(state: &WikiHttpState, headers: &HeaderMap) -> bool {
     if expected.trim().is_empty() {
         return true;
     }
-    let bearer = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .unwrap_or("");
-    let header_token = headers
-        .get("x-api-token")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("");
-    bearer == expected || header_token == expected
+    let presented = WikiHttpState::read_presented_token(headers);
+    !presented.is_empty() && presented == expected
 }
 
 async fn api_health(State(state): State<WikiHttpState>, headers: HeaderMap) -> Response {
@@ -425,6 +475,7 @@ pub fn wiki_http_status() -> serde_json::Value {
         "allowUnauthenticated": handles.allow_unauthenticated.load(Ordering::Relaxed),
         "allowLanAccess": allow_lan,
         "mcpEnabled": handles.mcp_enabled.load(Ordering::Relaxed),
+        "agentEnabled": handles.agent_enabled.load(Ordering::Relaxed),
         "bindHost": if allow_lan { "0.0.0.0" } else { "127.0.0.1" },
         "authConfigured": handles
             .api_token
@@ -443,6 +494,8 @@ pub struct WikiHttpConfigPatch {
     pub allow_unauthenticated: Option<bool>,
     pub allow_lan_access: Option<bool>,
     pub mcp_enabled: Option<bool>,
+    /// agent 代理开关（浏览器扩展用；默认关闭）
+    pub agent_enabled: Option<bool>,
     pub token: Option<String>,
 }
 
@@ -460,6 +513,9 @@ pub fn wiki_http_configure(patch: WikiHttpConfigPatch) -> Result<(), String> {
     }
     if let Some(mcp) = patch.mcp_enabled {
         handles.mcp_enabled.store(mcp, Ordering::Relaxed);
+    }
+    if let Some(agent) = patch.agent_enabled {
+        handles.agent_enabled.store(agent, Ordering::Relaxed);
     }
     let mut need_rebind = false;
     if let Some(allow_lan) = patch.allow_lan_access {
@@ -479,4 +535,56 @@ pub fn wiki_http_configure(patch: WikiHttpConfigPatch) -> Result<(), String> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::HeaderName;
+
+    use super::*;
+
+    fn headers_with(name: HeaderName, value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            name,
+            HeaderValue::from_bytes(value.as_bytes()).expect("合法的 header 值"),
+        );
+        headers
+    }
+
+    /// 没配令牌 = 关闭 agent 面。写成「空就放行」等于装完客户端就有一个能改文件的入口。
+    #[test]
+    fn agent_token_rejects_when_not_configured() {
+        assert!(!match_agent_token("", &HeaderMap::new()));
+        assert!(!match_agent_token(
+            "   ",
+            &headers_with(header::AUTHORIZATION, "Bearer whatever")
+        ));
+    }
+
+    #[test]
+    fn agent_token_accepts_bearer_and_x_api_token() {
+        assert!(match_agent_token(
+            "abc",
+            &headers_with(header::AUTHORIZATION, "Bearer abc")
+        ));
+        assert!(match_agent_token(
+            "abc",
+            &headers_with(HeaderName::from_static("x-api-token"), "abc")
+        ));
+    }
+
+    #[test]
+    fn agent_token_rejects_mismatch_and_missing() {
+        assert!(!match_agent_token(
+            "abc",
+            &headers_with(header::AUTHORIZATION, "Bearer abd")
+        ));
+        assert!(!match_agent_token("abc", &HeaderMap::new()));
+        // 不带 `Bearer ` 前缀的 Authorization 不算数（避免把别家 scheme 当成令牌）
+        assert!(!match_agent_token(
+            "abc",
+            &headers_with(header::AUTHORIZATION, "abc")
+        ));
+    }
 }
