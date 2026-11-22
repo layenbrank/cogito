@@ -22,12 +22,22 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^1.8.0",
+    "@cogito/agent-protocol": "workspace:*",
+    "@cogito/agent-runtime": "workspace:*",
+    "@cogito/chat": "workspace:*",
     "@cogito/design": "workspace:*",
     "@cogito/extension-kit": "workspace:*",
     "@cogito/shared": "workspace:*",
+    "@cogito/utils": "workspace:*",
+    "@iconify/react": "catalog:",
+    "@reactuses/core": "^6.3.2",
     "@tanstack/react-query": "catalog:",
     "clsx": "catalog:",
+    "cn": "catalog:",
+    "dayjs": "catalog:",
     "dexie": "^4.4.3",
+    "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-router-dom": "catalog:",
@@ -39,6 +49,8 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/sortablejs": "^1.15.8",
-    "@vitejs/plugin-react-swc": "catalog:"
+    "@vitejs/plugin-react-swc": "catalog:",
+    "sass": "^1.93.2",
+    "fake-indexeddb": "^6.2.2"
   }
 }
