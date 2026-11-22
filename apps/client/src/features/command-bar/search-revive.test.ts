@@ -41,13 +41,16 @@ vi.mock('@/features/command-bar/store', function () {
   }
 })
 
+// 静态导入：`vi.mock` 会被提升到 import 之前，等价于原来的测试体内动态导入，
+// 但不用在每个用例里重跑一次较大的模块图（全量跑时那 5s 默认超时很容易被吃完）。
+import { reviveRecentHit } from '@/features/command-bar/search'
+
 describe('reviveRecentHit', function () {
   beforeEach(function () {
     openUrlMock.mockClear()
   })
 
   it('web 建议无法精确复活时，退回当前引擎搜索标题', async function () {
-    const { reviveRecentHit } = await import('@/features/command-bar/search')
     await reviveRecentHit({
       domain: 'web',
       id: 'suggest:rust:0',
@@ -60,7 +63,6 @@ describe('reviveRecentHit', function () {
 
   it('非 web 且无法复活时留痕且不打开链接', async function () {
     const warn = vi.spyOn(console, 'warn').mockImplementation(function () {})
-    const { reviveRecentHit } = await import('@/features/command-bar/search')
     await reviveRecentHit({
       domain: 'tile',
       id: 'missing',
