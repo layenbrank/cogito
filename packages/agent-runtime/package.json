@@ -1,0 +1,32 @@
+{
+  "name": "@cogito/agent-runtime",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "agentd 协议客户端（环境无关）：传输、SSE 事件流、审批回执、ACP 事件映射与审批判定；被 apps/client 与 apps/extension 共用",
+  "exports": {
+    "./agentd": "./src/agentd/transport.ts",
+    "./agentd/approvals": "./src/agentd/approvals.ts",
+    "./agentd/runs": "./src/agentd/runs.ts",
+    "./agentd/sse": "./src/agentd/sse.ts",
+    "./acp": "./src/acp/stream.ts",
+    "./policy": "./src/policy/approval.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "run-s lint:*",
+    "lint:eslint": "eslint . --fix",
+    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
+    "format": "prettier --write src/",
+    "test:unit": "vitest",
+    "unit": "vitest run"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^1.8.0",
+    "@cogito/agent-protocol": "workspace:*",
+    "@cogito/chat": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

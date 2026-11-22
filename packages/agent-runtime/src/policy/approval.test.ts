@@ -1,13 +1,14 @@
 /**
  * 审批业务判定的单元测试。
  *
- * 这是「工具会不会在你没同意的情况下执行」的判定，必须逐条锁住 —— 之前它埋在
- * `port/session.ts` 里，一个断言都没有。
+ * 这是「工具会不会在你没同意的情况下执行」的判定，必须逐条锁住。
+ * 用例从 `apps/client/src/features/agent/approval-decision.test.ts` 原样上提 ——
+ * 上提的意义就是让 client 与扩展共用同一组断言，而不是各锁一半。
  */
 
 import { describe, expect, it } from 'vitest'
 
-import { decideApproval, type ApprovalDecisionInput } from './approval-decision'
+import { decideApproval, type ApprovalDecisionInput } from './approval'
 
 /** goose 实际下发的四个选项（`handle_tool_permission_request` 里固定四项） */
 const OPTIONS = [
