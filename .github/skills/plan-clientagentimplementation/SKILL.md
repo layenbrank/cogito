@@ -1,3 +1,8 @@
+---
+name: plan-clientagentimplementation
+description: plan-clientAgentImplementation
+disable-model-invocation: true
+---
 # Plan: apps/client agent 完整实现（客户端重构 + cogito/compute 协同）
 
 ## 用户已确认

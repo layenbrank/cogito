@@ -1,3 +1,8 @@
+---
+name: plan-clientgitsearchislandcollection
+description: plan-clientGitSearchIslandCollection
+disable-model-invocation: true
+---
 # 客户端九项修复与重构
 
 一句话：先修两个能直接确认的 bug（`capture:*` 命令名漏了 `rename`、市场网格没过滤集合），再把 Git 能力补齐（仓库切换 + 滚动加载 + 储藏/变基/工作树），然后做两件搜索（全盘文件索引、overlay 灵动岛），最后重构集合建组与磁贴右键菜单。所有改动都在 `apps/client`（含 `src-tauri`），不碰其它 app。

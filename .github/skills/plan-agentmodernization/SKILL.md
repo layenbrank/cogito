@@ -1,3 +1,8 @@
+---
+name: plan-agentmodernization
+description: plan-agentModernization
+disable-model-invocation: true
+---
 # Plan: Agent 应用现代化 + 完整体验（v3）
 
 ## TL;DR

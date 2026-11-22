@@ -1,3 +1,8 @@
+---
+name: plan-agentdlanggraphorchestration
+description: plan-agentdLanggraphOrchestration
+disable-model-invocation: true
+---
 ## Plan: agentd —— LangGraph 编排层（产品级重构）
 
 原计划方向可行，但**不能照原样执行**：10 处仓库事实不成立、4 处自相矛盾。下面这份是在核验结果和你锁定的三个决策（先写 supersede ADR / goose 全量移交 stdio / 产品级）之上重写的计划，并且**按「最佳方案」而非「最小改动」选取**。

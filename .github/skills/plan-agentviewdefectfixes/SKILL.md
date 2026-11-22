@@ -1,3 +1,8 @@
+---
+name: plan-agentviewdefectfixes
+description: plan-agentViewDefectFixes
+disable-model-invocation: true
+---
 # Plan: agent 视图缺陷修复（MCP 挂载 / 重生成 / 编辑态 / 审批 / CSP / 工具改名 / 计划解析）
 
 ## 结论 (TL;DR)

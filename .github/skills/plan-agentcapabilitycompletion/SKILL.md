@@ -1,3 +1,8 @@
+---
+name: plan-agentcapabilitycompletion
+description: plan-agentCapabilityCompletion
+disable-model-invocation: true
+---
 # Plan: Agent 全量能力补全（指令 / 日历 / 知识库 / 自动化）
 
 ## TL;DR

@@ -1,3 +1,8 @@
+---
+name: plan-capturelibrary
+description: plan-captureLibrary
+disable-model-invocation: true
+---
 # Plan: 捕获库（截屏 + 录屏）· client
 
 截屏从「一次性浮层工具」升级为**捕获库**：可配置快捷键 → 导出成品自动入历史 → 磁贴双击打开捕获库管理（截图 + 录屏同库、相簿分类、标记保存、按天数/数量/容量自动清理、清理前角标预警）。数据**复用 `asset` 表 + `metadata` JSON**（共享表不加列），相簿新建 `album` 表，全部只动 `apps/client`。
