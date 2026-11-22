@@ -12,10 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
-  fetchBrowserInterceptStatus,
-  listBrowserInterceptRules,
-  listBrowserNetwork,
-  setBrowserInterceptRules,
+  GET_BROWSER_INTERCEPT_STATUS,
+  GET_BROWSER_INTERCEPT_RULES,
+  GET_BROWSER_NETWORK,
+  PUT_BROWSER_INTERCEPT,
   type InterceptRule,
   type InterceptStatus,
   type NetworkEntry
@@ -81,12 +81,12 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
   const refresh = useCallback(
     function () {
       updateBusy(true)
-      void fetchBrowserInterceptStatus(props.label)
+      void GET_BROWSER_INTERCEPT_STATUS(props.label)
         .then(updateStatus)
         .catch(function (error) {
           console.warn('browser: 读取拦截计数失败', error)
         })
-      void listBrowserNetwork(props.label, filterRef.current || undefined, 300)
+      void GET_BROWSER_NETWORK(props.label, filterRef.current || undefined, 300)
         .then(updateEntries)
         .catch(function (error) {
           toast.error(error instanceof Error ? error.message : String(error))
@@ -103,7 +103,7 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
     function () {
       refresh()
       // 规则可能已被 agent 改过，UI 不能自己凭空认为“没拦截”
-      void listBrowserInterceptRules(props.label)
+      void GET_BROWSER_INTERCEPT_RULES(props.label)
         .then(updateRules)
         .catch(function (error) {
           console.warn('browser: 读取拦截规则失败', error)
@@ -114,7 +114,7 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
 
   function applyRules(next: InterceptRule[]) {
     updateRules(next)
-    void setBrowserInterceptRules(props.label, next)
+    void PUT_BROWSER_INTERCEPT(props.label, next)
       .then(function (result) {
         updateStatus(result)
         toast.success(

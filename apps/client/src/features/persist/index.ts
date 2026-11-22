@@ -14,8 +14,8 @@ export {
   ensureSecrets,
   findJwtCache,
   writeJwtSecret,
-  findProviderSecret,
-  writeProviderSecret,
+  GET_PROVIDER_SECRET,
+  PUT_PROVIDER_SECRET,
   subscribeAuthChanged
 } from '@/features/persist/secrets'
 export type {

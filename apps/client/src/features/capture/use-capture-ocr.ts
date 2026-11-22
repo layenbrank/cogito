@@ -1,7 +1,7 @@
 import { v4 as UUID } from 'uuid'
 import { useState } from 'react'
 
-import { recognizeText } from '@/features/capture/ocr'
+import { POST_CAPTURE_OCR } from '@/features/capture/ocr'
 import type { GraphicsProps } from '@/features/capture/components/graphics'
 import { reportCaught } from '@/utils/exception-report'
 
@@ -35,7 +35,7 @@ function useCaptureOcr(input: {
             height: Math.round(input.selection.h * scale)
           }
         : null
-      const text = await recognizeText({ path: input.sourcePath, crop })
+      const text = await POST_CAPTURE_OCR({ path: input.sourcePath, crop })
       onUpdateOcrText(text.trim() || '没有识别到文字')
     } catch (err) {
       reportCaught('capture.ocr', err)

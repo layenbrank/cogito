@@ -24,7 +24,7 @@ import {
   writeModelPrefs,
   type ThinkingLevel
 } from '@/features/agent/model/model-prefs'
-import { writeProviderSecret } from '@/features/persist'
+import { PUT_PROVIDER_SECRET } from '@/features/persist'
 import { useProviderStore } from '@/stores/provider'
 import { reportCaught } from '@/utils/exception-report'
 import type { ProbeStatus } from '../provider-card-header'
@@ -220,7 +220,7 @@ function useModelInventory() {
         .map(function (key) {
           const secret = formValues[key.name]?.trim() ?? ''
           if (!secret) return null
-          return writeProviderSecret(active.providerId, secret)
+          return PUT_PROVIDER_SECRET(active.providerId, secret)
         })
         .filter(function (job) {
           return job !== null

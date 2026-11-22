@@ -19,7 +19,7 @@ import {
   findCaptureUsage
 } from '@/features/capture/model/usage'
 import { UsageMeter } from '@/features/capture/model/usage-meter'
-import { runCapturePrune } from '@/features/capture/retention'
+import { POST_CAPTURE_PRUNE } from '@/features/capture/retention'
 import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { useShellSurface } from '@/features/window-shell/slots'
 import { useAlbumStore } from '@/stores/album'
@@ -82,7 +82,7 @@ function CaptureLayout() {
       void useSettingsStore.getState().toInitialize()
       void toReadMedias()
       void toReadAlbums()
-      void runCapturePrune({ silent: true })
+      void POST_CAPTURE_PRUNE({ silent: true })
     },
     [toReadAlbums, toReadMedias]
   )
@@ -133,7 +133,7 @@ function CaptureLayout() {
   async function onPruneNow() {
     onPruning(true)
     try {
-      const result = await runCapturePrune({ force: true })
+      const result = await POST_CAPTURE_PRUNE({ force: true })
       await toReadMedias({ skipHydrate: true })
       if (result && result.ids.length === 0) {
         toast.message('没有需要清理的项目')

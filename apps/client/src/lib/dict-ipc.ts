@@ -19,7 +19,7 @@ function asError(error: unknown, label: string): Error {
   return new Error(`${label}: ${String(error)}`)
 }
 
-async function listDictItems(typeCode: string, tenantId?: string | null): Promise<DictItem[]> {
+async function GET_DICT_ITEMS(typeCode: string, tenantId?: string | null): Promise<DictItem[]> {
   try {
     return DictItemSchema.array().parse(
       await invoke(CHANNELS.DICT.LIST, { typeCode, tenantId: tenantId ?? null })
@@ -29,7 +29,7 @@ async function listDictItems(typeCode: string, tenantId?: string | null): Promis
   }
 }
 
-async function listDictByTypes(
+async function GET_DICT_TYPES(
   typeCodes: string[],
   tenantId?: string | null
 ): Promise<DictType[]> {
@@ -45,7 +45,7 @@ async function listDictByTypes(
   }
 }
 
-async function updateDictItem(input: {
+async function PUT_DICT_ITEM(input: {
   id: string
   typeCode?: string
   label?: string
@@ -60,7 +60,7 @@ async function updateDictItem(input: {
   }
 }
 
-async function findDictValueIpc(typeCode: string, key: string): Promise<string | null> {
+async function GET_DICT_VALUE(typeCode: string, key: string): Promise<string | null> {
   try {
     const value = await invoke<string | null>(CHANNELS.DICT.FIND_VALUE, { typeCode, key })
     return value
@@ -69,7 +69,7 @@ async function findDictValueIpc(typeCode: string, key: string): Promise<string |
   }
 }
 
-async function mergeRemoteDict(catalog: RemoteCatalog): Promise<void> {
+async function POST_DICT_MERGE(catalog: RemoteCatalog): Promise<void> {
   try {
     const parsed = RemoteCatalogSchema.parse(catalog)
     await invoke(CHANNELS.DICT.MERGE_REMOTE, { catalog: parsed })
@@ -79,9 +79,9 @@ async function mergeRemoteDict(catalog: RemoteCatalog): Promise<void> {
 }
 
 export {
-  listDictItems,
-  listDictByTypes,
-  updateDictItem,
-  findDictValueIpc,
-  mergeRemoteDict
+  GET_DICT_ITEMS,
+  GET_DICT_TYPES,
+  PUT_DICT_ITEM,
+  GET_DICT_VALUE,
+  POST_DICT_MERGE
 }

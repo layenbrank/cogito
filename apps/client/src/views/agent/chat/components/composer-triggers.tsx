@@ -331,7 +331,7 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
             if (pathQuery.length === 0) {
               const lists = await Promise.all(
                 roots.map(function (path) {
-                  return WorkspaceFiles.listDir(path).catch(function (cause: unknown) {
+                  return WorkspaceFiles.GET_WORKSPACE_DIR(path).catch(function (cause: unknown) {
                     console.warn('[composer-triggers] 列目录失败:', path, cause)
                     return []
                   })
@@ -356,7 +356,7 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
               })
             } else {
               // Rust 侧按 root 缓存文件列表并产出 dir 命中；这里只做归属映射
-              const result = await WorkspaceFiles.search(roots, pathQuery, SEARCH_LIMIT)
+              const result = await WorkspaceFiles.GET_WORKSPACE_FILES_SEARCH(roots, pathQuery, SEARCH_LIMIT)
               if (signal.aborted) return []
               for (const row of result.hits) {
                 const owner = findOwningRoot(row.path, orderedRoots) ?? roots[0]
@@ -429,7 +429,7 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         resolve: async function ({ query, signal }) {
           if (rootPath) {
             try {
-              const rows = await WorkspaceSkills.fetchSkills(folderPaths)
+              const rows = await WorkspaceSkills.GET_WORKSPACE_SKILLS(folderPaths)
               if (signal.aborted) return []
               const needle = query.trim().toLowerCase()
               return rows

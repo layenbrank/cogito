@@ -56,19 +56,19 @@ interface WaveformResult {
 const EXPORT_PROGRESS_EVENT = 'media:export-progress'
 const FILMSTRIP_FRAME_EVENT = 'media:filmstrip-frame'
 
-async function probe(path: string): Promise<ProbeResult> {
+async function GET_MEDIA_PROBE(path: string): Promise<ProbeResult> {
   return invoke<ProbeResult>('media:probe', { path })
 }
 
-async function exportVideo(args: ExportArgs): Promise<string> {
+async function POST_MEDIA_EXPORT(args: ExportArgs): Promise<string> {
   return invoke<string>('media:export', { args })
 }
 
-async function filmstripFrames(args: FilmstripFramesArgs): Promise<FilmstripFramesResult> {
+async function GET_MEDIA_FILMSTRIP(args: FilmstripFramesArgs): Promise<FilmstripFramesResult> {
   return invoke<FilmstripFramesResult>('media:filmstrip-frames', { args })
 }
 
-async function waveform(args: WaveformArgs): Promise<WaveformResult> {
+async function GET_MEDIA_WAVEFORM(args: WaveformArgs): Promise<WaveformResult> {
   return invoke<WaveformResult>('media:waveform', { args })
 }
 
@@ -81,10 +81,10 @@ async function listenExportProgress(
 }
 
 const MediaIpc = {
-  probe,
-  exportVideo,
-  filmstripFrames,
-  waveform,
+  GET_MEDIA_PROBE,
+  POST_MEDIA_EXPORT,
+  GET_MEDIA_FILMSTRIP,
+  GET_MEDIA_WAVEFORM,
   listenExportProgress
 }
 

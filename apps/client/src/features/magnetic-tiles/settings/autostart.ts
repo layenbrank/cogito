@@ -1,12 +1,12 @@
 import { invoke } from '@tauri-apps/api/core'
 import { CHANNELS } from '@/shared/ipc/channels'
 
-async function findAutostartEnabled() {
+async function GET_AUTOSTART() {
   return invoke<boolean>(CHANNELS.AUTOSTART.READ)
 }
 
-async function syncAutostart(desired: boolean) {
+async function PUT_AUTOSTART(desired: boolean) {
   return invoke<boolean>(CHANNELS.AUTOSTART.UPDATE, { enabled: desired })
 }
 
-export { findAutostartEnabled, syncAutostart }
+export { GET_AUTOSTART, PUT_AUTOSTART }

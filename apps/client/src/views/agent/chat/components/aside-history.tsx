@@ -7,7 +7,7 @@
  *   扫一眼根本分不出来。
  * - **与文件树同一套骨架**：顶部是文件夹切换条 + 一条工具栏（分支选择器 / 搜索 / 刷新），
  *   行高、字号、圆角、次级文字与文件树 / 审阅保持一致，三个面板不再各长一套。
- * - **能搜**：提交多了以后靠滚动找是折磨，直接走 `WorkspaceGit.search` 的 query。
+ * - **能搜**：提交多了以后靠滚动找是折磨，直接走 `WorkspaceGit.GET_GIT_SEARCH` 的 query。
  */
 import { useAui } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
@@ -155,7 +155,7 @@ function AsideHistory() {
       let cancelled = false
       updatePending(true)
       updateError(null)
-      WorkspaceGit.search(rootPath, {
+      WorkspaceGit.GET_GIT_SEARCH(rootPath, {
         query: debouncedQuery,
         field: 'all',
         limit: RECENT_LIMIT
@@ -198,7 +198,7 @@ function AsideHistory() {
     setExpanded(oid, [])
     if (!rootPath) return
     updateFilesPending(true)
-    void WorkspaceGit.show(rootPath, oid)
+    void WorkspaceGit.GET_GIT_SHOW(rootPath, oid)
       .then(function (result) {
         setFilesFor(oid, result.files)
       })

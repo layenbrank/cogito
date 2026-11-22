@@ -207,7 +207,7 @@ async function findRemoteOmniboxSuggestions(
 
   const engine = findEngine(readEngineKey())
   try {
-    const suggestion = await EngineIpc.suggestion(trimmed)
+    const suggestion = await EngineIpc.GET_SEARCH_SUGGEST(trimmed)
     if (signal.aborted) return []
     const series = (suggestion.s ?? []).slice(0, OMNIBAR_UI.WEB_LIMIT)
     const rows: OmniboxSuggestion[] = []

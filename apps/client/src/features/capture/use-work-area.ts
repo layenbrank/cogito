@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { readWorkArea, type CaptureRect } from '@/features/capture/tauri'
+import { GET_CAPTURE_VIEWPORT, type CaptureRect } from '@/features/capture/tauri'
 
 /**
  * 这次截屏会话的可用矩形（overlay 局部 CSS 像素，已扣掉任务栏）。
@@ -16,7 +16,7 @@ function useCaptureWorkArea(): CaptureRect | null {
 
   useEffect(function () {
     let alive = true
-    void readWorkArea()
+    void GET_CAPTURE_VIEWPORT()
       .then(function (rect) {
         if (alive && rect) setWork(rect)
       })

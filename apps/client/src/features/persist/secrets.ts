@@ -86,7 +86,7 @@ async function writeJwtSecret(token: string | null): Promise<void> {
   void emit(AUTH_CHANGED, { token })
 }
 
-async function findProviderSecret(providerID: string): Promise<string | null> {
+async function GET_PROVIDER_SECRET(providerID: string): Promise<string | null> {
   if (!isTauriRuntime()) return null
   try {
     return await invoke<string | null>(CHANNELS.SECRET.FIND, {
@@ -99,7 +99,7 @@ async function findProviderSecret(providerID: string): Promise<string | null> {
   }
 }
 
-async function writeProviderSecret(providerID: string, apiKey: string | null): Promise<void> {
+async function PUT_PROVIDER_SECRET(providerID: string, apiKey: string | null): Promise<void> {
   if (!isTauriRuntime()) return
   const account: SecretAccount = `provider:${providerID}`
   try {
@@ -147,8 +147,8 @@ export {
   ensureSecrets,
   findJwtCache,
   writeJwtSecret,
-  findProviderSecret,
-  writeProviderSecret,
+  GET_PROVIDER_SECRET,
+  PUT_PROVIDER_SECRET,
   subscribeAuthChanged
 }
 export type { SecretAccount }

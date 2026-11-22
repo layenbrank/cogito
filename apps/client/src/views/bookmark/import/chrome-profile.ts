@@ -6,7 +6,7 @@ import { exists, readDir, readTextFile } from '@tauri-apps/plugin-fs'
 
 import { parseChromeBookmarksJson } from '@/views/bookmark/import/parse-chrome-json'
 import type { BookmarkNode } from '@/views/bookmark/import/types'
-import { grantPaths } from '@/shared/ipc/grants'
+import { POST_SECURITY_GRANTS } from '@/shared/ipc/grants'
 
 interface ChromeProfileBookmarks {
   label: string
@@ -22,7 +22,7 @@ async function findChromeUserDataRoots() {
     `${local}\\Microsoft\\Edge\\User Data`
   ]
   // 收窄 fs:scope 后浏览器目录在授权集之外：先放行再检测，否则 exists 恒为 false
-  await grantPaths(candidates, true)
+  await POST_SECURITY_GRANTS(candidates, true)
   const checks = await Promise.allSettled(
     candidates.map(async function (root) {
       if (await exists(root)) return root

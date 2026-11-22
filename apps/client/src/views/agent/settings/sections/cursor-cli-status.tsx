@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
-  fetchCursorAgentStatus,
+  GET_CURSOR_AGENT_STATUS,
   type CursorAgentStatus
 } from '@/features/agent/cursor-agent'
 import styles from '@/views/agent/settings/settings.module.scss'
@@ -28,7 +28,7 @@ function CursorCliStatusSection() {
   async function refresh() {
     updateBusy(true)
     try {
-      const next = await fetchCursorAgentStatus()
+      const next = await GET_CURSOR_AGENT_STATUS()
       updateStatus(next)
     } catch (error) {
       console.warn('[settings/cursor-cli] 探测失败:', error)

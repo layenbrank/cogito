@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { fetchJobs as fetchJobsIpc, startJob, stopJob } from '@/lib/directive-ipc.ts'
+import { GET_SIDECAR_JOBS as fetchJobsIpc, POST_SIDECAR_JOB, DELETE_SIDECAR_JOB } from '@/lib/directive-ipc.ts'
 import type { JobKind, JobView } from '@/shared/ipc/specs/sidecar'
 import { useCorexStore } from '@/stores/corex.ts'
 
@@ -82,7 +82,7 @@ async function stopGuardJob(fields: {
   force: boolean
   isTaskRunning: boolean
 }): Promise<void> {
-  await stopJob({
+  await DELETE_SIDECAR_JOB({
     kind: fields.kind,
     name: fields.name,
     force: fields.force
@@ -191,7 +191,7 @@ function useGuardRun(options: UseGuardRunOptions): GuardRunApi {
     try {
       const name = options.beforeGuard ? await options.beforeGuard() : options.name
       if (!name) return
-      await startJob({ kind, name })
+      await POST_SIDECAR_JOB({ kind, name })
       dropJobsCache()
       toast.success(kind === 'cron' ? '已启动 cron 守护' : '已启动 watch 守护', {
         description: name

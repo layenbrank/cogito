@@ -11,7 +11,7 @@ interface FetchFaviconResult {
  * 经 Tauri 解析站点 favicon；失败时回退 DuckDuckGo，并打日志。
  * 二者皆不可用时返回 null。
  */
-async function fetchSiteFavicon(url: string): Promise<string | null> {
+async function GET_SITE_FAVICON(url: string): Promise<string | null> {
   const trimmed = url.trim()
   if (!trimmed) return null
 
@@ -28,4 +28,4 @@ async function fetchSiteFavicon(url: string): Promise<string | null> {
 }
 
 export type { FetchFaviconResult }
-export { fetchSiteFavicon }
+export { GET_SITE_FAVICON }

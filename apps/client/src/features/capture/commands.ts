@@ -10,7 +10,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
-import { runCapturePrune } from '@/features/capture/retention'
+import { POST_CAPTURE_PRUNE } from '@/features/capture/retention'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { isMainWindow } from '@/keyboard/global'
 import { useCommands } from '@/keyboard/react'
@@ -18,7 +18,7 @@ import type { Command } from '@/keyboard/types'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 
-async function openCapture(): Promise<void> {
+async function POST_CAPTURE(): Promise<void> {
   try {
     await invoke(CHANNELS.CAPTURE.OPEN)
   } catch (error) {
@@ -34,7 +34,7 @@ const CAPTURE_COMMANDS: Command[] = [
     title: '截屏',
     keywords: 'screenshot capture',
     group: '截屏',
-    run: openCapture
+    run: POST_CAPTURE
   }
 ]
 
@@ -45,8 +45,8 @@ function useCaptureCommands(): void {
   useEffect(function () {
     // 只在主窗跑：overlay 与磁贴窗不重复清理
     if (!isMainWindow()) return
-    void runCapturePrune({ silent: true })
+    void POST_CAPTURE_PRUNE({ silent: true })
   }, [])
 }
 
-export { CAPTURE_COMMANDS, openCapture, useCaptureCommands }
+export { CAPTURE_COMMANDS, POST_CAPTURE, useCaptureCommands }

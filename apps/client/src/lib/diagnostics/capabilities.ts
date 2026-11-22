@@ -52,7 +52,7 @@ function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
-async function probeCapabilities(): Promise<Capabilities | null> {
+async function GET_CAPABILITIES(): Promise<Capabilities | null> {
   if (!isTauri()) return null
   try {
     return await invoke<Capabilities>('capabilities:probe')
@@ -62,7 +62,7 @@ async function probeCapabilities(): Promise<Capabilities | null> {
   }
 }
 
-async function readDiagnosticsCapabilities(): Promise<DiagnosticsCapabilities | null> {
+async function GET_DIAGNOSTICS_CAPABILITIES(): Promise<DiagnosticsCapabilities | null> {
   if (!isTauri()) return null
   try {
     return await invoke<DiagnosticsCapabilities>('diagnostics:capabilities')
@@ -78,7 +78,7 @@ async function readDiagnosticsCapabilities(): Promise<DiagnosticsCapabilities | 
  * 走 Rust 侧命令而不是前端插件：`diagnostics:open-dir` 里目录来源与
  * `diagnostics:capabilities` 同源，不会出现「显示一个路径、打开另一个路径」。
  */
-async function openDiagnosticDir(kind: DiagnosticDirKind): Promise<string | null> {
+async function POST_DIAGNOSTICS_DIR(kind: DiagnosticDirKind): Promise<string | null> {
   if (!isTauri()) return null
   try {
     return await invoke<string>('diagnostics:open-dir', { kind })
@@ -107,7 +107,7 @@ interface AgentCacheStats {
   lastPrunedBytes?: number
 }
 
-async function readAgentCache(): Promise<AgentCacheStats | null> {
+async function GET_AGENT_CACHE(): Promise<AgentCacheStats | null> {
   if (!isTauri()) return null
   try {
     return await invoke<AgentCacheStats>('agent_cache_info')
@@ -118,7 +118,7 @@ async function readAgentCache(): Promise<AgentCacheStats | null> {
 }
 
 /** 清空 Agent 缓存：只清缓存根，不动 `.cogito/plans` 与日志。返回释放的字节数。 */
-async function clearAgentCache(): Promise<number | null> {
+async function DELETE_AGENT_CACHE(): Promise<number | null> {
   if (!isTauri()) return null
   try {
     return await invoke<number>('agent_cache_clear')
@@ -146,7 +146,7 @@ interface BuildInfo {
   pid: number
 }
 
-async function readBuildInfo(): Promise<BuildInfo | null> {
+async function GET_BUILD_INFO(): Promise<BuildInfo | null> {
   if (!isTauri()) return null
   try {
     return await invoke<BuildInfo>('app_build_info')
@@ -166,13 +166,13 @@ function formatBytes(bytes: number): string {
 }
 
 export {
-  clearAgentCache,
+  DELETE_AGENT_CACHE,
   formatBytes,
-  openDiagnosticDir,
-  probeCapabilities,
-  readAgentCache,
-  readBuildInfo,
-  readDiagnosticsCapabilities
+  POST_DIAGNOSTICS_DIR,
+  GET_CAPABILITIES,
+  GET_AGENT_CACHE,
+  GET_BUILD_INFO,
+  GET_DIAGNOSTICS_CAPABILITIES
 }
 export type {
   AgentCacheStats,

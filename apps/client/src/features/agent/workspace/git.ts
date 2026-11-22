@@ -70,26 +70,26 @@ const inflight = new Map<string, Promise<SnapshotData>>()
 async function loadSnapshot(rootPath: string): Promise<SnapshotData> {
   // 工作区改动不进状态指纹：读之前先失效，否则可能一直命中旧缓存
   try {
-    await WorkspaceGit.invalidate(rootPath)
+    await WorkspaceGit.POST_GIT_INVALIDATE(rootPath)
   } catch (cause) {
     console.warn('[agent/git] invalidate 失败:', cause)
   }
-  const probe = await WorkspaceGit.probe(rootPath)
+  const probe = await WorkspaceGit.GET_GIT_PROBE(rootPath)
   if (!probe.isRepo) return EMPTY_DATA
   const [status, upstream, branches, state] = await Promise.all([
-    WorkspaceGit.status(rootPath).catch(function (error) {
+    WorkspaceGit.GET_GIT_STATUS(rootPath).catch(function (error) {
       console.warn('[agent/git] status 失败:', error)
       return null
     }),
-    WorkspaceGit.upstream(rootPath).catch(function (error) {
+    WorkspaceGit.GET_GIT_UPSTREAM(rootPath).catch(function (error) {
       console.warn('[agent/git] upstream 失败:', error)
       return null
     }),
-    WorkspaceGit.fetchBranches(rootPath).catch(function (error) {
+    WorkspaceGit.GET_GIT_BRANCHES(rootPath).catch(function (error) {
       console.warn('[agent/git] branches 失败:', error)
       return null
     }),
-    WorkspaceGit.state(rootPath).catch(function (error) {
+    WorkspaceGit.GET_GIT_STATE(rootPath).catch(function (error) {
       console.warn('[agent/git] state 失败:', error)
       return null
     })
@@ -209,7 +209,7 @@ async function runGitAction(
 async function refreshNow(rootPath: string | null): Promise<void> {
   if (!rootPath) return
   try {
-    await WorkspaceGit.invalidate(rootPath)
+    await WorkspaceGit.POST_GIT_INVALIDATE(rootPath)
   } catch (cause) {
     console.warn('[agent/git] invalidate 失败:', cause)
   }
@@ -219,21 +219,21 @@ async function refreshNow(rootPath: string | null): Promise<void> {
 /** 抓取远程更新（只更新远端跟踪分支，不动工作区） */
 function fetchNow(rootPath: string | null) {
   return runGitAction(rootPath, '获取远程更新', function (root) {
-    return WorkspaceGit.fetchAll(root)
+    return WorkspaceGit.POST_GIT_FETCH(root)
   })
 }
 
 /** 拉取：把上游提交快进 / 合并进当前分支 */
 function pullNow(rootPath: string | null) {
   return runGitAction(rootPath, '拉取', function (root) {
-    return WorkspaceGit.pull(root)
+    return WorkspaceGit.POST_GIT_PULL(root)
   })
 }
 
 /** 推送；`isSetUpstream` 用于本地分支首次推送（顺带建立跟踪关系） */
 function pushNow(rootPath: string | null, branch: string, isSetUpstream = false) {
   return runGitAction(rootPath, '推送', function (root) {
-    return WorkspaceGit.push(root, branch, isSetUpstream)
+    return WorkspaceGit.POST_GIT_PUSH(root, branch, isSetUpstream)
   })
 }
 
@@ -243,7 +243,7 @@ function pushNow(rootPath: string | null, branch: string, isSetUpstream = false)
  */
 function checkoutNow(rootPath: string | null, branch: string, fromRemote?: string | null) {
   return runGitAction(rootPath, '切换分支', function (root) {
-    return WorkspaceGit.checkout(root, branch, fromRemote).then(function (result) {
+    return WorkspaceGit.PUT_GIT_BRANCH(root, branch, fromRemote).then(function (result) {
       return { summary: `已切换到 ${result.branch}` }
     })
   })
@@ -251,25 +251,25 @@ function checkoutNow(rootPath: string | null, branch: string, fromRemote?: strin
 
 function stageNow(rootPath: string | null, paths: string[]) {
   return runGitAction(rootPath, '暂存', function (root) {
-    return WorkspaceGit.stage(root, paths)
+    return WorkspaceGit.PUT_GIT_STAGE(root, paths)
   })
 }
 
 function unstageNow(rootPath: string | null, paths: string[]) {
   return runGitAction(rootPath, '取消暂存', function (root) {
-    return WorkspaceGit.unstage(root, paths)
+    return WorkspaceGit.PUT_GIT_UNSTAGE(root, paths)
   })
 }
 
 function discardNow(rootPath: string | null, paths: string[], isUntracked = false) {
   return runGitAction(rootPath, isUntracked ? '删除文件' : '撤销更改', function (root) {
-    return WorkspaceGit.discard(root, paths, isUntracked)
+    return WorkspaceGit.DELETE_GIT_CHANGES(root, paths, isUntracked)
   })
 }
 
 function commitNow(rootPath: string | null, message: string, isStageAll = false) {
   return runGitAction(rootPath, '提交', function (root) {
-    return WorkspaceGit.commit(root, message, isStageAll)
+    return WorkspaceGit.POST_GIT_COMMIT(root, message, isStageAll)
   })
 }
 
@@ -278,37 +278,37 @@ function stashPushNow(
   options: { message?: string; isIncludeUntracked?: boolean }
 ) {
   return runGitAction(rootPath, '储藏', function (root) {
-    return WorkspaceGit.stashPush(root, options)
+    return WorkspaceGit.POST_GIT_STASH(root, options)
   })
 }
 
 function stashApplyNow(rootPath: string | null, index: number, isPop: boolean) {
   return runGitAction(rootPath, isPop ? '弹出储藏' : '应用储藏', function (root) {
-    return WorkspaceGit.stashApply(root, index, isPop)
+    return WorkspaceGit.PUT_GIT_STASH(root, index, isPop)
   })
 }
 
 function stashDropNow(rootPath: string | null, index: number) {
   return runGitAction(rootPath, '删除储藏', function (root) {
-    return WorkspaceGit.stashDrop(root, index)
+    return WorkspaceGit.DELETE_GIT_STASH(root, index)
   })
 }
 
 function rebaseNow(rootPath: string | null, upstream?: string | null) {
   return runGitAction(rootPath, '变基', function (root) {
-    return WorkspaceGit.rebase(root, upstream)
+    return WorkspaceGit.POST_GIT_REBASE(root, upstream)
   })
 }
 
 function rebaseContinueNow(rootPath: string | null) {
   return runGitAction(rootPath, '继续变基', function (root) {
-    return WorkspaceGit.rebaseContinue(root)
+    return WorkspaceGit.POST_GIT_REBASE_CONTINUE(root)
   })
 }
 
 function rebaseAbortNow(rootPath: string | null) {
   return runGitAction(rootPath, '中止变基', function (root) {
-    return WorkspaceGit.rebaseAbort(root)
+    return WorkspaceGit.DELETE_GIT_REBASE(root)
   })
 }
 
@@ -317,13 +317,13 @@ function addWorktreeNow(
   options: { targetPath: string; branch?: string; isNewBranch?: boolean }
 ) {
   return runGitAction(rootPath, '新建工作树', function (root) {
-    return WorkspaceGit.worktreeAdd(root, options)
+    return WorkspaceGit.POST_GIT_WORKTREE(root, options)
   })
 }
 
 function removeWorktreeNow(rootPath: string | null, targetPath: string, isForce = false) {
   return runGitAction(rootPath, '删除工作树', function (root) {
-    return WorkspaceGit.worktreeRemove(root, targetPath, isForce)
+    return WorkspaceGit.DELETE_GIT_WORKTREE(root, targetPath, isForce)
   })
 }
 

@@ -66,7 +66,7 @@ export async function pinTexture(
 /* ─── internal helpers ─── */
 
 /** 弹出系统保存对话框，将裁剪+标注后的 PNG 写入用户选择的路径（Rust 侧落盘） */
-export async function saveToUserPath(dataUrl: string): Promise<string | null> {
+export async function POST_CAPTURE_PNG(dataUrl: string): Promise<string | null> {
   return invoke<string | null>(CHANNELS.CAPTURE.SAVE_PNG, {
     dataUrl,
     defaultName: `screenshot-${formatTimestamp(new Date())}.png`

@@ -23,7 +23,7 @@ function hasTauriRuntime(): boolean {
   return canUseTauriIpc()
 }
 
-async function ensureAgentTurn(threadId: string): Promise<FollowR | null> {
+async function POST_AGENT_TURN_ENSURE(threadId: string): Promise<FollowR | null> {
   if (!hasTauriRuntime()) return null
   try {
     return await invoke<FollowR>(CHANNELS.AGENT_TURN.ENSURE, { threadId })
@@ -33,7 +33,7 @@ async function ensureAgentTurn(threadId: string): Promise<FollowR | null> {
   }
 }
 
-async function appendAgentTurn(
+async function POST_AGENT_TURN(
   threadId: string,
   events: readonly ChatStreamEvent[]
 ): Promise<number | null> {
@@ -48,7 +48,7 @@ async function appendAgentTurn(
   }
 }
 
-async function followAgentTurn(threadId: string, cursor: number): Promise<FollowR | null> {
+async function GET_AGENT_TURN(threadId: string, cursor: number): Promise<FollowR | null> {
   if (!hasTauriRuntime()) return null
   try {
     return await invoke<FollowR>(CHANNELS.AGENT_TURN.FOLLOW, {
@@ -60,7 +60,7 @@ async function followAgentTurn(threadId: string, cursor: number): Promise<Follow
   }
 }
 
-async function finishAgentTurn(threadId: string): Promise<void> {
+async function PUT_AGENT_TURN_FINISH(threadId: string): Promise<void> {
   if (!hasTauriRuntime()) return
   try {
     await invoke(CHANNELS.AGENT_TURN.FINISH, { threadId })
@@ -69,7 +69,7 @@ async function finishAgentTurn(threadId: string): Promise<void> {
   }
 }
 
-async function forgetAgentTurn(threadId: string): Promise<void> {
+async function DELETE_AGENT_TURN(threadId: string): Promise<void> {
   if (!hasTauriRuntime()) return
   try {
     await invoke(CHANNELS.AGENT_TURN.FORGET, { threadId })
@@ -78,7 +78,7 @@ async function forgetAgentTurn(threadId: string): Promise<void> {
   }
 }
 
-async function markAgentTurnRunning(threadId: string): Promise<string[] | null> {
+async function PUT_AGENT_TURN_RUNNING(threadId: string): Promise<string[] | null> {
   if (!hasTauriRuntime()) return null
   try {
     return await invoke<string[]>(CHANNELS.AGENT_TURN.MARK_RUNNING, { threadId })
@@ -88,7 +88,7 @@ async function markAgentTurnRunning(threadId: string): Promise<string[] | null> 
   }
 }
 
-async function clearAgentTurnRunning(threadId: string): Promise<string[] | null> {
+async function DELETE_AGENT_TURN_RUNNING(threadId: string): Promise<string[] | null> {
   if (!hasTauriRuntime()) return null
   try {
     return await invoke<string[]>(CHANNELS.AGENT_TURN.CLEAR_RUNNING, { threadId })
@@ -98,7 +98,7 @@ async function clearAgentTurnRunning(threadId: string): Promise<string[] | null>
   }
 }
 
-async function listAgentTurnRunning(): Promise<string[] | null> {
+async function GET_AGENT_TURNS_RUNNING(): Promise<string[] | null> {
   if (!hasTauriRuntime()) return null
   try {
     return await invoke<string[]>(CHANNELS.AGENT_TURN.LIST_RUNNING)
@@ -109,13 +109,13 @@ async function listAgentTurnRunning(): Promise<string[] | null> {
 }
 
 export {
-  appendAgentTurn,
-  clearAgentTurnRunning,
-  ensureAgentTurn,
-  finishAgentTurn,
-  followAgentTurn,
-  forgetAgentTurn,
-  listAgentTurnRunning,
-  markAgentTurnRunning
+  POST_AGENT_TURN,
+  DELETE_AGENT_TURN_RUNNING,
+  POST_AGENT_TURN_ENSURE,
+  PUT_AGENT_TURN_FINISH,
+  GET_AGENT_TURN,
+  DELETE_AGENT_TURN,
+  GET_AGENT_TURNS_RUNNING,
+  PUT_AGENT_TURN_RUNNING
 }
 export type { FollowR }

@@ -26,8 +26,8 @@ import {
   type SessionMcpStatus,
   type SessionToolSurface
 } from '@/features/agent/acp/session-mcp'
-import { describeAudit, exportAgentAudit } from '@/shared/ipc/audit'
-import { describeCost, exportRunCost } from '@/shared/ipc/cost'
+import { describeAudit, POST_SECURITY_AUDIT_EXPORT } from '@/shared/ipc/audit'
+import { describeCost, POST_SECURITY_COST_EXPORT } from '@/shared/ipc/cost'
 import { useAgentStore } from '@/stores/agent'
 
 const LEVELS: Array<{ value: DiagnosticsLevel; label: string; hint: string }> = [
@@ -301,7 +301,7 @@ function DiagnosticsSection() {
   async function exportAudit() {
     updateAuditBusy(true)
     try {
-      const result = await exportAgentAudit()
+      const result = await POST_SECURITY_AUDIT_EXPORT()
       const target = await save({
         defaultPath: `cogito-tool-audit-${Date.now()}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }]
@@ -321,7 +321,7 @@ function DiagnosticsSection() {
   async function exportCost() {
     updateCostBusy(true)
     try {
-      const result = await exportRunCost()
+      const result = await POST_SECURITY_COST_EXPORT()
       const target = await save({
         defaultPath: `cogito-run-cost-${Date.now()}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }]

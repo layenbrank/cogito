@@ -18,16 +18,16 @@ const mocks = vi.hoisted(function () {
 vi.mock('@/lib/terminal', function () {
   return {
     Terminal: {
-      kill: mocks.kill,
-      attach: vi.fn(),
-      create: vi.fn(),
-      write: vi.fn(),
-      resize: vi.fn(),
-      list: vi.fn(async function () {
+      DELETE_TERMINAL: mocks.kill,
+      POST_TERMINAL_ATTACH: vi.fn(),
+      POST_TERMINAL: vi.fn(),
+      PUT_TERMINAL_WRITE: vi.fn(),
+      PUT_TERMINAL_RESIZE: vi.fn(),
+      GET_TERMINALS: vi.fn(async function () {
         return []
       }),
-      resolveAgentId: vi.fn(),
-      font: {}
+      GET_TERMINAL_AGENT_ID: vi.fn(),
+      GET_TERMINAL_FONT: {}
     }
   }
 })

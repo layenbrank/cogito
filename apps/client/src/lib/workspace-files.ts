@@ -118,25 +118,25 @@ interface WorkspaceFilesChangedEvent {
   isCoarse: boolean
 }
 
-async function listDir(root: string, relative = '') {
+async function GET_WORKSPACE_DIR(root: string, relative = '') {
   return invoke<DirEntry[]>(CHANNELS.WORKSPACE_FILES.LIST_DIR, {
     params: { root, relative: relative || null }
   })
 }
 
-async function search(roots: string[], query: string, limit = 50) {
+async function GET_WORKSPACE_FILES_SEARCH(roots: string[], query: string, limit = 50) {
   return invoke<SearchResult>(CHANNELS.WORKSPACE_FILES.SEARCH, {
     params: { roots, query, limit }
   })
 }
 
-async function readFile(roots: string[], path: string) {
+async function GET_WORKSPACE_FILE(roots: string[], path: string) {
   return invoke<ReadFileResult>(CHANNELS.WORKSPACE_FILES.READ_FILE, {
     params: { roots, path }
   })
 }
 
-async function packTypes(root: string, offset = 0, limit?: number) {
+async function GET_WORKSPACE_TYPES(root: string, offset = 0, limit?: number) {
   return invoke<PackTypesResult>(CHANNELS.WORKSPACE_FILES.PACK_TYPES, {
     params: { root, offset, limit: limit ?? null }
   })
@@ -146,13 +146,13 @@ async function packTypes(root: string, offset = 0, limit?: number) {
  * 开始（或换一组根）监听：Rust 侧递归监听 + 就地丢弃 node_modules/.git/dist 等噪音，
  * 合批后通过 `workspaceFiles:changed` 推送受影响的相对目录。
  */
-async function watch(roots: string[], delayMs?: number) {
+async function POST_WORKSPACE_WATCH(roots: string[], delayMs?: number) {
   return invoke<void>(CHANNELS.WORKSPACE_FILES.WATCH, {
     params: { roots, delayMs: delayMs ?? null }
   })
 }
 
-async function unwatch() {
+async function DELETE_WORKSPACE_WATCH() {
   return invoke<void>(CHANNELS.WORKSPACE_FILES.UNWATCH)
 }
 
@@ -164,7 +164,7 @@ async function listenChanged(
   })
 }
 
-async function content(query: ContentQuery) {
+async function GET_WORKSPACE_CONTENT(query: ContentQuery) {
   return invoke<ContentResult>(CHANNELS.WORKSPACE_FILES.CONTENT, {
     params: {
       root: query.root,
@@ -179,7 +179,7 @@ async function content(query: ContentQuery) {
   })
 }
 
-async function replace(query: ReplaceQuery) {
+async function PUT_WORKSPACE_CONTENT(query: ReplaceQuery) {
   return invoke<ReplaceResult>(CHANNELS.WORKSPACE_FILES.REPLACE, {
     params: {
       root: query.root,
@@ -195,14 +195,14 @@ async function replace(query: ReplaceQuery) {
 }
 
 const WorkspaceFiles = {
-  listDir,
-  search,
-  content,
-  replace,
-  readFile,
-  packTypes,
-  watch,
-  unwatch,
+  GET_WORKSPACE_DIR,
+  GET_WORKSPACE_FILES_SEARCH,
+  GET_WORKSPACE_CONTENT,
+  PUT_WORKSPACE_CONTENT,
+  GET_WORKSPACE_FILE,
+  GET_WORKSPACE_TYPES,
+  POST_WORKSPACE_WATCH,
+  DELETE_WORKSPACE_WATCH,
   listenChanged
 }
 

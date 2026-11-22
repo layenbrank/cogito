@@ -13,7 +13,7 @@ const files = new Map<string, string>()
 vi.mock('@/lib/workspace-files', function () {
   return {
     WorkspaceFiles: {
-      readFile: async function (_roots: string[], path: string) {
+      GET_WORKSPACE_FILE: async function (_roots: string[], path: string) {
         const content = files.get(path.replace(/\\/g, '/'))
         if (content === undefined) throw new Error(`ENOENT ${path}`)
         return { path, content }

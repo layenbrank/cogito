@@ -52,14 +52,14 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
       updateHunks([])
       updateHunkTotal(0)
 
-      WorkspaceGit.diffMeta(rootPath, relative, nextRevs)
+      WorkspaceGit.GET_GIT_DIFF_META(rootPath, relative, nextRevs)
         .then(function (nextMeta) {
           if (cancelled) return
           updateMeta(nextMeta)
           if (nextMeta.isBinary || nextMeta.isIdentical) return
           if (nextMeta.mode === 'hunks') {
             updateHunksLoading(true)
-            return WorkspaceGit.diffHunks(rootPath, relative, 0, HUNK_PAGE, nextRevs)
+            return WorkspaceGit.GET_GIT_DIFF_HUNKS(rootPath, relative, 0, HUNK_PAGE, nextRevs)
               .then(function (page) {
                 if (cancelled) return
                 updateHunks(page.hunks)
@@ -69,7 +69,7 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
                 updateHunksLoading(false)
               })
           }
-          return WorkspaceGit.diff(rootPath, relative, nextRevs).then(function (result) {
+          return WorkspaceGit.GET_GIT_DIFF(rootPath, relative, nextRevs).then(function (result) {
             if (!cancelled) updateSide(result)
           })
         })
@@ -99,7 +99,7 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
     updateHunksLoading(true)
     try {
       const expected = requestKeyRef.current
-      const page = await WorkspaceGit.diffHunks(
+      const page = await WorkspaceGit.GET_GIT_DIFF_HUNKS(
         rootPath,
         relative,
         hunks.length,

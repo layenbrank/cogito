@@ -241,7 +241,7 @@ function useCodeWorkspaceEffects(input: {
 
       document.addEventListener('visibilitychange', onVisibilityChange)
 
-      void WorkspaceFiles.watch(roots).catch(function () {
+      void WorkspaceFiles.POST_WORKSPACE_WATCH(roots).catch(function () {
         /* 旧壳没有这个命令：退回「用户操作才刷新」，不打扰 */
       })
       void WorkspaceFiles.listenChanged(function (event) {
@@ -275,7 +275,7 @@ function useCodeWorkspaceEffects(input: {
         window.clearTimeout(gitTimer)
         document.removeEventListener('visibilitychange', onVisibilityChange)
         unsubscribe?.()
-        void WorkspaceFiles.unwatch().catch(function () {
+        void WorkspaceFiles.DELETE_WORKSPACE_WATCH().catch(function () {
           /* 已经停了 */
         })
       }

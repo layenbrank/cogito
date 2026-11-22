@@ -24,7 +24,7 @@ interface OcrInput {
 }
 
 /** 取字：选区裁剪 → 识别 → 文本 */
-async function recognizeText(input: OcrInput): Promise<string> {
+async function POST_CAPTURE_OCR(input: OcrInput): Promise<string> {
   const result = await invoke<OcrResult>(CHANNELS.CAPTURE.OCR, {
     params: {
       path: input.path,
@@ -35,5 +35,5 @@ async function recognizeText(input: OcrInput): Promise<string> {
   return result.text
 }
 
-export { recognizeText }
+export { POST_CAPTURE_OCR }
 export type { OcrCrop, OcrResult }

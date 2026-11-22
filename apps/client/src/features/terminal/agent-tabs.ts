@@ -5,10 +5,10 @@
  * 也可以直接在那个 shell 里接管（对齐 VS Code 的终端面板行为）。
  *
  * WebView 刷新后 zustand tabs 会丢，但 Rust PTY 可能仍在：`bootstrapTerminalSessions`
- * 用 `Terminal.list()` 把存活会话灌回 UI；有 agent 会话时再 restore 面板（reconnect）。
+ * 用 `Terminal.GET_TERMINALS()` 把存活会话灌回 UI；有 agent 会话时再 restore 面板（reconnect）。
  *
  * **单飞 + generation**：这个函数会被 `main.tsx`、右栏挂载、`selectTab`、`openTerminal`、
- * `ensureTerminalTab`、「同步会话」按钮并发调用。早期没有去重，后一次 `Terminal.list()`
+ * `ensureTerminalTab`、「同步会话」按钮并发调用。早期没有去重，后一次 `Terminal.GET_TERMINALS()`
  * 的结果会覆盖前一次，`hydrateSession` 还会把刚被标成退出的 tab 翻回运行态 ——
  * 表现为「终端状态自己乱跳」。现在同一时刻只有一轮在跑；被 force 打断的旧轮直接丢弃结果。
  */
@@ -81,7 +81,7 @@ async function listTerminalSessions(): Promise<TerminalInfo[] | null> {
   let lastError: unknown = null
   while (attempt < 4) {
     try {
-      return await Terminal.list()
+      return await Terminal.GET_TERMINALS()
     } catch (error) {
       lastError = error
       console.warn('[terminal] bootstrap 暂失败，重试中:', error)

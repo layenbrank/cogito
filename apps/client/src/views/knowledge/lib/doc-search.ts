@@ -1,7 +1,7 @@
 /**
  * 知识库检索：本地 FTS 默认；可选向量命中 + RRF 混合排序。
  */
-import { searchDocs, type KnowledgeHit } from '@/lib/knowledge-ipc'
+import { GET_KNOWLEDGE_SEARCH, type KnowledgeHit } from '@/lib/knowledge-ipc'
 import { readEmbeddingConfig } from '@/views/knowledge/lib/embedding-config.ts'
 import { reciprocalRankFusion } from '@/views/knowledge/lib/search-hybrid.ts'
 import { searchVectors, type VectorHit } from '@/views/knowledge/lib/vector-store.ts'
@@ -88,7 +88,7 @@ async function searchKnowledgeHybrid(
 ): Promise<HybridSearchResult> {
   const topK = options.topK ?? RESULT_LIMIT
   const channels = ['fts']
-  const ftsHits = await searchDocs(query, options.baseId, topK)
+  const ftsHits = await GET_KNOWLEDGE_SEARCH(query, options.baseId, topK)
 
   let vectorHits: VectorHit[] = []
   const embedding = readEmbeddingConfig()

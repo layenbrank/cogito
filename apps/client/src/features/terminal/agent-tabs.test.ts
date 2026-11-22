@@ -160,8 +160,8 @@ const { fakeStore, listMock, listenMock, reportCaughtMock } = vi.hoisted(functio
 vi.mock('@/lib/terminal', function () {
   return {
     Terminal: {
-      list: listMock,
-      kill: vi.fn(function (): Promise<void> {
+      GET_TERMINALS: listMock,
+      DELETE_TERMINAL: vi.fn(function (): Promise<void> {
         return Promise.resolve()
       })
     }

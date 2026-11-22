@@ -9,11 +9,11 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 
 import {
-  activateBrowserTab,
-  closeBrowserTab,
-  hydrateBrowserTabs,
-  navigateBrowser,
-  openBrowserTab,
+  PUT_BROWSER_TAB_ACTIVE,
+  DELETE_BROWSER_TAB,
+  GET_BROWSER_TABS,
+  PUT_BROWSER_URL,
+  POST_BROWSER_TAB,
   type BrowserSnapshot,
   type BrowserTab
 } from './api'
@@ -112,7 +112,7 @@ const useBrowserStore = create<BrowserState>()(
           const target = parseAddress(url ?? BLANK) || BLANK
           try {
             // 用户点 + / 地址栏开页：总是新建，同 host 复用只给 agent 工具面
-            const tab = await openBrowserTab(target, true)
+            const tab = await POST_BROWSER_TAB(target, true)
             set(function (state) {
               // Rust 已 insert；若 tabs-changed 抢先 adopt 过，避免重复追加
               const device = tab.device ?? null
@@ -135,7 +135,7 @@ const useBrowserStore = create<BrowserState>()(
             console.warn('browser: 打开标签页失败', error)
             // 失败时拉一次快照，清掉可能的半残态
             try {
-              const snapshot = await hydrateBrowserTabs()
+              const snapshot = await GET_BROWSER_TABS()
               get().adoptSnapshot({
                 tabs: snapshot.tabs,
                 active: snapshot.active
@@ -149,7 +149,7 @@ const useBrowserStore = create<BrowserState>()(
       },
 
       closeTab: async function (label) {
-        await closeBrowserTab(label)
+        await DELETE_BROWSER_TAB(label)
         set(function (state) {
           const tabs = state.tabs.filter(function (tab) {
             return tab.label !== label
@@ -164,7 +164,7 @@ const useBrowserStore = create<BrowserState>()(
 
       activateTab: async function (label) {
         if (get().activeLabel === label) return
-        await activateBrowserTab(label)
+        await PUT_BROWSER_TAB_ACTIVE(label)
         set({ activeLabel: label })
       },
 
@@ -172,7 +172,7 @@ const useBrowserStore = create<BrowserState>()(
         const label = get().activeLabel
         const url = parseAddress(input)
         if (!label || !url) return
-        await navigateBrowser(label, url)
+        await PUT_BROWSER_URL(label, url)
         get().writeTabUrl(label, url)
       },
 
@@ -190,7 +190,7 @@ const useBrowserStore = create<BrowserState>()(
       },
 
       hydrate: async function () {
-        const snapshot = await hydrateBrowserTabs()
+        const snapshot = await GET_BROWSER_TABS()
         get().adoptSnapshot({ tabs: snapshot.tabs, active: snapshot.active })
       }
     }

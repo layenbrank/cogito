@@ -22,7 +22,7 @@ function parseSuggestion(payload: unknown): Engine.Suggestion {
   throw new Error('search:suggest 缺少 s')
 }
 
-async function suggestion(qry: string): Promise<Engine.Suggestion> {
+async function GET_SEARCH_SUGGEST(qry: string): Promise<Engine.Suggestion> {
   const payload = await invoke<unknown>(CHANNELS.SEARCH.SUGGEST, {
     body: { qry }
   })
@@ -30,7 +30,7 @@ async function suggestion(qry: string): Promise<Engine.Suggestion> {
 }
 
 const EngineIpc = {
-  suggestion
+  GET_SEARCH_SUGGEST
 }
 
 export { EngineIpc }

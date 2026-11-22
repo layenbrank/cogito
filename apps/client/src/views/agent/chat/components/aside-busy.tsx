@@ -912,7 +912,7 @@ function TerminalsSection(props: { onOpenTerminal: () => void }) {
                 title="关闭这个终端（会终止里面的进程）"
                 className="text-muted-foreground hover:text-destructive size-6 shrink-0"
                 onClick={function () {
-                  void Terminal.kill(tab.id).catch(function (error: unknown) {
+                  void Terminal.DELETE_TERMINAL(tab.id).catch(function (error: unknown) {
                     console.warn('[agent/aside] 关闭终端失败:', error)
                   })
                   useTerminalStore.getState().removeTab(tab.id)

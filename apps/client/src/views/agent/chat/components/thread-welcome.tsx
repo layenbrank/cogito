@@ -52,7 +52,7 @@ function ThreadWelcome() {
     function () {
       if (!rootPath) return
       let cancelled = false
-      void WorkspaceSkills.fetchSkills([rootPath])
+      void WorkspaceSkills.GET_WORKSPACE_SKILLS([rootPath])
         .then(function (rows) {
           if (cancelled) return
           updateSkills(

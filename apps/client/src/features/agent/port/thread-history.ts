@@ -88,7 +88,7 @@ function toThreadMessage(item: LoadThreadItem): { message: ThreadMessage; parent
   }
 }
 
-async function fetchThreadViaRust(
+async function GET_AGENT_THREAD(
   sessionId: string,
   scrubDetach: boolean
 ): Promise<LoadThreadR | null> {
@@ -265,7 +265,7 @@ function buildThreadHistoryAdapter(
 
       // 优先 Rust loadThread（JSON parse / scrub / head 都在主进程）
       if (threadID) {
-        const rust = await fetchThreadViaRust(threadID, resuming)
+        const rust = await GET_AGENT_THREAD(threadID, resuming)
         if (rust) {
           let messages = rust.messages.map(toThreadMessage)
           if (resuming) messages = scrubDetachStubs(messages)

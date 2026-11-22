@@ -11,7 +11,7 @@ vi.mock('@/features/command-bar/store', function () {
 vi.mock('@/lib/engine-ipc', function () {
   return {
     EngineIpc: {
-      suggestion: vi.fn(async function () {
+      GET_SEARCH_SUGGEST: vi.fn(async function () {
         return {
           s: [
             { q: 'rust lang', u: '/search?q=rust+lang', id: '1' },

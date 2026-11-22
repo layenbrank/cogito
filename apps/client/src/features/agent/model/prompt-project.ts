@@ -9,7 +9,7 @@
  * 3. **是数据不是指令**：正文包在围栏里、围栏标记转义（见 `prompts.ts::sanitizeFence`），
  *    并且安全规则段永远排在它前面。
  *
- * 读文件走 `WorkspaceFiles.readFile`（`workspaceFiles:readFile`，Rust 侧做根目录
+ * 读文件走 `WorkspaceFiles.GET_WORKSPACE_FILE`（`workspaceFiles:readFile`，Rust 侧做根目录
  * containment 校验），**不引 plugin-fs** —— 门禁里 plugin-fs 的引用面只许缩小。
  */
 import { WorkspaceFiles } from '@/lib/workspace-files'
@@ -83,7 +83,7 @@ function buildProjectConvention(path: string, raw: string): ProjectConvention | 
  */
 async function loadProjectConvention(
   cwd: string | null | undefined,
-  read: ReadFile = WorkspaceFiles.readFile
+  read: ReadFile = WorkspaceFiles.GET_WORKSPACE_FILE
 ): Promise<ProjectConvention | null> {
   if (!cwd) return null
   const path = joinPath(cwd, AGENTS_FILE)

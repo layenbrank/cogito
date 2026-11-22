@@ -69,13 +69,13 @@ function classifyEntry(name: string, toolNames: ReadonlySet<string>): 'live' | '
   return toolNames.has(name) ? 'live' : 'stale'
 }
 
-async function readGoosePermissions(): Promise<GoosePermissions> {
+async function GET_GOOSE_PERMISSIONS(): Promise<GoosePermissions> {
   const raw = await invoke(CHANNELS.GOOSE.PERMISSIONS_READ)
   return GoosePermissionsSchema.parse(raw)
 }
 
 /** 重置：备份后删掉 `permission.yaml` 并重启内层 goose。返回备份路径（本来没有文件时为 null）。 */
-async function resetGoosePermissions(): Promise<string | null> {
+async function DELETE_GOOSE_PERMISSIONS(): Promise<string | null> {
   const raw = await invoke(CHANNELS.GOOSE.PERMISSIONS_RESET)
   // Rust 侧是 `Option<String>`：没有文件时 IPC 给的是 `null`
   return typeof raw === 'string' && raw.length > 0 ? raw : null
@@ -86,7 +86,7 @@ export {
   GoosePermissionsSchema,
   listUserEntries,
   PERMISSION_BUCKETS,
-  readGoosePermissions,
-  resetGoosePermissions
+  GET_GOOSE_PERMISSIONS,
+  DELETE_GOOSE_PERMISSIONS
 }
 export type { GoosePermissions, PermissionBuckets }

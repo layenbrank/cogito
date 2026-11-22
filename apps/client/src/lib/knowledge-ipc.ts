@@ -33,7 +33,7 @@ function asError(error: unknown, label: string): Error {
   return new Error(`${label}: ${String(error)}`)
 }
 
-async function listKnowledge(): Promise<KnowledgeBase[]> {
+async function GET_KNOWLEDGE_BASES(): Promise<KnowledgeBase[]> {
   try {
     return KnowledgeBaseSchema.array().parse(await invoke(CHANNELS.KNOWLEDGE.LIST_BASES))
   } catch (error) {
@@ -41,7 +41,7 @@ async function listKnowledge(): Promise<KnowledgeBase[]> {
   }
 }
 
-async function insertKnowledge(name: string): Promise<KnowledgeBase> {
+async function POST_KNOWLEDGE_BASE(name: string): Promise<KnowledgeBase> {
   try {
     return KnowledgeBaseSchema.parse(await invoke(CHANNELS.KNOWLEDGE.CREATE_BASE, { name }))
   } catch (error) {
@@ -56,7 +56,7 @@ interface BasePatch {
   citation?: boolean
 }
 
-async function updateKnowledge(baseId: string, patch: BasePatch): Promise<KnowledgeBase> {
+async function PUT_KNOWLEDGE_BASE(baseId: string, patch: BasePatch): Promise<KnowledgeBase> {
   try {
     return KnowledgeBaseSchema.parse(
       await invoke(CHANNELS.KNOWLEDGE.UPDATE_BASE, { baseId, ...patch })
@@ -66,7 +66,7 @@ async function updateKnowledge(baseId: string, patch: BasePatch): Promise<Knowle
   }
 }
 
-async function listDocs(baseId?: string): Promise<KnowledgeDocSummary[]> {
+async function GET_KNOWLEDGE_DOCS(baseId?: string): Promise<KnowledgeDocSummary[]> {
   try {
     const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_DOCS, { baseId })
     return KnowledgeDocSummarySchema.array().parse(raw ?? [])
@@ -75,7 +75,7 @@ async function listDocs(baseId?: string): Promise<KnowledgeDocSummary[]> {
   }
 }
 
-async function searchDocs(query: string, baseId?: string, topK?: number): Promise<KnowledgeHit[]> {
+async function GET_KNOWLEDGE_SEARCH(query: string, baseId?: string, topK?: number): Promise<KnowledgeHit[]> {
   try {
     const raw = await invoke(CHANNELS.KNOWLEDGE.SEARCH, { query, baseId, topK })
     return KnowledgeHitSchema.array().parse(raw ?? [])
@@ -84,7 +84,7 @@ async function searchDocs(query: string, baseId?: string, topK?: number): Promis
   }
 }
 
-async function listStaging(baseId?: string): Promise<StagedFile[]> {
+async function GET_KNOWLEDGE_STAGING(baseId?: string): Promise<StagedFile[]> {
   try {
     const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_STAGING, { baseId })
     return StagedFileSchema.array().parse(raw ?? [])
@@ -93,7 +93,7 @@ async function listStaging(baseId?: string): Promise<StagedFile[]> {
   }
 }
 
-async function publishDoc(baseId: string, path: string, mode: PublishMode): Promise<PublishedDoc> {
+async function POST_KNOWLEDGE_PUBLISH(baseId: string, path: string, mode: PublishMode): Promise<PublishedDoc> {
   try {
     const raw = await invoke(CHANNELS.KNOWLEDGE.PUBLISH, { baseId, path, mode })
     return PublishedDocSchema.parse(raw)
@@ -103,7 +103,7 @@ async function publishDoc(baseId: string, path: string, mode: PublishMode): Prom
 }
 
 /** 合并分章（确定性拼接）：结果仍是 staging 草稿，发布要用户确认 */
-async function mergeStaging(baseId: string, paths: string[], title: string): Promise<StagedDoc> {
+async function POST_KNOWLEDGE_MERGE(baseId: string, paths: string[], title: string): Promise<StagedDoc> {
   try {
     const raw = await invoke(CHANNELS.KNOWLEDGE.MERGE_STAGING, { baseId, paths, title })
     return StagedDocSchema.parse(raw)
@@ -112,7 +112,7 @@ async function mergeStaging(baseId: string, paths: string[], title: string): Pro
   }
 }
 
-async function discardStaged(path: string): Promise<boolean> {
+async function DELETE_KNOWLEDGE_STAGING(path: string): Promise<boolean> {
   try {
     return await invoke<boolean>(CHANNELS.KNOWLEDGE.DISCARD_STAGING, { path })
   } catch (error) {
@@ -120,7 +120,7 @@ async function discardStaged(path: string): Promise<boolean> {
   }
 }
 
-async function rescanKnowledge(baseId: string): Promise<number> {
+async function POST_KNOWLEDGE_RESCAN(baseId: string): Promise<number> {
   try {
     return await invoke<number>(CHANNELS.KNOWLEDGE.RESCAN, { baseId })
   } catch (error) {
@@ -128,7 +128,7 @@ async function rescanKnowledge(baseId: string): Promise<number> {
   }
 }
 
-async function removeDoc(id: string): Promise<number> {
+async function DELETE_KNOWLEDGE_DOC(id: string): Promise<number> {
   try {
     return await invoke<number>(CHANNELS.KNOWLEDGE.REMOVE_DOC, { id })
   } catch (error) {
@@ -140,7 +140,7 @@ async function removeDoc(id: string): Promise<number> {
  * 删除整个知识库。`purgeFiles` 缺省：只删库记录，磁盘上的 Markdown 原样保留。
  * 连文件一起删是**不可逆**的，调用方必须先让用户显式选择。
  */
-async function removeKnowledge(baseId: string, purgeFiles = false): Promise<number> {
+async function DELETE_KNOWLEDGE_BASE(baseId: string, purgeFiles = false): Promise<number> {
   try {
     return await invoke<number>(CHANNELS.KNOWLEDGE.REMOVE_BASE, { baseId, purgeFiles })
   } catch (error) {
@@ -149,7 +149,7 @@ async function removeKnowledge(baseId: string, purgeFiles = false): Promise<numb
 }
 
 /** 取文档引用（库内 hash）；不在任何知识库里时 `matched=false` */
-async function resolveDoc(path: string): Promise<KnowledgeDocRef> {
+async function GET_KNOWLEDGE_DOC_REF(path: string): Promise<KnowledgeDocRef> {
   try {
     return KnowledgeDocRefSchema.parse(await invoke(CHANNELS.KNOWLEDGE.RESOLVE_DOC, { path }))
   } catch (error) {
@@ -164,7 +164,7 @@ async function resolveDoc(path: string): Promise<KnowledgeDocRef> {
  * - `conflict=true`：期间库内被别处改过，**没有写盘**，等用户选「保留我的 / 重载」；
  * - `force=true`：用户已选择保留我的，直接覆盖。
  */
-async function writeDoc(input: {
+async function PUT_KNOWLEDGE_DOC(input: {
   path: string
   content: string
   expectedHash?: string | null
@@ -184,7 +184,7 @@ async function writeDoc(input: {
 }
 
 // 整包导出：把库里的 Markdown 打成 zip（后端写在 <库目录>/exports/），返回绝对路径
-async function exportKnowledge(baseId: string): Promise<string> {
+async function POST_KNOWLEDGE_EXPORT(baseId: string): Promise<string> {
   try {
     return await invoke<string>(CHANNELS.KNOWLEDGE.EXPORT_BUNDLE, { baseId })
   } catch (error) {
@@ -199,7 +199,7 @@ interface PdfExtractResult {
   imagePaths: string[]
 }
 
-async function extractPdf(
+async function POST_KNOWLEDGE_PDF(
   path: string,
   mediaDir?: string
 ): Promise<PdfExtractResult> {
@@ -213,7 +213,7 @@ async function extractPdf(
   }
 }
 
-async function findPdfium(): Promise<string | null> {
+async function GET_KNOWLEDGE_PDFIUM(): Promise<string | null> {
   try {
     return (await invoke<string | null>(CHANNELS.KNOWLEDGE.FIND_PDFIUM)) ?? null
   } catch (error) {
@@ -223,23 +223,23 @@ async function findPdfium(): Promise<string | null> {
 }
 
 export {
-  insertKnowledge,
-  discardStaged,
-  exportKnowledge,
-  extractPdf,
-  findPdfium,
-  listKnowledge,
-  listDocs,
-  listStaging,
-  mergeStaging,
-  publishDoc,
-  removeKnowledge,
-  removeDoc,
-  rescanKnowledge,
-  resolveDoc,
-  searchDocs,
-  updateKnowledge,
-  writeDoc
+  POST_KNOWLEDGE_BASE,
+  DELETE_KNOWLEDGE_STAGING,
+  POST_KNOWLEDGE_EXPORT,
+  POST_KNOWLEDGE_PDF,
+  GET_KNOWLEDGE_PDFIUM,
+  GET_KNOWLEDGE_BASES,
+  GET_KNOWLEDGE_DOCS,
+  GET_KNOWLEDGE_STAGING,
+  POST_KNOWLEDGE_MERGE,
+  POST_KNOWLEDGE_PUBLISH,
+  DELETE_KNOWLEDGE_BASE,
+  DELETE_KNOWLEDGE_DOC,
+  POST_KNOWLEDGE_RESCAN,
+  GET_KNOWLEDGE_DOC_REF,
+  GET_KNOWLEDGE_SEARCH,
+  PUT_KNOWLEDGE_BASE,
+  PUT_KNOWLEDGE_DOC
 }
 export type { PdfExtractResult }
 export type { BasePatch, KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }

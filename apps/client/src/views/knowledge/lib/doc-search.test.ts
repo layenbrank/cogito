@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge-ipc', function () {
   return {
-    searchDocs: vi.fn(async function () {
+    GET_KNOWLEDGE_SEARCH: vi.fn(async function () {
       return [
         {
           docId: 'a',

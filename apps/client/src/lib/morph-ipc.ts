@@ -17,44 +17,44 @@ type SplitByLimit = {
 
 type SplitOptions = SplitByRanges | SplitByLimit
 
-async function toMeta(path: string): Promise<Morph.Meta> {
+async function GET_MORPH_META(path: string): Promise<Morph.Meta> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path }, DAEMON_ACTION.MORPH.META)
   return parseData<Morph.Meta>(resp)
 }
 
-async function toRender(path: string, offset: number, scale: number): Promise<Morph.Render> {
+async function GET_MORPH_RENDER(path: string, offset: number, scale: number): Promise<Morph.Render> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, offset, scale }, DAEMON_ACTION.MORPH.RENDER)
   return parseData<Morph.Render>(resp)
 }
 
-async function toThumbnails(path: string, scale: number): Promise<Morph.Render[]> {
+async function GET_MORPH_THUMBNAILS(path: string, scale: number): Promise<Morph.Render[]> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, scale }, DAEMON_ACTION.MORPH.THUMBNAILS)
   return parseData<Morph.Render[]>(resp)
 }
 
-async function toMatch(path: string, query: string): Promise<Morph.Hit[]> {
+async function GET_MORPH_MATCH(path: string, query: string): Promise<Morph.Hit[]> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, query }, DAEMON_ACTION.MORPH.MATCH)
   return parseData<Morph.Hit[]>(resp)
 }
 
-async function toExport(src: string, dest: string): Promise<string> {
+async function POST_MORPH_EXPORT(src: string, dest: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { src, dest }, DAEMON_ACTION.MORPH.EXPORT)
   return parsePath(resp)
 }
 
-async function toMerge(paths: string[], dest: string): Promise<string> {
+async function POST_MORPH_MERGE(paths: string[], dest: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { paths, dest }, DAEMON_ACTION.MORPH.MERGE)
   return parsePath(resp)
 }
 
 /** 相邻两页上下拼接为一页；scale 默认 2.0 */
-async function toStack(path: string, dest: string, scale = 2): Promise<string> {
+async function POST_MORPH_STACK(path: string, dest: string, scale = 2): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, dest, scale }, DAEMON_ACTION.MORPH.STACK)
   return parsePath(resp)
 }
 
 /** ranges 与 limit 二选一，统一走 action `split` */
-async function toSplit(path: string, dir: string, options: SplitOptions): Promise<string[]> {
+async function POST_MORPH_SPLIT(path: string, dir: string, options: SplitOptions): Promise<string[]> {
   const args =
     'limit' in options && options.limit !== undefined
       ? { path, limit: options.limit, dir }
@@ -63,7 +63,7 @@ async function toSplit(path: string, dir: string, options: SplitOptions): Promis
   return parseData<string[]>(resp)
 }
 
-async function toImages(
+async function POST_MORPH_IMAGES(
   path: string,
   scale: number,
   format: string,
@@ -77,17 +77,17 @@ async function toImages(
   return parseData<string[]>(resp)
 }
 
-async function toDocument(path: string, format: string, dir: string): Promise<string> {
+async function POST_MORPH_DOCUMENT(path: string, format: string, dir: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, format, dir }, DAEMON_ACTION.MORPH.DOCUMENT)
   return parsePath(resp)
 }
 
-async function toReorder(path: string, order: number[], dest: string): Promise<string> {
+async function PUT_MORPH_ORDER(path: string, order: number[], dest: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, order, dest }, DAEMON_ACTION.MORPH.REORDER)
   return parsePath(resp)
 }
 
-async function toRotate(
+async function PUT_MORPH_ROTATE(
   path: string,
   offsets: number[],
   degrees: number,
@@ -101,31 +101,31 @@ async function toRotate(
   return parsePath(resp)
 }
 
-async function toRemove(path: string, offsets: number[], dest: string): Promise<string> {
+async function DELETE_MORPH_PAGES(path: string, offsets: number[], dest: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, offsets, dest }, DAEMON_ACTION.MORPH.REMOVE)
   return parsePath(resp)
 }
 
-async function toExtract(path: string, offsets: number[], dest: string): Promise<string> {
+async function POST_MORPH_EXTRACT(path: string, offsets: number[], dest: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.MORPH, { path, offsets, dest }, DAEMON_ACTION.MORPH.EXTRACT)
   return parsePath(resp)
 }
 
 const MorphIpc = {
-  toMeta,
-  toRender,
-  toThumbnails,
-  toMatch,
-  toExport,
-  toMerge,
-  toStack,
-  toSplit,
-  toImages,
-  toDocument,
-  toReorder,
-  toRotate,
-  toRemove,
-  toExtract
+  GET_MORPH_META,
+  GET_MORPH_RENDER,
+  GET_MORPH_THUMBNAILS,
+  GET_MORPH_MATCH,
+  POST_MORPH_EXPORT,
+  POST_MORPH_MERGE,
+  POST_MORPH_STACK,
+  POST_MORPH_SPLIT,
+  POST_MORPH_IMAGES,
+  POST_MORPH_DOCUMENT,
+  PUT_MORPH_ORDER,
+  PUT_MORPH_ROTATE,
+  DELETE_MORPH_PAGES,
+  POST_MORPH_EXTRACT
 }
 
 export { MorphIpc }

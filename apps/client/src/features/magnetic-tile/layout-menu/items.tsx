@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 
 import type { MenuItem } from '@/components/contextmenu'
-import { mountOverlayTile, removeOverlayTile } from '@/features/capture/tauri'
+import { POST_OVERLAY_TILE, DELETE_OVERLAY_TILE } from '@/features/capture/tauri'
 
 import { LayoutPicker } from './picker'
 import type { Tile } from './types'
@@ -76,7 +76,7 @@ function buildFloat(tile: Tile): MenuItem {
         disabled: !hasTile,
         onSelect() {
           if (!tile.id) return
-          void mountOverlayTile(tile.component, tile.id, {
+          void POST_OVERLAY_TILE(tile.component, tile.id, {
             size: tile.size,
             shape: tile.shape,
             direction: tile.direction,
@@ -101,7 +101,7 @@ function buildFloat(tile: Tile): MenuItem {
         disabled: !hasTile,
         onSelect() {
           if (!tile.id) return
-          void removeOverlayTile(tile.id)
+          void DELETE_OVERLAY_TILE(tile.id)
         }
       }
     ]

@@ -6,19 +6,19 @@ import { toast } from 'sonner'
 
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
 import {
-  readFileIndexStatus,
-  rebuildFileIndex,
+  GET_SEARCH_FILE_INDEX,
+  POST_SEARCH_FILE_INDEX_REBUILD,
   type FileIndexStatus
 } from '@/features/command-bar/providers/files.ts'
 import { cachePruneText, cacheSizeText } from '@/lib/diagnostics/cache-text'
 import {
-  clearAgentCache,
+  DELETE_AGENT_CACHE,
   formatBytes,
-  openDiagnosticDir,
-  probeCapabilities,
-  readAgentCache,
-  readBuildInfo,
-  readDiagnosticsCapabilities,
+  POST_DIAGNOSTICS_DIR,
+  GET_CAPABILITIES,
+  GET_AGENT_CACHE,
+  GET_BUILD_INFO,
+  GET_DIAGNOSTICS_CAPABILITIES,
   type AgentCacheStats,
   type BuildInfo,
   type Capabilities,
@@ -86,10 +86,10 @@ function DiagnosticSurface() {
     setIsLoading(true)
     try {
       const [nextCaps, nextTools, nextCache, nextBuild] = await Promise.all([
-        readDiagnosticsCapabilities(),
-        probeCapabilities(),
-        readAgentCache(),
-        readBuildInfo()
+        GET_DIAGNOSTICS_CAPABILITIES(),
+        GET_CAPABILITIES(),
+        GET_AGENT_CACHE(),
+        GET_BUILD_INFO()
       ])
       setCaps(nextCaps)
       setTools(nextTools)
@@ -124,7 +124,7 @@ function DiagnosticSurface() {
 
     async function poll() {
       try {
-        const next = await readFileIndexStatus()
+        const next = await GET_SEARCH_FILE_INDEX()
         if (cancelled) return
         setFileIndex(next)
         if (next.state === 'scanning') {
@@ -146,7 +146,7 @@ function DiagnosticSurface() {
 
   async function onRebuildFileIndex(): Promise<void> {
     try {
-      await rebuildFileIndex()
+      await POST_SEARCH_FILE_INDEX_REBUILD()
       setFileIndex(function (prev) {
         return prev ? { ...prev, state: 'scanning', scanned: 0 } : prev
       })
@@ -170,7 +170,7 @@ function DiagnosticSurface() {
   }
 
   async function onOpen(kind: 'log' | 'crash' | 'data', label: string): Promise<void> {
-    const opened = await openDiagnosticDir(kind)
+    const opened = await POST_DIAGNOSTICS_DIR(kind)
     if (opened) {
       toast.success(`已打开${label}`, { description: opened })
       return
@@ -181,7 +181,7 @@ function DiagnosticSurface() {
   async function onClearCache(): Promise<void> {
     setIsClearingCache(true)
     try {
-      const freed = await clearAgentCache()
+      const freed = await DELETE_AGENT_CACHE()
       if (freed === null) {
         toast.error('清空失败：命令异常或不在 Tauri 环境')
         return

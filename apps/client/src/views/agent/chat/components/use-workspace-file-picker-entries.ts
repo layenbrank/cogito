@@ -36,12 +36,12 @@ function useWorkspaceFilePickerEntries(
       function run() {
         const rowsPromise =
           needle.length > 0
-            ? WorkspaceFiles.search([root], needle, 40).then(function (result) {
+            ? WorkspaceFiles.GET_WORKSPACE_FILES_SEARCH([root], needle, 40).then(function (result) {
                 return result.hits.map(function (hit) {
                   return { name: hit.name, kind: hit.kind, relative: hit.relative }
                 })
               })
-            : WorkspaceFiles.listDir(root, relative).then(function (rows: DirEntry[]) {
+            : WorkspaceFiles.GET_WORKSPACE_DIR(root, relative).then(function (rows: DirEntry[]) {
                 return rows.map(function (row) {
                   return { name: row.name, kind: row.kind, relative: row.relative }
                 })

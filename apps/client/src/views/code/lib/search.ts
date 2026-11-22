@@ -63,7 +63,7 @@ async function replaceInFiles(params: {
   const root = useCodeStore.getState().workspaceRoot
   if (!root) throw new Error('尚未打开工作区')
 
-  const outcome = await WorkspaceFiles.replace({
+  const outcome = await WorkspaceFiles.PUT_WORKSPACE_CONTENT({
     root,
     paths: params.paths,
     query: params.query.query,

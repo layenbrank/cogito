@@ -75,7 +75,7 @@ function AsideReview(props: AsideReviewProps) {
     if (!rootPath) return
     updateWorktreeLoading(true)
     try {
-      updateWorktrees(await WorkspaceGit.worktreeList(rootPath))
+      updateWorktrees(await WorkspaceGit.GET_GIT_WORKTREES(rootPath))
     } catch (cause) {
       console.warn('[agent/review] 读取工作树失败:', cause)
     } finally {

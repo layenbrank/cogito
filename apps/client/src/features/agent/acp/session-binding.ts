@@ -51,7 +51,7 @@ export function recallBinding(threadID: string): SessionBinding | null {
  *
  * 返回条数，方便调用方打一行日志；失败返回 0（内存缓存留空，等于「都没绑过」）。
  */
-export async function preloadBindings(): Promise<number> {
+export async function GET_ACP_BINDINGS(): Promise<number> {
   try {
     const raw = await invoke<unknown>(CHANNELS.AGENT_SESSION.LIST_ACP_BINDINGS)
     const rows = z.array(BoundSessionSchema).parse(raw ?? [])
@@ -82,7 +82,7 @@ export interface BindInput {
  *
  * `cwd` / `lastSeq` 不传就是「不动」—— 每轮只刷序号时不必重复传工作目录。
  */
-export async function bindSession(
+export async function POST_ACP_BINDING(
   threadID: string,
   input: BindInput
 ): Promise<SessionBinding | null> {
@@ -102,7 +102,7 @@ export async function bindSession(
 }
 
 /** 直接读库（缓存未命中时用；命中过就顺手写缓存）。 */
-export async function readBinding(threadID: string): Promise<SessionBinding | null> {
+export async function GET_ACP_BINDING(threadID: string): Promise<SessionBinding | null> {
   const id = key(threadID)
   if (!id) return null
   const cached = cache.get(id)
@@ -129,7 +129,7 @@ export async function readBinding(threadID: string): Promise<SessionBinding | nu
  * 用户只会看到恢复失败）。请求失败只 warn：库里留一条脏绑定顶多让下次恢复失败
  * 一次，不该阻断关闭会话的流程。
  */
-export async function unbindSession(threadID: string): Promise<boolean> {
+export async function DELETE_ACP_BINDING(threadID: string): Promise<boolean> {
   const id = key(threadID)
   if (!id) return false
   const hadCache = cache.delete(id)

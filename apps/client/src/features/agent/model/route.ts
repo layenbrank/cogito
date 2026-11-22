@@ -70,7 +70,7 @@ function readRouteTier(): RouteTier {
  *
  * 落库失败只打 warn：档位是偏好，丢了最多这一轮走错路，不能让一次发送失败。
  */
-function markRouteTier(tier: RouteTier, sessionID?: string | null): void {
+function PUT_AGENT_ROUTE_TIER(tier: RouteTier, sessionID?: string | null): void {
   currentTier = tier
   const id = sessionID?.trim()
   if (!id) return
@@ -108,7 +108,7 @@ function narrowPlan(raw: unknown): RoutePlanReply | null {
  * 失败（IPC 挂了 / 判定异常）返回 `null` —— 调用方按**不降级**处理：
  * 探测不出来不等于本地不可用，悄悄换云等于把数据送出本机。
  */
-async function planRoute(tier: RouteTier, model: string | null): Promise<RoutePlanReply | null> {
+async function GET_AGENT_ROUTE(tier: RouteTier, model: string | null): Promise<RoutePlanReply | null> {
   try {
     const raw = await invoke<unknown>(CHANNELS.AGENT_ROUTE.PLAN, {
       params: { tier, model }
@@ -130,7 +130,7 @@ async function planRoute(tier: RouteTier, model: string | null): Promise<RoutePl
  *
  * 归类在 Rust；这里只保证「判定不可用时不换」。
  */
-async function degradeRoute(from: RouteTier, message: string): Promise<RouteTier | null> {
+async function POST_AGENT_ROUTE_DEGRADE(from: RouteTier, message: string): Promise<RouteTier | null> {
   try {
     const raw = await invoke<{ next?: unknown; failure?: unknown }>(CHANNELS.AGENT_ROUTE.DEGRADE, {
       params: { from, message }
@@ -183,22 +183,22 @@ async function noteRunFailure(input: {
   message: string
   sessionID?: string | null
 }): Promise<RouteTier | null> {
-  const next = await degradeRoute(input.from, input.message)
+  const next = await POST_AGENT_ROUTE_DEGRADE(input.from, input.message)
   if (!next) return null
-  markRouteTier(next, input.sessionID)
+  PUT_AGENT_ROUTE_TIER(next, input.sessionID)
   console.info('[agent/route] 本轮可判定失败，已降级到', next)
   return next
 }
 
 export {
   DEFAULT_TIER,
-  degradeRoute,
+  POST_AGENT_ROUTE_DEGRADE,
   isLocalKind,
   isRouteTier,
-  markRouteTier,
+  PUT_AGENT_ROUTE_TIER,
   noteRunFailure,
   pickProvider,
-  planRoute,
+  GET_AGENT_ROUTE,
   readRouteTier
 }
 export type { RoutePlanReply, RouteProvider, RouteTier }

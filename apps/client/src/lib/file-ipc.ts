@@ -41,14 +41,14 @@ function toWriteArgs(path: string, options: FileWriteOptions) {
   }
 }
 
-async function read(path: string): Promise<string> {
+async function GET_FILE(path: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.FILE, { path }, DAEMON_ACTION.FILE.READ)
   const data = parseData<unknown>(resp)
   if (typeof data === 'string') return data
   throw new Error('file.read 返回非文本')
 }
 
-async function write(path: string, options: FileWriteOptions): Promise<FileWriteResult> {
+async function PUT_FILE(path: string, options: FileWriteOptions): Promise<FileWriteResult> {
   const resp = await ipcInvoke(DAEMON.FILE, toWriteArgs(path, options), DAEMON_ACTION.FILE.WRITE)
   const data = parseData<Record<string, unknown>>(resp)
   return {
@@ -58,21 +58,21 @@ async function write(path: string, options: FileWriteOptions): Promise<FileWrite
   }
 }
 
-async function copy(from: string, to: string): Promise<string> {
+async function POST_FILE_COPY(from: string, to: string): Promise<string> {
   const resp = await ipcInvoke(DAEMON.FILE, { from, to }, DAEMON_ACTION.FILE.COPY)
   return typeof resp.path === 'string' ? resp.path : to
 }
 
-async function remove(path: string): Promise<boolean> {
+async function DELETE_FILE(path: string): Promise<boolean> {
   const resp = await ipcInvoke(DAEMON.FILE, { path }, DAEMON_ACTION.FILE.DELETE)
   return parseData<boolean>(resp)
 }
 
 const FileIpc = {
-  read,
-  write,
-  copy,
-  remove
+  GET_FILE,
+  PUT_FILE,
+  POST_FILE_COPY,
+  DELETE_FILE
 }
 
 export { FileIpc }

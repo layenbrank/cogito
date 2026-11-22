@@ -8,7 +8,7 @@
  * 约定：
  * - 节点的 `key` 就是**根内相对路径**，同时写成 `data-aside-path` / `data-aside-kind`，
  *   右栏右键菜单（添加到对话 / 复制路径）据此识别目标；
- * - 目录按需读盘（展开才列），搜索走封顶的 `WorkspaceFiles.search`，命中行仍是扁平列表；
+ * - 目录按需读盘（展开才列），搜索走封顶的 `WorkspaceFiles.GET_WORKSPACE_FILES_SEARCH`，命中行仍是扁平列表；
  * - 展开态、已读的目录都留在内存里，`revision` 变化只重读「根 + 已展开目录」，不重置视图。
  */
 import { Icon } from '@iconify/react/offline'
@@ -105,7 +105,7 @@ function AsideFilesTree(props: AsideFilesTreeProps) {
   )
 
   const fetchChildren = useCallback(function (relative: string): Promise<FileTreeNode[]> {
-    return WorkspaceFiles.listDir(rootRef.current, relative).then(function (rows) {
+    return WorkspaceFiles.GET_WORKSPACE_DIR(rootRef.current, relative).then(function (rows) {
       return toNodes(sortEntries(rows))
     })
   }, [])

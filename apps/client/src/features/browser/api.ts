@@ -19,31 +19,31 @@ interface BrowserTab {
 }
 
 /** `forceNew` 默认 true：UI 开页总新建；agent 工具面自己走 bridge 复用逻辑 */
-async function openBrowserTab(url: string, forceNew = true): Promise<BrowserTab> {
+async function POST_BROWSER_TAB(url: string, forceNew = true): Promise<BrowserTab> {
   return invoke<BrowserTab>('browser:open', { url, forceNew })
 }
 
-async function closeBrowserTab(label: string): Promise<void> {
+async function DELETE_BROWSER_TAB(label: string): Promise<void> {
   await invoke('browser:close', { label })
 }
 
-async function activateBrowserTab(label: string): Promise<void> {
+async function PUT_BROWSER_TAB_ACTIVE(label: string): Promise<void> {
   await invoke('browser:activate', { label })
 }
 
-async function navigateBrowser(label: string, url: string): Promise<void> {
+async function PUT_BROWSER_URL(label: string, url: string): Promise<void> {
   await invoke('browser:navigate', { label, url })
 }
 
-async function fetchBrowserUrl(label: string): Promise<string> {
+async function GET_BROWSER_URL(label: string): Promise<string> {
   return invoke<string>('browser:current-url', { label })
 }
 
-async function reloadBrowser(label: string): Promise<void> {
+async function POST_BROWSER_RELOAD(label: string): Promise<void> {
   await invoke('browser:reload', { label })
 }
 
-async function stepBrowserHistory(label: string, backward: boolean): Promise<void> {
+async function POST_BROWSER_HISTORY(label: string, backward: boolean): Promise<void> {
   await invoke('browser:history', { label, backward })
 }
 
@@ -52,7 +52,7 @@ interface BrowserHistoryState {
   canGoForward: boolean
 }
 
-async function fetchBrowserHistoryState(label: string): Promise<BrowserHistoryState> {
+async function GET_BROWSER_HISTORY(label: string): Promise<BrowserHistoryState> {
   return invoke<BrowserHistoryState>('browser:history-state', { label })
 }
 
@@ -62,12 +62,12 @@ interface BrowserNavigationEntry {
 }
 
 /** 当前 tab 会话历史（关 tab 即消失） */
-async function fetchBrowserNavigationHistory(label: string): Promise<BrowserNavigationEntry[]> {
+async function GET_BROWSER_NAVIGATION(label: string): Promise<BrowserNavigationEntry[]> {
   return invoke<BrowserNavigationEntry[]>('browser:navigation-history', { label })
 }
 
 /** 打开这个 tab 的 DevTools（独立窗口） */
-async function openBrowserDevtools(label: string): Promise<void> {
+async function POST_BROWSER_DEVTOOLS(label: string): Promise<void> {
   await invoke('browser:devtools', { label })
 }
 
@@ -115,7 +115,7 @@ interface BrowserDeviceResult {
 }
 
 /** 诊断：确认 CDP 通道（读取 / 网络 / 拦截 / 截图）在本机可用 */
-async function probeBrowser(label: string): Promise<BrowserProbe> {
+async function GET_BROWSER_PROBE(label: string): Promise<BrowserProbe> {
   return invoke<BrowserProbe>('browser:probe', { label })
 }
 
@@ -139,7 +139,7 @@ interface BrowserReadResult {
 }
 
 /** agent 读页面：`outline` 拿可交互元素，`text` 拿正文 */
-async function readBrowserPage(
+async function GET_BROWSER_PAGE(
   label: string,
   mode: 'outline' | 'text' = 'outline',
   limit = 60,
@@ -162,7 +162,7 @@ interface BrowserShot {
   mode?: 'surface' | 'view' | 'os'
 }
 
-async function screenshotBrowser(
+async function POST_BROWSER_SCREENSHOT(
   label: string,
   format?: 'png' | 'jpeg'
 ): Promise<BrowserShot> {
@@ -186,7 +186,7 @@ interface BrowserSnapshot {
   }
 }
 
-async function fetchBrowserSnapshot(): Promise<BrowserSnapshot> {
+async function GET_BROWSER_SNAPSHOT(): Promise<BrowserSnapshot> {
   return invoke<BrowserSnapshot>('browser:snapshot')
 }
 
@@ -197,12 +197,12 @@ async function fetchBrowserSnapshot(): Promise<BrowserSnapshot> {
 const BROWSER_VISIBILITY_RESET = 'cogito:browser-visibility-reset'
 
 /** 页面刷新后重新拉回已有的标签页（webview 由 Rust 持有，不会跟着前端消失） */
-async function hydrateBrowserTabs(): Promise<BrowserSnapshot> {
-  const snapshot = await fetchBrowserSnapshot()
+async function GET_BROWSER_TABS(): Promise<BrowserSnapshot> {
+  const snapshot = await GET_BROWSER_SNAPSHOT()
   // 新页面还没量过尺寸、也没有任何面板在显示 —— 先把可见性收掉，
   // 否则刷新后 webview 会悬在界面上方遮住 UI，直到用户自己点回浏览器页签。
   if (snapshot.tabs.length > 0) {
-    await writeBrowserVisible(false).catch(function (error: unknown) {
+    await PUT_BROWSER_VISIBLE(false).catch(function (error: unknown) {
       console.warn('browser: 回灌时收回可见性失败', error)
     })
     if (typeof window !== 'undefined') {
@@ -225,7 +225,7 @@ interface NetworkEntry {
 }
 
 /** 网络列表：只包含开启记录之后发生的请求，最新的在前 */
-async function listBrowserNetwork(
+async function GET_BROWSER_NETWORK(
   label: string,
   filter?: string,
   limit = 200
@@ -258,7 +258,7 @@ interface InterceptStatus {
 }
 
 /** 设置拦截规则；传空数组 = 关闭。返回生效条数 + paused / matched 计数。 */
-async function setBrowserInterceptRules(
+async function PUT_BROWSER_INTERCEPT(
   label: string,
   rules: InterceptRule[]
 ): Promise<InterceptStatus> {
@@ -271,17 +271,17 @@ async function setBrowserInterceptRules(
  * `paused` 是「`Fetch.requestPaused` 真的来了」的证据，`matched` 是「规则真的命中」的证据：
  * 两个都停在 0 时不要怀疑页面，先看拦截通道本身。
  */
-async function fetchBrowserInterceptStatus(label: string): Promise<InterceptStatus> {
+async function GET_BROWSER_INTERCEPT_STATUS(label: string): Promise<InterceptStatus> {
   return invoke<InterceptStatus>('browser:intercept-status', { label })
 }
 
 /** 当前生效的规则（agent 也会改，UI 进视图时用它对齐） */
-async function listBrowserInterceptRules(label: string): Promise<InterceptRule[]> {
+async function GET_BROWSER_INTERCEPT_RULES(label: string): Promise<InterceptRule[]> {
   return invoke<InterceptRule[]>('browser:intercept-list', { label })
 }
 
 /** 上报内容区 rect（CSS px，相对窗口客户区；Tauri 会按 scale factor 换成物理像素） */
-async function writeBrowserRect(
+async function PUT_BROWSER_LAYOUT(
   x: number,
   y: number,
   width: number,
@@ -291,16 +291,16 @@ async function writeBrowserRect(
 }
 
 /** 前端要弹浮层 / 切走页签时让位 —— 原生子 webview 永远盖在 HTML 之上 */
-async function writeBrowserVisible(visible: boolean): Promise<void> {
+async function PUT_BROWSER_VISIBLE(visible: boolean): Promise<void> {
   await invoke('browser:visible', { visible })
 }
 
 /** CDP Overlay 元素拾取（VS Code 同款） */
-async function startBrowserPicker(label: string): Promise<void> {
+async function POST_BROWSER_PICKER(label: string): Promise<void> {
   await invoke('browser:picker-start', { label })
 }
 
-async function stopBrowserPicker(label: string): Promise<void> {
+async function DELETE_BROWSER_PICKER(label: string): Promise<void> {
   await invoke('browser:picker-stop', { label })
 }
 
@@ -310,7 +310,7 @@ async function stopBrowserPicker(label: string): Promise<void> {
  * `device = null` 退出；`fit` 是设备盒子相对面板的缩放比（前端算，Rust 只夹取）。
  * 返回的是页面**读回**的视口，不是我们下发的参数 —— 界面角标用真的那份。
  */
-async function setBrowserDevice(
+async function PUT_BROWSER_DEVICE(
   label: string,
   device: DeviceProfile | null,
   fit: number
@@ -319,7 +319,7 @@ async function setBrowserDevice(
 }
 
 /** 当前 tab 的设备档案（agent 也可能改过，UI 靠它对齐） */
-async function getBrowserDevice(label: string): Promise<DeviceProfile | null> {
+async function GET_BROWSER_DEVICE(label: string): Promise<DeviceProfile | null> {
   return invoke<DeviceProfile | null>('browser:find-device', { label })
 }
 
@@ -353,31 +353,31 @@ interface BrowserPickerActiveEvent {
 }
 
 export {
-  activateBrowserTab,
+  PUT_BROWSER_TAB_ACTIVE,
   BROWSER_VISIBILITY_RESET,
-  closeBrowserTab,
-  fetchBrowserHistoryState,
-  fetchBrowserInterceptStatus,
-  fetchBrowserNavigationHistory,
-  fetchBrowserUrl,
-  getBrowserDevice,
-  hydrateBrowserTabs,
-  listBrowserInterceptRules,
-  listBrowserNetwork,
-  navigateBrowser,
-  openBrowserDevtools,
-  openBrowserTab,
-  probeBrowser,
-  readBrowserPage,
-  reloadBrowser,
-  screenshotBrowser,
-  setBrowserDevice,
-  setBrowserInterceptRules,
-  startBrowserPicker,
-  stepBrowserHistory,
-  stopBrowserPicker,
-  writeBrowserRect,
-  writeBrowserVisible
+  DELETE_BROWSER_TAB,
+  GET_BROWSER_HISTORY,
+  GET_BROWSER_INTERCEPT_STATUS,
+  GET_BROWSER_NAVIGATION,
+  GET_BROWSER_URL,
+  GET_BROWSER_DEVICE,
+  GET_BROWSER_TABS,
+  GET_BROWSER_INTERCEPT_RULES,
+  GET_BROWSER_NETWORK,
+  PUT_BROWSER_URL,
+  POST_BROWSER_DEVTOOLS,
+  POST_BROWSER_TAB,
+  GET_BROWSER_PROBE,
+  GET_BROWSER_PAGE,
+  POST_BROWSER_RELOAD,
+  POST_BROWSER_SCREENSHOT,
+  PUT_BROWSER_DEVICE,
+  PUT_BROWSER_INTERCEPT,
+  POST_BROWSER_PICKER,
+  POST_BROWSER_HISTORY,
+  DELETE_BROWSER_PICKER,
+  PUT_BROWSER_LAYOUT,
+  PUT_BROWSER_VISIBLE
 }
 export type {
   BrowserDeviceResult,

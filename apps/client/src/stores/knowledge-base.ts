@@ -8,17 +8,17 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 
 import {
-  insertKnowledge,
-  discardStaged,
-  exportKnowledge as bundleExport,
-  listKnowledge,
-  listDocs,
-  listStaging,
-  mergeStaging,
-  publishDoc,
-  removeKnowledge as removeKnowledgeIPC,
-  rescanKnowledge,
-  updateKnowledge as updateKnowledgeIPC,
+  POST_KNOWLEDGE_BASE,
+  DELETE_KNOWLEDGE_STAGING,
+  POST_KNOWLEDGE_EXPORT as bundleExport,
+  GET_KNOWLEDGE_BASES,
+  GET_KNOWLEDGE_DOCS,
+  GET_KNOWLEDGE_STAGING,
+  POST_KNOWLEDGE_MERGE,
+  POST_KNOWLEDGE_PUBLISH,
+  DELETE_KNOWLEDGE_BASE as removeKnowledgeIPC,
+  POST_KNOWLEDGE_RESCAN,
+  PUT_KNOWLEDGE_BASE as updateKnowledgeIPC,
   type BasePatch,
   type KnowledgeBase,
   type KnowledgeDocSummary,
@@ -115,12 +115,12 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
   }
 
   async function fetchDocs(baseID: string | null): Promise<void> {
-    const docs = await listDocs(baseID ?? undefined)
+    const docs = await GET_KNOWLEDGE_DOCS(baseID ?? undefined)
     setter({ docs })
   }
 
   async function fetchStaging(baseID: string | null): Promise<void> {
-    const staging = await listStaging(baseID ?? undefined)
+    const staging = await GET_KNOWLEDGE_STAGING(baseID ?? undefined)
     setter({ staging })
   }
 
@@ -134,7 +134,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     })
     if (!base?.autoUpdate) return
     try {
-      await rescanKnowledge(base.id)
+      await POST_KNOWLEDGE_RESCAN(base.id)
     } catch (error) {
       reportCaught('knowledgeBase.syncFromDisk', error, 'warning')
     }
@@ -154,7 +154,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     async refresh() {
       setter({ isLoading: true, error: null })
       try {
-        const bases = await listKnowledge()
+        const bases = await GET_KNOWLEDGE_BASES()
         const activeBaseID =
           getter().activeBaseID && bases.some((base) => base.id === getter().activeBaseID)
             ? getter().activeBaseID
@@ -239,7 +239,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
 
     async insert(name, templateId = WIKI_TEMPLATE_GENERAL) {
       try {
-        const base = await insertKnowledge(name)
+        const base = await POST_KNOWLEDGE_BASE(name)
         await writeWikiTemplate(base.rootPath, templateId)
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
@@ -253,13 +253,13 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
 
     async importExample() {
       try {
-        const base = await insertKnowledge(DEMO_WIKI_NAME)
+        const base = await POST_KNOWLEDGE_BASE(DEMO_WIKI_NAME)
         await writeDemoWikiTree(base.rootPath)
         // 补齐 .agent / raw/parsed 等目录；已有 purpose/schema 不覆盖
         await ensureWikiScaffold(base.rootPath, WIKI_TEMPLATE_GENERAL)
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
-        await rescanKnowledge(base.id)
+        await POST_KNOWLEDGE_RESCAN(base.id)
         const settled = await Promise.allSettled([
           fetchDocs(base.id),
           fetchStaging(base.id)
@@ -284,7 +284,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       if (!baseID) return
       setter({ isLoading: true, error: null })
       try {
-        await rescanKnowledge(baseID)
+        await POST_KNOWLEDGE_RESCAN(baseID)
         await Promise.all([fetchDocs(baseID), fetchStaging(baseID)])
         setter({ isLoading: false })
       } catch (error) {
@@ -315,7 +315,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     async publish(file, mode) {
       setter({ isPublishing: true, error: null })
       try {
-        const published = await publishDoc(file.baseId, file.path, mode)
+        const published = await POST_KNOWLEDGE_PUBLISH(file.baseId, file.path, mode)
         await exportIfEnabled(file.baseId, published.relPath, published.title)
         const baseID = getter().activeBaseID
         await Promise.all([fetchDocs(baseID), fetchStaging(baseID)])
@@ -330,7 +330,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
 
     async discard(file) {
       try {
-        await discardStaged(file.path)
+        await DELETE_KNOWLEDGE_STAGING(file.path)
         setter({
           staging: getter().staging.filter(function (item) {
             return item.path !== file.path
@@ -347,7 +347,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       if (!baseID) return false
       setter({ isPublishing: true, error: null })
       try {
-        await mergeStaging(baseID, paths, title)
+        await POST_KNOWLEDGE_MERGE(baseID, paths, title)
         await getter().refresh()
         setter({ isPublishing: false })
         return true

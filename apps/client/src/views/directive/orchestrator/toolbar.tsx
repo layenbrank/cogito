@@ -10,7 +10,7 @@ import { Icon } from '@iconify/react/offline'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { editDirectiveExternal, fetchDirective } from '@/lib/directive-ipc.ts'
+import { POST_SIDECAR_DIRECTIVE_EDIT, GET_SIDECAR_DIRECTIVE } from '@/lib/directive-ipc.ts'
 import type { Caps } from '@/views/directive/run/run-caps'
 import { RunMenu } from '@/views/directive/run/run-menu'
 import { SurfaceToggle } from '@/views/directive/orchestrator/toolbar-surface-toggle.tsx'
@@ -62,7 +62,7 @@ function Toolbar(props: ToolbarProps) {
     setYamlOpen(true)
     setYamlLoading(true)
     try {
-      const document = await fetchDirective(props.name)
+      const document = await GET_SIDECAR_DIRECTIVE(props.name)
       setYamlText(document.yaml || '')
     } catch (error) {
       setYamlText('')
@@ -77,7 +77,7 @@ function Toolbar(props: ToolbarProps) {
   async function openExternal() {
     if (!props.name || props.isDirty || props.isPending) return
     try {
-      await editDirectiveExternal(props.name)
+      await POST_SIDECAR_DIRECTIVE_EDIT(props.name)
       toast.message('已请求外部编辑器')
     } catch (error) {
       toast.error('无法打开外部编辑器', {

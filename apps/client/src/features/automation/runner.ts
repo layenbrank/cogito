@@ -51,7 +51,7 @@ import {
   type AutomationApproval,
   type RunCounters
 } from '@/features/automation/run-plan'
-import { finishAutomationRun, patchAutomationRun, touchAutomationRun } from '@/lib/automation-ipc'
+import { POST_AUTOMATION_RUN_FINISH, PATCH_AUTOMATION_RUN, PUT_AUTOMATION_RUN_TOUCH } from '@/lib/automation-ipc'
 import { EVENTS } from '@/shared/ipc/channels'
 import {
   AutomationDueSchema,
@@ -598,9 +598,9 @@ async function execute(due: AutomationDue): Promise<void> {
     if (!scopeRoot) {
       console.warn('[agent.automation] 没有可用工作目录，本轮不做目录边界拦截:', due.automationId)
     }
-    await touchAutomationRun(due.runId)
+    await PUT_AUTOMATION_RUN_TOUCH(due.runId)
     heartbeat = setInterval(function () {
-      void touchAutomationRun(due.runId).catch(function (error) {
+      void PUT_AUTOMATION_RUN_TOUCH(due.runId).catch(function (error) {
         reportCaught('agent.automation.heartbeat', error, 'warning')
       })
     }, HEARTBEAT_MS)
@@ -614,11 +614,11 @@ async function execute(due: AutomationDue): Promise<void> {
     if (!session.bound) {
       await ensureAutomationSession(due.runId, due.name, session.workspaceID, target.providerID)
     }
-    await patchAutomationRun({ runId: due.runId, sessionId: threadID, phase })
+    await PATCH_AUTOMATION_RUN({ runId: due.runId, sessionId: threadID, phase })
 
     async function runPhase(current: AutomationMode, prompt: string): Promise<string> {
       phase = current
-      await patchAutomationRun({ runId: due.runId, phase: current })
+      await PATCH_AUTOMATION_RUN({ runId: due.runId, phase: current })
       publishAutomationLife({
         kind: 'phase',
         automationId: due.automationId,
@@ -688,7 +688,7 @@ async function execute(due: AutomationDue): Promise<void> {
       counters,
       approval
     )
-    await finishAutomationRun({ runId: due.runId, output })
+    await POST_AUTOMATION_RUN_FINISH({ runId: due.runId, output })
     await notifyAutomationRun(due.name, true, null)
     publishAutomationLife({
       kind: 'finish',
@@ -701,7 +701,7 @@ async function execute(due: AutomationDue): Promise<void> {
     reportCaught('agent.automation.run', error)
     const message = error instanceof Error ? error.message : String(error)
     try {
-      await finishAutomationRun({ runId: due.runId, error: message })
+      await POST_AUTOMATION_RUN_FINISH({ runId: due.runId, error: message })
     } catch (inner) {
       reportCaught('agent.automation.finish', inner)
     }

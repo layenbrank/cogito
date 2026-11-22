@@ -229,7 +229,7 @@ function CommandPalette() {
       const timer = window.setTimeout(function () {
         void (async function () {
           try {
-            const hits = (await WorkspaceFiles.search(roots, trimmed, 50)).hits.map(function (hit) {
+            const hits = (await WorkspaceFiles.GET_WORKSPACE_FILES_SEARCH(roots, trimmed, 50)).hits.map(function (hit) {
               return {
                 absolute: hit.path,
                 name: hit.name,

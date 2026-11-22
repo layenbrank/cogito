@@ -20,7 +20,7 @@ import { CHANNELS } from './channels'
  * @param paths 用户刚选的绝对路径
  * @param recursive 目录是否递归放行；选「文件夹」时传 true，选单个文件传 false
  */
-export async function grantPaths(paths: Array<string | null | undefined>, recursive = true): Promise<number> {
+export async function POST_SECURITY_GRANTS(paths: Array<string | null | undefined>, recursive = true): Promise<number> {
   const list = paths.filter((path): path is string => Boolean(path && path.trim()))
   if (list.length === 0) return 0
   try {
@@ -32,6 +32,6 @@ export async function grantPaths(paths: Array<string | null | undefined>, recurs
 }
 
 /** 重建授权集（设置 → 诊断用：工作区/素材改动后手动刷新）。 */
-export async function rebuildGrants(): Promise<{ grantedDirs: number; grantedFiles: number; errors: string[] }> {
+export async function POST_SECURITY_GRANTS_REBUILD(): Promise<{ grantedDirs: number; grantedFiles: number; errors: string[] }> {
   return invoke(CHANNELS.SECURITY.REBUILD)
 }

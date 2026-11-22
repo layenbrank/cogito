@@ -89,7 +89,7 @@ function TerminalTabs(props: TerminalTabsProps) {
 
   function handleCloseTab(id: string) {
     // 关 UI tab 同时杀 Rust 会话，否则刷新后 list 仍能看到孤儿 PTY
-    void Terminal.kill(id).catch(function (error) {
+    void Terminal.DELETE_TERMINAL(id).catch(function (error) {
       console.warn('[terminal] kill 失败:', id, error)
     })
     useTerminalStore.getState().removeTab(id)

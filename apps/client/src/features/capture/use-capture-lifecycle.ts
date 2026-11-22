@@ -3,10 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import { makeCaptureSessionID } from '@/features/capture/history'
 import {
   fetchImageFromPath,
-  notifyCaptureReady,
-  refreshCapture,
-  takePendingScreenshot,
-  takeScreenshot
+  POST_CAPTURE_READY,
+  POST_CAPTURE_REFRESH,
+  GET_CAPTURE_PENDING,
+  POST_CAPTURE_SCREENSHOT
 } from '@/features/capture/tauri'
 import { useCaptureActiveSession } from '@/features/capture/use-capture-active-session'
 import { useSettingsStore } from '@/stores/setting'
@@ -48,7 +48,7 @@ function useCaptureLifecycle(input: {
       let cancelled = false
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          if (!cancelled) void notifyCaptureReady()
+          if (!cancelled) void POST_CAPTURE_READY()
         })
       })
       return function () {
@@ -73,7 +73,7 @@ function useCaptureLifecycle(input: {
     input.onUpdateCaptureStatus('loading')
     input.onUpdateCaptureError(null)
     try {
-      const result = await refreshCapture()
+      const result = await POST_CAPTURE_REFRESH()
       const image = await fetchImageFromPath(result.path)
       input.regionsRef.current = result.regions ?? []
       input.onUpdateSourcePath(result.path)
@@ -90,7 +90,7 @@ function useCaptureLifecycle(input: {
     input.onUpdateCaptureStatus('loading')
     input.onUpdateCaptureError(null)
     try {
-      const result = forceFresh ? await takeScreenshot() : await takePendingScreenshot()
+      const result = forceFresh ? await POST_CAPTURE_SCREENSHOT() : await GET_CAPTURE_PENDING()
       if (!result) {
         throw new Error('未找到预截图，请点重试')
       }

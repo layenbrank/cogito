@@ -54,8 +54,8 @@ import { findToolRisk, RISK_META } from '@/features/agent/tool-risk'
 import {
   classifyEntry,
   listUserEntries,
-  readGoosePermissions,
-  resetGoosePermissions,
+  GET_GOOSE_PERMISSIONS,
+  DELETE_GOOSE_PERMISSIONS,
   type GoosePermissions
 } from '@/shared/ipc/goose-permissions'
 import { useAgentStore } from '@/stores/agent'
@@ -87,7 +87,7 @@ function ToolPermissionsSection() {
       let cancelled = false
       async function load() {
         try {
-          const snapshot = await readGoosePermissions()
+          const snapshot = await GET_GOOSE_PERMISSIONS()
           if (!cancelled) {
             updatePermissions(snapshot)
             updatePermissionsError(null)
@@ -183,7 +183,7 @@ function ToolPermissionsSection() {
     updatePendingReset(false)
     updateResetting(true)
     try {
-      const backup = await resetGoosePermissions()
+      const backup = await DELETE_GOOSE_PERMISSIONS()
       if (backup) {
         toast.success('已重置手动审批偏好（goose 已重启）')
         console.info('[settings/tool-permissions] 审批偏好的备份:', backup)

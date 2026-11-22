@@ -301,7 +301,7 @@ const useClipchampStore = create<ClipchampState>()(
             }
 
             try {
-              const probed = await MediaIpc.probe(path)
+              const probed = await MediaIpc.GET_MEDIA_PROBE(path)
               if (probed.durationMs > 0) durationMs = probed.durationMs
               width = probed.width
               height = probed.height
@@ -344,7 +344,7 @@ const useClipchampStore = create<ClipchampState>()(
             durationMs = durationMs || (await probeHtmlDuration(src))
           }
           try {
-            const probed = await MediaIpc.probe(asset.path)
+            const probed = await MediaIpc.GET_MEDIA_PROBE(asset.path)
             if (probed.durationMs > 0) durationMs = probed.durationMs
             width = probed.width
             height = probed.height
@@ -609,7 +609,7 @@ const useClipchampStore = create<ClipchampState>()(
 
           try {
             const args = buildExportArgs(project, assets, dest, preset)
-            await MediaIpc.exportVideo(args)
+            await MediaIpc.POST_MEDIA_EXPORT(args)
             setter({ exportProgress: 100 })
             toast.success(`导出完成：${dest}`)
             await new Promise(function (resolve) {

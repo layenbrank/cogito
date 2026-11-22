@@ -14,9 +14,9 @@ import { useEffect, useRef, useState } from 'react'
 
 import {
   BROWSER_VISIBILITY_RESET,
-  screenshotBrowser,
-  writeBrowserRect,
-  writeBrowserVisible
+  POST_BROWSER_SCREENSHOT,
+  PUT_BROWSER_LAYOUT,
+  PUT_BROWSER_VISIBLE
 } from './api'
 import { findCoveringOverlay, hasCoverMarker } from './overlay-cover'
 
@@ -92,7 +92,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
         lastRectRef.current = null
         updatePaused(false)
         updatePauseSrc(null)
-        void writeBrowserVisible(false).catch(function (error) {
+        void PUT_BROWSER_VISIBLE(false).catch(function (error) {
           console.warn('browser: 上报可见性失败', error)
         })
         return
@@ -103,7 +103,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
       /** 拍一帧当前页面，作为「原生层藏起来」时的占位图 */
       async function captureFrame(label: string): Promise<string | null> {
         try {
-          const shot = await screenshotBrowser(label, 'jpeg')
+          const shot = await POST_BROWSER_SCREENSHOT(label, 'jpeg')
           if (!shot?.base64) return null
           lastFrameAtRef.current = Date.now()
           return `data:${shot.mimeType};base64,${shot.base64}`
@@ -132,7 +132,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
       async function reportVisible(visible: boolean) {
         if (visible === lastVisibleRef.current) return
         try {
-          await writeBrowserVisible(visible)
+          await PUT_BROWSER_VISIBLE(visible)
           // 仅 IPC 成功后才锁住本地态，失败保持可重试（否则会永久白屏）
           lastVisibleRef.current = visible
         } catch (error) {
@@ -154,7 +154,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
           return
         }
         lastRectRef.current = next
-        void writeBrowserRect(next.left, next.top, next.width, next.height).catch(function (error) {
+        void PUT_BROWSER_LAYOUT(next.left, next.top, next.width, next.height).catch(function (error) {
           console.warn('browser: 上报 rect 失败', error)
         })
       }
@@ -225,7 +225,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
           updatePaused(false)
           updatePauseSrc(null)
           // 兜底：本地以为可见时仍补一次 show，避免与 Rust 脱节后永久白屏
-          void writeBrowserVisible(true).catch(function (error) {
+          void PUT_BROWSER_VISIBLE(true).catch(function (error) {
             console.warn('browser: 补发可见性失败', error)
           })
           return

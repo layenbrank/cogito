@@ -71,12 +71,12 @@ async function attachWhenReady(
   id: string,
   onOutput: (data: Uint8Array) => void,
   isCancelled: () => boolean
-): Promise<Awaited<ReturnType<typeof Terminal.attach>>> {
+): Promise<Awaited<ReturnType<typeof Terminal.POST_TERMINAL_ATTACH>>> {
   let lastError: unknown = null
   for (let attempt = 0; attempt < 24; attempt += 1) {
     if (isCancelled()) throw new Error('视图已卸载')
     try {
-      return await Terminal.attach(id, onOutput)
+      return await Terminal.POST_TERMINAL_ATTACH(id, onOutput)
     } catch (error) {
       lastError = error
       console.debug('[terminal] attach 未就绪，重试:', id, error)
@@ -111,7 +111,7 @@ function TerminalView(props: TerminalViewProps) {
   /**
    * `restored` 只决定「首次挂载要不要先 attach」，**不能进 effect 依赖**：
    * 后台同步（`bootstrapTerminalSessions`）会把已经在跑的 tab 标成 `restored`，
-   * 依赖一变整个 effect 重跑 —— 旧视图卸载、引用计数归零、`Terminal.kill` 把
+   * 依赖一变整个 effect 重跑 —— 旧视图卸载、引用计数归零、`Terminal.DELETE_TERMINAL` 把
    * 用户正在用的 shell 杀掉，新视图再 `create` 一个新 shell。
    * 表现出来就是「终端时不时空白/重启」。用 ref 读，不触发重挂。
    */
@@ -256,13 +256,13 @@ function TerminalView(props: TerminalViewProps) {
             })
           } else if (preferAttach) {
             try {
-              created = await Terminal.attach(props.id, onOutput)
+              created = await Terminal.POST_TERMINAL_ATTACH(props.id, onOutput)
             } catch (attachError) {
               // 先确认 Hub 里是否还在：IPC 抖动时误 create 会杀长跑（即使 Rust 已禁 silent kill）
               console.warn('[terminal] attach 失败，核对 list 后再决定:', props.id, attachError)
               let stillAlive = false
               try {
-                const listed = await Terminal.list()
+                const listed = await Terminal.GET_TERMINALS()
                 stillAlive = listed.some(function (session) {
                   return session.id === props.id
                 })
@@ -274,15 +274,15 @@ function TerminalView(props: TerminalViewProps) {
                   return disposed
                 })
               } else {
-                created = await Terminal.create(props.cwd, props.id, onOutput)
+                created = await Terminal.POST_TERMINAL(props.cwd, props.id, onOutput)
               }
             }
           } else {
-            created = await Terminal.create(props.cwd, props.id, onOutput)
+            created = await Terminal.POST_TERMINAL(props.cwd, props.id, onOutput)
           }
           if (disposed) {
             // attach 的场景会话归 agent / 其他宿主所有，别把别人的 shell 一起杀掉
-            if (!preferAttach && isOwner) void Terminal.kill(props.id)
+            if (!preferAttach && isOwner) void Terminal.DELETE_TERMINAL(props.id)
             return
           }
           if (created.pid !== null && created.pid !== undefined) {
@@ -298,13 +298,13 @@ function TerminalView(props: TerminalViewProps) {
           }
           terminal.onData(function (data) {
             if (exitedRef.current) return
-            void Terminal.write(props.id, textEncoder.encode(data)).catch(function (error) {
+            void Terminal.PUT_TERMINAL_WRITE(props.id, textEncoder.encode(data)).catch(function (error) {
               console.warn('[terminal] write 失败:', props.id, error)
             })
           })
           terminal.onResize(function (size) {
             if (exitedRef.current) return
-            void Terminal.resize(props.id, size.rows, size.cols).catch(function (error) {
+            void Terminal.PUT_TERMINAL_RESIZE(props.id, size.rows, size.cols).catch(function (error) {
               console.warn('[terminal] resize 失败:', props.id, error)
             })
           })

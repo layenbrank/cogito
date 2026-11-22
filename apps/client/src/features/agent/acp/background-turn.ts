@@ -13,14 +13,14 @@
 import type { ChatStreamEvent } from '@cogito/chat/ports'
 
 import {
-  appendAgentTurn,
-  clearAgentTurnRunning,
-  ensureAgentTurn,
-  finishAgentTurn,
-  followAgentTurn,
-  forgetAgentTurn,
-  listAgentTurnRunning,
-  markAgentTurnRunning
+  POST_AGENT_TURN,
+  DELETE_AGENT_TURN_RUNNING,
+  POST_AGENT_TURN_ENSURE,
+  PUT_AGENT_TURN_FINISH,
+  GET_AGENT_TURN,
+  DELETE_AGENT_TURN,
+  GET_AGENT_TURNS_RUNNING,
+  PUT_AGENT_TURN_RUNNING
 } from '@/features/agent/acp/agent-turn-ipc'
 
 type TurnListener = (event: ChatStreamEvent | null) => void
@@ -102,7 +102,7 @@ function markPersistedRunning(threadID: string): void {
     ids.push(threadID)
     writeRunningTurns(ids)
   }
-  void markAgentTurnRunning(threadID).then(function (next) {
+  void PUT_AGENT_TURN_RUNNING(threadID).then(function (next) {
     if (next) writeRunningTurns(next)
   })
 }
@@ -113,7 +113,7 @@ function clearPersistedRunning(threadID: string): void {
     return id !== threadID
   })
   if (next.length !== ids.length) writeRunningTurns(next)
-  void clearAgentTurnRunning(threadID).then(function (remote) {
+  void DELETE_AGENT_TURN_RUNNING(threadID).then(function (remote) {
     if (remote) writeRunningTurns(remote)
   })
 }
@@ -125,7 +125,7 @@ function hasPersistedRunningTurn(threadID: string): boolean {
 
 /** 启动时尽量用 Rust running 集合覆盖 localStorage 镜像 */
 function syncRunningTurnsFromRust(): void {
-  void listAgentTurnRunning().then(function (ids) {
+  void GET_AGENT_TURNS_RUNNING().then(function (ids) {
     if (ids) writeRunningTurns(ids)
   })
 }
@@ -282,7 +282,7 @@ function forgetTurnLater(turn: BackgroundTurn) {
       turn.events = []
       turn.pendingAppend = []
       turns.delete(turn.threadID)
-      void forgetAgentTurn(turn.threadID)
+      void DELETE_AGENT_TURN(turn.threadID)
     }
   }, TURN_RETENTION_MS)
 }
@@ -324,7 +324,7 @@ function flushPendingAppend(turn: BackgroundTurn): Promise<void> {
       // 前一次失败不阻断后续批写
     })
     .then(function () {
-      return appendAgentTurn(turn.threadID, batch)
+      return POST_AGENT_TURN(turn.threadID, batch)
     })
     .then(function () {})
     .catch(function (error) {
@@ -387,7 +387,7 @@ async function abortBackgroundTurn(threadID: string): Promise<void> {
       existing.status = 'done'
       if (turns.get(key) === existing) turns.delete(key)
       clearPersistedRunning(key)
-      void finishAgentTurn(key).catch(function (error: unknown) {
+      void PUT_AGENT_TURN_FINISH(key).catch(function (error: unknown) {
         console.warn('[acp/background-turn] 强行让位时收尾失败:', error)
       })
       return
@@ -417,7 +417,7 @@ function spawnBackgroundPump(
   }
   turns.set(threadID, turn)
   markPersistedRunning(threadID)
-  void ensureAgentTurn(threadID)
+  void POST_AGENT_TURN_ENSURE(threadID)
 
   void (async function () {
     try {
@@ -447,7 +447,7 @@ function spawnBackgroundPump(
       turn.status = 'done'
       clearPersistedRunning(turn.threadID)
       await drainPendingAppend(turn)
-      await finishAgentTurn(turn.threadID)
+      await PUT_AGENT_TURN_FINISH(turn.threadID)
       notifyTurn(turn, null)
       if (!turn.deliveredTerminal && turn.persister) {
         try {
@@ -607,7 +607,7 @@ async function* followBackgroundTurn(
         yield { kind: 'aborted', usage: {} }
         return
       }
-      const followed = await followAgentTurn(threadID, cursor)
+      const followed = await GET_AGENT_TURN(threadID, cursor)
       if (!followed || followed.status === 'missing') {
         if (!sawTerminal) yield synthesizeMissingTerminal(cancel.signal)
         return
@@ -633,7 +633,7 @@ async function* followBackgroundTurn(
  * orphan 落库用：含终态的一侧优先；Rust 缺终态时回落本地镜像，避免丢 finish。
  */
 async function findTurnEvents(turn: BackgroundTurn): Promise<ChatStreamEvent[]> {
-  const remote = await followAgentTurn(turn.threadID, 0)
+  const remote = await GET_AGENT_TURN(turn.threadID, 0)
   const remoteEvents = remote?.events ?? []
   const localEvents = turn.events
   const remoteHasTerminal = remoteEvents.some(isTerminalEvent)

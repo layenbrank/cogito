@@ -146,25 +146,25 @@ interface WorktreeEntry {
   isMain: boolean
 }
 
-async function probe(path: string) {
+async function GET_GIT_PROBE(path: string) {
   return invoke<ProbeResult>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path } })
 }
 
-async function fetchBranches(path: string) {
+async function GET_GIT_BRANCHES(path: string) {
   return invoke<BranchesResult>(CHANNELS.WORKSPACE_GIT.BRANCHES, { params: { path } })
 }
 
-async function checkout(path: string, branch: string, fromRemote?: string | null) {
+async function PUT_GIT_BRANCH(path: string, branch: string, fromRemote?: string | null) {
   return invoke<CheckoutResult>(CHANNELS.WORKSPACE_GIT.CHECKOUT, {
     params: { path, branch, fromRemote: fromRemote ?? null }
   })
 }
 
-async function status(path: string) {
+async function GET_GIT_STATUS(path: string) {
   return invoke<StatusResult>(CHANNELS.WORKSPACE_GIT.STATUS, { params: { path } })
 }
 
-async function invalidate(path: string) {
+async function POST_GIT_INVALIDATE(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.INVALIDATE, { params: { path } })
 }
 
@@ -231,25 +231,25 @@ function withRevs(params: Record<string, unknown>, revs?: DiffRevs) {
   return params
 }
 
-async function diff(path: string, filePath: string, revs?: DiffRevs) {
+async function GET_GIT_DIFF(path: string, filePath: string, revs?: DiffRevs) {
   return invoke<DiffResult>(CHANNELS.WORKSPACE_GIT.DIFF, {
     params: withRevs({ path, filePath }, revs)
   })
 }
 
-async function diffMeta(path: string, filePath: string, revs?: DiffRevs) {
+async function GET_GIT_DIFF_META(path: string, filePath: string, revs?: DiffRevs) {
   return invoke<DiffMeta>(CHANNELS.WORKSPACE_GIT.DIFF_META, {
     params: withRevs({ path, filePath }, revs)
   })
 }
 
-async function diffHunks(path: string, filePath: string, offset = 0, limit = 40, revs?: DiffRevs) {
+async function GET_GIT_DIFF_HUNKS(path: string, filePath: string, offset = 0, limit = 40, revs?: DiffRevs) {
   return invoke<DiffHunksResult>(CHANNELS.WORKSPACE_GIT.DIFF_HUNKS, {
     params: withRevs({ path, filePath, offset, limit }, revs)
   })
 }
 
-async function search(
+async function GET_GIT_SEARCH(
   path: string,
   options: {
     query?: string
@@ -269,53 +269,53 @@ async function search(
   })
 }
 
-async function show(path: string, oid: string) {
+async function GET_GIT_SHOW(path: string, oid: string) {
   return invoke<ShowResult>(CHANNELS.WORKSPACE_GIT.SHOW, { params: { path, oid } })
 }
 
-async function stage(path: string, paths: string[]) {
+async function PUT_GIT_STAGE(path: string, paths: string[]) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.STAGE, { params: { path, paths } })
 }
 
-async function unstage(path: string, paths: string[]) {
+async function PUT_GIT_UNSTAGE(path: string, paths: string[]) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.UNSTAGE, { params: { path, paths } })
 }
 
-async function discard(path: string, paths: string[], isUntracked = false) {
+async function DELETE_GIT_CHANGES(path: string, paths: string[], isUntracked = false) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.DISCARD, {
     params: { path, paths, isUntracked }
   })
 }
 
-async function commit(path: string, message: string, isStageAll: boolean) {
+async function POST_GIT_COMMIT(path: string, message: string, isStageAll: boolean) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.COMMIT, {
     params: { path, message, isStageAll }
   })
 }
 
-async function upstream(path: string) {
+async function GET_GIT_UPSTREAM(path: string) {
   return invoke<UpstreamResult>(CHANNELS.WORKSPACE_GIT.UPSTREAM, { params: { path } })
 }
 
-async function fetchAll(path: string) {
+async function POST_GIT_FETCH(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.FETCH, { params: { path } })
 }
 
-async function push(path: string, branch: string, isSetUpstream = false) {
+async function POST_GIT_PUSH(path: string, branch: string, isSetUpstream = false) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.PUSH, {
     params: { path, branch, isSetUpstream }
   })
 }
 
-async function pull(path: string) {
+async function POST_GIT_PULL(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.PULL, { params: { path } })
 }
 
-async function state(path: string) {
+async function GET_GIT_STATE(path: string) {
   return invoke<GitState>(CHANNELS.WORKSPACE_GIT.STATE, { params: { path } })
 }
 
-async function stashPush(
+async function POST_GIT_STASH(
   path: string,
   options: { message?: string; isIncludeUntracked?: boolean } = {}
 ) {
@@ -329,18 +329,18 @@ async function stashPush(
 }
 
 /** `isPop` 默认 true（应用后丢弃）；false = 只应用、保留储藏 */
-async function stashApply(path: string, index: number, isPop = true) {
+async function PUT_GIT_STASH(path: string, index: number, isPop = true) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.STASH_APPLY, {
     params: { path, index, isPop }
   })
 }
 
-async function stashDrop(path: string, index: number) {
+async function DELETE_GIT_STASH(path: string, index: number) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.STASH_DROP, { params: { path, index } })
 }
 
 /** `upstream` 缺省 = 当前分支的上游（`git rebase` 无参数语义） */
-async function rebase(path: string, upstream?: string | null, isAutostash = true) {
+async function POST_GIT_REBASE(path: string, upstream?: string | null, isAutostash = true) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.REBASE, {
     params: {
       path,
@@ -350,19 +350,19 @@ async function rebase(path: string, upstream?: string | null, isAutostash = true
   })
 }
 
-async function rebaseContinue(path: string) {
+async function POST_GIT_REBASE_CONTINUE(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.REBASE_CONTINUE, { params: { path } })
 }
 
-async function rebaseAbort(path: string) {
+async function DELETE_GIT_REBASE(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.REBASE_ABORT, { params: { path } })
 }
 
-async function worktreeList(path: string) {
+async function GET_GIT_WORKTREES(path: string) {
   return invoke<WorktreeEntry[]>(CHANNELS.WORKSPACE_GIT.WORKTREE_LIST, { params: { path } })
 }
 
-async function worktreeAdd(
+async function POST_GIT_WORKTREE(
   path: string,
   options: { targetPath: string; branch?: string; isNewBranch?: boolean }
 ) {
@@ -376,41 +376,41 @@ async function worktreeAdd(
   })
 }
 
-async function worktreeRemove(path: string, targetPath: string, isForce = false) {
+async function DELETE_GIT_WORKTREE(path: string, targetPath: string, isForce = false) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.WORKTREE_REMOVE, {
     params: { path, targetPath, isForce }
   })
 }
 
 const WorkspaceGit = {
-  probe,
-  fetchBranches,
-  checkout,
-  status,
-  invalidate,
-  diff,
-  diffMeta,
-  diffHunks,
-  search,
-  show,
-  stage,
-  unstage,
-  discard,
-  commit,
-  fetchAll,
-  pull,
-  push,
-  upstream,
-  state,
-  stashPush,
-  stashApply,
-  stashDrop,
-  rebase,
-  rebaseContinue,
-  rebaseAbort,
-  worktreeList,
-  worktreeAdd,
-  worktreeRemove
+  GET_GIT_PROBE,
+  GET_GIT_BRANCHES,
+  PUT_GIT_BRANCH,
+  GET_GIT_STATUS,
+  POST_GIT_INVALIDATE,
+  GET_GIT_DIFF,
+  GET_GIT_DIFF_META,
+  GET_GIT_DIFF_HUNKS,
+  GET_GIT_SEARCH,
+  GET_GIT_SHOW,
+  PUT_GIT_STAGE,
+  PUT_GIT_UNSTAGE,
+  DELETE_GIT_CHANGES,
+  POST_GIT_COMMIT,
+  POST_GIT_FETCH,
+  POST_GIT_PULL,
+  POST_GIT_PUSH,
+  GET_GIT_UPSTREAM,
+  GET_GIT_STATE,
+  POST_GIT_STASH,
+  PUT_GIT_STASH,
+  DELETE_GIT_STASH,
+  POST_GIT_REBASE,
+  POST_GIT_REBASE_CONTINUE,
+  DELETE_GIT_REBASE,
+  GET_GIT_WORKTREES,
+  POST_GIT_WORKTREE,
+  DELETE_GIT_WORKTREE
 }
 
 export { WorkspaceGit }

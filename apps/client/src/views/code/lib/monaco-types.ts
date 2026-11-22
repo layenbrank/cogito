@@ -324,7 +324,7 @@ async function packTypesInChunks(root: string): Promise<{
   let isTruncated = false
   for (let index = 0; index < PACK_TYPES_MAX_CHUNKS; index += 1) {
     const chunk = await runWhenIdle(function () {
-      return WorkspaceFiles.packTypes(root, offset, PACK_TYPES_CHUNK)
+      return WorkspaceFiles.GET_WORKSPACE_TYPES(root, offset, PACK_TYPES_CHUNK)
     })
     console.debug('[monaco-types] packTypes 块', index + 1, chunk.files.length, '个文件', 'offset', offset)
     files.push(...chunk.files)

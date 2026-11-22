@@ -97,7 +97,7 @@ function createOrderedSink(onmessage: (data: Uint8Array) => void) {
  * 首批实时输出可能在 `invoke` 返回前到达，晚绑会丢首包。
  * 历史缓冲则随返回值 `replay` 写入，不依赖 Channel Raw。
  */
-async function create(
+async function POST_TERMINAL(
   cwd: string,
   id: string,
   onmessage: (data: Uint8Array) => void
@@ -122,7 +122,7 @@ async function create(
  *
  * 历史输出经 `replay` 回放，实时流走 Channel；与 `create` 的区别是**不会重建会话**。
  */
-async function attach(
+async function POST_TERMINAL_ATTACH(
   id: string,
   onmessage: (data: Uint8Array) => void
 ): Promise<TerminalCreatedWithChannel> {
@@ -142,12 +142,12 @@ async function attach(
 }
 
 /** 写入用户输入（UTF-8 字节）。 */
-function write(id: string, data: Uint8Array): Promise<void> {
+function PUT_TERMINAL_WRITE(id: string, data: Uint8Array): Promise<void> {
   return invoke(CHANNELS.TERMINAL.WRITE, { id, data: Array.from(data) })
 }
 
 /** 同步 PTY 尺寸（rows/cols 以 xterm 为准）。 */
-function resize(id: string, rows: number, cols: number): Promise<void> {
+function PUT_TERMINAL_RESIZE(id: string, rows: number, cols: number): Promise<void> {
   return invoke(CHANNELS.TERMINAL.RESIZE, {
     id,
     rows,
@@ -158,7 +158,7 @@ function resize(id: string, rows: number, cols: number): Promise<void> {
 }
 
 /** 终止会话；已不存在时视为成功（卸载 / 重复 kill 幂等）。 */
-async function kill(id: string): Promise<void> {
+async function DELETE_TERMINAL(id: string): Promise<void> {
   try {
     await invoke(CHANNELS.TERMINAL.KILL, { id })
   } catch (error) {
@@ -169,7 +169,7 @@ async function kill(id: string): Promise<void> {
 }
 
 /** 列出存活会话（诊断 / 恢复用）。 */
-function list(): Promise<TerminalInfo[]> {
+function GET_TERMINALS(): Promise<TerminalInfo[]> {
   return invoke<TerminalInfo[]>(CHANNELS.TERMINAL.LIST)
 }
 
@@ -179,24 +179,24 @@ function list(): Promise<TerminalInfo[]> {
  * 传 `scope`（线程 id）时得到 `agent:<cwd>#<scope>` —— 与 `terminal:run` 传同一个
  * scope 才能落到同一个 PTY；不传退化为旧的 `agent:<cwd>`。
  */
-function resolveAgentId(cwd: string, scope?: string): Promise<string> {
+function GET_TERMINAL_AGENT_ID(cwd: string, scope?: string): Promise<string> {
   return invoke<string>(CHANNELS.TERMINAL.RESOLVE_AGENT_ID, { cwd, scope })
 }
 
 /** 读取系统默认终端字体（Windows Terminal 默认 profile / conhost 注册表）。 */
-function font(): Promise<TerminalFont> {
+function GET_TERMINAL_FONT(): Promise<TerminalFont> {
   return invoke<TerminalFont>(CHANNELS.TERMINAL.FONT)
 }
 
 const Terminal = {
-  create,
-  attach,
-  write,
-  resize,
-  kill,
-  list,
-  resolveAgentId,
-  font
+  POST_TERMINAL,
+  POST_TERMINAL_ATTACH,
+  PUT_TERMINAL_WRITE,
+  PUT_TERMINAL_RESIZE,
+  DELETE_TERMINAL,
+  GET_TERMINALS,
+  GET_TERMINAL_AGENT_ID,
+  GET_TERMINAL_FONT
 }
 
 export { Terminal, parseTerminalBytes }

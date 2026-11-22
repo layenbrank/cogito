@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 
-import { copyImage, pinTexture, saveToUserPath } from '@/features/capture/clipboard'
+import { copyImage, pinTexture, POST_CAPTURE_PNG } from '@/features/capture/clipboard'
 import type { AnnotationHandle } from '@/features/capture/components/annotation'
 import { toRecordCapture } from '@/features/capture/history'
 import { reportCaught } from '@/utils/exception-report'
@@ -57,7 +57,7 @@ function buildCaptureExport(input: CaptureExportInput) {
 
   function handleSave() {
     void withStagePng(input.annotationRef, async function (dataUrl) {
-      const path = await saveToUserPath(dataUrl)
+      const path = await POST_CAPTURE_PNG(dataUrl)
       // 用户取消另存时不产生历史记录
       if (!path) return
       await recordHistory(dataUrl)

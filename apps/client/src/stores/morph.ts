@@ -280,7 +280,7 @@ const useMorphStore = create<MorphState>()(
           await Promise.all(
             extraPaths.map(async function (path) {
               try {
-                const meta: Meta = await MorphIpc.toMeta(path)
+                const meta: Meta = await MorphIpc.GET_MORPH_META(path)
                 setter(function (s) {
                   if (!s.files.some(function (f) {
                     return f.path === path
@@ -301,7 +301,7 @@ const useMorphStore = create<MorphState>()(
             s.isLoading = true
           })
           try {
-            const meta: Meta = await MorphIpc.toMeta(path)
+            const meta: Meta = await MorphIpc.GET_MORPH_META(path)
             await upsertFile(meta)
 
             const annotations = await queryAnnotations(path)
@@ -480,7 +480,7 @@ const useMorphStore = create<MorphState>()(
           const scale = zoom * 2
           try {
             // 以 zoom×2 渲染保证清晰；画布 CSS 尺寸在 canvas 中 ÷2
-            const image: Render = await MorphIpc.toRender(path, offset, scale)
+            const image: Render = await MorphIpc.GET_MORPH_RENDER(path, offset, scale)
             const latest = getter()
             if (latest.file?.path !== path || latest.zoom !== zoom) return
             setter((s) => {
@@ -529,7 +529,7 @@ const useMorphStore = create<MorphState>()(
             s.thumbnailsError = null
           })
           try {
-            const thumbs: Render[] = await MorphIpc.toThumbnails(file.path, 0.6)
+            const thumbs: Render[] = await MorphIpc.GET_MORPH_THUMBNAILS(file.path, 0.6)
             setter((s) => {
               s.thumbnails = thumbs
               s.thumbnailsError = null
@@ -548,7 +548,7 @@ const useMorphStore = create<MorphState>()(
         async toMatchText(query: string) {
           const { file } = getter()
           if (!file || !query.trim()) return
-          const results: Hit[] = await MorphIpc.toMatch(file.path, query)
+          const results: Hit[] = await MorphIpc.GET_MORPH_MATCH(file.path, query)
           setter((s) => {
             s.search.query = query
             s.search.results = results
@@ -671,7 +671,7 @@ const useMorphStore = create<MorphState>()(
         async toExportDoc(destPath: string) {
           const { file } = getter()
           if (!file) return
-          await MorphIpc.toExport(file.path, destPath)
+          await MorphIpc.POST_MORPH_EXPORT(file.path, destPath)
         },
 
         // ── doc operations ───────────────────────────────────────────
@@ -748,7 +748,7 @@ const useMorphStore = create<MorphState>()(
             s.mergeModal.error = null
           })
           try {
-            await MorphIpc.toMerge(mergeModal.inputs, mergeModal.output)
+            await MorphIpc.POST_MORPH_MERGE(mergeModal.inputs, mergeModal.output)
             toast.success(`合并完成 → ${mergeModal.output}`)
             getter().toCloseOperation()
           } catch (e) {
@@ -783,7 +783,7 @@ const useMorphStore = create<MorphState>()(
             s.mergeModal.error = null
           })
           try {
-            const outPath = await MorphIpc.toStack(file.path, mergeModal.output)
+            const outPath = await MorphIpc.POST_MORPH_STACK(file.path, mergeModal.output)
             toast.success(`拼接完成 → ${outPath}`)
             getter().toCloseOperation()
           } catch (e) {
@@ -841,7 +841,7 @@ const useMorphStore = create<MorphState>()(
               if (!rangeParts.length) {
                 throw new Error('请输入有效页码范围（不超过总页数）')
               }
-              const paths: string[] = await MorphIpc.toSplit(file.path, splitModal.destDir, {
+              const paths: string[] = await MorphIpc.POST_MORPH_SPLIT(file.path, splitModal.destDir, {
                 ranges: rangeParts
               })
               toast.success(`拆分完成，已生成 ${paths.length} 个文件 → ${splitModal.destDir}`)
@@ -849,7 +849,7 @@ const useMorphStore = create<MorphState>()(
               if (splitModal.limit <= 0) {
                 throw new Error('每文件页数须大于 0')
               }
-              const paths: string[] = await MorphIpc.toSplit(file.path, splitModal.destDir, {
+              const paths: string[] = await MorphIpc.POST_MORPH_SPLIT(file.path, splitModal.destDir, {
                 limit: splitModal.limit
               })
               toast.success(`拆分完成，已生成 ${paths.length} 个文件 → ${splitModal.destDir}`)
@@ -882,7 +882,7 @@ const useMorphStore = create<MorphState>()(
           })
           try {
             if (convertModal.format === 'png' || convertModal.format === 'jpg') {
-              const paths: string[] = await MorphIpc.toImages(
+              const paths: string[] = await MorphIpc.POST_MORPH_IMAGES(
                 file.path,
                 convertModal.scale,
                 convertModal.format,
@@ -892,7 +892,7 @@ const useMorphStore = create<MorphState>()(
                 `转换完成，已生成 ${paths.length} 张图片 → ${convertModal.destDir}`
               )
             } else {
-              const outPath: string = await MorphIpc.toDocument(
+              const outPath: string = await MorphIpc.POST_MORPH_DOCUMENT(
                 file.path,
                 convertModal.format,
                 convertModal.destDir
@@ -932,12 +932,12 @@ const useMorphStore = create<MorphState>()(
           try {
             let outPath = organizeModal.dest
             if (action === 'reorder') {
-              outPath = await MorphIpc.toReorder(file.path, organizeModal.order, organizeModal.dest)
+              outPath = await MorphIpc.PUT_MORPH_ORDER(file.path, organizeModal.order, organizeModal.dest)
             } else if (action === 'rotate') {
               if (!organizeModal.selected.length) {
                 throw new Error('请先选择要旋转的页面')
               }
-              outPath = await MorphIpc.toRotate(
+              outPath = await MorphIpc.PUT_MORPH_ROTATE(
                 file.path,
                 organizeModal.selected,
                 90,
@@ -947,7 +947,7 @@ const useMorphStore = create<MorphState>()(
               if (!organizeModal.selected.length) {
                 throw new Error('请先选择要删除的页面')
               }
-              outPath = await MorphIpc.toRemove(
+              outPath = await MorphIpc.DELETE_MORPH_PAGES(
                 file.path,
                 organizeModal.selected,
                 organizeModal.dest
@@ -990,7 +990,7 @@ const useMorphStore = create<MorphState>()(
             s.extractModal.error = null
           })
           try {
-            const outPath = await MorphIpc.toExtract(
+            const outPath = await MorphIpc.POST_MORPH_EXTRACT(
               file.path,
               extractModal.selected,
               extractModal.dest

@@ -1324,8 +1324,17 @@ function SettingsTab() {
                 />
               </Row>
               <Row
-                label="端口"
-                hint="固定 19828，随守护进程绑定">
+                label="Agent 代理（浏览器扩展）"
+                hint="挂 /api/v1/agent/* 转发到 agentd，能写文件、能跑命令；必须配 Token，且不允许局域网">
+                <Switch
+                  checked={apiConfig.agentEnabled}
+                  disabled={!apiConfig.token.trim()}
+                  onCheckedChange={function (checked) {
+                    setApiConfig(patchWikiApiConfig({ agentEnabled: checked }))
+                  }}
+                />
+              </Row>
+              <Row label="端口" hint="固定 19828，随守护进程绑定">
                 <Input
                   type="number"
                   value={apiConfig.port}
@@ -1335,15 +1344,31 @@ function SettingsTab() {
                 />
               </Row>
               <Row label="Token">
-                <Input
-                  type="password"
-                  value={apiConfig.token}
-                  className="h-8 w-56 text-xs"
-                  placeholder="可选 Bearer / x-api-token"
-                  onChange={function (event) {
-                    setApiConfig(patchWikiApiConfig({ token: event.target.value }))
-                  }}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="password"
+                    value={apiConfig.token}
+                    className="h-8 w-56 text-xs"
+                    placeholder="Bearer / x-api-token"
+                    onChange={function (event) {
+                      setApiConfig(patchWikiApiConfig({ token: event.target.value }))
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 shrink-0 text-xs"
+                    onClick={function () {
+                      const bytes = new Uint8Array(24)
+                      crypto.getRandomValues(bytes)
+                      const token = Array.from(bytes, function (value) {
+                        return value.toString(16).padStart(2, '0')
+                      }).join('')
+                      setApiConfig(patchWikiApiConfig({ token }))
+                    }}>
+                    生成
+                  </Button>
+                </div>
               </Row>
               <div className={styles.metaBox}>
                 <p className={styles.metaTitle}>端点</p>
@@ -1353,6 +1378,8 @@ function SettingsTab() {
                   <li>GET /api/v1/health</li>
                   <li>GET /api/v1/bases</li>
                   <li>GET|POST /api/v1/search</li>
+                  <li>GET /api/v1/agent/status — 扩展探活（免令牌）</li>
+                  <li>ALL /api/v1/agent/* — 扩展代理到 agentd（必须令牌）</li>
                 </ul>
               </div>
             </SettingsPanel>

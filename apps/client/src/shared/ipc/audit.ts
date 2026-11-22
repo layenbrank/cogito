@@ -43,7 +43,7 @@ export { AuditEntrySchema, AuditExportSchema }
  *
  * @param limit 需要更短的清单时传；会被 Rust 侧夹到上限
  */
-export async function exportAgentAudit(limit?: number): Promise<AuditExport> {
+export async function POST_SECURITY_AUDIT_EXPORT(limit?: number): Promise<AuditExport> {
   const raw = await invoke<unknown>(CHANNELS.SECURITY.AUDIT_EXPORT, { limit })
   return AuditExportSchema.parse(raw)
 }

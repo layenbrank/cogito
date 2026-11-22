@@ -8,8 +8,8 @@
  */
 import { toast } from 'sonner'
 
-import { writeDraftStatus } from '@/lib/directive-draft-ipc'
-import { validateDirective } from '@/lib/directive-ipc'
+import { PUT_DIRECTIVE_DRAFT_STATUS } from '@/lib/directive-draft-ipc'
+import { POST_SIDECAR_VALIDATE } from '@/lib/directive-ipc'
 import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import { DirectiveContentSchema, type DirectiveContent } from '@/shared/ipc/specs/sidecar'
 import { rememberPendingDefinition } from '@/stores/corex'
@@ -120,7 +120,7 @@ type DraftValidation = { ok: true; name: string } | { ok: false; error: string }
 /** 交给 corex daemon 做严格校验（与保存走同一套规则） */
 async function validateDraft(definition: DirectiveContent): Promise<DraftValidation> {
   try {
-    const reply = await validateDirective({ definition })
+    const reply = await POST_SIDECAR_VALIDATE({ definition })
     return { ok: true, name: reply.name }
   } catch (error) {
     // 校验失败是**预期路径**（草稿不合法），但要留给用户看，所以原样返回错误信息
@@ -149,7 +149,7 @@ async function captureDirectiveDraft(
   })
   if (!draft) return null
   if (!validation.ok) {
-    await writeDraftStatus({
+    await PUT_DIRECTIVE_DRAFT_STATUS({
       id: draft.id,
       status: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_PENDING],
       error: validation.error

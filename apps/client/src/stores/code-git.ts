@@ -273,7 +273,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const probes = await Promise.all(
           list.map(async function (path): Promise<RepoCandidate> {
             try {
-              const result = await WorkspaceGit.probe(path)
+              const result = await WorkspaceGit.GET_GIT_PROBE(path)
               return { path, isRepo: result.isRepo }
             } catch (error) {
               console.warn('[code] git probe failed', path, error)
@@ -310,7 +310,7 @@ const useCodeGitStore = create<CodeGitState>()(
           return
         }
         try {
-          const probeResult = await WorkspaceGit.probe(root)
+          const probeResult = await WorkspaceGit.GET_GIT_PROBE(root)
           set(function (state) {
             const nextRoot = probeResult.isRepo ? root : null
             // 换仓库：上一个仓库的变更 / 提交 / 文件列表一律作废，否则会串味
@@ -340,7 +340,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return
         try {
-          await WorkspaceGit.invalidate(root)
+          await WorkspaceGit.POST_GIT_INVALIDATE(root)
         } catch (error) {
           console.error('[code] git invalidate failed', error)
         }
@@ -355,7 +355,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.error = null
         })
         try {
-          const result = await WorkspaceGit.status(root)
+          const result = await WorkspaceGit.GET_GIT_STATUS(root)
           set(function (state) {
             state.branch = result.branch
             state.ahead = result.ahead
@@ -384,7 +384,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.stage(root, paths)
+          const result = await WorkspaceGit.PUT_GIT_STAGE(root, paths)
           await get().toRefresh()
           bumpWorkspaceRevision()
           return success(result.summary)
@@ -397,7 +397,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.unstage(root, paths)
+          const result = await WorkspaceGit.PUT_GIT_UNSTAGE(root, paths)
           await get().toRefresh()
           bumpWorkspaceRevision()
           return success(result.summary)
@@ -410,7 +410,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.discard(root, paths, isUntracked)
+          const result = await WorkspaceGit.DELETE_GIT_CHANGES(root, paths, isUntracked)
           await get().toRefresh()
           bumpWorkspaceRevision()
           return success(result.summary)
@@ -423,7 +423,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.commit(root, message, isStageAll)
+          const result = await WorkspaceGit.POST_GIT_COMMIT(root, message, isStageAll)
           await get().toRefresh()
           void get().toLoadRecentCommits()
           bumpWorkspaceRevision()
@@ -437,7 +437,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.fetchAll(root)
+          const result = await WorkspaceGit.POST_GIT_FETCH(root)
           await get().toRefresh()
           bumpWorkspaceRevision()
           return success(result.summary)
@@ -450,7 +450,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.pull(root)
+          const result = await WorkspaceGit.POST_GIT_PULL(root)
           await get().toRefresh()
           void get().toLoadRecentCommits()
           bumpWorkspaceRevision()
@@ -487,7 +487,7 @@ const useCodeGitStore = create<CodeGitState>()(
           return sameRevs(get().diff, relative, revs)
         }
         try {
-          const meta = await WorkspaceGit.diffMeta(root, relative, revs)
+          const meta = await WorkspaceGit.GET_GIT_DIFF_META(root, relative, revs)
           if (!stillActive()) {
             return success('已切换到其他差异')
           }
@@ -535,7 +535,7 @@ const useCodeGitStore = create<CodeGitState>()(
                 ...revKey
               }
             })
-            const page = await WorkspaceGit.diffHunks(root, relative, 0, HUNK_PAGE, revs)
+            const page = await WorkspaceGit.GET_GIT_DIFF_HUNKS(root, relative, 0, HUNK_PAGE, revs)
             if (!stillActive()) {
               return success('已切换到其他差异')
             }
@@ -550,7 +550,7 @@ const useCodeGitStore = create<CodeGitState>()(
             return success('已打开差异')
           }
 
-          const result = await WorkspaceGit.diff(root, relative, revs)
+          const result = await WorkspaceGit.GET_GIT_DIFF(root, relative, revs)
           if (!stillActive()) {
             return success('已切换到其他差异')
           }
@@ -600,7 +600,7 @@ const useCodeGitStore = create<CodeGitState>()(
           if (state.diff) state.diff.isHunksLoading = true
         })
         try {
-          const page = await WorkspaceGit.diffHunks(root, relative, offset, HUNK_PAGE, revs)
+          const page = await WorkspaceGit.GET_GIT_DIFF_HUNKS(root, relative, offset, HUNK_PAGE, revs)
           if (!sameRevs(get().diff, relative, revs)) return
           set(function (state) {
             if (!sameRevs(state.diff, relative, revs) || !state.diff) return
@@ -653,7 +653,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.searchError = null
         })
         try {
-          const result = await WorkspaceGit.search(root, { query, field, limit: 50 })
+          const result = await WorkspaceGit.GET_GIT_SEARCH(root, { query, field, limit: 50 })
           set(function (state) {
             state.searchHits = result.commits
             state.searchHasMore = result.hasMore
@@ -693,7 +693,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.isSearchLoading = true
         })
         try {
-          const result = await WorkspaceGit.search(root, {
+          const result = await WorkspaceGit.GET_GIT_SEARCH(root, {
             query: get().searchQuery,
             field: get().searchField,
             limit: 50,
@@ -732,7 +732,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.showError = null
         })
         try {
-          const result = await WorkspaceGit.show(root, oid)
+          const result = await WorkspaceGit.GET_GIT_SHOW(root, oid)
           if (get().selectedOid !== oid) return
           set(function (state) {
             state.commitFiles = result.files
@@ -774,7 +774,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.isRecentLoading = true
         })
         try {
-          const result = await WorkspaceGit.search(root, {
+          const result = await WorkspaceGit.GET_GIT_SEARCH(root, {
             query: '',
             field: 'all',
             limit: RECENT_LIMIT
@@ -832,7 +832,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.isBranchesLoading = true
         })
         try {
-          const result = await WorkspaceGit.fetchBranches(root)
+          const result = await WorkspaceGit.GET_GIT_BRANCHES(root)
           set(function (state) {
             state.branches = result.branches
             state.remoteBranches = result.remotes
@@ -858,7 +858,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.isCheckoutBusy = true
         })
         try {
-          const result = await WorkspaceGit.checkout(root, branchName, fromRemote)
+          const result = await WorkspaceGit.PUT_GIT_BRANCH(root, branchName, fromRemote)
           set(function (state) {
             state.branch = result.branch
             state.isCheckoutBusy = false
@@ -892,7 +892,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.isStateLoading = true
         })
         try {
-          const result = await WorkspaceGit.state(root)
+          const result = await WorkspaceGit.GET_GIT_STATE(root)
           set(function (state) {
             state.operation = result.operation
             state.stashes = result.stashes
@@ -912,7 +912,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.stashPush(root, options)
+          const result = await WorkspaceGit.POST_GIT_STASH(root, options)
           await get().toInvalidateAndRefresh()
           void get().toLoadState()
           bumpWorkspaceRevision()
@@ -926,7 +926,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.stashApply(root, index, isPop)
+          const result = await WorkspaceGit.PUT_GIT_STASH(root, index, isPop)
           await get().toInvalidateAndRefresh()
           void get().toLoadState()
           bumpWorkspaceRevision()
@@ -940,7 +940,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.stashDrop(root, index)
+          const result = await WorkspaceGit.DELETE_GIT_STASH(root, index)
           void get().toLoadState()
           return success(result.summary)
         } catch (error) {
@@ -952,7 +952,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.rebase(root, upstream)
+          const result = await WorkspaceGit.POST_GIT_REBASE(root, upstream)
           await get().toInvalidateAndRefresh()
           void get().toLoadState()
           void get().toLoadRecentCommits()
@@ -969,7 +969,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.rebaseContinue(root)
+          const result = await WorkspaceGit.POST_GIT_REBASE_CONTINUE(root)
           await get().toInvalidateAndRefresh()
           void get().toLoadState()
           void get().toLoadRecentCommits()
@@ -986,7 +986,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.rebaseAbort(root)
+          const result = await WorkspaceGit.DELETE_GIT_REBASE(root)
           await get().toInvalidateAndRefresh()
           void get().toLoadState()
           void get().toLoadRecentCommits()
@@ -1012,7 +1012,7 @@ const useCodeGitStore = create<CodeGitState>()(
           state.isWorktreesLoading = true
         })
         try {
-          const worktrees = await WorkspaceGit.worktreeList(root)
+          const worktrees = await WorkspaceGit.GET_GIT_WORKTREES(root)
           set(function (state) {
             state.worktrees = worktrees
             state.isWorktreesLoading = false
@@ -1029,7 +1029,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.worktreeAdd(root, options)
+          const result = await WorkspaceGit.POST_GIT_WORKTREE(root, options)
           void get().toLoadWorktrees()
           return success(result.summary)
         } catch (error) {
@@ -1041,7 +1041,7 @@ const useCodeGitStore = create<CodeGitState>()(
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         try {
-          const result = await WorkspaceGit.worktreeRemove(root, targetPath, isForce)
+          const result = await WorkspaceGit.DELETE_GIT_WORKTREE(root, targetPath, isForce)
           void get().toLoadWorktrees()
           return success(result.summary)
         } catch (error) {

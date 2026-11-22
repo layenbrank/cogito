@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 
 import { ensurePersist, findPref, patchPref, replacePref } from '@/features/persist'
-import { syncAutostart } from '@/features/magnetic-tiles/settings/autostart'
+import { PUT_AUTOSTART } from '@/features/magnetic-tiles/settings/autostart'
 import { CHANNELS } from '@/shared/ipc/channels'
 
 declare namespace Setting {
@@ -249,7 +249,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       }
 
       try {
-        const enabled = await syncAutostart(settings.general.autostart)
+        const enabled = await PUT_AUTOSTART(settings.general.autostart)
         settings.general = { ...settings.general, autostart: enabled }
       } catch (error) {
         console.warn('[settings] syncAutostart on init failed', error)
@@ -281,7 +281,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       if (section === 'general' && 'autostart' in value) {
         const desired = (value as Partial<Setting.General>).autostart
         if (typeof desired === 'boolean') {
-          const enabled = await syncAutostart(desired)
+          const enabled = await PUT_AUTOSTART(desired)
           ;(merged as Setting.General).autostart = enabled
         }
       }
@@ -315,7 +315,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       setter({ settings })
       await replacePref('settings', settings)
       try {
-        await syncAutostart(settings.general.autostart)
+        await PUT_AUTOSTART(settings.general.autostart)
       } catch (error) {
         console.warn('[settings] syncAutostart on reset failed', error)
       }

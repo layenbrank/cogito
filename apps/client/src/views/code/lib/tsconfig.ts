@@ -88,7 +88,7 @@ async function readConfig(
   relativePath: string
 ): Promise<RawTsconfig | null> {
   try {
-    const result = await WorkspaceFiles.readFile(roots, joinPath(roots[0], relativePath))
+    const result = await WorkspaceFiles.GET_WORKSPACE_FILE(roots, joinPath(roots[0], relativePath))
     const parsed = parseJsonc(result.content)
     if (!parsed.ok) {
       console.warn('[tsconfig] 解析失败', relativePath, parsed.reason)

@@ -17,7 +17,7 @@ let pruneInFlight: Promise<PruneResult | null> | null = null
 /**
  * 读取设置策略并调用 capture:prune；节流避免频繁触发。
  */
-async function runCapturePrune(options?: {
+async function POST_CAPTURE_PRUNE(options?: {
   force?: boolean
   silent?: boolean
 }): Promise<PruneResult | null> {
@@ -76,5 +76,5 @@ async function runCapturePrune(options?: {
   return pruneInFlight
 }
 
-export { runCapturePrune }
+export { POST_CAPTURE_PRUNE }
 export type { PruneResult }

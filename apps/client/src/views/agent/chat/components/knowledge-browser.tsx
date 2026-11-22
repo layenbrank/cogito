@@ -35,11 +35,11 @@ import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { joinWorkspacePath, toAgentPath } from '@/features/agent/workspace/paths.ts'
 import {
-  listKnowledge,
-  listDocs,
-  rescanKnowledge,
-  searchDocs,
-  writeDoc,
+  GET_KNOWLEDGE_BASES,
+  GET_KNOWLEDGE_DOCS,
+  POST_KNOWLEDGE_RESCAN,
+  GET_KNOWLEDGE_SEARCH,
+  PUT_KNOWLEDGE_DOC,
   type KnowledgeBase,
   type KnowledgeDocSummary,
   type KnowledgeHit
@@ -123,7 +123,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         try {
           updateLoading(true)
           updateError(null)
-          const rows = await listKnowledge()
+          const rows = await GET_KNOWLEDGE_BASES()
           if (cancelled) return
           updateBases(rows)
           updateBaseID(function (current) {
@@ -158,7 +158,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         try {
           updateLoading(true)
           updateError(null)
-          const rows = await listDocs(currentBaseID)
+          const rows = await GET_KNOWLEDGE_DOCS(currentBaseID)
           if (!cancelled) updateDocs(rows)
         } catch (cause) {
           if (cancelled) return
@@ -192,7 +192,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
       let cancelled = false
       updateSearching(true)
       const timer = window.setTimeout(function () {
-        void searchDocs(needle, baseID, 20)
+        void GET_KNOWLEDGE_SEARCH(needle, baseID, 20)
           .then(function (rows) {
             if (!cancelled) updateHits(rows)
           })
@@ -310,7 +310,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
     updateCreating(true)
     try {
       const absolute = await findFreeDocPath(currentBase.rootPath, title)
-      const outcome = await writeDoc({
+      const outcome = await PUT_KNOWLEDGE_DOC({
         path: absolute,
         content: buildNewDocContent(title),
         force: true
@@ -365,7 +365,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   /** 重扫：磁盘上被别处加进来 / 改过的文件重新入库 */
   function rescan() {
     if (!baseID) return
-    void rescanKnowledge(baseID)
+    void POST_KNOWLEDGE_RESCAN(baseID)
       .then(function (count) {
         refreshDocs()
         toast.success(`已重新扫描，更新 ${count} 篇`)

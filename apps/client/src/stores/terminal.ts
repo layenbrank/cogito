@@ -136,7 +136,7 @@ const useTerminalStore = create<TerminalState>()(
             return tab.id
           })
           for (const id of ids) {
-            void Terminal.kill(id).catch(function (error) {
+            void Terminal.DELETE_TERMINAL(id).catch(function (error) {
               console.warn('[terminal] closeAllSessions kill 失败:', id, error)
             })
           }

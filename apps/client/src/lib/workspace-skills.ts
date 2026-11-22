@@ -13,14 +13,14 @@ interface WorkspaceSkill {
   relative: string
 }
 
-async function fetchSkills(roots: string[]) {
+async function GET_WORKSPACE_SKILLS(roots: string[]) {
   return invoke<WorkspaceSkill[]>(CHANNELS.WORKSPACE_SKILLS.LIST, {
     params: { roots }
   })
 }
 
 const WorkspaceSkills = {
-  fetchSkills
+  GET_WORKSPACE_SKILLS
 }
 
 export { WorkspaceSkills }

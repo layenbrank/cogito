@@ -41,7 +41,7 @@ const AsideSkills = function AsideSkills(props: AsideSkillsProps) {
         try {
           updateLoading(true)
           // 多文件夹口径：整个工作区一起扫，不是只扫当前文件夹
-          const rows = await WorkspaceSkills.fetchSkills(folderKey ? folderKey.split('\n') : [])
+          const rows = await WorkspaceSkills.GET_WORKSPACE_SKILLS(folderKey ? folderKey.split('\n') : [])
           if (!cancelled) updateSkills(rows)
         } catch (cause) {
           console.warn('[aside-skills] 读取技能失败', cause)

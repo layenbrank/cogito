@@ -23,7 +23,7 @@ function asError(error: unknown, label: string): Error {
   return new Error(`${label}: ${String(error)}`)
 }
 
-async function saveAutomation(input: AutomationSave): Promise<Automation> {
+async function POST_AUTOMATION(input: AutomationSave): Promise<Automation> {
   try {
     return AutomationSchema.parse(await invoke(CHANNELS.AUTOMATION.SAVE, { input }))
   } catch (error) {
@@ -31,7 +31,7 @@ async function saveAutomation(input: AutomationSave): Promise<Automation> {
   }
 }
 
-async function listAutomations(): Promise<Automation[]> {
+async function GET_AUTOMATIONS(): Promise<Automation[]> {
   try {
     return AutomationSchema.array().parse((await invoke(CHANNELS.AUTOMATION.LIST)) ?? [])
   } catch (error) {
@@ -39,7 +39,7 @@ async function listAutomations(): Promise<Automation[]> {
   }
 }
 
-async function writeAutomationEnabled(id: string, enabled: boolean): Promise<Automation> {
+async function PUT_AUTOMATION_ENABLED(id: string, enabled: boolean): Promise<Automation> {
   try {
     return AutomationSchema.parse(
       await invoke(CHANNELS.AUTOMATION.UPDATE_ENABLED, { id, enabled })
@@ -49,7 +49,7 @@ async function writeAutomationEnabled(id: string, enabled: boolean): Promise<Aut
   }
 }
 
-async function removeAutomation(id: string): Promise<number> {
+async function DELETE_AUTOMATION(id: string): Promise<number> {
   try {
     return await invoke<number>(CHANNELS.AUTOMATION.REMOVE, { id })
   } catch (error) {
@@ -58,7 +58,7 @@ async function removeAutomation(id: string): Promise<number> {
 }
 
 /** 返回 `null` 表示这次执行交给了 goose（本地不落执行记录，记录在 goose 侧） */
-async function runAutomationNow(id: string): Promise<{ automation: Automation; run: AutomationRun } | null> {
+async function POST_AUTOMATION_RUN(id: string): Promise<{ automation: Automation; run: AutomationRun } | null> {
   try {
     const raw = await invoke(CHANNELS.AUTOMATION.RUN_NOW, { id })
     return raw ? DueRunSchema.parse(raw) : null
@@ -68,7 +68,7 @@ async function runAutomationNow(id: string): Promise<{ automation: Automation; r
 }
 
 /** 真正开跑时补写 startedAt：排队时间不算耗时，也不会在排队时被判「陈旧」 */
-async function touchAutomationRun(runId: string): Promise<AutomationRun> {
+async function PUT_AUTOMATION_RUN_TOUCH(runId: string): Promise<AutomationRun> {
   try {
     return AutomationRunSchema.parse(await invoke(CHANNELS.AUTOMATION.TOUCH_RUN, { runId }))
   } catch (error) {
@@ -76,7 +76,7 @@ async function touchAutomationRun(runId: string): Promise<AutomationRun> {
   }
 }
 
-async function finishAutomationRun(input: FinishRun): Promise<AutomationRun> {
+async function POST_AUTOMATION_RUN_FINISH(input: FinishRun): Promise<AutomationRun> {
   try {
     return AutomationRunSchema.parse(await invoke(CHANNELS.AUTOMATION.FINISH_RUN, { input }))
   } catch (error) {
@@ -85,7 +85,7 @@ async function finishAutomationRun(input: FinishRun): Promise<AutomationRun> {
 }
 
 /** 补写会话回链 / 阶段（开会话后与流水线切阶段时调用） */
-async function patchAutomationRun(input: PatchRun): Promise<AutomationRun> {
+async function PATCH_AUTOMATION_RUN(input: PatchRun): Promise<AutomationRun> {
   try {
     return AutomationRunSchema.parse(await invoke(CHANNELS.AUTOMATION.PATCH_RUN, { input }))
   } catch (error) {
@@ -96,7 +96,7 @@ async function patchAutomationRun(input: PatchRun): Promise<AutomationRun> {
 /**
  * 执行记录。`automationId` 传 `null` = 跨任务取最近 N 条（任务页的「全部记录」）。
  */
-async function listAutomationRuns(
+async function GET_AUTOMATION_RUNS(
   automationId?: string | null,
   limit?: number
 ): Promise<AutomationRun[]> {
@@ -110,14 +110,14 @@ async function listAutomationRuns(
 }
 
 export {
-  finishAutomationRun,
-  listAutomationRuns,
-  listAutomations,
-  patchAutomationRun,
-  removeAutomation,
-  runAutomationNow,
-  saveAutomation,
-  touchAutomationRun,
-  writeAutomationEnabled
+  POST_AUTOMATION_RUN_FINISH,
+  GET_AUTOMATION_RUNS,
+  GET_AUTOMATIONS,
+  PATCH_AUTOMATION_RUN,
+  DELETE_AUTOMATION,
+  POST_AUTOMATION_RUN,
+  POST_AUTOMATION,
+  PUT_AUTOMATION_RUN_TOUCH,
+  PUT_AUTOMATION_ENABLED
 }
 export type { Automation, AutomationRun, AutomationSave, FinishRun, PatchRun }

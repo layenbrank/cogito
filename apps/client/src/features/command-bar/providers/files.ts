@@ -117,14 +117,14 @@ async function searchFiles(query: string, signal: AbortSignal): Promise<Hit[]> {
 }
 
 /** 索引状态（设置页展示 + 手动重建） */
-async function readFileIndexStatus(): Promise<FileIndexStatus> {
+async function GET_SEARCH_FILE_INDEX(): Promise<FileIndexStatus> {
   return invoke<FileIndexStatus>(CHANNELS.SEARCH.FILE_INDEX_STATUS)
 }
 
 /** 重建索引：清空后重新全盘扫描（后台跑，立即返回） */
-async function rebuildFileIndex(): Promise<void> {
+async function POST_SEARCH_FILE_INDEX_REBUILD(): Promise<void> {
   await invoke(CHANNELS.SEARCH.FILE_INDEX_REBUILD)
 }
 
-export { rebuildFileIndex, readFileIndexStatus, searchFiles }
+export { POST_SEARCH_FILE_INDEX_REBUILD, GET_SEARCH_FILE_INDEX, searchFiles }
 export type { FileHit, FileIndexStatus }

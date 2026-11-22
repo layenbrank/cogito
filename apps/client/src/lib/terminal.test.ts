@@ -34,7 +34,7 @@ beforeEach(function () {
   invokeMock.mockReset()
 })
 
-describe('Terminal.attach：回放与实时块的顺序', function () {
+describe('Terminal.POST_TERMINAL_ATTACH：回放与实时块的顺序', function () {
   it('先写 replay，再按到达顺序补上早到的实时块', async function () {
     invokeMock.mockImplementation(function (_cmd: string, args: InvokeArgs) {
       // invoke 还没返回：实时块已经到了
@@ -44,7 +44,7 @@ describe('Terminal.attach：回放与实时块的顺序', function () {
     })
 
     const seen: number[] = []
-    const created = await Terminal.attach('agent:a', function (data) {
+    const created = await Terminal.POST_TERMINAL_ATTACH('agent:a', function (data) {
       seen.push(...bytesOf(data))
     })
 
@@ -59,7 +59,7 @@ describe('Terminal.attach：回放与实时块的顺序', function () {
     })
 
     const seen: number[] = []
-    await Terminal.attach('x', function (data) {
+    await Terminal.POST_TERMINAL_ATTACH('x', function (data) {
       seen.push(...bytesOf(data))
     })
 
@@ -74,7 +74,7 @@ describe('Terminal.attach：回放与实时块的顺序', function () {
     })
 
     const seen: number[] = []
-    await Terminal.attach('x', function (data) {
+    await Terminal.POST_TERMINAL_ATTACH('x', function (data) {
       seen.push(...bytesOf(data))
     })
 
@@ -91,7 +91,7 @@ describe('Terminal.attach：回放与实时块的顺序', function () {
 
     const seen: number[] = []
     await expect(
-      Terminal.attach('gone', function (data) {
+      Terminal.POST_TERMINAL_ATTACH('gone', function (data) {
         seen.push(...bytesOf(data))
       })
     ).rejects.toThrow('会话不存在')
@@ -99,7 +99,7 @@ describe('Terminal.attach：回放与实时块的顺序', function () {
   })
 })
 
-describe('Terminal.create：同一套有序语义', function () {
+describe('Terminal.POST_TERMINAL：同一套有序语义', function () {
   it('回放包含实时块时不重复', async function () {
     invokeMock.mockImplementation(function (_cmd: string, args: InvokeArgs) {
       args.channel.onmessage(new Uint8Array([2]).buffer)
@@ -107,7 +107,7 @@ describe('Terminal.create：同一套有序语义', function () {
     })
 
     const seen: number[] = []
-    await Terminal.create('C:/w', 'new', function (data) {
+    await Terminal.POST_TERMINAL('C:/w', 'new', function (data) {
       seen.push(...bytesOf(data))
     })
 

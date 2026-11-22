@@ -8,12 +8,12 @@ import { toast } from 'sonner'
 import { create } from 'zustand'
 
 import {
-  listAutomationRuns,
-  listAutomations,
-  removeAutomation,
-  runAutomationNow,
-  saveAutomation,
-  writeAutomationEnabled,
+  GET_AUTOMATION_RUNS,
+  GET_AUTOMATIONS,
+  DELETE_AUTOMATION,
+  POST_AUTOMATION_RUN,
+  POST_AUTOMATION,
+  PUT_AUTOMATION_ENABLED,
   type Automation,
   type AutomationRun,
   type AutomationSave
@@ -194,7 +194,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
     async refreshLocal() {
       set({ isLoading: true })
       try {
-        const items = await listAutomations()
+        const items = await GET_AUTOMATIONS()
         const memory = { ...get().running }
         const phases = get().phases
         // 内存 running 只由 runNow / 生命周期事件写入。
@@ -264,7 +264,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         }
       }
       try {
-        await saveAutomation(input)
+        await POST_AUTOMATION(input)
         await get().refreshLocal()
         toast.success(input.id ? '任务已更新' : '任务已创建')
         return true
@@ -285,7 +285,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         return
       }
       try {
-        const updated = await writeAutomationEnabled(id, enabled)
+        const updated = await PUT_AUTOMATION_ENABLED(id, enabled)
         set({
           items: get().items.map(function (item) {
             return item.id === updated.id ? updated : item
@@ -308,7 +308,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         return
       }
       try {
-        await removeAutomation(id)
+        await DELETE_AUTOMATION(id)
         set({
           items: get().items.filter(function (item) {
             return item.id !== id
@@ -345,7 +345,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         stopPollIfIdle(get)
       }
       try {
-        const due = await runAutomationNow(id)
+        const due = await POST_AUTOMATION_RUN(id)
         if (!due) {
           toast.success('已交给 goose 执行，记录请看 goose 会话')
           clearRunning()
@@ -397,7 +397,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
        */
       set({ activeId: id, isAllRunsOpen: false, runs: [] })
       try {
-        const runs = await listAutomationRuns(id, 20)
+        const runs = await GET_AUTOMATION_RUNS(id, 20)
         if (seq !== runsSeq) return
         set({
           activeId: id,
@@ -414,7 +414,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
     async openAllRuns() {
       const seq = ++runsSeq
       try {
-        const allRuns = await listAutomationRuns(null, 50)
+        const allRuns = await GET_AUTOMATION_RUNS(null, 50)
         if (seq !== runsSeq) return
         set({
           isAllRunsOpen: true,
@@ -429,7 +429,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
 
     async hydrateSessionTasks() {
       try {
-        const runs = await listAutomationRuns(null, 50)
+        const runs = await GET_AUTOMATION_RUNS(null, 50)
         set({ sessionTasks: mergeSessionTasks(get().sessionTasks, runs) })
       } catch (error) {
         reportCaught('automation.sessionTasks', error, 'warning')

@@ -2,18 +2,18 @@ import { toast } from 'sonner'
 import { create } from 'zustand'
 
 import {
-  cancelExecution,
-  deleteDirective,
-  fetchActions,
-  fetchDirective,
-  fetchDirectives,
-  importDirectives,
-  invokeAction,
+  DELETE_SIDECAR_EXECUTION,
+  DELETE_SIDECAR_DIRECTIVE,
+  GET_SIDECAR_ACTIONS,
+  GET_SIDECAR_DIRECTIVE,
+  GET_SIDECAR_DIRECTIVES,
+  POST_SIDECAR_IMPORT,
+  POST_SIDECAR_INVOKE,
   listenProgress,
-  listRuns,
-  runDirective,
-  saveDirective,
-  validateDirective,
+  GET_SIDECAR_RUNS,
+  POST_SIDECAR_RUN,
+  POST_SIDECAR_DIRECTIVE,
+  POST_SIDECAR_VALIDATE,
   type ActionEntry,
   type DirectiveDocument,
   type DirectiveEntry,
@@ -291,7 +291,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       unsubscribeProgress = listenProgress(rememberProgressFrame)
 
       try {
-        const [catalog, directives] = await Promise.all([fetchActions(), fetchDirectives()])
+        const [catalog, directives] = await Promise.all([GET_SIDECAR_ACTIONS(), GET_SIDECAR_DIRECTIVES()])
         setter({ catalog, directives, isLoaded: true, isLoading: false, fetchError: null })
       } catch (error) {
         reportCaught('corex.init', error)
@@ -305,7 +305,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
 
     async refreshDirectives() {
       try {
-        setter({ directives: await fetchDirectives() })
+        setter({ directives: await GET_SIDECAR_DIRECTIVES() })
       } catch (error) {
         reportCaught('corex.refreshDirectives', error)
         toast.error('重新读取指令目录失败', {
@@ -315,26 +315,26 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
     },
 
     fetchDirective(name) {
-      return fetchDirective(name)
+      return GET_SIDECAR_DIRECTIVE(name)
     },
 
     saveDirectiveToHost(content, originalName) {
-      return saveDirective({
+      return POST_SIDECAR_DIRECTIVE({
         definition: content,
         ...(originalName ? { original_name: originalName } : {})
       })
     },
 
     async deleteDirectiveFromHost(name) {
-      await deleteDirective(name)
+      await DELETE_SIDECAR_DIRECTIVE(name)
     },
 
     importDirectivesFromHost(options) {
-      return importDirectives(options)
+      return POST_SIDECAR_IMPORT(options)
     },
 
     async fetchRunHistory(name, limit) {
-      const reply = await listRuns({ name, limit })
+      const reply = await GET_SIDECAR_RUNS({ name, limit })
       setter({ runHistory: reply })
       return reply
     },
@@ -373,7 +373,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
     async bootstrapEditor(name) {
       setter({ isEditorLoading: true, editorName: name })
       try {
-        const doc = await fetchDirective(name)
+        const doc = await GET_SIDECAR_DIRECTIVE(name)
         const stamped = {
           ...doc.definition,
           steps: stampSteps(doc.definition.steps)
@@ -452,7 +452,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         ...draft,
         steps: sanitizeSteps(draft.steps)
       }
-      await validateDirective({ definition: payload })
+      await POST_SIDECAR_VALIDATE({ definition: payload })
     },
 
     async saveDraft() {
@@ -464,9 +464,9 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
           ...draft,
           steps: sanitizeSteps(draft.steps)
         }
-        await validateDirective({ definition: payload })
+        await POST_SIDECAR_VALIDATE({ definition: payload })
         const originalName = getter().originalName
-        const saved = await saveDirective({
+        const saved = await POST_SIDECAR_DIRECTIVE({
           definition: payload,
           ...(originalName ? { original_name: originalName } : {})
         })
@@ -530,7 +530,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
 
       void (async function () {
         try {
-          const result = await runDirective({ name, input, runId: id })
+          const result = await POST_SIDECAR_RUN({ name, input, runId: id })
           patchRun(id, { status: 'ok', result, endedAt: new Date() })
           void getter().fetchRunHistory(name, 20)
         } catch (error) {
@@ -568,7 +568,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
 
       void (async function () {
         try {
-          const result = await invokeAction({ action: actionId, params, runId: id })
+          const result = await POST_SIDECAR_INVOKE({ action: actionId, params, runId: id })
           patchRun(id, { status: 'ok', result, doneSteps: 1, endedAt: new Date() })
         } catch (error) {
           console.warn('[corex] 动作试跑失败:', error)
@@ -594,7 +594,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         return
       }
       try {
-        await cancelExecution(run.targetId)
+        await DELETE_SIDECAR_EXECUTION(run.targetId)
         toast.message('已请求取消')
       } catch (error) {
         toast.error('取消失败', { description: parseErrorMessage(error, '') })

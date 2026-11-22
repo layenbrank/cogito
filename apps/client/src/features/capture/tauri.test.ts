@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/core', function () {
 
 import { CHANNELS } from '@/shared/ipc/channels'
 
-import { takePendingScreenshot } from './tauri'
+import { GET_CAPTURE_PENDING } from './tauri'
 
 const SHOT = { path: 'shot.png', width: 1920, height: 1080, scale_factor: 1 }
 
@@ -32,7 +32,7 @@ describe('takePendingScreenshot', function () {
   it('第一次就取到时不重试', async function () {
     ipc.invoke.mockResolvedValueOnce(SHOT)
 
-    await expect(takePendingScreenshot()).resolves.toEqual(SHOT)
+    await expect(GET_CAPTURE_PENDING()).resolves.toEqual(SHOT)
     expect(ipc.invoke).toHaveBeenCalledTimes(1)
     expect(ipc.invoke).toHaveBeenCalledWith(CHANNELS.CAPTURE.TAKE_PENDING)
   })
@@ -44,7 +44,7 @@ describe('takePendingScreenshot', function () {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(SHOT)
 
-    const pending = takePendingScreenshot()
+    const pending = GET_CAPTURE_PENDING()
     await vi.advanceTimersByTimeAsync(200)
 
     await expect(pending).resolves.toEqual(SHOT)
@@ -54,7 +54,7 @@ describe('takePendingScreenshot', function () {
   it('预算用尽仍为空则返回 null', async function () {
     ipc.invoke.mockResolvedValue(null)
 
-    const pending = takePendingScreenshot()
+    const pending = GET_CAPTURE_PENDING()
     await vi.advanceTimersByTimeAsync(1000)
 
     await expect(pending).resolves.toBeNull()
@@ -65,7 +65,7 @@ describe('takePendingScreenshot', function () {
     ipc.invoke.mockResolvedValue(null)
     let stopped = false
 
-    const pending = takePendingScreenshot(function () {
+    const pending = GET_CAPTURE_PENDING(function () {
       return stopped
     })
     stopped = true

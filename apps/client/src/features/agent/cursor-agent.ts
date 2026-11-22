@@ -15,7 +15,7 @@ interface CursorAgentStatus {
   detail: string
 }
 
-async function fetchCursorAgentStatus(): Promise<CursorAgentStatus> {
+async function GET_CURSOR_AGENT_STATUS(): Promise<CursorAgentStatus> {
   return invoke<CursorAgentStatus>(CHANNELS.CURSOR_AGENT.STATUS)
 }
 
@@ -24,5 +24,5 @@ function isCursorAgentProviderId(providerId: string): boolean {
   return id === 'cursor-agent' || id === 'cursor_agent'
 }
 
-export { fetchCursorAgentStatus, isCursorAgentProviderId }
+export { GET_CURSOR_AGENT_STATUS, isCursorAgentProviderId }
 export type { CursorAgentStatus }

@@ -49,7 +49,7 @@ export type CostEntry = z.infer<typeof CostEntrySchema>
 export type CostExport = z.infer<typeof CostExportSchema>
 
 /** 取一份成本账快照（默认由 Rust 侧夹到上限）。 */
-export async function exportRunCost(limit?: number): Promise<CostExport> {
+export async function POST_SECURITY_COST_EXPORT(limit?: number): Promise<CostExport> {
   const raw = await invoke<unknown>(CHANNELS.SECURITY.COST_EXPORT, { limit })
   return CostExportSchema.parse(raw)
 }

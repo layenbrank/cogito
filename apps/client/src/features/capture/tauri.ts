@@ -37,7 +37,7 @@ interface MountOverlayOptions extends Partial<MarkerLayout>, SurfaceStyleInput {
 }
 
 /** 主显示器即时截图（不弹窗，返回截图文件路径） */
-async function takeScreenshot(): Promise<ScreenshotResult> {
+async function POST_CAPTURE_SCREENSHOT(): Promise<ScreenshotResult> {
   return invoke<ScreenshotResult>(CHANNELS.CAPTURE.SCREENSHOT)
 }
 
@@ -50,7 +50,7 @@ async function takeScreenshot(): Promise<ScreenshotResult> {
  * `shouldStop`：组件已卸载/取消时别再继续 take —— pending 是一次性的，
  * 让已经废弃的实例把新一帧抢走，新实例就只能拿到空值。
  */
-async function takePendingScreenshot(shouldStop?: () => boolean): Promise<ScreenshotResult | null> {
+async function GET_CAPTURE_PENDING(shouldStop?: () => boolean): Promise<ScreenshotResult | null> {
   for (let attempt = 0; attempt <= PENDING_RETRY_DELAYS_MS.length; attempt += 1) {
     if (shouldStop?.()) return null
     const result = await invoke<ScreenshotResult | null>(CHANNELS.CAPTURE.TAKE_PENDING)
@@ -65,17 +65,17 @@ async function takePendingScreenshot(shouldStop?: () => boolean): Promise<Screen
 }
 
 /** 重新抓一帧（整体重来），新帧直接返回，不走 pending */
-async function refreshCapture(): Promise<ScreenshotResult> {
+async function POST_CAPTURE_REFRESH(): Promise<ScreenshotResult> {
   return invoke<ScreenshotResult>(CHANNELS.CAPTURE.REFRESH)
 }
 
 /** 告知宿主「冻结帧已画上屏」，宿主收到后才撤掉 conceal */
-async function notifyCaptureReady(): Promise<void> {
+async function POST_CAPTURE_READY(): Promise<void> {
   await invoke(CHANNELS.CAPTURE.READY)
 }
 
 /** 光标位置（overlay 局部逻辑像素）；进入截屏态后种首次悬停用 */
-async function readCursorPoint(): Promise<{ x: number; y: number } | null> {
+async function GET_CAPTURE_CURSOR(): Promise<{ x: number; y: number } | null> {
   return invoke<{ x: number; y: number } | null>(CHANNELS.CAPTURE.CURSOR)
 }
 
@@ -86,12 +86,12 @@ async function readCursorPoint(): Promise<{ x: number; y: number } | null> {
  * 任务栏是 topmost，会把贴底那一块压住。任务栏自动隐藏时它等于整屏，
  * 前端仍按 GAP 内缩，避免刚好落在任务栏的探出条上。
  */
-async function readWorkArea(): Promise<CaptureRect | null> {
+async function GET_CAPTURE_VIEWPORT(): Promise<CaptureRect | null> {
   return invoke<CaptureRect | null>(CHANNELS.CAPTURE.VIEWPORT)
 }
 
 /** 光标下的元素级候选（overlay 逻辑像素入参） */
-async function probeElements(x: number, y: number): Promise<CaptureRegion[]> {
+async function GET_CAPTURE_ELEMENTS(x: number, y: number): Promise<CaptureRegion[]> {
   return invoke<CaptureRegion[]>(CHANNELS.CAPTURE.ELEMENTS, { params: { x, y } })
 }
 
@@ -114,25 +114,25 @@ async function fetchImageFromPath(filePath: string): Promise<HTMLImageElement> {
 
 /* ─── Overlay 窗口管理 ─── */
 
-async function ensureOverlay(): Promise<void> {
+async function POST_OVERLAY_ENSURE(): Promise<void> {
   await invoke(CHANNELS.OVERLAY.ENSURE)
 }
 
-async function hideOverlay(): Promise<void> {
+async function DELETE_OVERLAY(): Promise<void> {
   await invoke(CHANNELS.OVERLAY.HIDE)
 }
 
 /** 真正隐藏浮层窗口（仅退出 / 渲染进程异常时用） */
-async function parkOverlay(): Promise<void> {
+async function PUT_OVERLAY_PARK(): Promise<void> {
   await invoke(CHANNELS.OVERLAY.PARK)
 }
 
-async function updateOverlayMode(mode: 'idle' | 'screenshot'): Promise<void> {
+async function PUT_OVERLAY_MODE(mode: 'idle' | 'screenshot'): Promise<void> {
   await invoke(CHANNELS.OVERLAY.UPDATE_MODE, { mode })
 }
 
 /** 主窗磁贴右键「浮层 → 添加」 */
-async function mountOverlayTile(
+async function POST_OVERLAY_TILE(
   kind: MagneticTile.Component,
   magneticTileID: string,
   options?: MountOverlayOptions
@@ -154,26 +154,26 @@ async function mountOverlayTile(
 }
 
 /** 主窗 / 浮层「移除」共用 */
-async function removeOverlayTile(magneticTileID: string): Promise<void> {
+async function DELETE_OVERLAY_TILE(magneticTileID: string): Promise<void> {
   await invoke(CHANNELS.OVERLAY.UNMOUNT, {
     payload: { magneticTileID }
   })
 }
 
 export {
-  ensureOverlay,
+  POST_OVERLAY_ENSURE,
   fetchImageFromPath,
-  hideOverlay,
-  mountOverlayTile,
-  notifyCaptureReady,
-  parkOverlay,
-  probeElements,
-  readCursorPoint,
-  readWorkArea,
-  refreshCapture,
-  removeOverlayTile,
-  takePendingScreenshot,
-  takeScreenshot,
-  updateOverlayMode
+  DELETE_OVERLAY,
+  POST_OVERLAY_TILE,
+  POST_CAPTURE_READY,
+  PUT_OVERLAY_PARK,
+  GET_CAPTURE_ELEMENTS,
+  GET_CAPTURE_CURSOR,
+  GET_CAPTURE_VIEWPORT,
+  POST_CAPTURE_REFRESH,
+  DELETE_OVERLAY_TILE,
+  GET_CAPTURE_PENDING,
+  POST_CAPTURE_SCREENSHOT,
+  PUT_OVERLAY_MODE
 }
 export type { CaptureRect, CaptureRegion, MountOverlayOptions, ScreenshotResult }

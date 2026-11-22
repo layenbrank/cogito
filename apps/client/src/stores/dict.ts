@@ -4,7 +4,7 @@
 import { create } from 'zustand'
 
 import { GET_DICT_CATALOG } from '@/apis/dict'
-import { listDictByTypes, mergeRemoteDict } from '@/lib/dict-ipc'
+import { GET_DICT_TYPES, POST_DICT_MERGE } from '@/lib/dict-ipc'
 import { DICT_TYPE, type DictItem, type DictType, type RemoteCatalog } from '@/shared/ipc/specs/dict'
 import { findActiveTenantID } from '@/utils/tenant'
 import { findAuthToken } from '@/utils/auth'
@@ -160,7 +160,7 @@ const useDictStore = create<DictState>()(function (setter, getter) {
       const tenantId = findActiveTenantID()
       setter({ isLoading: true, error: null })
       try {
-        const types: DictType[] = await listDictByTypes(codes, tenantId)
+        const types: DictType[] = await GET_DICT_TYPES(codes, tenantId)
         const byType: DictCache = { ...getter().byType }
         for (const type of types) {
           byType[type.typeCode] = type.items
@@ -183,9 +183,9 @@ const useDictStore = create<DictState>()(function (setter, getter) {
         const catalog = await GET_DICT_CATALOG()
         const tenantId = findActiveTenantID()
         const remote = serviceCatalogToRemote(catalog.types, tenantId)
-        await mergeRemoteDict(remote)
+        await POST_DICT_MERGE(remote)
         const codes = [...ALL_TYPES]
-        const types = await listDictByTypes(codes, tenantId)
+        const types = await GET_DICT_TYPES(codes, tenantId)
         const byType: DictCache = {}
         for (const type of types) {
           byType[type.typeCode] = type.items

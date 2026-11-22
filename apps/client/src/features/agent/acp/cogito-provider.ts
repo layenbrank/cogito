@@ -209,7 +209,7 @@ async function dropStaleCogitoRow(): Promise<void> {
   }
 }
 
-async function writeGooseProvider(tenantID: string, baseUrl: string, models: string[], force: boolean) {
+async function POST_COGITO_PROVIDER(tenantID: string, baseUrl: string, models: string[], force: boolean) {
   // Tauri 把 `tenant_id` 解成 `tenantId`（不是业务约定的 `tenantID`）
   return invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, {
     tenantId: tenantID,
@@ -278,7 +278,7 @@ async function ensureCogitoProvider(): Promise<void> {
   }
 
   try {
-    await writeGooseProvider(tenantID, baseUrl, models, false)
+    await POST_COGITO_PROVIDER(tenantID, baseUrl, models, false)
   } catch (error) {
     throw softFailure(
       `组织模型暂不可用：${asError(error, '注册网关供应商失败').message}`
@@ -288,7 +288,7 @@ async function ensureCogitoProvider(): Promise<void> {
   let status = await findGooseCogitoStatus()
   if (status === 'missing') {
     try {
-      await writeGooseProvider(tenantID, baseUrl, models, true)
+      await POST_COGITO_PROVIDER(tenantID, baseUrl, models, true)
     } catch (error) {
       throw softFailure(
         `组织模型暂不可用：${asError(error, '强制重载网关供应商失败').message}`
@@ -316,7 +316,7 @@ async function ensureCogitoProvider(): Promise<void> {
 }
 
 /** 租户切换：只更新 `X-Tenant-ID` 头（Rust 侧幂等，没变不重启）。 */
-async function writeCogitoTenant(tenantID: string): Promise<void> {
+async function PUT_COGITO_PROVIDER_TENANT(tenantID: string): Promise<void> {
   try {
     // 键名须为 `tenantId`，与 `writeGooseProvider` 同一套 Tauri 解包规则
     await invoke<boolean>(CHANNELS.COGITO.PROVIDER_UPDATE_TENANT, { tenantId: tenantID })
@@ -330,6 +330,6 @@ export {
   COGITO_PROVIDER_NAME,
   ensureCogitoProvider,
   isCogitoSoftFailure,
-  writeCogitoTenant,
+  PUT_COGITO_PROVIDER_TENANT,
   syncCogitoGatewayCatalog
 }

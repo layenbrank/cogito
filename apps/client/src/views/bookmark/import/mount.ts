@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import { findFaviconFallback } from '@/features/magnetic-tile/mark.ts'
-import { fetchSiteFavicon } from '@/lib/site-favicon.ts'
+import { GET_SITE_FAVICON } from '@/lib/site-favicon.ts'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useMirrorStore, type MagneticTileWrite } from '@/stores/mirror'
 
@@ -57,7 +57,7 @@ function buildNavigationWrite(
 
 async function resolveNavigationMark(url: string) {
   try {
-    const favicon = await fetchSiteFavicon(url)
+    const favicon = await GET_SITE_FAVICON(url)
     if (favicon) return favicon
   } catch (error) {
     console.warn('[bookmark-import] favicon 解析失败，回退 DDG:', error)

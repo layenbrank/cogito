@@ -8,11 +8,11 @@ vi.mock('@tauri-apps/api/core', function () {
 
 import {
   __resetBindingCache,
-  bindSession,
-  preloadBindings,
-  readBinding,
+  POST_ACP_BINDING,
+  GET_ACP_BINDINGS,
+  GET_ACP_BINDING,
   recallBinding,
-  unbindSession
+  DELETE_ACP_BINDING
 } from '@/features/agent/acp/session-binding'
 
 const row = {
@@ -31,7 +31,7 @@ describe('会话 ↔ ACP 绑定（S9）', function () {
 
   it('预载会把全量绑定灌进缓存，之后同步可读', async function () {
     invoke.mockResolvedValueOnce([row])
-    await expect(preloadBindings()).resolves.toBe(1)
+    await expect(GET_ACP_BINDINGS()).resolves.toBe(1)
     expect(recallBinding('s1')).toEqual({
       acpSessionId: 'acp-1',
       cwd: 'C:\\repo',
@@ -50,7 +50,7 @@ describe('会话 ↔ ACP 绑定（S9）', function () {
       lastSeq: 0,
       routeTier: 'local'
     })
-    const binding = await bindSession(' s1 ', { acpSessionId: ' acp-9 ', cwd: '/tmp' })
+    const binding = await POST_ACP_BINDING(' s1 ', { acpSessionId: ' acp-9 ', cwd: '/tmp' })
     expect(binding?.acpSessionId).toBe('acp-9')
     expect(invoke).toHaveBeenCalledWith('agentSession:bindAcp', {
       params: { sessionId: 's1', acpSessionId: ' acp-9 ', cwd: '/tmp' }
@@ -59,21 +59,21 @@ describe('会话 ↔ ACP 绑定（S9）', function () {
   })
 
   it('空 id 直接放弃，不打扰 Rust', async function () {
-    expect(await bindSession('s1', { acpSessionId: '   ' })).toBeNull()
-    expect(await bindSession('   ', { acpSessionId: 'acp-1' })).toBeNull()
+    expect(await POST_ACP_BINDING('s1', { acpSessionId: '   ' })).toBeNull()
+    expect(await POST_ACP_BINDING('   ', { acpSessionId: 'acp-1' })).toBeNull()
     expect(invoke).not.toHaveBeenCalled()
   })
 
   it('Rust 侧报错（会话不存在）只降级，不抛给调用方', async function () {
     invoke.mockRejectedValueOnce(new Error('未找到：agent_session not found: ghost'))
-    const binding = await bindSession('ghost', { acpSessionId: 'acp-1' })
+    const binding = await POST_ACP_BINDING('ghost', { acpSessionId: 'acp-1' })
     expect(binding).toBeNull()
     expect(recallBinding('ghost')).toBeNull()
   })
 
   it('读库：没绑过（null）返回 null；读到就写缓存', async function () {
     invoke.mockResolvedValueOnce(null)
-    expect(await readBinding('s1')).toBeNull()
+    expect(await GET_ACP_BINDING('s1')).toBeNull()
 
     invoke.mockResolvedValueOnce({
       acpSessionId: 'acp-2',
@@ -81,25 +81,25 @@ describe('会话 ↔ ACP 绑定（S9）', function () {
       lastSeq: 3,
       routeTier: 'cloud'
     })
-    expect((await readBinding('s1'))?.acpSessionId).toBe('acp-2')
+    expect((await GET_ACP_BINDING('s1'))?.acpSessionId).toBe('acp-2')
     // 第二次走缓存，不再打命令
-    expect((await readBinding('s1'))?.acpSessionId).toBe('acp-2')
+    expect((await GET_ACP_BINDING('s1'))?.acpSessionId).toBe('acp-2')
     expect(invoke).toHaveBeenCalledTimes(2)
   })
 
   it('预载失败按「都没绑过」处理，不让启动挂掉', async function () {
     invoke.mockRejectedValueOnce(new Error('bridge down'))
-    await expect(preloadBindings()).resolves.toBe(0)
+    await expect(GET_ACP_BINDINGS()).resolves.toBe(0)
     expect(recallBinding('s1')).toBeNull()
   })
 
   it('解绑先清缓存再通知 Rust，失败也不抛', async function () {
     invoke.mockResolvedValueOnce([row])
-    await preloadBindings()
+    await GET_ACP_BINDINGS()
     expect(recallBinding('s1')).not.toBeNull()
 
     invoke.mockResolvedValueOnce(true)
-    await expect(unbindSession(' s1 ')).resolves.toBe(true)
+    await expect(DELETE_ACP_BINDING(' s1 ')).resolves.toBe(true)
     expect(invoke).toHaveBeenLastCalledWith('agentSession:unbindAcp', {
       params: { sessionId: 's1' }
     })
@@ -107,7 +107,7 @@ describe('会话 ↔ ACP 绑定（S9）', function () {
     expect(recallBinding('s1')).toBeNull()
 
     invoke.mockRejectedValueOnce(new Error('db locked'))
-    await expect(unbindSession('s1')).resolves.toBe(false)
+    await expect(DELETE_ACP_BINDING('s1')).resolves.toBe(false)
     expect(recallBinding('s1')).toBeNull()
   })
 })

@@ -67,7 +67,7 @@ function ConvertTask() {
     function () {
       if (!file || !previewKey) return
       let cancelled = false
-      void MorphIpc.toRender(file.path, 0, scale)
+      void MorphIpc.GET_MORPH_RENDER(file.path, 0, scale)
         .then(function (image) {
           if (!cancelled) updateSample({ key: previewKey, image })
         })

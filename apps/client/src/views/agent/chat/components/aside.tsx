@@ -377,7 +377,7 @@ function AgentAside(props: AsideProps) {
       if (!workdir) return undefined
       let agentId: string | null = null
       try {
-        agentId = await Terminal.resolveAgentId(workdir)
+        agentId = await Terminal.GET_TERMINAL_AGENT_ID(workdir)
       } catch (error) {
         console.warn('[agent/aside] resolveAgentId 失败:', error)
       }

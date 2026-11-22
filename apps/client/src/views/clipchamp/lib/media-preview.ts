@@ -228,7 +228,7 @@ async function fetchFilmstripFrames(
         }
       )
       try {
-        const result = await MediaIpc.filmstripFrames({
+        const result = await MediaIpc.GET_MEDIA_FILMSTRIP({
           path: request.path,
           timesMs: missing,
           tileWidth: FRAME_TEX_W,
@@ -307,7 +307,7 @@ async function ensureWaveform(asset: MediaAsset): Promise<WaveformMeta | null> {
 
   const task = (async function () {
     try {
-      const result = await MediaIpc.waveform({
+      const result = await MediaIpc.GET_MEDIA_WAVEFORM({
         path: asset.path,
         width: 1280,
         height: 64

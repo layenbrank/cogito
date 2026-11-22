@@ -21,19 +21,19 @@ import { toast } from 'sonner'
 
 import { attachImageData } from '@/features/agent/attachment'
 import {
-  fetchBrowserHistoryState,
-  fetchBrowserNavigationHistory,
-  navigateBrowser,
-  openBrowserDevtools,
-  probeBrowser,
-  readBrowserPage,
-  reloadBrowser,
-  screenshotBrowser,
-  setBrowserDevice,
-  startBrowserPicker,
-  stepBrowserHistory,
-  stopBrowserPicker,
-  writeBrowserVisible,
+  GET_BROWSER_HISTORY,
+  GET_BROWSER_NAVIGATION,
+  PUT_BROWSER_URL,
+  POST_BROWSER_DEVTOOLS,
+  GET_BROWSER_PROBE,
+  GET_BROWSER_PAGE,
+  POST_BROWSER_RELOAD,
+  POST_BROWSER_SCREENSHOT,
+  PUT_BROWSER_DEVICE,
+  POST_BROWSER_PICKER,
+  POST_BROWSER_HISTORY,
+  DELETE_BROWSER_PICKER,
+  PUT_BROWSER_VISIBLE,
   type BrowserNavigationEntry,
   type BrowserPickerActiveEvent,
   type PickedBrowserElement
@@ -184,7 +184,7 @@ function AsideBrowser() {
       const timer = window.setTimeout(function () {
         const generation = (applyGenerationRef.current += 1)
         appliedRef.current = key
-        void setBrowserDevice(activeLabel, activeDevice, fit)
+        void PUT_BROWSER_DEVICE(activeLabel, activeDevice, fit)
           .then(function (result) {
             if (generation !== applyGenerationRef.current) return
             // 以 Rust 回传的档案为准（它会夹 fit、并记录缩放通道）
@@ -207,7 +207,7 @@ function AsideBrowser() {
     if (!label) return
     pickingLabelRef.current = null
     updatePicking(false)
-    void stopBrowserPicker(label).catch(function (error: unknown) {
+    void DELETE_BROWSER_PICKER(label).catch(function (error: unknown) {
       console.warn('browser: 结束元素拾取失败', error)
     })
   }
@@ -216,7 +216,7 @@ function AsideBrowser() {
   useEffect(function () {
     return function () {
       haltPicker(pickingLabelRef.current)
-      void writeBrowserVisible(false).catch(reportError)
+      void PUT_BROWSER_VISIBLE(false).catch(reportError)
     }
   }, [])
 
@@ -227,7 +227,7 @@ function AsideBrowser() {
     function () {
       if (view !== 'page') {
         haltPicker(pickingLabelRef.current ?? activeLabel)
-        void writeBrowserVisible(false).catch(reportError)
+        void PUT_BROWSER_VISIBLE(false).catch(reportError)
       }
     },
     [view, activeLabel]
@@ -326,7 +326,7 @@ function AsideBrowser() {
         return
       }
       let cancelled = false
-      void fetchBrowserHistoryState(activeLabel)
+      void GET_BROWSER_HISTORY(activeLabel)
         .then(function (state) {
           if (cancelled) return
           updateCanGoBack(state.canGoBack)
@@ -351,7 +351,7 @@ function AsideBrowser() {
     function () {
       if (!activeLabel || !omniboxOpen) return
       let cancelled = false
-      void fetchBrowserNavigationHistory(activeLabel)
+      void GET_BROWSER_NAVIGATION(activeLabel)
         .then(function (entries) {
           if (cancelled) return
           sessionHistoryRef.current = entries
@@ -466,7 +466,7 @@ function AsideBrowser() {
     const nextFit = isUsableDevice(next) ? fitFor(next, usableBox) : 1
     const generation = (applyGenerationRef.current += 1)
     appliedRef.current = isUsableDevice(next) ? deviceApplyKey(label, next, nextFit) : ''
-    void setBrowserDevice(label, next, nextFit)
+    void PUT_BROWSER_DEVICE(label, next, nextFit)
       .then(function (result) {
         if (generation !== applyGenerationRef.current) return
         useBrowserStore.getState().setDevice(label, result.device ?? next)
@@ -501,7 +501,7 @@ function AsideBrowser() {
     }
     pickingLabelRef.current = activeLabel
     updatePicking(true)
-    void startBrowserPicker(activeLabel)
+    void POST_BROWSER_PICKER(activeLabel)
       .then(function () {
         toast.message('在页面上点击要选的元素，Esc 取消')
       })
@@ -531,7 +531,7 @@ function AsideBrowser() {
       void store.openTab(targetUrl).catch(reportError)
       return
     }
-    void navigateBrowser(label, targetUrl)
+    void PUT_BROWSER_URL(label, targetUrl)
       .then(function () {
         store.writeTabUrl(label, targetUrl)
       })
@@ -564,7 +564,7 @@ function AsideBrowser() {
       // 地址没改动 = 刷新当前页；老实现这里会直接 return，用户只看到「什么都没发生」
       updateDraft(formatAddress(activeUrl))
       const label = useBrowserStore.getState().activeLabel
-      if (label) void reloadBrowser(label).catch(reportError)
+      if (label) void POST_BROWSER_RELOAD(label).catch(reportError)
       return
     }
     navigateOmnibox(commit.url)
@@ -618,7 +618,7 @@ function AsideBrowser() {
     const name = `浏览器截图-${formatTabTitle(activeTab?.url ?? '', activeTab?.title)}.png`
 
     function shoot() {
-      void screenshotBrowser(activeLabel as string)
+      void POST_BROWSER_SCREENSHOT(activeLabel as string)
         .then(function (result) {
           return attachImageData(
             aui,
@@ -644,7 +644,7 @@ function AsideBrowser() {
   function probeChannel() {
     if (!activeLabel) return
     const label = activeLabel
-    void Promise.all([probeBrowser(label), readBrowserPage(label, 'outline', 20)])
+    void Promise.all([GET_BROWSER_PROBE(label), GET_BROWSER_PAGE(label, 'outline', 20)])
       .then(function ([probe, read]) {
         const canRead = probe.evaluate.ok
         const network = probe.network.ok
@@ -841,7 +841,7 @@ function AsideBrowser() {
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
             if (!activeLabel) return
-            void openBrowserDevtools(activeLabel).catch(reportError)
+            void POST_BROWSER_DEVTOOLS(activeLabel).catch(reportError)
           }}>
           <Icon
             icon="lucide:bug"
@@ -884,7 +884,7 @@ function AsideBrowser() {
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
             if (!activeLabel || !canGoBack) return
-            void stepBrowserHistory(activeLabel, true).catch(reportError)
+            void POST_BROWSER_HISTORY(activeLabel, true).catch(reportError)
           }}>
           <Icon
             icon="lucide:arrow-left"
@@ -901,7 +901,7 @@ function AsideBrowser() {
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
             if (!activeLabel || !canGoForward) return
-            void stepBrowserHistory(activeLabel, false).catch(reportError)
+            void POST_BROWSER_HISTORY(activeLabel, false).catch(reportError)
           }}>
           <Icon
             icon="lucide:arrow-right"
@@ -918,7 +918,7 @@ function AsideBrowser() {
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
             if (!activeLabel) return
-            void reloadBrowser(activeLabel).catch(reportError)
+            void POST_BROWSER_RELOAD(activeLabel).catch(reportError)
           }}>
           <Icon
             icon="lucide:rotate-cw"

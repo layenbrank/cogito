@@ -2,7 +2,7 @@ import { openPath as openExternal } from '@tauri-apps/plugin-opener'
 import { exists } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
-import { listKnowledge, resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
+import { GET_KNOWLEDGE_BASES, GET_KNOWLEDGE_DOC_REF, PUT_KNOWLEDGE_DOC } from '@/lib/knowledge-ipc'
 import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -41,7 +41,7 @@ async function ensureRootDir(): Promise<string> {
 
 async function findActiveBaseRoot(): Promise<string> {
   try {
-    const bases = await listKnowledge()
+    const bases = await GET_KNOWLEDGE_BASES()
     const active = bases.find(function (base) {
       return base.id === useKnowledgeBaseStore.getState().activeBaseID
     })
@@ -62,7 +62,7 @@ function syncDerived(markdown: string): void {
 /** 打开后取库内引用（含 hash）：保存时用它判断「期间是否被别人改过」 */
 async function syncActiveDoc(path: string): Promise<void> {
   try {
-    const reference = await resolveDoc(path)
+    const reference = await GET_KNOWLEDGE_DOC_REF(path)
     const store = useKnowledgeStore.getState()
     // 期间可能已经切到别的文档
     if (!isSamePath(store.activePath, path)) return
@@ -291,7 +291,7 @@ async function saveDocument(options?: {
 
     // 知识库文档由服务端写盘 + 落库（app 是唯一写者）；普通文件仍走前端写。
     noteSelfWrite()
-    const outcome = await writeDoc({
+    const outcome = await PUT_KNOWLEDGE_DOC({
       path,
       content,
       expectedHash,

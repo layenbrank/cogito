@@ -6,10 +6,10 @@
 import { create } from 'zustand'
 
 import {
-  listDrafts,
-  removeDraft,
-  saveDraft,
-  writeDraftStatus,
+  GET_DIRECTIVE_DRAFTS,
+  DELETE_DIRECTIVE_DRAFT,
+  POST_DIRECTIVE_DRAFT,
+  PUT_DIRECTIVE_DRAFT_STATUS,
   type DirectiveDraft,
   type DraftSave
 } from '@/lib/directive-draft-ipc'
@@ -47,7 +47,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
     async refresh() {
       setter({ isLoading: true, fetchError: null })
       try {
-        const drafts = await listDrafts(DRAFT.PENDING)
+        const drafts = await GET_DIRECTIVE_DRAFTS(DRAFT.PENDING)
         setter({ drafts, isLoading: false })
       } catch (error) {
         setter({ isLoading: false, fetchError: toMessage(error) })
@@ -57,7 +57,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
 
     async save(input) {
       try {
-        const draft = await saveDraft(input)
+        const draft = await POST_DIRECTIVE_DRAFT(input)
         setter({
           drafts: [draft, ...getter().drafts.filter(function (item) {
             return item.id !== draft.id
@@ -73,7 +73,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
 
     async markSaved(id) {
       try {
-        await writeDraftStatus({ id, status: DRAFT.SAVED })
+        await PUT_DIRECTIVE_DRAFT_STATUS({ id, status: DRAFT.SAVED })
         setter({
           drafts: getter().drafts.filter(function (item) {
             return item.id !== id
@@ -87,7 +87,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
 
     async discard(id) {
       try {
-        await removeDraft(id)
+        await DELETE_DIRECTIVE_DRAFT(id)
         setter({
           drafts: getter().drafts.filter(function (item) {
             return item.id !== id

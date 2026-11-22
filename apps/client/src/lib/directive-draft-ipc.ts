@@ -19,7 +19,7 @@ function asError(error: unknown, label: string): Error {
   return new Error(`${label}: ${String(error)}`)
 }
 
-async function saveDraft(input: DraftSave): Promise<DirectiveDraft> {
+async function POST_DIRECTIVE_DRAFT(input: DraftSave): Promise<DirectiveDraft> {
   try {
     const raw = await invoke(CHANNELS.DIRECTIVE_DRAFT.SAVE, { input })
     return DirectiveDraftSchema.parse(raw)
@@ -28,7 +28,7 @@ async function saveDraft(input: DraftSave): Promise<DirectiveDraft> {
   }
 }
 
-async function listDrafts(status?: string, limit?: number): Promise<DirectiveDraft[]> {
+async function GET_DIRECTIVE_DRAFTS(status?: string, limit?: number): Promise<DirectiveDraft[]> {
   try {
     const raw = await invoke(CHANNELS.DIRECTIVE_DRAFT.LIST, { status, limit })
     return DirectiveDraftSchema.array().parse(raw ?? [])
@@ -37,7 +37,7 @@ async function listDrafts(status?: string, limit?: number): Promise<DirectiveDra
   }
 }
 
-async function writeDraftStatus(input: DraftStatus): Promise<DirectiveDraft> {
+async function PUT_DIRECTIVE_DRAFT_STATUS(input: DraftStatus): Promise<DirectiveDraft> {
   try {
     const raw = await invoke(CHANNELS.DIRECTIVE_DRAFT.SET_STATUS, { input })
     return DirectiveDraftSchema.parse(raw)
@@ -46,7 +46,7 @@ async function writeDraftStatus(input: DraftStatus): Promise<DirectiveDraft> {
   }
 }
 
-async function removeDraft(id: string): Promise<number> {
+async function DELETE_DIRECTIVE_DRAFT(id: string): Promise<number> {
   try {
     return await invoke<number>(CHANNELS.DIRECTIVE_DRAFT.REMOVE, { id })
   } catch (error) {
@@ -54,5 +54,5 @@ async function removeDraft(id: string): Promise<number> {
   }
 }
 
-export { listDrafts, removeDraft, saveDraft, writeDraftStatus }
+export { GET_DIRECTIVE_DRAFTS, DELETE_DIRECTIVE_DRAFT, POST_DIRECTIVE_DRAFT, PUT_DIRECTIVE_DRAFT_STATUS }
 export type { DirectiveDraft, DraftSave, DraftStatus }

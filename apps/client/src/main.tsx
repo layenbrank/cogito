@@ -26,10 +26,11 @@ import { reportPendingCrashes } from '@/lib/diagnostics/crash-report.ts'
 import { useDictStore } from '@/stores/dict'
 import { installExceptionReporting, reportUnknown } from '@/utils/exception-report.ts'
 import { analyzeWithAcp } from '@/views/knowledge/lib/ingest-acp-analyzer.ts'
-import { preloadBindings } from '@/features/agent/acp/session-binding'
+import { GET_ACP_BINDINGS } from '@/features/agent/acp/session-binding'
 import { installSubagentRunner } from '@/features/agent/acp/subagent'
 import { registerIngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
 import { bootstrapIngestEnqueueBridge } from '@/views/knowledge/lib/ingest-enqueue-bridge.ts'
+import { bootstrapWikiApiConfig } from '@/views/knowledge/lib/wiki-api-config.ts'
 import '@/styles/tailwind.css'
 import '@/styles/index.scss'
 
@@ -123,7 +124,7 @@ async function bootstrap() {
     // 会话 ↔ ACP 绑定（S9）：一次性把库里的绑定灌进内存缓存。恢复进行中回合时
     // 走的是同步 `recallBinding`，所以这步必须赶在用户点进会话之前完成；失败只
     // 会让「刷新后恢复」失效，不影响启动。
-    void preloadBindings().then(function (count) {
+    void GET_ACP_BINDINGS().then(function (count) {
       if (count > 0) console.info('[bootstrap] ACP 绑定预载', count)
     })
     // 子任务（S10）：Rust 任务板派下来的活在这里跑（子会话、审批一律拒绝）
@@ -132,6 +133,8 @@ async function bootstrap() {
     })
     // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
     watchActiveTenant()
+    // 本机 API / agent 代理开关：Rust 侧只是进程内状态，重启后要从设置里灌回去
+    bootstrapWikiApiConfig()
     // 知识库：全局注册 ACP ingest 分析器 + agent 入队桥（不依赖知识库页是否打开）
     registerIngestAnalyzer(analyzeWithAcp)
     void bootstrapIngestEnqueueBridge().catch(function (error: unknown) {

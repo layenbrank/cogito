@@ -71,7 +71,7 @@ function unwrapDirectives(raw: unknown): unknown {
   return raw
 }
 
-async function fetchStatus(): Promise<SidecarStatus> {
+async function GET_SIDECAR_STATUS(): Promise<SidecarStatus> {
   try {
     const raw = await invoke(CHANNELS.SIDECAR.TO_READ)
     return parseOrThrow(StatusSchema, raw, 'sidecar 状态')
@@ -80,7 +80,7 @@ async function fetchStatus(): Promise<SidecarStatus> {
   }
 }
 
-async function fetchActions(): Promise<ActionEntry[]> {
+async function GET_SIDECAR_ACTIONS(): Promise<ActionEntry[]> {
   try {
     const raw = await invoke(CHANNELS.SIDECAR.ACTIONS)
     return parseOrThrow(ActionEntrySchema.array(), unwrapActions(raw), '动作目录')
@@ -89,7 +89,7 @@ async function fetchActions(): Promise<ActionEntry[]> {
   }
 }
 
-async function fetchDirectives(): Promise<DirectiveEntry[]> {
+async function GET_SIDECAR_DIRECTIVES(): Promise<DirectiveEntry[]> {
   try {
     const raw = await invoke(CHANNELS.SIDECAR.DIRECTIVES)
     return parseOrThrow(DirectiveEntrySchema.array(), unwrapDirectives(raw), '指令目录')
@@ -98,48 +98,48 @@ async function fetchDirectives(): Promise<DirectiveEntry[]> {
   }
 }
 
-async function fetchDirective(name: string): Promise<DirectiveDocument> {
+async function GET_SIDECAR_DIRECTIVE(name: string): Promise<DirectiveDocument> {
   const raw = await invoke(CHANNELS.SIDECAR.DIRECTIVE, { input: { name } })
   return parseOrThrow(DirectiveDocumentSchema, raw, '读取指令')
 }
 
-async function saveDirective(input: z.infer<typeof DirectiveSaveSchema>): Promise<DirectiveDocument> {
+async function POST_SIDECAR_DIRECTIVE(input: z.infer<typeof DirectiveSaveSchema>): Promise<DirectiveDocument> {
   const payload = DirectiveSaveSchema.parse(input)
   const raw = await invoke(CHANNELS.SIDECAR.SAVE_DIRECTIVE, { input: payload })
   return parseOrThrow(DirectiveDocumentSchema, raw, '保存指令')
 }
 
-async function deleteDirective(name: string): Promise<void> {
+async function DELETE_SIDECAR_DIRECTIVE(name: string): Promise<void> {
   await invoke(CHANNELS.SIDECAR.DELETE_DIRECTIVE, { input: { name } })
 }
 
-async function importDirectives(input: z.infer<typeof ImportSchema>): Promise<ImportResult> {
+async function POST_SIDECAR_IMPORT(input: z.infer<typeof ImportSchema>): Promise<ImportResult> {
   const payload = ImportSchema.parse(input)
   const raw = await invoke(CHANNELS.SIDECAR.IMPORT_DIRECTIVES, { input: payload })
   return parseOrThrow(ImportResultSchema, raw, '导入指令')
 }
 
-async function editDirectiveExternal(name: string): Promise<void> {
+async function POST_SIDECAR_DIRECTIVE_EDIT(name: string): Promise<void> {
   await invoke(CHANNELS.SIDECAR.EDIT_DIRECTIVE, { input: { name } })
 }
 
-async function runDirective(input: z.infer<typeof RunSchema>): Promise<unknown> {
+async function POST_SIDECAR_RUN(input: z.infer<typeof RunSchema>): Promise<unknown> {
   const payload = RunSchema.parse(input)
   return invoke(CHANNELS.SIDECAR.RUN, { input: payload })
 }
 
-async function invokeAction(input: z.infer<typeof InvokeSchema>): Promise<unknown> {
+async function POST_SIDECAR_INVOKE(input: z.infer<typeof InvokeSchema>): Promise<unknown> {
   const payload = InvokeSchema.parse(input)
   return invoke(CHANNELS.SIDECAR.INVOKE, { input: payload })
 }
 
-async function listRuns(input: z.infer<typeof ListRunsSchema> = {}): Promise<ListRunsReply> {
+async function GET_SIDECAR_RUNS(input: z.infer<typeof ListRunsSchema> = {}): Promise<ListRunsReply> {
   const payload = ListRunsSchema.parse(input)
   const raw = await invoke(CHANNELS.SIDECAR.LIST_RUNS, { input: payload })
   return parseOrThrow(ListRunsReplySchema, raw, '运行历史')
 }
 
-async function validateDirective(input: z.infer<typeof ValidateSchema>): Promise<{ ok: true; name: string }> {
+async function POST_SIDECAR_VALIDATE(input: z.infer<typeof ValidateSchema>): Promise<{ ok: true; name: string }> {
   const payload = ValidateSchema.parse(input)
   try {
     const raw = await invoke(CHANNELS.SIDECAR.VALIDATE, { input: payload })
@@ -149,14 +149,14 @@ async function validateDirective(input: z.infer<typeof ValidateSchema>): Promise
   }
 }
 
-async function cancelExecution(targetId: number): Promise<void> {
+async function DELETE_SIDECAR_EXECUTION(targetId: number): Promise<void> {
   CancelExecutionSchema.parse({ target_id: targetId })
   await invoke(CHANNELS.SIDECAR.CANCEL_EXECUTION, {
     input: { target_id: targetId }
   })
 }
 
-async function fetchJobs(input: z.infer<typeof JobsQuerySchema> = {}): Promise<JobsReply> {
+async function GET_SIDECAR_JOBS(input: z.infer<typeof JobsQuerySchema> = {}): Promise<JobsReply> {
   const payload = JobsQuerySchema.parse(input)
   try {
     const raw = await invoke(CHANNELS.SIDECAR.JOBS, { input: payload })
@@ -166,7 +166,7 @@ async function fetchJobs(input: z.infer<typeof JobsQuerySchema> = {}): Promise<J
   }
 }
 
-async function startJob(input: z.infer<typeof StartJobSchema>): Promise<JobView> {
+async function POST_SIDECAR_JOB(input: z.infer<typeof StartJobSchema>): Promise<JobView> {
   const payload = StartJobSchema.parse(input)
   try {
     const raw = await invoke(CHANNELS.SIDECAR.START_JOB, { input: payload })
@@ -176,7 +176,7 @@ async function startJob(input: z.infer<typeof StartJobSchema>): Promise<JobView>
   }
 }
 
-async function stopJob(input: z.infer<typeof StopJobSchema>): Promise<JobView> {
+async function DELETE_SIDECAR_JOB(input: z.infer<typeof StopJobSchema>): Promise<JobView> {
   const payload = StopJobSchema.parse(input)
   try {
     const raw = await invoke(CHANNELS.SIDECAR.STOP_JOB, { input: payload })
@@ -204,23 +204,23 @@ function listenProgress(listener: ProgressListener): () => void {
 }
 
 export {
-  cancelExecution,
-  deleteDirective,
-  editDirectiveExternal,
-  fetchActions,
-  fetchDirective,
-  fetchDirectives,
-  fetchJobs,
-  fetchStatus,
-  importDirectives,
-  invokeAction,
+  DELETE_SIDECAR_EXECUTION,
+  DELETE_SIDECAR_DIRECTIVE,
+  POST_SIDECAR_DIRECTIVE_EDIT,
+  GET_SIDECAR_ACTIONS,
+  GET_SIDECAR_DIRECTIVE,
+  GET_SIDECAR_DIRECTIVES,
+  GET_SIDECAR_JOBS,
+  GET_SIDECAR_STATUS,
+  POST_SIDECAR_IMPORT,
+  POST_SIDECAR_INVOKE,
   listenProgress,
-  listRuns,
-  runDirective,
-  saveDirective,
-  startJob,
-  stopJob,
-  validateDirective
+  GET_SIDECAR_RUNS,
+  POST_SIDECAR_RUN,
+  POST_SIDECAR_DIRECTIVE,
+  POST_SIDECAR_JOB,
+  DELETE_SIDECAR_JOB,
+  POST_SIDECAR_VALIDATE
 }
 export type {
   ActionEntry,

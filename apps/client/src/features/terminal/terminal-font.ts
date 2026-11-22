@@ -220,7 +220,7 @@ async function computeTerminalTypeface(): Promise<TerminalTypeface> {
 
   let systemFont: TerminalFont
   try {
-    systemFont = await Terminal.font()
+    systemFont = await Terminal.GET_TERMINAL_FONT()
   } catch (error) {
     console.warn('[terminal] terminal:font 调用失败，用兜底等宽字体', error)
     return fallback

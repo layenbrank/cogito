@@ -44,13 +44,13 @@ import {
   isLocalKind,
   noteRunFailure,
   pickProvider,
-  planRoute,
+  GET_AGENT_ROUTE,
   readRouteTier
 } from '@/features/agent/model/route'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { notifyApproval } from '@/features/agent/notify'
 import { parseSchedulePlan } from '@/features/agent/schedule-plan'
-import { findProviderSecret } from '@/features/persist'
+import { GET_PROVIDER_SECRET } from '@/features/persist'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
 import { useScheduleDraftStore } from '@/stores/schedule-draft'
@@ -140,7 +140,7 @@ async function findCloudFallback(
   })
   if (gateway) return gateway
   for (const candidate of candidates) {
-    if (await findProviderSecret(candidate.id)) return candidate
+    if (await GET_PROVIDER_SECRET(candidate.id)) return candidate
   }
   return candidates[0]
 }
@@ -172,7 +172,7 @@ async function findRoutedProvider(): Promise<AgentProvider | null> {
   // 用户自己点过（持久化的选择）就照办；只有系统给的默认值时，才允许按档位探测、兜底
   const isAutomatic = !state.activeProviderPicked
   if (!isAutomatic || tier !== 'local' || !isLocalKind(provider.kind)) return provider
-  const reply = await planRoute(tier, findActiveModel(provider))
+  const reply = await GET_AGENT_ROUTE(tier, findActiveModel(provider))
   if (!reply?.plan.degraded) return provider
   const cloud = await findCloudFallback(state.providers, provider.id)
   if (!cloud) {

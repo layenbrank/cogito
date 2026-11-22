@@ -2,7 +2,7 @@
  * 运行能力：指令是否声明 cron / watch 触发器。
  */
 
-import { fetchDirective } from '@/lib/directive-ipc.ts'
+import { GET_SIDECAR_DIRECTIVE } from '@/lib/directive-ipc.ts'
 
 interface Caps {
   hasCron: boolean
@@ -49,7 +49,7 @@ async function findDirectiveCaps(name: string): Promise<Caps> {
   const hit = CAPS_CACHE.get(name)
   if (hit && now - hit.at < CAPS_CACHE_MS) return hit.caps
   try {
-    const document = await fetchDirective(name)
+    const document = await GET_SIDECAR_DIRECTIVE(name)
     const caps = capsFromTriggers(document.definition.triggers)
     CAPS_CACHE.set(name, { at: now, caps })
     return caps

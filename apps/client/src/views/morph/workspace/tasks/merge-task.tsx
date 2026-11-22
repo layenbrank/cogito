@@ -64,7 +64,7 @@ function MergeTask() {
       void Promise.all(
         inputs.map(async function (path) {
           try {
-            const page = await MorphIpc.toRender(path, 0, 0.5)
+            const page = await MorphIpc.GET_MORPH_RENDER(path, 0, 0.5)
             return [path, page.base64] as const
           } catch (error) {
             // 单张缩略图渲不出来就不带图（列表会显示占位），但留痕便于排查是哪些文件

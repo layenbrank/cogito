@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
 
 import { readAppearance } from '@/features/window/appearance'
-import { fetchSiteFavicon } from '@/lib/site-favicon.ts'
+import { GET_SITE_FAVICON } from '@/lib/site-favicon.ts'
 import { useMirrorStore, type MagneticTileUpdate } from '@/stores/mirror.ts'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
 import { Fields } from '@/views/marketplace/workspace/customize/fields'
@@ -127,7 +127,7 @@ function Customize() {
       faviconRequestRef.current = requestId
       const timer = window.setTimeout(function () {
         updateFaviconLoading(true)
-        void fetchSiteFavicon(trimmed)
+        void GET_SITE_FAVICON(trimmed)
           .then(function (favicon) {
             if (faviconRequestRef.current !== requestId) return
             if (favicon) form.setValue('mark', favicon, { shouldDirty: true })

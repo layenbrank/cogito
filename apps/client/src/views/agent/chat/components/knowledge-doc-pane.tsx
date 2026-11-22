@@ -33,9 +33,9 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
-  removeDoc,
-  resolveDoc,
-  writeDoc,
+  DELETE_KNOWLEDGE_DOC,
+  GET_KNOWLEDGE_DOC_REF,
+  PUT_KNOWLEDGE_DOC,
   type KnowledgeBase,
   type KnowledgeDocSummary
 } from '@/lib/knowledge-ipc.ts'
@@ -105,7 +105,7 @@ function KnowledgeDocPane(props: KnowledgeDocPaneProps) {
           updateContent(text)
           updateSavedContent(text)
           // hash 单独取：取不到也能编辑，只是保存时少一层冲突判定
-          void resolveDoc(absolutePath)
+          void GET_KNOWLEDGE_DOC_REF(absolutePath)
             .then(function (reference) {
               if (cancelled) return
               updateHash(reference.matched ? (reference.hash ?? null) : null)
@@ -152,7 +152,7 @@ function KnowledgeDocPane(props: KnowledgeDocPaneProps) {
     const value = content
     if (options?.closeAfter) closeAfterSaveRef.current = true
     updateSaving(true)
-    void writeDoc({
+    void PUT_KNOWLEDGE_DOC({
       path: absolutePath,
       content: value,
       expectedHash: options?.force ? null : hash,
@@ -194,7 +194,7 @@ function KnowledgeDocPane(props: KnowledgeDocPaneProps) {
 
   function confirmDelete() {
     updateDeleting(true)
-    void removeDoc(props.doc.id)
+    void DELETE_KNOWLEDGE_DOC(props.doc.id)
       .then(function (count) {
         // 服务端连文件带索引一起删；0 表示行已经没了，只提示刷新
         toast.success(count > 0 ? '已删除文档' : '文档已不在库里，列表已刷新')

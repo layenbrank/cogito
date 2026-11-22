@@ -55,7 +55,7 @@ function useSearchSurface() {
         setSearching(true)
         void Promise.all(
           roots.map(function (root) {
-            return WorkspaceFiles.content({
+            return WorkspaceFiles.GET_WORKSPACE_CONTENT({
               root,
               query: trimmed,
               isRegex,
