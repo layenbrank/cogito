@@ -90,6 +90,7 @@
 | [ci-cd.md](./ops/ci-cd.md)                                              | CI/CD：Secrets 概念、两类签名、工作流与发版操作 |
 | [testing.md](./ops/testing.md)                                          | Vitest / Jest 约定与示例入口                    |
 | [pnpm-and-native-mirrors.md](./ops/pnpm-and-native-mirrors.md)          | pnpm 配置与 Electron 镜像                       |
+| [cloudflare-tunnel-nginx.md](./ops/cloudflare-tunnel-nginx.md)          | Cloudflare Tunnel + 本机 nginx：把内网服务发布到公网（含配置与排障） |
 
 ### Microsoft Store（ops/store/）
 
