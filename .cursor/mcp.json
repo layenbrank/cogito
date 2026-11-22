@@ -4,7 +4,6 @@
       "command": "corex-mcp",
       "args": ["--import", ".cache/corex/directives"],
       "env": {
-        "COREX_DATA_DIR": "C:/Users/iwell/AppData/Local/corex/bin",
         "COREX_MCP_SESSION": "cursor"
       }
     },

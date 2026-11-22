@@ -6,11 +6,6 @@
       "headers": {
         "Authorization": "${input:Authorization}"
       }
-    },
-    "io.github.ChromeDevTools/chrome-devtools-mcp": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["chrome-devtools-mcp@0.11.0"]
     }
   },
   "inputs": [

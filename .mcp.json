@@ -1,0 +1,22 @@
+{
+	"mcpServers": {
+		"corex": {
+			"type": "stdio",
+			"command": "corex-mcp",
+			"args": [
+				"--import",
+				".cache/corex/directives"
+			],
+			"tools": [
+				"*"
+			]
+		},
+		"shaders": {
+			"type": "http",
+			"url": "https://shaders.com/mcp",
+			"tools": [
+				"*"
+			]
+		}
+	}
+}
