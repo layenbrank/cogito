@@ -65,10 +65,10 @@
 
 ### Extension（浏览器扩展）
 
-| 文档                                                                                       | 说明                  |
-| ------------------------------------------------------------------------------------------ | --------------------- |
-| [ai-streaming-iframe.md](./apps/extension/ai-streaming-iframe.md)                           | AI 流式 + iframe 渲染 |
-| [examples/ai-streaming-iframe-demo.md](./apps/extension/examples/ai-streaming-iframe-demo.md) | 父页 API 调用示例   |
+| 文档 | 说明 |
+| --- | --- |
+| [README.md](./apps/extension/README.md) | 架构总览：入口、双路执行（桥 / 云端）、平台层、存储、命令、已知缺口 |
+| [agent-bridge.md](./apps/client/agent-bridge.md) | 本机 agent 代理（`/api/v1/agent/*`）的鉴权与安全边界 |
 
 ## 包（packages/）
 

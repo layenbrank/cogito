@@ -28,7 +28,7 @@
 
 - `ensurePersist()` — host / `main` 挂路由前唯一 hydrate 入口
 - `findPref(ns)` / `patchPref(ns, patch)` / `replacePref(ns, value)` — 同步读 cache，异步写盘
-- `ensureSecrets()` / `findJwtCache()` / `writeJwtSecret()` / `findProviderSecret()` / `writeProviderSecret()`
+- `ensureSecrets()` / `findJwtCache()` / `writeJwtSecret()` / `GET_PROVIDER_SECRET()` / `PUT_PROVIDER_SECRET()`
 - 跨窗登录同步：Tauri event `auth:changed`（不再用 `storage` 事件）
 
 ## 密钥红线

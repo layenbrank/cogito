@@ -11,7 +11,7 @@
 - **apps/client** — React + Tauri 桌面应用（`*.test.ts(x)`，另有 `src/__test__/`）
 - **apps/studio** — Electron 桌面（Vitest + 可选 Playwright e2e）
 - **apps/devtools** — Vue3 开发工具
-- **apps/extension** — Vue3 浏览器扩展（`src/__tests__/`）
+- **apps/extension** — React 浏览器扩展（测试与源码同目录，`src/**/*.test.ts(x)`）
 
 #### Packages
 
@@ -180,7 +180,7 @@ describe('API calls', () => {
 本仓库常见两种布局：
 
 1. **与源码同目录**：`foo.ts` 旁放 `foo.test.ts`（client / studio / packages 多用）
-2. **集中目录**：`src/__test__/`（client 示例）、`src/__tests__/`（extension）
+2. **同目录共存**：测试文件与源码同目录（`src/**/*.test.ts(x)`），不建集中测试目录
 
 ### 命名规则
 

@@ -46,7 +46,7 @@
 ```ts
 // aside-skills.tsx / composer-triggers.tsx（`/` 触发器）
 const { folderPaths, primaryRootPath } = useActiveWorkspace()
-const rows = await WorkspaceSkills.fetchSkills([...folderPaths])   // 每个文件夹都扫一遍
+const rows = await WorkspaceSkills.GET_WORKSPACE_SKILLS([...folderPaths])   // 每个文件夹都扫一遍
 const reference = toAgentPath(skill.path, primaryRootPath)         // 引用路径按会话 cwd 折算
 ```
 
@@ -111,7 +111,7 @@ await attachWorkspaceFile(aui, reference)   // 与文件树、@ 的同一条引�
 
 - 文件页签不再是「一层层往里点的扁平列表」（点目录=进去、要一路再点回来）：改用**可展开的文件树**，
   复用代码窗资源管理器那套 `views/workspace/overlay/file-tree*.tsx`（折叠动画、图标、缩进、加载骨架同一份），
-  树本身在 `aside-files-tree.tsx`：目录展开才读盘（`WorkspaceFiles.listDir`），`revision` 变化只重读
+  树本身在 `aside-files-tree.tsx`：目录展开才读盘（`WorkspaceFiles.GET_WORKSPACE_DIR`），`revision` 变化只重读
   「根 + 已展开目录」，展开态与当前文件都保留；换根（多文件夹工作区）才清展开态。
 - 行上仍挂 `data-aside-path` / `data-aside-kind`（`FileTreeItem` / `FileRow` 的 `emitAsidePath`），
   右栏右键菜单（添加到对话 / 复制路径）行为不变；搜索框常驻树顶，输入即切到封顶的扁平命中列表，清空回到树。
