@@ -1,0 +1,17 @@
+{
+  "name": "@cogito/brand",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./shader": "./src/shader.tsx"
+  },
+  "dependencies": {
+    "motion": "catalog:",
+    "react": "catalog:",
+    "shaders": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:"
+  }
+}

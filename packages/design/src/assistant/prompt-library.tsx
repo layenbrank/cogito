@@ -142,15 +142,19 @@ function PromptLibrary({
         })}
       </div>
 
-      {active ? (
-        <div
-          data-slot="prompt-library-preview"
-          className={cn(field, 'flex flex-col gap-2 rounded-xl p-2.5')}>
-          <p className="text-foreground/65 text-xs leading-relaxed break-words whitespace-pre-wrap">
-            {active.body}
-          </p>
-          {variables.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
+      {/*
+       * 预览高度固定。面板挂在输入框上方（底边锚定），正文一长一短会把整块往上顶，
+       * 列表跟着鼠标滑走，点下去经常点到别的条目。
+       */}
+      <div
+        data-slot="prompt-library-preview"
+        className={cn(field, 'flex h-28 shrink-0 flex-col gap-2 overflow-hidden rounded-xl p-2.5')}>
+        {active ? (
+          <>
+            <p className="text-foreground/65 min-h-0 flex-1 overflow-y-auto text-xs leading-relaxed break-words whitespace-pre-wrap">
+              {active.body}
+            </p>
+            <div className="flex h-5 shrink-0 flex-wrap gap-1 overflow-hidden">
               {variables.map(function (name) {
                 return (
                   <span
@@ -162,9 +166,11 @@ function PromptLibrary({
                 )
               })}
             </div>
-          ) : null}
-        </div>
-      ) : null}
+          </>
+        ) : (
+          <p className="text-muted-foreground text-xs">选择一条提示词查看正文</p>
+        )}
+      </div>
 
       {footer ? <div className="text-muted-foreground px-0.5 text-xs">{footer}</div> : null}
     </div>

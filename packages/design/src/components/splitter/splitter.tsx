@@ -70,7 +70,6 @@ function Splitter(props: SplitterProps) {
   const [ptgSizes, updatePtgSizes] = useState<number[]>([])
   const [isDragging, updateDragging] = useState(false)
   const [activeHandle, updateActiveHandle] = useState<number | null>(null)
-  const [hoveredHandle, updateHoveredHandle] = useState<number | null>(null)
   const [isAnimating, updateAnimating] = useState(false)
 
   const dragCacheRef = useRef<number[] | null>(null)
@@ -823,7 +822,6 @@ function Splitter(props: SplitterProps) {
           disabled={handle.disabled || disabled}
           disableDoubleClick={handle.disableDoubleClick}
           isActive={activeHandle === index}
-          isHovered={hoveredHandle === index}
           ariaNow={prevStack * 100 + ptg * 100}
           ariaMin={prevStack * 100}
           ariaMax={((stackSizes[index + 1] ?? 1) - nextMin) * 100}
@@ -835,17 +833,6 @@ function Splitter(props: SplitterProps) {
           collapseConfig={handle.collapse}
           collapseIcon={collapseIcon}
           onPointerDown={handlePointerDown}
-          onPointerEnter={function () {
-            // 不可拖拽（pane `resizable={false}` / 冻结）时不要点亮分隔条：
-            // 悬停变亮就是「这里能拖」的信号，拖不动就别给这个暗示
-            if (!handleFlags.canResize) return
-            updateHoveredHandle(index)
-          }}
-          onPointerLeave={function () {
-            updateHoveredHandle(function (current) {
-              return current === index ? null : current
-            })
-          }}
           onCollapseStart={function () {
             onCollapseSide(index, 'start')
           }}

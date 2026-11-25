@@ -247,9 +247,17 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
         'relative flex w-full cursor-pointer items-center gap-2 rounded-md outline-hidden select-none',
         'min-h-8 px-2 py-1.5 text-sm',
         'group-data-[size=sm]/popup:min-h-7 group-data-[size=sm]/popup:px-1.5 group-data-[size=sm]/popup:py-1 group-data-[size=sm]/popup:text-xs',
-        // antd 交互：悬停给中性底色；选中项用浅主色 + 中粗字重（不再画 check 图标）
+        // antd 交互：悬停/键盘高亮给中性底色；选中项用浅主色 + 中粗字重（不再画 check 图标）。
+        //
+        // **必须写 `data-[selected]:` 而不是 `data-selected:`**：Tailwind 把 `data-selected:` 编译成
+        // `[data-selected="true"]`（`selected` 被当成布尔属性），而 base-ui 的 Select 给的属性值
+        // 是空串 `data-selected=""` —— 用 `data-selected:` 的结果是选中态一条样式都命中不了，
+        // 当前值在列表里看着和普通项一样、和悬停项分不出来。`data-[selected]:` 编译成「属性存在
+        // 即命中」，和 `data-highlighted` / `data-open` 这些没有坑的变体行为一致。
         'data-highlighted:bg-accent data-highlighted:text-accent-foreground',
-        'data-selected:bg-primary/10 data-selected:font-medium',
+        'data-[selected]:bg-primary/10 data-[selected]:font-medium',
+        // 又选中又高亮（展开后第一下就落在当前值上）：主色再深一档，避免被中性悬停底色吃掉
+        'data-[selected]:data-highlighted:bg-primary/15',
         'data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50',
         className
       )}

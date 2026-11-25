@@ -17,7 +17,6 @@ interface SplitterHandleViewProps {
   disabled?: boolean
   disableDoubleClick?: boolean
   isActive?: boolean
-  isHovered?: boolean
   ariaNow: number
   ariaMin: number
   ariaMax: number
@@ -30,8 +29,6 @@ interface SplitterHandleViewProps {
   collapseConfig?: SplitterHandleProps['collapse']
   collapseIcon?: { start?: ReactNode; end?: ReactNode }
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>, index: number) => void
-  onPointerEnter: () => void
-  onPointerLeave: () => void
   onCollapseStart: () => void
   onCollapseEnd: () => void
 }
@@ -43,7 +40,7 @@ function findVisibilityClass(mode: CollapseVisible | undefined, isExpandAction: 
   if (isExpandAction) return 'opacity-100'
   if (mode === true) return 'opacity-100'
   if (mode === false) return 'hidden'
-  return 'opacity-0 group-hover/splitter-handle:opacity-100 group-data-[splitter-handle=active]/splitter-handle:opacity-100 group-data-[splitter-handle=hover]/splitter-handle:opacity-100 focus-visible:opacity-100'
+  return 'opacity-0 group-hover/splitter-handle:opacity-100 group-data-[splitter-handle=active]/splitter-handle:opacity-100 focus-visible:opacity-100'
 }
 
 function findPositionClass(
@@ -185,7 +182,6 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
     className,
     disabled,
     isActive,
-    isHovered,
     ariaNow,
     ariaMin,
     ariaMax,
@@ -197,14 +193,14 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
     collapseConfig,
     collapseIcon,
     onPointerDown,
-    onPointerEnter,
-    onPointerLeave,
     onCollapseStart,
     onCollapseEnd
   } = props
 
   const isHorizontal = orientation === 'horizontal'
-  const handleState = disabled ? 'disabled' : isActive ? 'active' : isHovered ? 'hover' : 'inactive'
+  // 悬停态交给 CSS（`:hover` + `data-can-resize`）：指针进出不必再进 React state，
+  // 否则每次划过分隔条都会重渲染整棵 Splitter 子树。
+  const handleState = disabled ? 'disabled' : isActive ? 'active' : 'inactive'
 
   return (
     <div
@@ -216,6 +212,7 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
       aria-disabled={!canResize || disabled}
       data-slot="splitter-handle"
       data-splitter-handle={handleState}
+      data-can-resize={canResize && !disabled ? 'true' : 'false'}
       className={cn(
         'group/splitter-handle relative flex shrink-0 items-center justify-center',
         'bg-border',
@@ -232,8 +229,8 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
               'after:inset-x-0 after:top-1/2 after:h-1 after:-translate-y-1/2',
               canResize && !disabled && 'cursor-row-resize'
             ),
-        // 悬停/拖拽用前景色阶，适配亮暗主题
-        handleState === 'hover' && 'bg-foreground/35',
+        // 悬停/拖拽用前景色阶，适配亮暗主题；可拖才点亮，不可拖不给暗示
+        'data-[can-resize=true]:hover:bg-foreground/35',
         handleState === 'active' && 'bg-foreground/55',
         handleState === 'disabled' && 'opacity-40',
         className
@@ -242,14 +239,13 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
         if (!canResize || disabled) return
         onPointerDown(event, index)
       }}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}>
+      >
       {withHandle && (
         <div
           className={cn(
             'bg-muted-foreground/40 z-10 flex shrink-0 rounded-sm transition-colors',
             isHorizontal ? 'h-6 w-1' : 'h-1 w-6',
-            'group-data-[splitter-handle=hover]/splitter-handle:bg-foreground/50',
+            'group-hover/splitter-handle:bg-foreground/50',
             'group-data-[splitter-handle=active]/splitter-handle:bg-foreground/70'
           )}
         />

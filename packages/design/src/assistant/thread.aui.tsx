@@ -336,8 +336,14 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
           <div
             data-slot="aui_thread-viewport-inner"
             className="relative mx-auto flex min-h-full w-full max-w-(--thread-max-width) flex-col px-5 pt-6 sm:px-6">
+            {/*
+             * 空态欢迎页留在**可滚动区里**（技能列表可能很长），但不能用「垂直居中」：
+             * 输入框是 `field-sizing-content`，点一条快捷提示词就会变高，viewport 随之变矮，
+             * 居中内容会整体上移 —— 鼠标正对着的卡片跑了，看起来像点不中。
+             * 改用 `vh` 锚定：视口高度只在窗口缩放时变，输入框怎么长都不影响它。
+             */}
             <AuiIf condition={isNewChatView}>
-              <div className="flex flex-1 flex-col items-center justify-center py-6">
+              <div className="flex flex-col items-center pt-[clamp(24px,14vh,160px)] pb-6">
                 <Welcome />
               </div>
             </AuiIf>
@@ -370,8 +376,22 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
           aria-hidden
           className="from-background pointer-events-none absolute inset-x-0 -top-8 h-8 bg-linear-to-t to-transparent"
         />
-        <ThreadScrollToBottom />
-        <ThreadFollowupSuggestions />
+        {/*
+         * 输入框上方的浮动层：**「回到最新」按钮与 follow-up 建议共用同一条竖列**。
+         *
+         * follow-up 建议浮在输入框上方（绝对定位）：每轮收尾出现、一打字就消失，
+         * 留在流里会让输入框每次上下跳 40px —— 点发送 / 选文字时目标正好在移动。
+         *
+         * 按钮原本单独 `absolute -top-12`，和这条建议带占同一段空隙：向上滚动读上面的
+         * 内容时，按钮会正压在第一条建议上。改成同一个 flex 列后按钮排到建议**上方**；
+         * `ThreadPrimitive.ScrollToBottom` 在贴底时直接返回 null，所以建议不会被顶出空档。
+         */}
+        <div
+          data-slot="aui_thread-followup-overlay"
+          className="pointer-events-none absolute inset-x-4 bottom-full flex flex-col items-center pb-1 [&_*]:pointer-events-auto">
+          <ThreadScrollToBottom />
+          <ThreadFollowupSuggestions />
+        </div>
         <Composer autoFocus={autoFocus} />
         {ComposerFooter ? (
           <div className="mt-2">
@@ -438,8 +458,8 @@ const ThreadDayMarker: FC = () => {
 const ThreadScrollToBottom: FC = () => {
   const labels = useAssistantLabels()
 
-  // 仅按钮点击用 smooth；Viewport 不加 scroll-smooth，避免流式跟底每帧插值乱跳
-  // 显隐用 opacity + 微位移，避免 disabled:invisible 瞬时切断过渡
+  // 仅按钮点击用 smooth；Viewport 不加 scroll-smooth，避免流式跟底每帧插值乱跳。
+  // 贴底时 primitive 直接返回 null（不是禁用），所以这里只排布「出现时」的样式。
   return (
     <ThreadPrimitive.ScrollToBottom
       asChild
@@ -449,14 +469,13 @@ const ThreadScrollToBottom: FC = () => {
         variant="outline"
         size="icon"
         className={cn(
-          'aui-thread-scroll-to-bottom border-border/50 bg-background/90 absolute -top-12 z-10 size-8 self-center rounded-full shadow-xs',
+          'aui-thread-scroll-to-bottom border-border/50 bg-background/90 z-10 mb-2 size-8 shrink-0 rounded-full shadow-xs',
           'backdrop-blur-md supports-backdrop-filter:bg-background/75',
-          'transition-[opacity,transform,background-color,box-shadow,border-color] duration-200',
+          'transition-[background-color,box-shadow,border-color] duration-200',
           CHAT_EASE_CLASS,
           'motion-reduce:transition-none',
           'hover:border-border hover:bg-muted hover:shadow-sm',
-          'active:bg-accent-active',
-          'disabled:pointer-events-none disabled:opacity-0 disabled:translate-y-1 disabled:shadow-none'
+          'active:bg-accent-active'
         )}>
         <Icon
           icon="lucide:arrow-down"
