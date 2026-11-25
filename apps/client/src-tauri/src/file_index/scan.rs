@@ -13,8 +13,8 @@
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use cogito_core::CommandResult;
 use sea_orm::{
@@ -117,7 +117,10 @@ pub async fn open(path: &Path) -> CommandResult<DatabaseConnection> {
             cogito_core::Exception::Internal(format!("创建索引目录失败：{error}"))
         })?;
     }
-    let url = format!("sqlite://{}?mode=rwc", path.to_string_lossy().replace('\\', "/"));
+    let url = format!(
+        "sqlite://{}?mode=rwc",
+        path.to_string_lossy().replace('\\', "/")
+    );
     let db = Database::connect(&url)
         .await
         .map_err(|error| cogito_core::Exception::Internal(format!("打开文件索引失败：{error}")))?;
@@ -241,9 +244,13 @@ async fn write_rows<C: ConnectionTrait>(
         if incremental {
             sql.push_str(SKIP_UNCHANGED);
         }
-        conn.execute(Statement::from_sql_and_values(DbBackend::Sqlite, sql, values))
-            .await
-            .map_err(db_error)?;
+        conn.execute(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            sql,
+            values,
+        ))
+        .await
+        .map_err(db_error)?;
     }
     Ok(())
 }
@@ -260,9 +267,13 @@ async fn mark_seen<C: ConnectionTrait>(conn: &C, rows: &[FileRow]) -> CommandRes
             sql.push_str("(?)");
             values.push(Value::from(row.path.clone()));
         }
-        conn.execute(Statement::from_sql_and_values(DbBackend::Sqlite, sql, values))
-            .await
-            .map_err(db_error)?;
+        conn.execute(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            sql,
+            values,
+        ))
+        .await
+        .map_err(db_error)?;
     }
     Ok(())
 }
@@ -307,7 +318,9 @@ pub async fn read_meta(db: &DatabaseConnection, key: &str) -> CommandResult<Opti
             vec![Value::from(key.to_string())],
         ))
         .await
-        .map_err(|error| cogito_core::Exception::Internal(format!("读取索引元数据失败：{error}")))?;
+        .map_err(|error| {
+            cogito_core::Exception::Internal(format!("读取索引元数据失败：{error}"))
+        })?;
     Ok(row
         .and_then(|item| item.try_get::<String>("", "value").ok())
         .and_then(|text| text.parse::<i64>().ok()))
@@ -331,8 +344,12 @@ async fn count_rows(db: &DatabaseConnection) -> CommandResult<i64> {
             "SELECT COUNT(*) AS n FROM file_entry".to_string(),
         ))
         .await
-        .map_err(|error| cogito_core::Exception::Internal(format!("读取索引条目数失败：{error}")))?;
-    Ok(row.and_then(|item| item.try_get::<i64>("", "n").ok()).unwrap_or(0))
+        .map_err(|error| {
+            cogito_core::Exception::Internal(format!("读取索引条目数失败：{error}"))
+        })?;
+    Ok(row
+        .and_then(|item| item.try_get::<i64>("", "n").ok())
+        .unwrap_or(0))
 }
 
 /// 同步遍历（在 `spawn_blocking` 里跑）：批量塞进 channel 交给异步侧落库。
@@ -477,12 +494,10 @@ async fn sync_inner(inner: Arc<Inner>, mode: Mode) -> CommandResult<()> {
     let walk_inner = inner.clone();
     let completed = tauri::async_runtime::spawn_blocking(move || walk(&walk_inner, sender))
         .await
-        .map_err(|error| {
-            cogito_core::Exception::Internal(format!("扫描线程异常：{error}"))
-        })?;
-    let written = writer.await.map_err(|error| {
-        cogito_core::Exception::Internal(format!("索引写入线程异常：{error}"))
-    })?;
+        .map_err(|error| cogito_core::Exception::Internal(format!("扫描线程异常：{error}")))?;
+    let written = writer
+        .await
+        .map_err(|error| cogito_core::Exception::Internal(format!("索引写入线程异常：{error}")))?;
 
     if incremental && completed {
         prune(&db).await?;
@@ -546,7 +561,11 @@ pub async fn read_rows(
     values: Vec<Value>,
 ) -> CommandResult<VecDeque<FileRow>> {
     let rows = db
-        .query_all(Statement::from_sql_and_values(DbBackend::Sqlite, sql, values))
+        .query_all(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            sql,
+            values,
+        ))
         .await
         .map_err(|error| cogito_core::Exception::Internal(format!("查询文件索引失败：{error}")))?;
     let mut out = VecDeque::with_capacity(rows.len());

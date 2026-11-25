@@ -114,26 +114,26 @@ impl Service {
                         },
                     };
                     models.push(schema::ActiveModel {
-                            id: Set(id),
-                            index: Set(index),
-                            title: Set(p.title),
-                            url: Set(p.url),
-                            round: Set(p.round),
-                            mark: Set(p.mark),
-                            component: Set(p.component),
-                            description: Set(p.description),
-                            size: Set(p.size),
-                            shape: Set(p.shape),
-                            direction: Set(p.direction),
-                            background: Set(p.background.and_then(toDeserialize)),
-                            backdrop: Set(p.backdrop.and_then(toDeserialize)),
-                            mirror_id: Set(p.mirror_id),
-                            text_color: Set(p.text_color),
-                            collection_id: Set(p.collection_id),
-                            download_count: Set(0),
-                            archived_at: Set(None),
-                            updated_at: Set(now),
-                            created_at: Set(now),
+                        id: Set(id),
+                        index: Set(index),
+                        title: Set(p.title),
+                        url: Set(p.url),
+                        round: Set(p.round),
+                        mark: Set(p.mark),
+                        component: Set(p.component),
+                        description: Set(p.description),
+                        size: Set(p.size),
+                        shape: Set(p.shape),
+                        direction: Set(p.direction),
+                        background: Set(p.background.and_then(toDeserialize)),
+                        backdrop: Set(p.backdrop.and_then(toDeserialize)),
+                        mirror_id: Set(p.mirror_id),
+                        text_color: Set(p.text_color),
+                        collection_id: Set(p.collection_id),
+                        download_count: Set(0),
+                        archived_at: Set(None),
+                        updated_at: Set(now),
+                        created_at: Set(now),
                     });
                 }
 
@@ -229,7 +229,10 @@ impl Service {
         let txn = db.begin().await?;
         let now = Utc::now().timestamp_millis();
         schema::Entity::update_many()
-            .col_expr(schema::Column::CollectionId, Expr::value(Option::<String>::None))
+            .col_expr(
+                schema::Column::CollectionId,
+                Expr::value(Option::<String>::None),
+            )
             .col_expr(schema::Column::UpdatedAt, Expr::value(now))
             .filter(schema::Column::CollectionId.is_in(ids.clone()))
             .exec(&txn)
@@ -416,9 +419,12 @@ mod tests {
         let db = db().await;
         seed_mirror(&db, "m1").await;
 
-        Service::toWrite(&*db, schema::WriteP::Many(vec![tile(Some(0), None), tile(Some(7), None)]))
-            .await
-            .expect("write explicit indices");
+        Service::toWrite(
+            &*db,
+            schema::WriteP::Many(vec![tile(Some(0), None), tile(Some(7), None)]),
+        )
+        .await
+        .expect("write explicit indices");
 
         let ids = Service::toWrite(
             &*db,
@@ -475,16 +481,20 @@ mod tests {
             .expect("read member")
             .expect("member should survive");
         assert_eq!(member_row.collection_id, None);
-        assert!(schema::Entity::find_by_id(collection)
-            .one(&*db)
-            .await
-            .expect("read removed collection")
-            .is_none());
+        assert!(
+            schema::Entity::find_by_id(collection)
+                .one(&*db)
+                .await
+                .expect("read removed collection")
+                .is_none()
+        );
         // 与集合无关的磁贴不受影响
-        assert!(schema::Entity::find_by_id(spare)
-            .one(&*db)
-            .await
-            .expect("read spare")
-            .is_some());
+        assert!(
+            schema::Entity::find_by_id(spare)
+                .one(&*db)
+                .await
+                .expect("read spare")
+                .is_some()
+        );
     }
 }

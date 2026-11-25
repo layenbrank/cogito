@@ -183,7 +183,8 @@ fn parse_permission_yaml(text: &str) -> Option<(PermissionBuckets, PermissionBuc
 
         // 列表项：`- item`（缩进在 serde_yaml 下可能是 2 或 4，都认）
         if let Some(item) = body.strip_prefix("- ") {
-            let (Some(section), Some(bucket)) = (cursor.section.as_deref(), cursor.bucket.as_deref())
+            let (Some(section), Some(bucket)) =
+                (cursor.section.as_deref(), cursor.bucket.as_deref())
             else {
                 return None;
             };
@@ -217,8 +218,10 @@ fn parse_permission_yaml(text: &str) -> Option<(PermissionBuckets, PermissionBuc
         }
 
         // 二级：三个桶
-        let (Some(section), true) = (cursor.section.as_deref(), rest.is_empty() || rest.starts_with('['))
-        else {
+        let (Some(section), true) = (
+            cursor.section.as_deref(),
+            rest.is_empty() || rest.starts_with('['),
+        ) else {
             return None;
         };
         let target = match section {
@@ -255,8 +258,8 @@ pub fn read(app: &tauri::AppHandle) -> Result<GoosePermissions, String> {
             smart_approve: PermissionBuckets::default(),
         });
     }
-    let text = fs::read_to_string(&path)
-        .map_err(|error| format!("读取 {display} 失败: {error}"))?;
+    let text =
+        fs::read_to_string(&path).map_err(|error| format!("读取 {display} 失败: {error}"))?;
     match parse_permission_yaml(&text) {
         Some((user, smart_approve)) => Ok(GoosePermissions {
             path: display,

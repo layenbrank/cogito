@@ -182,7 +182,9 @@ impl FileIndex {
             ))
             .await
             .map_err(|error| Exception::Internal(format!("读取索引条目数失败：{error}")))?;
-        Ok(row.and_then(|item| item.try_get::<i64>("", "n").ok()).unwrap_or(0))
+        Ok(row
+            .and_then(|item| item.try_get::<i64>("", "n").ok())
+            .unwrap_or(0))
     }
 
     pub async fn rebuild(&self) -> CommandResult<()> {
@@ -245,7 +247,10 @@ struct ParsedQuery {
 
 impl ParsedQuery {
     fn is_empty(&self) -> bool {
-        self.terms.is_empty() && self.excludes.is_empty() && self.exts.is_empty() && self.dirs.is_empty()
+        self.terms.is_empty()
+            && self.excludes.is_empty()
+            && self.exts.is_empty()
+            && self.dirs.is_empty()
     }
 
     /// 片段都够长且没有通配符时才能交给 FTS5
@@ -470,10 +475,7 @@ async fn ensure_indexed(index: &FileIndex, path: &str) -> CommandResult<()> {
 }
 
 #[tauri::command(rename = "search:openFile")]
-pub async fn search_open_file(
-    state: State<'_, FileIndex>,
-    params: OpenFileP,
-) -> CommandResult<()> {
+pub async fn search_open_file(state: State<'_, FileIndex>, params: OpenFileP) -> CommandResult<()> {
     ensure_indexed(state.inner(), &params.path).await?;
     tauri_plugin_opener::open_path(params.path, None::<String>)
         .map_err(|error| Exception::Internal(format!("打开文件失败：{error}")))

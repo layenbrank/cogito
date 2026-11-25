@@ -119,14 +119,14 @@ async fn asset_files(storage: &Storage) -> Result<Vec<PathBuf>, String> {
     Ok(dedupe(out))
 }
 
-/// `knowledge_base` 的文件根目录（`<root>/<slug>/`）。知识库根可能是用户挑的
+/// `knowledge_space` 的文件根目录（`<root>/<slug>/`）。知识库根可能是用户挑的
 /// 任意位置，收窄 scope 后必须一并放行，否则打开知识库就是「目录不存在」。
 async fn knowledge_roots(storage: &Storage) -> Result<Vec<PathBuf>, String> {
     let rows = storage
         .connection()
         .query_all(Statement::from_string(
             DatabaseBackend::Sqlite,
-            "SELECT \"rootPath\" FROM knowledge_base WHERE \"archivedAt\" IS NULL".to_string(),
+            "SELECT \"rootPath\" FROM knowledge_space WHERE \"archivedAt\" IS NULL".to_string(),
         ))
         .await
         .map_err(|error| format!("查询知识库根目录失败：{error}"))?;

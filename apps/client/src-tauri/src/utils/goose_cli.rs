@@ -65,7 +65,10 @@ pub async fn run_goose(app: &AppHandle, args: &[&str]) -> Result<String, String>
         } else {
             stderr.trim().to_string()
         };
-        Err(format!("goose {} 失败（exit={code:?}）：{detail}", args.join(" ")))
+        Err(format!(
+            "goose {} 失败（exit={code:?}）：{detail}",
+            args.join(" ")
+        ))
     }
 }
 
