@@ -28,6 +28,7 @@
 //!
 //! 解码失败不抛给前端：回 404，`<img>` 自己走 `onError` 占位。HEIC / RAW 本轮不解码，
 //! 由前端回落原图（见方案 §5.2 的格式边界）。
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -95,22 +96,53 @@ pub struct OriginalRequest {
     pub version: String,
 }
 
-/// 进程内唯一的缩略图服务：只持有缓存根与一个淘汰计数器。
+/// 进程内唯一的缩略图服务：持有缓存根、淘汰计数器与源路径小缓存。
 pub struct ThumbService {
     root: PathBuf,
     renders: AtomicU64,
+    /// assetID → (version, filePath)。
+    ///
+    /// 视频是按 2 MiB 分块拉的：2 GB 的录屏就是上千次请求，每块都回库查一次
+    /// `asset` 行，而连接只有一条（`max_connections(1)`），会跟界面请求抢队列。
+    /// URL 里带着 mtime 作为 version：文件被改名/覆盖后 version 变，自然回落到查库。
+    sources: std::sync::Mutex<HashMap<String, (String, String)>>,
 }
+
+/// 源路径缓存上限：超过就整表清空（真实库规模下很难碰到，不做 LRU 了）。
+const SOURCE_CACHE_LIMIT: usize = 4096;
 
 impl ThumbService {
     pub fn new(root: PathBuf) -> Self {
         Self {
             root,
             renders: AtomicU64::new(0),
+            sources: std::sync::Mutex::new(HashMap::new()),
         }
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// 命中且 version 一致才用（文件变了必须重查，否则会指向旧路径）。
+    fn find_cached_source(&self, asset_id: &str, version: &str) -> Option<String> {
+        let cache = self.sources.lock().ok()?;
+        let (cached_version, path) = cache.get(asset_id)?;
+        if cached_version == version {
+            Some(path.clone())
+        } else {
+            None
+        }
+    }
+
+    fn remember_source(&self, asset_id: &str, version: &str, path: &str) {
+        let Ok(mut cache) = self.sources.lock() else {
+            return;
+        };
+        if cache.len() >= SOURCE_CACHE_LIMIT {
+            cache.clear();
+        }
+        cache.insert(asset_id.to_string(), (version.to_string(), path.to_string()));
     }
 
     /// 返回 true 表示这次该做一次容量检查。
@@ -241,6 +273,10 @@ fn parse_range(raw: Option<&str>, len: u64) -> Option<(u64, u64)> {
     if start.is_empty() {
         // `bytes=-500`：末尾 N 字节（Safari/WebView 有时这么探）
         let tail = end.parse::<u64>().ok()?.min(len);
+        // `bytes=-0` 没有意义；不拦会把 start 算成 len，后面 `end - start + 1` 下溢
+        if tail == 0 {
+            return None;
+        }
         return Some((len - tail, len - 1));
     }
     let start = start.parse::<u64>().ok()?.min(len - 1);
@@ -462,100 +498,180 @@ fn jpeg_reply(bytes: Vec<u8>) -> Response<Vec<u8>> {
         .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
-/// 原图的响应体：整份 / Range 命中的一段。
-enum OriginalBody {
-    Full(Vec<u8>),
-    Partial {
-        bytes: Vec<u8>,
-        start: u64,
-        end: u64,
-        total: u64,
-    },
+/// 单次原图响应最多回多少字节。
+///
+/// Tauri 的自定义协议**不支持流式响应**：`UriSchemeResponder::respond` 的 body 必须是
+/// 已经在内存里的 `[u8]`。所以「把整个视频一次性读出来回」等于把文件大小翻两倍塞进内存
+/// （Rust 一份 + WebView 再拷一份），播放 / 拖动进度条时的 `Range: bytes=0-` 会直接
+/// 把 1–2 GB 的录屏拉进 RAM —— 进程当场被 OOM 杀掉，表现就是「播放视频卡死后闪退」。
+///
+/// 这里统一按 4 MiB 分块回 206，让 Chromium 的多媒体栈自己续请求：
+/// 内存上界与文件大小无关，只与“同时几个请求”有关。
+const MAX_CHUNK_BYTES: u64 = 2 * 1024 * 1024;
+/// 非视频（图片）允许整份回的上限。RAW/TIFF 可能几十 MB，再大 `<img>` 也解不动。
+const MAX_FULL_BYTES: u64 = 64 * 1024 * 1024;
+
+/// 同时最多渲染几张图（含 FFmpeg 抽帧）。
+///
+/// `spawn_blocking` 默认能开上百个线程：网格里 30 个视频格子同时抽帧，就是 30 个
+/// `ffmpeg.exe` 在跑，每个几百 MB —— 内存和 CPU 一起爆。解码 48MP 原图同理。
+/// 这里给一个固定闸门，多余的请求排队（它们本来就只是等缓存文件）。
+fn render_slots() -> &'static tokio::sync::Semaphore {
+    static SLOTS: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
+    // 2 个槽位：典型 24MP ≈ 100 MB/张，峰值约 200 MB；120MP 的极端图也只是 1 GB 左右，
+    // 而滚动时每秒仍能出 30+ 张缩略图（视口就几十格）。
+    SLOTS.get_or_init(|| tokio::sync::Semaphore::new(2))
 }
 
-/// 读原图。`Range` 不合法就当整份请求（规范允许），但有对应头就回 206。
-fn read_original(source: &Path, range: Option<&str>) -> Result<OriginalBody, String> {
-    let len = std::fs::metadata(source)
-        .map_err(|error| format!("无法读取 {}：{error}", source.display()))?
-        .len();
-    let Some((start, end)) = parse_range(range, len) else {
-        let bytes = std::fs::read(source).map_err(|error| format!("读取失败：{error}"))?;
-        return Ok(OriginalBody::Full(bytes));
+/// 这次到底回哪一段（纯函数，便于单测）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OriginalPlan {
+    start: u64,
+    /** 含端 */
+    end: u64,
+    total: u64,
+    /// true → 206 + `Content-Range`；false → 200 整份
+    is_partial: bool,
+}
+
+fn plan_original(len: u64, is_streamable: bool, range: Option<&str>) -> OriginalPlan {
+    if len == 0 {
+        return OriginalPlan {
+            start: 0,
+            end: 0,
+            total: 0,
+            is_partial: false,
+        };
+    }
+    // 客户端给了合法范围：照它来，但**截到分块上限**。
+    // 播放器常发 `bytes=0-`（= 整份），不能真的给整份。
+    if let Some((start, end)) = parse_range(range, len) {
+        let end = end.min(start + MAX_CHUNK_BYTES - 1).min(len - 1);
+        let is_partial = !(start == 0 && end == len - 1);
+        return OriginalPlan {
+            start,
+            end,
+            total: len,
+            is_partial,
+        };
+    }
+    // 没给 Range（或给了无法识别的多段 Range）：小文件整份回，大文件也强制分块。
+    let limit = if is_streamable {
+        MAX_CHUNK_BYTES
+    } else {
+        MAX_FULL_BYTES
     };
+    if len <= limit {
+        OriginalPlan {
+            start: 0,
+            end: len - 1,
+            total: len,
+            is_partial: false,
+        }
+    } else {
+        OriginalPlan {
+            start: 0,
+            end: limit - 1,
+            total: len,
+            is_partial: true,
+        }
+    }
+}
+
+/// 只读计划里的那一段（绝不整份读）。
+fn read_slice(source: &Path, plan: OriginalPlan) -> Result<Vec<u8>, String> {
+    if plan.total == 0 {
+        return Ok(Vec::new());
+    }
     use std::io::{Read, Seek, SeekFrom};
     let mut file = std::fs::File::open(source).map_err(|error| format!("打开失败：{error}"))?;
-    file.seek(SeekFrom::Start(start))
+    file.seek(SeekFrom::Start(plan.start))
         .map_err(|error| format!("定位失败：{error}"))?;
-    let mut bytes = vec![0_u8; (end - start + 1) as usize];
+    let mut bytes = vec![0_u8; (plan.end - plan.start + 1) as usize];
     file.read_exact(&mut bytes)
         .map_err(|error| format!("读取分片失败：{error}"))?;
-    Ok(OriginalBody::Partial {
-        bytes,
-        start,
-        end,
-        total: len,
-    })
+    Ok(bytes)
 }
 
-fn original_reply(body: OriginalBody, content_type: &'static str) -> Response<Vec<u8>> {
+fn original_reply(bytes: Vec<u8>, plan: OriginalPlan, content_type: &'static str) -> Response<Vec<u8>> {
+    // HEAD 请求的 body 是空的，但 `Content-Length` 必须报「本来会回多少」
+    let length = if plan.total == 0 {
+        0
+    } else {
+        plan.end - plan.start + 1
+    };
     let mut builder = Response::builder()
         .header(header::CONTENT_TYPE, content_type)
         // 原图 URL 也带 mtime：文件不变就不重读，变了 URL 自然变
         .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
         .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::CONTENT_LENGTH, length.to_string())
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-    match body {
-        OriginalBody::Full(bytes) => builder
-            .status(StatusCode::OK)
-            .body(bytes)
-            .unwrap_or_else(|_| Response::new(Vec::new())),
-        OriginalBody::Partial {
-            bytes,
-            start,
-            end,
-            total,
-        } => {
-            builder = builder.status(StatusCode::PARTIAL_CONTENT).header(
-                header::CONTENT_RANGE,
-                format!("bytes {start}-{end}/{total}"),
-            );
-            builder
-                .body(bytes)
-                .unwrap_or_else(|_| Response::new(Vec::new()))
-        }
+    if plan.is_partial {
+        builder = builder.status(StatusCode::PARTIAL_CONTENT).header(
+            header::CONTENT_RANGE,
+            format!("bytes {}-{}/{}", plan.start, plan.end, plan.total),
+        );
+    } else {
+        builder = builder.status(StatusCode::OK);
     }
+    builder.body(bytes).unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
-/// `/o/<assetID>/<version>`：查库拿源路径 → 读盘（支持 Range）→ 回。
+/// `/o/<assetID>/<version>`：查库拿源路径 → 读计划中的一段 → 回。
 async fn serve_original<R: Runtime>(
     app: tauri::AppHandle<R>,
     parsed: OriginalRequest,
     range: Option<String>,
+    is_head: bool,
     responder: UriSchemeResponder,
 ) {
     // 只认库内资产：协议不接受任意路径参数
-    let Some(storage) = app.try_state::<cogito_database::Storage>() else {
-        responder.respond(reply(500, b"storage missing".to_vec(), "text/plain"));
+    let Some(service) = app.try_state::<ThumbService>() else {
+        responder.respond(reply(500, b"thumb service missing".to_vec(), "text/plain"));
         return;
     };
-    let row = cogito_database::entity::asset::Entity::find_by_id(parsed.asset_id.clone())
-        .one(storage.connection())
-        .await;
-    let Ok(Some(row)) = row else {
-        responder.respond(reply(404, b"asset not found".to_vec(), "text/plain"));
-        return;
+    let source = match service.find_cached_source(&parsed.asset_id, &parsed.version) {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let Some(storage) = app.try_state::<cogito_database::Storage>() else {
+                responder.respond(reply(500, b"storage missing".to_vec(), "text/plain"));
+                return;
+            };
+            let row = cogito_database::entity::asset::Entity::find_by_id(parsed.asset_id.clone())
+                .one(storage.connection())
+                .await;
+            let Ok(Some(row)) = row else {
+                responder.respond(reply(404, b"asset not found".to_vec(), "text/plain"));
+                return;
+            };
+            service.remember_source(&parsed.asset_id, &parsed.version, &row.file_path);
+            PathBuf::from(row.file_path)
+        }
     };
 
-    let source = PathBuf::from(&row.file_path);
     let content_type = content_type_for(&source);
-    let read =
-        tauri::async_runtime::spawn_blocking(move || read_original(&source, range.as_deref()))
-            .await;
+    let is_streamable =
+        content_type.starts_with("video/") || content_type.starts_with("audio/");
+    let log_path = source.display().to_string();
+    let read_source = source.clone();
+    let read = tauri::async_runtime::spawn_blocking(move || -> Result<(OriginalPlan, Vec<u8>), String> {
+        let len = std::fs::metadata(&read_source)
+            .map_err(|error| format!("无法读取 {}：{error}", read_source.display()))?
+            .len();
+        let plan = plan_original(len, is_streamable, range.as_deref());
+        if is_head {
+            return Ok((plan, Vec::new()));
+        }
+        let bytes = read_slice(&read_source, plan)?;
+        Ok((plan, bytes))
+    })
+    .await;
 
     match read {
-        Ok(Ok(body)) => responder.respond(original_reply(body, content_type)),
+        Ok(Ok((plan, bytes))) => responder.respond(original_reply(bytes, plan, content_type)),
         Ok(Err(error)) => {
-            tracing::debug!("原图读取失败 {}：{error}", row.file_path);
+            tracing::debug!("原图读取失败 {log_path}：{error}");
             responder.respond(reply(404, error.into_bytes(), "text/plain"));
         }
         Err(error) => {
@@ -583,8 +699,9 @@ pub fn serve<R: Runtime>(
             .get(header::RANGE)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
+        let is_head = request.method() == tauri::http::Method::HEAD;
         tauri::async_runtime::spawn(async move {
-            serve_original(app, original, range, responder).await;
+            serve_original(app, original, range, is_head, responder).await;
         });
         return;
     }
@@ -606,23 +723,35 @@ pub fn serve<R: Runtime>(
         }
 
         // 只认库内资产：协议不接受任意路径参数
-        let Some(storage) = app.try_state::<cogito_database::Storage>() else {
-            responder.respond(reply(500, b"storage missing".to_vec(), "text/plain"));
-            return;
+        let source = match service.find_cached_source(&parsed.asset_id, &parsed.version) {
+            Some(path) => PathBuf::from(path),
+            None => {
+                let Some(storage) = app.try_state::<cogito_database::Storage>() else {
+                    responder.respond(reply(500, b"storage missing".to_vec(), "text/plain"));
+                    return;
+                };
+                let row =
+                    cogito_database::entity::asset::Entity::find_by_id(parsed.asset_id.clone())
+                        .one(storage.connection())
+                        .await;
+                let Ok(Some(row)) = row else {
+                    responder.respond(reply(404, b"asset not found".to_vec(), "text/plain"));
+                    return;
+                };
+                service.remember_source(&parsed.asset_id, &parsed.version, &row.file_path);
+                PathBuf::from(row.file_path)
+            }
         };
-        let row = cogito_database::entity::asset::Entity::find_by_id(parsed.asset_id.clone())
-            .one(storage.connection())
-            .await;
-        let Ok(Some(row)) = row else {
-            responder.respond(reply(404, b"asset not found".to_vec(), "text/plain"));
-            return;
-        };
-
-        let source = PathBuf::from(&row.file_path);
         let bucket = parsed.bucket;
         let fit = parsed.fit;
+        let log_path = source.display().to_string();
+        // FFmpeg 兜底还要用同一个路径：`source` 会被第一个闭包吃掉
+        let fallback_source = source.clone();
+        // 闸门：最多 3 张同时解码（多余的排队，它们本来也只是等缓存落盘）
+        let permit = render_slots().acquire().await;
         let rendered =
             tauri::async_runtime::spawn_blocking(move || render_jpeg(&source, bucket, fit)).await;
+        drop(permit);
 
         match rendered {
             Ok(Ok(bytes)) => {
@@ -636,16 +765,18 @@ pub fn serve<R: Runtime>(
                 responder.respond(jpeg_reply(bytes));
             }
             Ok(Err(error)) => {
-                // `image` 解不开：试 FFmpeg（HEIC / RAW / 视频首帧）
+                // `image` 解不开：试 FFmpeg（HEIC / RAW / 视频首帧）。
+                // 同一道闸门：视频格子多的时候不能同时拉起一堆 ffmpeg 进程。
                 let app_for_decode = app.clone();
-                let fallback_source = PathBuf::from(&row.file_path);
                 let fallback_bucket = bucket;
+                let permit = render_slots().acquire().await;
                 let fallback = tauri::async_runtime::spawn_blocking(move || {
                     render_frame_with_ffmpeg(&app_for_decode, &fallback_source, fallback_bucket)
                 })
                 .await
                 .ok()
                 .flatten();
+                drop(permit);
                 if let Some(bytes) = fallback {
                     if let Err(write_error) = write_atomic(&file, &bytes) {
                         tracing::debug!("缩略图落盘失败：{write_error}");
@@ -653,7 +784,7 @@ pub fn serve<R: Runtime>(
                     responder.respond(jpeg_reply(bytes));
                     return;
                 }
-                tracing::debug!("缩略图渲染失败 {}：{error}", row.file_path);
+                tracing::debug!("缩略图渲染失败 {log_path}：{error}");
                 responder.respond(reply(422, error.into_bytes(), "text/plain"));
             }
             Err(error) => {
@@ -730,25 +861,59 @@ mod tests {
         let file = base.join("blob.jpg");
         std::fs::write(&file, vec![7_u8; 1000]).expect("write");
 
-        match read_original(&file, Some("bytes=10-19")).expect("读分片") {
-            OriginalBody::Partial {
-                bytes,
-                start,
-                end,
-                total,
-            } => {
-                assert_eq!(bytes.len(), 10);
-                assert_eq!((start, end, total), (10, 19, 1000));
-            }
-            OriginalBody::Full(_) => panic!("应返回 206 分片"),
-        }
+        let plan = plan_original(1000, false, Some("bytes=10-19"));
+        let bytes = read_slice(&file, plan).expect("读分片");
+        assert_eq!(bytes.len(), 10);
+        assert_eq!((plan.start, plan.end, plan.total, plan.is_partial), (10, 19, 1000, true));
 
-        match read_original(&file, None).expect("读整份") {
-            OriginalBody::Full(bytes) => assert_eq!(bytes.len(), 1000),
-            OriginalBody::Partial { .. } => panic!("应返回整份"),
-        }
+        let plan = plan_original(1000, false, None);
+        let bytes = read_slice(&file, plan).expect("读整份");
+        assert_eq!(bytes.len(), 1000);
+        assert!(!plan.is_partial);
 
-        assert!(read_original(&base.join("missing.jpg"), None).is_err());
+        assert!(read_slice(&base.join("missing.jpg"), plan).is_err());
+    }
+
+    /// 这条是「播放视频闪退」的根因回归：播放器发 `bytes=0-`（整份）时，
+    /// 曾经真的把整个文件读进内存 → 大视频直接 OOM。现在必须被截到分块上限。
+    #[test]
+    fn plan_never_exceeds_chunk() {
+        let huge = 2 * 1024 * 1024 * 1024_u64; // 2 GB 录屏
+        // 视频：即使客户端要整份，也只给第一块 206
+        let plan = plan_original(huge, true, Some("bytes=0-"));
+        assert!(plan.is_partial);
+        assert_eq!(plan.start, 0);
+        assert_eq!(plan.end, MAX_CHUNK_BYTES - 1);
+        assert_eq!(plan.total, huge);
+
+        // 视频：不带 Range 也一样分块
+        let plan = plan_original(huge, true, None);
+        assert!(plan.is_partial);
+        assert_eq!(plan.end, MAX_CHUNK_BYTES - 1);
+
+        // 只请求中间一段：照给，但不超上限
+        let plan = plan_original(huge, true, Some("bytes=1048576-999999999"));
+        assert_eq!(plan.start, 1_048_576);
+        assert_eq!(plan.end, 1_048_576 + MAX_CHUNK_BYTES - 1);
+
+        // 小图片：整份 200（`<img>` 不吃分块）
+        let plan = plan_original(1024 * 1024, false, None);
+        assert!(!plan.is_partial);
+        assert_eq!((plan.start, plan.end), (0, 1024 * 1024 - 1));
+
+        // 超大图片：超过整份上限就分块（RAW 也解不动，宁可给不了也不炸进程）
+        let plan = plan_original(MAX_FULL_BYTES + 1, false, None);
+        assert!(plan.is_partial);
+        assert_eq!(plan.end, MAX_FULL_BYTES - 1);
+
+        // 请求的区间正好覆盖整份 → 没必要 206
+        let plan = plan_original(1000, false, Some("bytes=0-999"));
+        assert!(!plan.is_partial);
+
+        // 空文件不能算出 `end = -1`
+        let plan = plan_original(0, true, Some("bytes=0-"));
+        assert_eq!((plan.start, plan.end, plan.total), (0, 0, 0));
+        assert!(!plan.is_partial);
     }
 
     #[test]

@@ -29,10 +29,7 @@ const EVENT_ONLY = new Set<string>([
  * 已声明、但 Rust 还没实现的 invoke 频道：只允许「明确在做」的临时候选。
  * 落地后必须从这张表删掉 —— 下面的「登记不会过期」用例会强制提醒。
  */
-const PENDING_COMMANDS = new Map<string, string>([
-  ['tools:install', '设置 → 诊断 的按需下载：Rust 安装器未实现'],
-  ['tools:remove', '同上：卸载未实现']
-])
+const PENDING_COMMANDS = new Map<string, string>([])
 
 function collectRustFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

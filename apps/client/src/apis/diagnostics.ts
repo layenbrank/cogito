@@ -21,6 +21,12 @@ interface ToolCapability {
   /** 只有完整版内置（精简版缺它是正常现象） */
   fullOnly: boolean
   hint?: string | null
+  /** 当前平台能不能在线补装（`ffprobe` 跟着 `ffmpeg` 走） */
+  installable: boolean
+  /** 是否来自运行时下载目录（可以卸载） */
+  installed: boolean
+  /** 安装 / 卸载时传的包键（`ffprobe` → `ffmpeg`）；不可安装为 null */
+  installKey?: string | null
 }
 
 interface Capabilities {
@@ -155,6 +161,32 @@ async function GET_BUILD_INFO(): Promise<BuildInfo | null> {
   }
 }
 
+// ------------------------------------------------------------ 在线工具（下载 / 卸载）
+
+/** 安装进度（Rust `tools://install-progress` 的 payload） */
+interface ToolInstallProgress {
+  /** 包键（`ffmpeg` / `pandoc`） */
+  key: string
+  /** `download` / `extract` */
+  phase: 'download' | 'extract'
+  received: number
+  total: number
+}
+
+/**
+ * 下载并安装一个在线工具。
+ *
+ * 错误文案由 Rust 侧拼好（HTTP 状态 / 校验不符 / 解压失败都有具体原因），调用方直接展示。
+ */
+function POST_TOOLS_INSTALL(key: string): Promise<void> {
+  return invoke(CHANNELS.TOOLS.INSTALL, { key })
+}
+
+/** 卸载在线工具（删整个 `<tool>/` 目录；正在下载时会拒绝）。 */
+function POST_TOOLS_REMOVE(key: string): Promise<void> {
+  return invoke(CHANNELS.TOOLS.REMOVE, { key })
+}
+
 // ------------------------------------------------------------ 崩溃 / 日志（错误交给调用方）
 
 /** 崩溃报告已丢弃，回执给 Rust（避免下次启动重复弹） */
@@ -180,7 +212,9 @@ export {
   GET_DIAGNOSTICS_PENDING,
   POST_DIAGNOSTICS_ACK,
   POST_DIAGNOSTICS_APPEND,
-  POST_DIAGNOSTICS_OPEN_DIR
+  POST_DIAGNOSTICS_OPEN_DIR,
+  POST_TOOLS_INSTALL,
+  POST_TOOLS_REMOVE
 }
 export type {
   AgentCacheStats,
@@ -188,5 +222,6 @@ export type {
   Capabilities,
   DiagnosticDirKind,
   DiagnosticsCapabilities,
-  ToolCapability
+  ToolCapability,
+  ToolInstallProgress
 }

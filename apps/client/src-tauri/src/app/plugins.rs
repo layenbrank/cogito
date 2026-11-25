@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 
 use crate::autostart;
-use crate::utils::log_retention::LOG_MAX_FILE_SIZE;
+use crate::utils::log_retention::{LOG_FILE_KEEP, LOG_MAX_FILE_SIZE};
 
 /// `--verbose` / `-v` / `--debug`：把本应用（含 lancedb）降到 Debug。
 ///
@@ -104,7 +104,9 @@ pub fn register_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     let log_builder = configure_log_levels(
         tauri_plugin_log::Builder::new()
             .clear_targets()
-            .rotation_strategy(RotationStrategy::KeepAll)
+            // 按文件数封顶（5MB × 20 ≈ 100MB）：KeepAll 在某处意外刷屏时会把磁盘吃满，
+            // 低配机直接卡死/崩溃；真正需要长期留档的是诊断包，不是滚动日志。
+            .rotation_strategy(RotationStrategy::KeepSome(LOG_FILE_KEEP))
             .max_file_size(LOG_MAX_FILE_SIZE)
             .timezone_strategy(TimezoneStrategy::UseLocal)
             .target(Target::new(TargetKind::Stdout))

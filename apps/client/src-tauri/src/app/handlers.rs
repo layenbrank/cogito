@@ -24,6 +24,9 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         crate::security::cost::agent_cost_export,
         system::command::greet,
         system::capabilities::capabilities_probe,
+        // 在线工具（ffmpeg / pandoc）：精简版在 设置 → 诊断 里按需下载 / 卸载
+        system::tools::tools_install,
+        system::tools::tools_remove,
         system::command::os,
         system::command::proxy_apply,
         system::command::proxy_status,
@@ -370,6 +373,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         crate::file_index::search_files,
         crate::file_index::search_file_index_status,
         crate::file_index::search_file_index_rebuild,
+        crate::file_index::search_file_index_cancel,
         crate::file_index::search_open_file,
         crate::file_index::search_reveal_file,
         site::command::site_fetch_favicon,

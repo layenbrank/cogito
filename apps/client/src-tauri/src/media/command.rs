@@ -82,6 +82,11 @@ pub(crate) fn find_tool_path<R: Runtime>(
 
     let mut candidates: Vec<PathBuf> = Vec::new();
 
+    // 0) 运行时下载的那份（设置 → 诊断 一键下载）：显式装过的优先于随包那份
+    for dir in crate::system::tools::installed_dirs() {
+        candidates.push(dir.join(&exe_name));
+    }
+
     // 1) resource dir (packaged)
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("binaries").join(&exe_name));
@@ -121,7 +126,7 @@ pub(crate) fn find_tool_path<R: Runtime>(
 /// slim 包刻意不带 ffmpeg / pandoc 这类上百 MB 的大件，用户点导出时
 /// 必须看到人话，而不是 `No such file or directory (os error 2)`。
 fn missing_tool_hint(exe_name: &str) -> String {
-    format!("精简版未内置 {exe_name}（媒体转码需要完整版）；可在 设置 → 诊断 查看完整版能力")
+    format!("精简版未内置 {exe_name}；可在 设置 → 诊断 → 完整版能力 一键下载（或安装完整版）")
 }
 
 /// 演练：把「找不到可选工具」的真实文案打进日志，用于核对 slim 包的提示。

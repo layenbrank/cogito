@@ -5,3 +5,4 @@ pub mod command;
 pub mod pdfium;
 pub mod proxy;
 pub mod sidecar_command;
+pub mod tools;

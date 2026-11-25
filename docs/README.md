@@ -58,6 +58,7 @@
 | [agent-terminal.md](./apps/client/agent-terminal.md)                                   | 会话终端折叠、正在执行列表、agent 用右栏终端跑命令      |
 | [agent-review.md](./apps/client/agent-review.md)                                       | 右栏审阅：Git 工作台                                    |
 | [plan-mode.md](./apps/client/plan-mode.md)                                             | 计划模式：正文是唯一执行依据                            |
+| [tools.md](./apps/client/tools.md)                                                     | 在线工具（FFmpeg / Pandoc）按需下载、校验、落点与卸载   |
 | [assistant-ui-elements.md](./apps/client/assistant-ui-elements.md)                     | assistant-ui 元素接入对照                               |
 
 | [agent-terminal-audit.md](./apps/client/agent-terminal-audit.md) | Agent / 终端 / 自动化链路审计与修复：改动清单 + 验收清单 |

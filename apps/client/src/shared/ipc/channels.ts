@@ -444,6 +444,7 @@ export const CHANNELS = {
     FILES: 'search:files',
     FILE_INDEX_STATUS: 'search:fileIndexStatus',
     FILE_INDEX_REBUILD: 'search:fileIndexRebuild',
+    FILE_INDEX_CANCEL: 'search:fileIndexCancel',
     OPEN_FILE: 'search:openFile',
     REVEAL_FILE: 'search:revealFile'
   },
