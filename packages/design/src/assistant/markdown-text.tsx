@@ -60,6 +60,10 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({ components }) => {
       className="aui-md"
       // 关闭逐字 reveal：chunk 到即渲染，避免打字机感
       smooth={false}
+      // 流式期间每个快照都是一段更长的正文：整段 remark 解析 + 重建元素树必须让路。
+      // 走 useDeferredValue 后，输入 / 滚动等紧急更新不会被解析阻塞；最终文本一定会渲染。
+      // 注意该值在组件生命周期内必须恒定（切换会重挂载），所以写死。
+      defer
       components={markdownComponents}
     />
   )

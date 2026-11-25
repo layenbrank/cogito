@@ -241,14 +241,49 @@ let langChain: Promise<unknown> = Promise.resolve()
 
 // Token cache
 const tokensCache = new Map<string, TokenizedCode>()
+/** 缓存条数上限：切多少会话都不会无限增长 */
+const TOKENS_CACHE_LIMIT = 40
+/** 超过这个长度的代码不进缓存：一次分词结果本身就很吃内存，缓存下来只会加速 OOM */
+const TOKENS_CACHE_MAX_CODE = 32_768
 
 // Subscribers for async token updates
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>()
 
-const getTokensCacheKey = (code: string, language: BundledLanguage) => {
-  const start = code.slice(0, 100)
-  const end = code.length > 100 ? code.slice(-100) : ''
-  return `${language}:${code.length}:${start}:${end}`
+/**
+ * 缓存键必须**覆盖全文**。
+ *
+ * 之前用「长度 + 首尾 100 字」做键：同长度、首尾相同的两段不同代码会命中彼此的
+ * 分词结果（渲染出错误的颜色），而切过的会话越多，缓存越只增不减。
+ * 用全文入键：字符串按引用存，不额外拷贝内容；容量由 TOKENS_CACHE_LIMIT 兑底。
+ */
+const getTokensCacheKey = (code: string, language: BundledLanguage) =>
+  `${language}:${code}`
+
+function rememberTokens(key: string, codeLength: number, tokenized: TokenizedCode): void {
+  if (codeLength > TOKENS_CACHE_MAX_CODE) return
+  tokensCache.set(key, tokenized)
+  while (tokensCache.size > TOKENS_CACHE_LIMIT) {
+    const oldest = tokensCache.keys().next().value
+    if (oldest === undefined) break
+    tokensCache.delete(oldest)
+  }
+}
+
+/**
+ * 分词是纯 CPU 工作；流式结束时多块代码会同时就绪，直接在同一帧里跑会堆成
+ * 一次几百毫秒的长任务。排到空闲回调里逐个执行（无 requestIdleCallback 的环境兑底）。
+ */
+function runWhenIdle(task: () => void): void {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(
+      function () {
+        task()
+      },
+      { timeout: 500 }
+    )
+    return
+  }
+  window.setTimeout(task, 0)
 }
 
 // core 高亮器只装配一次：引擎（oniguruma wasm）与双主题，语法随后按语言挂上去。
@@ -343,31 +378,32 @@ export const highlightCode = (
   getHighlighter(language)
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
     .then(({ highlighter, lang }) => {
-      const result = highlighter.codeToTokens(code, {
-        lang: lang as CodeToTokensLang,
-        themes: {
-          dark: 'github-dark',
-          light: 'github-light'
+      runWhenIdle(function () {
+        const result = highlighter.codeToTokens(code, {
+          lang: lang as CodeToTokensLang,
+          themes: {
+            dark: 'github-dark',
+            light: 'github-light'
+          }
+        })
+
+        const tokenized: TokenizedCode = {
+          bg: result.bg ?? 'transparent',
+          fg: result.fg ?? 'inherit',
+          tokens: result.tokens
+        }
+
+        rememberTokens(tokensCacheKey, code.length, tokenized)
+
+        // Notify all subscribers
+        const subs = subscribers.get(tokensCacheKey)
+        if (subs) {
+          for (const sub of subs) {
+            sub(tokenized)
+          }
+          subscribers.delete(tokensCacheKey)
         }
       })
-
-      const tokenized: TokenizedCode = {
-        bg: result.bg ?? 'transparent',
-        fg: result.fg ?? 'inherit',
-        tokens: result.tokens
-      }
-
-      // Cache the result
-      tokensCache.set(tokensCacheKey, tokenized)
-
-      // Notify all subscribers
-      const subs = subscribers.get(tokensCacheKey)
-      if (subs) {
-        for (const sub of subs) {
-          sub(tokenized)
-        }
-        subscribers.delete(tokensCacheKey)
-      }
     })
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then), eslint-plugin-promise(prefer-await-to-callbacks)
     .catch((error) => {
