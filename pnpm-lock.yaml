@@ -268,7 +268,7 @@ catalogs:
       version: 9.6.0
     '@types/react':
       specifier: ^19.2.2
-      version: 19.2.17
+      version: 19.2.18
     '@types/react-dom':
       specifier: ^19.2.2
       version: 19.2.4
@@ -448,7 +448,7 @@ catalogs:
       version: 4.6.4
     zustand:
       specifier: ^5.0.8
-      version: 5.0.16
+      version: 5.0.15
 
 overrides:
   '@electron/rebuild': ^4.2.0
@@ -1107,6 +1107,9 @@ importers:
 
   apps/backend:
     dependencies:
+      '@cogito/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@cogito/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -1147,6 +1150,9 @@ importers:
       '@cogito/agent-runtime':
         specifier: workspace:*
         version: link:../../packages/agent-runtime
+      '@cogito/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@cogito/chat':
         specifier: workspace:*
         version: link:../../packages/chat
@@ -1752,6 +1758,22 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(happy-dom@20.13.2)(jsdom@27.4.0(supports-color@10.2.2))(msw@2.15.0(@types/node@24.13.3)(typescript@6.0.3))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.13)(yaml@2.9.1))
+
+  packages/brand:
+    dependencies:
+      motion:
+        specifier: 'catalog:'
+        version: 12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      shaders:
+        specifier: 'catalog:'
+        version: 4.0.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vue@3.5.42(typescript@6.0.3))
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.18
 
   packages/chat:
     dependencies:

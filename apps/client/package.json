@@ -36,6 +36,7 @@
     "@cogito/agent-protocol": "workspace:*",
     "@cogito/agent-runtime": "workspace:*",
     "@cogito/chat": "workspace:*",
+    "@cogito/brand": "workspace:*",
     "@cogito/design": "workspace:*",
     "@cogito/dict": "workspace:*",
     "@cogito/shared": "workspace:*",

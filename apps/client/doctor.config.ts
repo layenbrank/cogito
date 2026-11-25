@@ -55,7 +55,12 @@ export default defineConfig({
           'src/views/agent/chat/components/composer-triggers.tsx',
           'src/views/agent/chat/components/workspace-file-picker.tsx',
           'src/views/agent/settings/sections/extensions.tsx',
-          'src/views/agent/settings/sections/tool-permissions.tsx'
+          'src/views/agent/settings/sections/tool-permissions.tsx',
+          'src/views/agent/chat/components/aside-skills.tsx',
+          'src/views/agent/chat/components/extensions-pane.tsx',
+          'src/views/agent/chat/components/knowledge-browser.tsx',
+          'src/views/agent/settings/sections/diagnostics.tsx',
+          'src/views/agent/settings/sections/use-model-inventory.ts'
         ],
         rules: ['react-doctor/no-loading-flag-reset-outside-finally']
       },
@@ -73,6 +78,18 @@ export default defineConfig({
           'react-doctor/no-static-element-interactions',
           'react-doctor/click-events-have-key-events'
         ]
+      },
+      {
+        // 引擎切换条只做 width 过渡：收起态图标与芯片叠在同一盒内，scaleX 会把图标一起压扁
+        // （看起来像「搜索框左侧引擎切换消失」），见文件头注释。布局属性不可避免。
+        files: ['src/features/command-bar/engine-rail.tsx'],
+        rules: ['react-doctor/no-layout-property-animation']
+      },
+      {
+        // 磁贴网格容器只在捕获阶段拦 Ctrl/Cmd+单击做多选，真正的交互控件在里面的磁贴上
+        // （各自可聚焦、可键盘激活）。容器本身不可聚焦是故意的 —— 它是 2D 网格，没有有意义的焦点顺序。
+        files: ['src/features/controller/controller.tsx'],
+        rules: ['react-doctor/no-static-element-interactions']
       }
     ]
   }
