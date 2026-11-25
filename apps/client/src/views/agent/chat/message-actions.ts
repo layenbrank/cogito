@@ -7,7 +7,7 @@ import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { AssistantActions } from '@cogito/design/assistant/actions'
 
-import { hasTauriRuntime, isEmbeddedShell } from '@/features/window/shell-mode'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 async function copyTextTauri(text: string): Promise<void> {
   await writeText(text)
@@ -58,7 +58,7 @@ const ASSISTANT_ACTIONS_WEB: AssistantActions = {
 }
 
 function findAssistantActions(): AssistantActions {
-  if (isEmbeddedShell() || !hasTauriRuntime()) return ASSISTANT_ACTIONS_WEB
+  if (!canUseTauriIpc()) return ASSISTANT_ACTIONS_WEB
   return ASSISTANT_ACTIONS_TAURI
 }
 

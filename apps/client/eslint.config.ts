@@ -150,7 +150,7 @@ export default defineConfig(
     }
   },
   {
-    name: 'client/no-web-storage',
+    name: 'client/banned-globals',
     files: ['src/**/*.{ts,tsx}'],
     ignores: [
       'src/**/*.{test,spec}.{ts,tsx}',
@@ -161,6 +161,16 @@ export default defineConfig(
     rules: {
       'no-restricted-syntax': [
         'error',
+        {
+          selector:
+            "BinaryExpression[operator='in'][left.value='__TAURI_INTERNALS__'], BinaryExpression[operator='in'][left.value='__TAURI__']",
+          message:
+            '禁止探测 Tauri 运行时：客户端只跑在 Tauri 里，非 Tauri 分支是死代码。IPC 能力判断用 canUseTauriIpc()。'
+        },
+        {
+          selector: "MemberExpression[object.name='window'][property.name='__TAURI__']",
+          message: '禁止直接摸 window.__TAURI__：命令一律走 src/apis，窗口信息走 @tauri-apps/api。'
+        },
         {
           selector:
             "CallExpression[callee.object.name='localStorage'][callee.property.name=/^(get|set|remove)Item$/]",

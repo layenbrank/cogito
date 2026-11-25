@@ -17,7 +17,6 @@ type EnvURL = 'cogito' | 'engine' | 'intelligence'
 
 interface Window {
   MediaStreamTrackProcessor: typeof MediaStreamTrackProcessor
-  __TAURI__: unknown
 }
 
 var MediaStreamTrackProcessor: {

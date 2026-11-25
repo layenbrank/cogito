@@ -1,6 +1,6 @@
 /**
  * 密钥真源：OS Keyring（Rust IPC）。内存 cache 供同步读 JWT。
- * 非 Tauri 环境只走内存。
+ * 没有 IPC 能力时（嵌入壳 / 单测）只走内存。
  */
 import { emit, listen } from '@tauri-apps/api/event'
 
@@ -67,7 +67,9 @@ async function writeJwtSecret(token: string | null): Promise<void> {
     console.warn('[secrets] cogito jwt bridge failed', error)
   }
   // 跨窗：同一枚令牌要在每个窗口的内存里都生效
-  void emit(AUTH_CHANGED, { token })
+  void emit(AUTH_CHANGED, { token }).catch(function (error: unknown) {
+    console.warn('[secrets] 广播 auth:changed 失败', error)
+  })
 }
 
 async function GET_PROVIDER_SECRET(providerID: string): Promise<string | null> {

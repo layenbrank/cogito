@@ -1,7 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useState, type MouseEvent } from 'react'
 
-import { hasTauriRuntime, isEmbeddedShell } from '@/features/window/shell-mode'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 type AppWindow = ReturnType<typeof getCurrentWindow>
 
@@ -150,7 +150,7 @@ async function findCaptionState(win: AppWindow): Promise<CaptionState> {
 /** 订阅窗口装饰相关状态（图标、可用性、失焦对比度） */
 function useCaptionState() {
   const [state, updateState] = useState<CaptionState>(CAPTION_STATE)
-  const canUseWindowApi = hasTauriRuntime() && !isEmbeddedShell()
+  const canUseWindowApi = canUseTauriIpc()
 
   useEffect(
     function () {

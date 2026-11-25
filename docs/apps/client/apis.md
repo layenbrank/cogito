@@ -86,10 +86,15 @@ const status = await GET_CURSOR_AGENT_STATUS()
 ```
 
 判定标准：**去掉这层函数后调用点是否变短、语义是否不变**。是的就删掉。
-只有当这层真的加了东西（`isTauri()` 守卫 + 异常兜底、zod 解析、按设置组装策略、
+只有当这层真的加了东西（异常兜底、zod 解析、按设置组装策略、
 节流/串行队列）才保留，并且换个领域动词命名，避免和接口同名（例 `retention.ts`
 的 `pruneCaptures` 之于 `POST_CAPTURE_PRUNE`）。为了绕开同名而起的 `xxx_IPC` 别名
 也是信号：要么删层，要么改名。
+
+环境判断也**不属于**「加了东西」：客户端只跑在 Tauri 里，接口层不探环境
+（没有 `isTauri()` / `hasTauriRuntime()`），失败一律在接口内部 try/catch 兜底。
+唯一的例外是**能力**判断 `canUseTauriIpc()`（右栏 browser 子 webview / `?embedded=1`
+嵌套壳没有 capability），它看的是 ACL 而不是运行时。
 
 
 ## 频道常量

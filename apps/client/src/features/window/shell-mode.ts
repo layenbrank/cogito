@@ -33,11 +33,6 @@ const EMBEDDED_SUPPORTED = import.meta.env.DEV
 /** SPA 路由丢掉 `?embedded=1` 后仍记住嵌套壳（禁 sessionStorage，只用内存） */
 let isEmbeddedAdopted = false
 
-function hasTauriRuntime(): boolean {
-  if (typeof window === 'undefined') return false
-  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window
-}
-
 function readEmbeddedQuery(): boolean {
   if (typeof window === 'undefined') return false
   try {
@@ -55,7 +50,6 @@ function isBrowserChildWebview(): boolean {
 
 /** 当前 webview label；读不到时回落到 window label（老版本 / 极端情况） */
 function findWebviewLabelSafe(): string {
-  if (!hasTauriRuntime()) return ''
   try {
     return getCurrentWebview().label
   } catch (error) {
@@ -79,25 +73,22 @@ function isEmbeddedShell(): boolean {
   return isBrowserChildWebview()
 }
 
-/** 真主窗：有 Tauri、webview label=main、且非 embedded */
+/** 真主窗：webview label=main，且非 embedded */
 function isMainShell(): boolean {
   if (isEmbeddedShell()) return false
-  if (!hasTauriRuntime()) return false
   return findWebviewLabelSafe() === MAIN_WINDOW_LABEL
 }
 
 /**
  * 能不能调 Tauri 命令。
  *
- * `__TAURI_INTERNALS__` 在嵌套壳里照样注入（withGlobalTauri），但右栏子 webview
- * 没有任何 capability —— 调什么都回 `... not allowed by ACL`。所以「有 Tauri 运行时」
- * 不等于「有 IPC」，凡是要真调命令的地方都得用它，而不是 `hasTauriRuntime()`。
- *
- * 判定看**能力**（是不是 browser 子 webview），不看产品开关：正式包里嵌套预览关掉了，
- * 但万一有人把本应用地址敲进右栏，也照样不能调命令、不该刷 ACL。
+ * 右栏 browser 子 webview 与 `?embedded=1` 降级壳**有运行时但没有 capability**，
+ * 调什么都回 `... not allowed by ACL`。所以凡是要真调命令的地方都得用它：
+ * 判定看**能力**（是不是 browser 子 webview / 嵌套壳），不看产品开关 —— 正式包里
+ * 嵌套预览关掉了，但万一有人把本应用地址敲进右栏，也照样不能调命令、不该刷 ACL。
  */
 function canUseTauriIpc(): boolean {
-  return hasTauriRuntime() && !isBrowserChildWebview() && !isEmbeddedShell()
+  return !isBrowserChildWebview() && !isEmbeddedShell()
 }
 
 /**
@@ -149,7 +140,6 @@ export {
   adoptShellMode,
   canUseTauriIpc,
   findSelfDebugUrl,
-  hasTauriRuntime,
   isEmbeddedShell,
   isMainShell
 }

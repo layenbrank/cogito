@@ -50,8 +50,8 @@ vi.mock('@tauri-apps/api/event', function () {
 
 /**
  * 组件用 `canUseTauriIpc()` 兜住嵌套预览壳（没有 IPC，不该挂告警芯片）。
- * jsdom 里没有 `__TAURI_INTERNALS__`，所以必须显式声明「这是真主窗」，
- * 否则一次检查都不会发出去，芯片永远不出现。其余导出保持真实实现。
+ * jsdom 里读不到 webview label，`isMainShell()` 会恒为 false，所以必须显式声明
+ * 「这是真主窗」，否则一次检查都不会发出去，芯片永远不出现。其余导出保持真实实现。
  */
 vi.mock('@/features/window/shell-mode', async function (importOriginal) {
   const actual = await importOriginal<typeof ShellMode>()

@@ -107,8 +107,8 @@ describe('dispatchKeydown', function () {
     expect(pressed.defaultPrevented).toBe(false)
   })
 
-  it('非 Tauri 环境读不到窗口 label 时不过滤窗口', async function () {
-    // jsdom 没有 `__TAURI_INTERNALS__`，`findWindowLabel()` 返回 null
+  it('读不到窗口 label 时不过滤窗口', async function () {
+    // jsdom 里没有原生窗口 API，`findWindowLabel()` 返回 null
     await expect(dispatchKeydown(event({ key: 'Escape', code: 'Escape' }))).resolves.toBe(true)
     expect(runEscape).toHaveBeenCalledTimes(1)
   })

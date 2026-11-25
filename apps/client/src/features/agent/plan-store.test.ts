@@ -54,8 +54,6 @@ describe('计划 / 目标档案仓储', function () {
   beforeEach(function () {
     resetPlanStore()
     invokeMock.mockReset()
-    // 让 plan-store 认为自己在 Tauri 壳里，从而真的走 IPC
-    ;(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
     invokeMock.mockResolvedValue([])
   })
 

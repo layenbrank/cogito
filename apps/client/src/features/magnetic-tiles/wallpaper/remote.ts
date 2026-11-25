@@ -7,7 +7,6 @@
  *
  * 浏览器里维基、NASA 带 CORS；必应没有，桌面壳用 Tauri HTTP。失败只打日志，不把空结果写进缓存。
  */
-import { hasTauriRuntime } from '@/features/window/shell-mode'
 import type { WallpaperFrame } from './catalog'
 
 type WallpaperSource = 'commons' | 'nasa' | 'bing'
@@ -249,13 +248,8 @@ function findBingArchiveUrl(market: string) {
 
 async function fetchJson<T>(url: string): Promise<T> {
   const headers = { Accept: 'application/json', 'User-Agent': REQUEST_AGENT }
-  if (hasTauriRuntime()) {
-    const { http } = await import('@/utils/http/http')
-    return http.get<T>(url, { headers })
-  }
-  const response = await fetch(url, { headers })
-  if (!response.ok) throw new Error(`${response.status} ${url}`)
-  return response.json() as Promise<T>
+  const { http } = await import('@/utils/http/http')
+  return http.get<T>(url, { headers })
 }
 
 async function fetchSettledFrames(

@@ -1,7 +1,7 @@
 /**
  * 非密偏好真源：Tauri LazyStore + 内存 cache。
  * 启动 `ensurePersist()` 后，`findPref` 可同步读。
- * 非 Tauri（vitest / 浏览器预览）只走内存，不碰磁盘。
+ * 没有 IPC 能力时（嵌入壳 / 单测）只走内存，不碰磁盘。
  */
 import { LazyStore } from '@tauri-apps/plugin-store'
 import { emit } from '@tauri-apps/api/event'
@@ -113,10 +113,14 @@ async function notifyPrefChanged(ns: PersistNamespace): Promise<void> {
   }
 }
 
-/** 重读某个命名空间（别的窗口改完之后用；非 Tauri 运行时 直接返回内存值） */
+/** 重读某个命名空间（别的窗口改完之后用；读不到就留内存值） */
 async function reloadPref<N extends PersistNamespace>(ns: N): Promise<PersistValue<N>> {
   if (!canUseTauriIpc()) return findPref(ns)
-  await bootstrapNamespace(ns)
+  try {
+    await bootstrapNamespace(ns)
+  } catch (error) {
+    console.warn(`[persist] reload ${ns} failed`, error)
+  }
   return findPref(ns)
 }
 

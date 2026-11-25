@@ -3,21 +3,27 @@
  *
  * Windows 最小化会把客户区收成极小尺寸（历史 Win32 行为），ResizeObserver /
  * 分栏库仍会收到「变窄」——用本 hook 在前端冻结布局逻辑。
- * 嵌套壳 / 无 Tauri 时恒为 false，可再配合宽度阈值兜底。
+ * 嵌套壳里恒为 false，可再配合宽度阈值兜底。
  */
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useState } from 'react'
 
-import { hasTauriRuntime, isEmbeddedShell } from '@/features/window/shell-mode'
+import { isEmbeddedShell } from '@/features/window/shell-mode'
 
 function useWindowMinimized(): boolean {
   const [isMinimized, updateMinimized] = useState(false)
 
   useEffect(
     function () {
-      if (!hasTauriRuntime() || isEmbeddedShell()) return
+      if (isEmbeddedShell()) return
 
-      const win = getCurrentWindow()
+      let win: ReturnType<typeof getCurrentWindow>
+      try {
+        win = getCurrentWindow()
+      } catch (error) {
+        console.warn('[window] 读不到当前窗口', error)
+        return
+      }
       let isActive = true
       const unlistens: Array<() => void> = []
 

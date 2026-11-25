@@ -1,6 +1,6 @@
 /**
  * Rust `agentTurn:*` 命令的薄封装：后台回合事件环缓冲出 WebView。
- * 无 Tauri 时全部返回 null / no-op，调用方走内存兜底。
+ * 没有 IPC 能力时全部返回 null / no-op，调用方走内存兜底。
  */
 import { invoke } from '@tauri-apps/api/core'
 
@@ -15,16 +15,8 @@ interface FollowR {
   status: 'running' | 'done' | 'missing'
 }
 
-/**
- * 能不能调 `agentTurn:*`：嵌套预览壳（右栏自载）有 Tauri 运行时，但没有 IPC
- * （不配 capability `remote.urls`），一律当「不可用」走内存兜底。
- */
-function hasTauriRuntime(): boolean {
-  return canUseTauriIpc()
-}
-
 async function POST_AGENT_TURN_ENSURE(threadId: string): Promise<FollowR | null> {
-  if (!hasTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   try {
     return await invoke<FollowR>(CHANNELS.AGENT_TURN.ENSURE, { threadId })
   } catch (error) {
@@ -37,7 +29,7 @@ async function POST_AGENT_TURN(
   threadId: string,
   events: readonly ChatStreamEvent[]
 ): Promise<number | null> {
-  if (!hasTauriRuntime() || events.length === 0) return null
+  if (!canUseTauriIpc() || events.length === 0) return null
   try {
     return await invoke<number>(CHANNELS.AGENT_TURN.APPEND, {
       params: { threadId, events }
@@ -49,7 +41,7 @@ async function POST_AGENT_TURN(
 }
 
 async function GET_AGENT_TURN(threadId: string, cursor: number): Promise<FollowR | null> {
-  if (!hasTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   try {
     return await invoke<FollowR>(CHANNELS.AGENT_TURN.FOLLOW, {
       params: { threadId, cursor }
@@ -61,7 +53,7 @@ async function GET_AGENT_TURN(threadId: string, cursor: number): Promise<FollowR
 }
 
 async function PUT_AGENT_TURN_FINISH(threadId: string): Promise<void> {
-  if (!hasTauriRuntime()) return
+  if (!canUseTauriIpc()) return
   try {
     await invoke(CHANNELS.AGENT_TURN.FINISH, { threadId })
   } catch (error) {
@@ -70,7 +62,7 @@ async function PUT_AGENT_TURN_FINISH(threadId: string): Promise<void> {
 }
 
 async function DELETE_AGENT_TURN(threadId: string): Promise<void> {
-  if (!hasTauriRuntime()) return
+  if (!canUseTauriIpc()) return
   try {
     await invoke(CHANNELS.AGENT_TURN.FORGET, { threadId })
   } catch (error) {
@@ -79,7 +71,7 @@ async function DELETE_AGENT_TURN(threadId: string): Promise<void> {
 }
 
 async function PUT_AGENT_TURN_RUNNING(threadId: string): Promise<string[] | null> {
-  if (!hasTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   try {
     return await invoke<string[]>(CHANNELS.AGENT_TURN.MARK_RUNNING, { threadId })
   } catch (error) {
@@ -89,7 +81,7 @@ async function PUT_AGENT_TURN_RUNNING(threadId: string): Promise<string[] | null
 }
 
 async function DELETE_AGENT_TURN_RUNNING(threadId: string): Promise<string[] | null> {
-  if (!hasTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   try {
     return await invoke<string[]>(CHANNELS.AGENT_TURN.CLEAR_RUNNING, { threadId })
   } catch (error) {
@@ -99,7 +91,7 @@ async function DELETE_AGENT_TURN_RUNNING(threadId: string): Promise<string[] | n
 }
 
 async function GET_AGENT_TURNS_RUNNING(): Promise<string[] | null> {
-  if (!hasTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   try {
     return await invoke<string[]>(CHANNELS.AGENT_TURN.LIST_RUNNING)
   } catch (error) {
