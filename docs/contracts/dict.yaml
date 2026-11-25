@@ -13,8 +13,8 @@ types:
   - code: knowledge_cloud_status
     name: 云端索引状态
     description: 本地云端索引同步状态
-  - code: knowledge_base_scope
-    name: 知识库范围
+  - code: knowledge_space_scope
+    name: 空间范围
     description: 个人或租户共享
   - code: automation_run_status
     name: 自动化运行状态
@@ -88,7 +88,7 @@ claims:
     - { value: "009", isDefault: false }
     - { value: "010", isDefault: false }
     - { value: "011", isDefault: false }
-  knowledge_base_scope:
+  knowledge_space_scope:
     - { value: "012", isDefault: true }
     - { value: "013", isDefault: false }
   automation_run_status:
@@ -131,8 +131,8 @@ remap:
   - { typeCode: knowledge_cloud_status, old: "003", new: "009" }
   - { typeCode: knowledge_cloud_status, old: "004", new: "010" }
   - { typeCode: knowledge_cloud_status, old: "005", new: "011" }
-  - { typeCode: knowledge_base_scope, old: "001", new: "012" }
-  - { typeCode: knowledge_base_scope, old: "002", new: "013" }
+  - { typeCode: knowledge_space_scope, old: "001", new: "012" }
+  - { typeCode: knowledge_space_scope, old: "002", new: "013" }
   - { typeCode: automation_run_status, old: "001", new: "014" }
   - { typeCode: automation_run_status, old: "002", new: "015" }
   - { typeCode: automation_run_status, old: "003", new: "016" }

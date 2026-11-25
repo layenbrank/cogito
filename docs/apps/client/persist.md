@@ -17,7 +17,7 @@
 | namespace | 文件 | 内容 |
 | --- | --- | --- |
 | `settings` | `settings.json` | 系统设置（general / capture / shortcuts） |
-| `tiles` | `tiles.json` | 磁贴会话 + markdown / code / signboard / bookmark 交互态 |
+| `tiles` | `tiles.json` | markdown / code / signboard / bookmark 交互态（「已打开的磁贴应用」名单只在内存，不落盘） |
 | `agent` | `agent.json` | 分栏、审批、模型偏好、corex MCP 开关、当前文件夹（`activeRootByWorkspace`） |
 | `window` | `window.json` | 外观、时钟样式、命令栏引擎/最近、tiptap 最近色、记住用户名 |
 | `clipchamp` | `clipchamp.json` | 剪辑工程 blob |

@@ -13,7 +13,7 @@
 | hover | Chromium           | 系统高亮（`highlightConfig`：content/padding/border/margin 四色，`showInfo` 带标签）                    |
 | 点击  | 主线程回调         | `Overlay.inspectNodeRequested` → `on_inspect_requested`（`busy` 闸门只放一次）                          |
 | 抽取  | `extract_and_emit` | `DOM.resolveNode` → `Runtime.callFunctionOn(EXTRACT_FN)`（selector / text / outerHTML / rect + 滚动量） |
-| 截图  | `capture_clip`     | `quiesce_overlay` 撤掉高亮 + 等两帧 → `Page.captureScreenshot(fromSurface: true, clip)`                 |
+| 截图  | `capture_clip`     | `quiesce_overlay` 撤掉高亮 + 等两帧 → 文档坐标 clip 再乘当前 zoom，`Page.captureScreenshot`            |
 | 收尾  | `picker::stop`     | `setInspectMode(none)` + `hideHighlight`，有设备时 `emulate::resume_mouse`                              |
 
 产物 `PickedElement` 通过 `browser://element-picked` 发给主窗，前端 `attachPickedElement` 把它

@@ -66,7 +66,7 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   `capabilities/default.json` 的 `fs:scope` 收到 7 个（`$APPLOCALDATA` / `$APPDATA` /
   `$APPCACHE` / `$APPCONFIG` / `$APPLOG` / `$RESOURCE` / `$TEMP`）。其余目录由运行期
   **授权集**放行（`apps/client/src-tauri/src/security/grants.rs`），三源合一：
-  ① 静态应用目录；② `agent_workspace_folder` + `knowledge_base.rootPath`；
+  ① 静态应用目录；② `agent_workspace_folder` + `knowledge_space.rootPath`；
   ③ `asset` 表未归档的 `filePath`（上限 5000 条）。用户新挑的路径走
   `security_grant_paths`，当场放行并落 `<appLocalData>/security/grants.json`，
   下次启动由 `grants::rebuild` 重新放行 —— 这是「重启后昨天选的工作区还能用」的解法。

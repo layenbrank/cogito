@@ -6,14 +6,14 @@
 
 ## 分层约定
 
-| 层          | 放什么                                                   | 不放什么                     |
-| ----------- | -------------------------------------------------------- | ---------------------------- |
-| `apps/`     | 单个应用的架构、模块、API、打包、安全、排查              | 跨应用通用内容               |
-| `packages/` | 单个包的职责、对外契约、贡献流程                         | 业务应用逻辑                 |
-| `guides/`   | 环境搭建、构建、测试、发版等**操作步骤**                 | 架构说明（放 `apps/packages`）|
-| `ops/`      | CI/CD、镜像、商店上架与合规                              | 日常开发流程                 |
-| `reference/`| 第三方库 API 笔记、长文资料索引                          | 本仓自己的设计             |
-| `decisions/`| ADR：已做出的技术决策及其理由（**append-only，不改写**） | 待办的方案讨论               |
+| 层           | 放什么                                                   | 不放什么                       |
+| ------------ | -------------------------------------------------------- | ------------------------------ |
+| `apps/`      | 单个应用的架构、模块、API、打包、安全、排查              | 跨应用通用内容                 |
+| `packages/`  | 单个包的职责、对外契约、贡献流程                         | 业务应用逻辑                   |
+| `guides/`    | 环境搭建、构建、测试、发版等**操作步骤**                 | 架构说明（放 `apps/packages`） |
+| `ops/`       | CI/CD、镜像、商店上架与合规                              | 日常开发流程                   |
+| `reference/` | 第三方库 API 笔记、长文资料索引                          | 本仓自己的设计                 |
+| `decisions/` | ADR：已做出的技术决策及其理由（**append-only，不改写**） | 待办的方案讨论                 |
 
 **链接约定**：引用代码时优先用「仓库根相对」的行内代码写法，如 `apps/studio/src/main.ts`；确需可点击的 Markdown 链接时，从文档所在层正确回溯（如 `docs/apps/studio/architecture.md` → `../../../apps/studio/src/main.ts`）。不要写 `../src/...` 这类依赖「文档恰好挨着代码」的路径——文档与代码分层后必然失效。
 
@@ -21,54 +21,56 @@
 
 ### Studio（Electron 桌面壳）
 
-| 文档                                          | 说明                                     |
-| --------------------------------------------- | ---------------------------------------- |
-| [README.md](./apps/studio/README.md)          | 入口与索引                               |
-| [architecture.md](./apps/studio/architecture.md) | 进程模型、分层、组合根                |
-| [ipc-contract.md](./apps/studio/ipc-contract.md) | IPC 契约规范：平台约束、三处 satisfies 闭环、错误模型 |
-| [modules.md](./apps/studio/modules.md)        | 模块划分                                 |
-| [api-reference.md](./apps/studio/api-reference.md) | IPC 接口参考                        |
-| [development.md](./apps/studio/development.md) | 开发与调试                               |
-| [examples.md](./apps/studio/examples.md)      | 典型用法示例                             |
-| [security.md](./apps/studio/security.md)      | 安全模型                                 |
-| [packaging.md](./apps/studio/packaging.md)    | 打包与分发                               |
-| [troubleshooting.md](./apps/studio/troubleshooting.md) | 常见问题                        |
+| 文档                                                   | 说明                                                  |
+| ------------------------------------------------------ | ----------------------------------------------------- |
+| [README.md](./apps/studio/README.md)                   | 入口与索引                                            |
+| [architecture.md](./apps/studio/architecture.md)       | 进程模型、分层、组合根                                |
+| [ipc-contract.md](./apps/studio/ipc-contract.md)       | IPC 契约规范：平台约束、三处 satisfies 闭环、错误模型 |
+| [modules.md](./apps/studio/modules.md)                 | 模块划分                                              |
+| [api-reference.md](./apps/studio/api-reference.md)     | IPC 接口参考                                          |
+| [development.md](./apps/studio/development.md)         | 开发与调试                                            |
+| [examples.md](./apps/studio/examples.md)               | 典型用法示例                                          |
+| [security.md](./apps/studio/security.md)               | 安全模型                                              |
+| [packaging.md](./apps/studio/packaging.md)             | 打包与分发                                            |
+| [troubleshooting.md](./apps/studio/troubleshooting.md) | 常见问题                                              |
 
 ### Backend Console（纯 Web 运维控制台）
 
-| 文档                                                 | 说明                         |
-| ---------------------------------------------------- | ---------------------------- |
-| [README.md](./apps/backend/README.md)                | 入口与索引                   |
-| [product-design.md](./apps/backend/product-design.md) | 产品定位、IA、体验原则     |
-| [architecture.md](./apps/backend/architecture.md)    | 前端分层与 cogito 边界       |
-| [development.md](./apps/backend/development.md)      | 本地开发                     |
+| 文档                                                  | 说明                   |
+| ----------------------------------------------------- | ---------------------- |
+| [README.md](./apps/backend/README.md)                 | 入口与索引             |
+| [product-design.md](./apps/backend/product-design.md) | 产品定位、IA、体验原则 |
+| [architecture.md](./apps/backend/architecture.md)     | 前端分层与 cogito 边界 |
+| [development.md](./apps/backend/development.md)       | 本地开发               |
 
 ### Client（Tauri 桌面应用）
 
-| 文档                                                                          | 说明                                                    |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------- |
-| [zustand-dexie-rxjs.md](./apps/client/zustand-dexie-rxjs.md)                  | Zustand + Dexie + RxJS 数据层                           |
-| [components-api.md](./apps/client/components-api.md)                          | 业务组件 API                                            |
-| [components-semantic.md](./apps/client/components-semantic.md)                | 组件语义化 class                                        |
-| [tauri-remote.md](./apps/client/tauri-remote.md)                              | 远程 URL：外跳 opener，不再用 Webview `remote.urls`     |
-| [tauri-command-database/](./apps/client/tauri-command-database/README.md)     | Tauri command / database 分层；Schema Reminder 统一改动 |
-| [updater-sidecar-file-lock.md](./apps/client/updater-sidecar-file-lock.md)    | Windows 更新时 corex-serve 文件锁：根因与双保险方案     |
-| [capture-sharpness-and-selection.md](./apps/client/capture-sharpness-and-selection.md) | 截图清晰度与选区                                    |
-| [agent-dock.md](./apps/client/agent-dock.md)                                  | Agent 底栏 / 输出与运行记录                             |
-| [agent-terminal.md](./apps/client/agent-terminal.md)                          | 会话终端折叠、正在执行列表、agent 用右栏终端跑命令      |
-| [agent-review.md](./apps/client/agent-review.md)                              | 右栏审阅：Git 工作台                                    |
-| [plan-mode.md](./apps/client/plan-mode.md)                                    | 计划模式：正文是唯一执行依据                            |
-| [assistant-ui-elements.md](./apps/client/assistant-ui-elements.md)            | assistant-ui 元素接入对照                               |
+| 文档                                                                                   | 说明                                                    |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [zustand-dexie-rxjs.md](./apps/client/zustand-dexie-rxjs.md)                           | Zustand + Dexie + RxJS 数据层                           |
+| [components-api.md](./apps/client/components-api.md)                                   | 业务组件 API                                            |
+| [components-semantic.md](./apps/client/components-semantic.md)                         | 组件语义化 class                                        |
+| [tauri-remote.md](./apps/client/tauri-remote.md)                                       | 远程 URL：外跳 opener，不再用 Webview `remote.urls`     |
+| [tauri-command-database/](./apps/client/tauri-command-database/README.md)              | Tauri command / database 分层；Schema Reminder 统一改动 |
+| [updater-sidecar-file-lock.md](./apps/client/updater-sidecar-file-lock.md)             | Windows 更新时 corex-serve 文件锁：根因与双保险方案     |
+| [capture-sharpness-and-selection.md](./apps/client/capture-sharpness-and-selection.md) | 截图清晰度与选区                                        |
+| [agent-dock.md](./apps/client/agent-dock.md)                                           | Agent 底栏 / 输出与运行记录                             |
+| [agent-terminal.md](./apps/client/agent-terminal.md)                                   | 会话终端折叠、正在执行列表、agent 用右栏终端跑命令      |
+| [agent-review.md](./apps/client/agent-review.md)                                       | 右栏审阅：Git 工作台                                    |
+| [plan-mode.md](./apps/client/plan-mode.md)                                             | 计划模式：正文是唯一执行依据                            |
+| [assistant-ui-elements.md](./apps/client/assistant-ui-elements.md)                     | assistant-ui 元素接入对照                               |
 
 | [agent-terminal-audit.md](./apps/client/agent-terminal-audit.md) | Agent / 终端 / 自动化链路审计与修复：改动清单 + 验收清单 |
+| [agent-audit.md](./apps/client/agent-audit.md) | Agent 全模块功能逻辑审查：模块地图、真相源、F-001…F-040 缺陷清单、基线失败 |
+| [agent-fix-roadmap.md](./apps/client/agent-fix-roadmap.md) | Agent 修复路线图：R0 安全 → R1 持久化 → R2 单一状态机 → R3 收敛 → R4 体验 |
 | [dev-two-instances.md](./apps/client/dev-two-instances.md) | 正式包 + dev 实例同时跑：identifier / 管道 / 端口隔离 |
 
 ### Extension（浏览器扩展）
 
-| 文档 | 说明 |
-| --- | --- |
-| [README.md](./apps/extension/README.md) | 架构总览：入口、双路执行（桥 / 云端）、平台层、存储、命令、已知缺口 |
-| [agent-bridge.md](./apps/client/agent-bridge.md) | 本机 agent 代理（`/api/v1/agent/*`）的鉴权与安全边界 |
+| 文档                                             | 说明                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| [README.md](./apps/extension/README.md)          | 架构总览：入口、双路执行（桥 / 云端）、平台层、存储、命令、已知缺口 |
+| [agent-bridge.md](./apps/client/agent-bridge.md) | 本机 agent 代理（`/api/v1/agent/*`）的鉴权与安全边界                |
 
 ## 包（packages/）
 
@@ -77,50 +79,56 @@
 
 ## 指南（guides/）
 
-| 文档                                                       | 说明                              |
-| ---------------------------------------------------------- | --------------------------------- |
-| [vite.md](./guides/vite.md)                                | Vite 配置约定                     |
-| [zustand.md](./guides/zustand.md)                          | Zustand 基础用法                  |
-| [agent-conventions.md](./guides/agent-conventions.md)      | Agent 会话高频约定备忘            |
+| 文档                                                  | 说明                   |
+| ----------------------------------------------------- | ---------------------- |
+| [vite.md](./guides/vite.md)                           | Vite 配置约定          |
+| [zustand.md](./guides/zustand.md)                     | Zustand 基础用法       |
+| [agent-conventions.md](./guides/agent-conventions.md) | Agent 会话高频约定备忘 |
 
 ## 运维（ops/）
 
-| 文档                                                                    | 说明                                            |
-| ----------------------------------------------------------------------- | ----------------------------------------------- |
-| [ci-cd.md](./ops/ci-cd.md)                                              | CI/CD：Secrets 概念、两类签名、工作流与发版操作 |
-| [testing.md](./ops/testing.md)                                          | Vitest / Jest 约定与示例入口                    |
-| [pnpm-and-native-mirrors.md](./ops/pnpm-and-native-mirrors.md)          | pnpm 配置与 Electron 镜像                       |
-| [cloudflare-tunnel-nginx.md](./ops/cloudflare-tunnel-nginx.md)          | Cloudflare Tunnel + 本机 nginx：把内网服务发布到公网（含配置与排障） |
+| 文档                                                           | 说明                                                                 |
+| -------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [ci-cd.md](./ops/ci-cd.md)                                     | CI/CD：Secrets 概念、两类签名、工作流与发版操作                      |
+| [testing.md](./ops/testing.md)                                 | Vitest / Jest 约定与示例入口                                         |
+| [pnpm-and-native-mirrors.md](./ops/pnpm-and-native-mirrors.md) | pnpm 配置与 Electron 镜像                                            |
+| [cloudflare-tunnel-nginx.md](./ops/cloudflare-tunnel-nginx.md) | Cloudflare Tunnel + 本机 nginx：把内网服务发布到公网（含配置与排障） |
 
 ### Microsoft Store（ops/store/）
 
-| 文档                                                                       | 说明                                              |
-| -------------------------------------------------------------------------- | ------------------------------------------------- |
+| 文档                                                                           | 说明                                              |
+| ------------------------------------------------------------------------------ | ------------------------------------------------- |
 | [store-submission-guide.zh-CN.md](./ops/store/store-submission-guide.zh-CN.md) | 上架填写总手册（属性 / 包 / 一览 / 版权与许可等） |
-| [store-package-handoff.md](./ops/store/store-package-handoff.md)           | 包 URL、R2 / Worker 托管与包页字段                |
-| [privacy-policy.zh-CN.md](./ops/store/privacy-policy.zh-CN.md)             | 隐私声明（属性页）                                |
-| [license-terms.zh-CN.md](./ops/store/license-terms.zh-CN.md)               | 许可条款（一览页）                                |
-| [认证说明.md](./ops/store/认证说明.md)                                     | 认证测试人员说明                                  |
+| [store-package-handoff.md](./ops/store/store-package-handoff.md)               | 包 URL、R2 / Worker 托管与包页字段                |
+| [privacy-policy.zh-CN.md](./ops/store/privacy-policy.zh-CN.md)                 | 隐私声明（属性页）                                |
+| [license-terms.zh-CN.md](./ops/store/license-terms.zh-CN.md)                   | 许可条款（一览页）                                |
+| [认证说明.md](./ops/store/认证说明.md)                                         | 认证测试人员说明                                  |
 
 ## 第三方参考（reference/）
 
-| 文档                                             | 说明                                                |
-| ------------------------------------------------ | --------------------------------------------------- |
-| [icons.md](./reference/icons.md)                 | Iconify React/Vue 与 unplugin-icons；本仓库离线约定 |
-| [dnd-kit-grid.md](./reference/dnd-kit-grid.md)   | @dnd-kit 网格拖拽笔记（client / studio）            |
-| [sortablejs.md](./reference/sortablejs.md)       | Sortable.js API 笔记（client / extension）          |
-| [konva.md](./reference/konva.md)                 | Konva 长文笔记（截图标注）                          |
+| 文档                                                                           | 说明                                                                               |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [icons.md](./reference/icons.md)                                               | Iconify React/Vue 与 unplugin-icons；本仓库离线约定                                |
+| [dnd-kit-grid.md](./reference/dnd-kit-grid.md)                                 | @dnd-kit 网格拖拽笔记（client / studio）                                           |
+| [sortablejs.md](./reference/sortablejs.md)                                     | Sortable.js API 笔记（client / extension）                                         |
+| [konva.md](./reference/konva.md)                                               | Konva 长文笔记（截图标注）                                                         |
+| [ai-coding-agent-architecture.md](./reference/ai-coding-agent-architecture.md) | VS Code Copilot / Cursor / Codex / Cline / OpenHands 的 agent 架构对照与可迁移结论 |
 
 ## 决策记录（decisions/）
 
-| 文档                                                                | 说明                                          |
-| ------------------------------------------------------------------- | --------------------------------------------- |
-| [prisma-to-drizzle.md](./decisions/prisma-to-drizzle.md)            | Studio 本地库从 Prisma 迁到 Drizzle 的选型依据 |
-| [renderer-vite-root-cause.md](./decisions/renderer-vite-root-cause.md) | Studio renderer 构建根因分析               |
-| [durable-execution-engine.md](./decisions/durable-execution-engine.md)  | cogito 可靠执行引擎：duroxide 而非 pg_durable   |
-| [approval-channel.md](./decisions/approval-channel.md)                  | cogito agent 写操作的人工审批通道：闸门在编排、决定走邮箱 |
-| [no-langchain.md](./decisions/no-langchain.md)                          | compute agent 运行时：自持薄层，不引入 LangChain / LangGraph |
+| 文档                                                                             | 说明                                                                                                |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [prisma-to-drizzle.md](./decisions/prisma-to-drizzle.md)                         | Studio 本地库从 Prisma 迁到 Drizzle 的选型依据                                                      |
+| [renderer-vite-root-cause.md](./decisions/renderer-vite-root-cause.md)           | Studio renderer 构建根因分析                                                                        |
+| [durable-execution-engine.md](./decisions/durable-execution-engine.md)           | cogito 可靠执行引擎：duroxide 而非 pg_durable                                                       |
+| [approval-channel.md](./decisions/approval-channel.md)                           | cogito agent 写操作的人工审批通道：闸门在编排、决定走邮箱                                           |
+| [no-langchain.md](./decisions/no-langchain.md)                                   | compute agent 运行时：自持薄层，不引入 LangChain / LangGraph                                        |
 | [agent-orchestration-langgraph.md](./decisions/agent-orchestration-langgraph.md) | 桌面端 agent 编排：循环宿主搬到 agentd（LangGraph.js + Agent Protocol）；supersede 上一条的适用范围 |
+| [agent-run-event-log.md](./decisions/agent-run-event-log.md)                     | 运行事件日志成为会话唯一真相：持久化、(epoch, seq) 游标、gap 语义                                   |
+| [agent-approval-service.md](./decisions/agent-approval-service.md)               | 审批与追问升级为一等持久请求：状态机、重放、幂等结案、多客户端广播                                  |
+| [agent-run-state-machine.md](./decisions/agent-run-state-machine.md)             | run 状态机收敛为单一实现：`runTurn` 上提到 `@cogito/agent-runtime`                                  |
+| [agent-policy-enforcement.md](./decisions/agent-policy-enforcement.md)           | 策略与执行分离：硬禁用不可被公开接口撤销，agentd 侧工具闸门与输入校验                               |
+| [knowledge-wiki-editor-first.md](./decisions/knowledge-wiki-editor-first.md)     | 知识库：staging-only 写入、一页一概念、15 种内置 type、index 收敛到 Rust；编辑器优先布局（D1–D24） |
 
 ## 调试入口
 

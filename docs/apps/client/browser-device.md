@@ -112,19 +112,23 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 - **`cogito_browser_read` 的 `limit` 与 `maxChars` 是两件事**：`limit` 只管 `outline` 条目数（默认 60，上限 200），
   `mode=text` 的正文上限走 `maxChars`（默认 8000，上限 200000，超出时 `truncated=true`）。
   以前两者共用 `limit`，导致正文只能读回几十个字符。
-- **截图先亮屏再拍，三通道兜底**：`fromSurface: true` 取的是一份合成器画面，窗口不可见 /
-  webview 被 `hide()` 时 WebView2 可能压根不回完成回调（表现就是卡满超时才报错）。所以
-  `browser/agent.rs::screenshot` 的顺序是：
-  ① 拍之前先 `lifecycle::reveal_for_capture`（隐藏态根本不出帧，先亮再拍能省掉一次白等）；
-  ② CDP 双通道：4s 上限的合成面 → 4s 上限的视图面（`fromSurface: false`）；
-  ③ 两条都失败 → `os_capture`：经 corex IPC 截整屏 PNG，再按 `BrowserState.layout` +
-  主窗口 `inner_position` / `scale_factor` 换算客户区像素矩形，用 `image::crop_imm` 裁出来，
-  返回 `mode: "os"`。
-  失败文案是「窗口不可见或被遮挡（已尝试 surface/view/os）」并带各自原因，不再干等超时。
-  返回值里的 `mode`（`surface` / `view` / `os`）说明画面从哪条通道来 —— `os` 是屏幕像素，
-  不保证是合成器画面（可能带遮挡窗口），但至少拿得到图。
-- **截不到图不等于工具没生效**：日志会写「从第几条通道拿到画面」，退到 OS 兜底时还会写裁切矩形；
-  先查这条日志，再怀疑工具。
+- **截图先亮屏再拍，按「完整视口」取景**：zoom ≠ 1 时不带 clip 的 `Page.captureScreenshot`
+  只会截到左上角一块（Chromium 不把默认区域乘上 zoom）。设备预览默认 `set_zoom(fit)`，
+  所以视口截图不能再走无 clip 的 CDP。`browser/capture.rs` 的顺序是：
+  ① 隐藏态先 `lifecycle::reveal_for_capture`，show 之后等两帧再拍，拍完再藏；已经可见的 tab 不会被藏起来；
+  ② `CapturePreview`：控件正在画的那张位图（对齐 VS Code `webContents.capturePage`），失败再试，最多 5 次；
+  ③ CDP 退路：`Page.getLayoutMetrics` 的 `cssVisualViewport`，clip 宽高乘上**当前这一条**缩放
+  （`Zoom` 通道用 `ZoomFactor`，`Cdp` 通道用 fit，再乘捏合 `scale`，两条不叠乘），`fromSurface: true`；
+  ④ 仍失败 → 读控件 bounds，按窗口 DPI 换成屏幕像素，截**这块控件所在的那一块显示器**再裁切，
+  返回 `mode: "os"`（可能带遮挡窗口）。
+  JPEG 过大时按长边 2048 缩小，宽高比不变；不再用第二次 `clip.scale = 1/dpr` 截图（更小的图可能是裁坏的）。
+  `cogito_browser_screenshot` 的 `fullPage: true` 才走整页：`cssContentSize * zoom`，
+  `captureBeyondViewport: true`，长边压在 2576。Chromium 仍可能在底部重复顶部内容。
+  整页失败直接报错，不会用屏幕裁切冒充整页。`captureBeyondViewport` 会关掉捏合缩放；
+  WebView2 没有 `setVisualZoomLevelLimits`，拍完把 `IsPinchZoomEnabled` 关再开，并重写当前 `ZoomFactor`。
+  返回值 `mode` 是 `preview` / `surface` / `os`。
+  失败文案是「窗口不可见或被遮挡（已尝试 preview/surface/os）」并带各自原因。
+- **截不到图不等于工具没生效**：退到 OS 兜底时日志会写裁切矩形和屏幕序号；先查这条日志，再怀疑工具。
 - **拦截的观测口径**：`browser/intercept.rs` 给每个 tab 记 `paused`（收到 `Fetch.requestPaused`
   的次数）与 `matched`（命中规则并真的改写 / 掐断的次数），`cogito_browser_intercept` 与右栏
   网络面板都显示「暂停 N / 命中 M」。两个判据要分开看：`paused = 0` 说明拦截通道没通 ——
