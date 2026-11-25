@@ -258,13 +258,18 @@ export function chunkReport(budget: BundleBudget = defaultBudget): Plugin {
       // 这里直接读产物代码里 `import ... from "./x.js"` 这类语句 —— 那才是启动时真的会执行的。
       const critical: string[] = []
       const seen = new Set<string>()
+      const chunkByName = new Map(
+        chunks.map(function (item) {
+          return [item.fileName, item]
+        })
+      )
       const queue = chunks.filter((chunk) => chunk.isEntry).map((chunk) => chunk.fileName)
       while (queue.length > 0) {
         const name = queue.shift() as string
         if (seen.has(name)) continue
         seen.add(name)
         critical.push(name)
-        const chunk = chunks.find((item) => item.fileName === name)
+        const chunk = chunkByName.get(name)
         if (!chunk) continue
         for (const imported of staticImportsOf(chunk.code)) {
           const resolved = resolveSibling(chunk.fileName, imported)
@@ -296,7 +301,7 @@ export function chunkReport(budget: BundleBudget = defaultBudget): Plugin {
       // 首屏里出现「本该懒加载」的包，比体积超标更值得拦
       const criticalPackages = new Map<string, number>()
       for (const name of critical) {
-        const chunk = chunks.find((item) => item.fileName === name)
+        const chunk = chunkByName.get(name)
         for (const [id, module] of Object.entries(chunk?.modules ?? {})) {
           const pkg = packageOf(id)
           criticalPackages.set(pkg, (criticalPackages.get(pkg) ?? 0) + sizeOf(module))

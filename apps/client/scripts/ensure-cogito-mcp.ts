@@ -108,7 +108,11 @@ function findTargetDir(): string {
     ['metadata', '--format-version', '1', '--no-deps', '--offline'],
     { cwd: TAURI_DIR, encoding: 'utf8' }
   )
-  return (JSON.parse(raw) as { target_directory: string }).target_directory
+  const meta = JSON.parse(raw) as { target_directory?: unknown }
+  if (typeof meta.target_directory !== 'string') {
+    throw new Error('cargo metadata 未返回 target_directory')
+  }
+  return meta.target_directory
 }
 
 function sha256Of(filePath: string): string {
