@@ -231,6 +231,12 @@ function mergeCaptureUpdate(
   }
 }
 
+/**
+ * 初始化单飞：`toInitialize()` 被多个组件同时调用时会同时通过 `loaded` 检查，
+ * 每个都真的去写一遍自启动（实测一个启动周期里落了几百次 OS 写入）。
+ */
+let initializeTask: Promise<void> | null = null
+
 export const useSettingsStore = create<SettingsStore>(function (setter, getter) {
   return {
     settings: makeSettings(),
@@ -238,30 +244,36 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
 
     async toInitialize() {
       if (getter().loaded) return
-      await ensurePersist()
-      const stored = findPref('settings')
-      const settings: Setting.Composite = {
-        general: { ...GENERAL, ...stored.general },
-        capture: mergeCapture(stored.capture),
-        shortcuts: mergeShortcuts(stored.shortcuts),
-        proxy: { ...PROXY, ...stored.proxy }
-      }
+      if (initializeTask) return initializeTask
+      initializeTask = (async function () {
+        await ensurePersist()
+        const stored = findPref('settings')
+        const settings: Setting.Composite = {
+          general: { ...GENERAL, ...stored.general },
+          capture: mergeCapture(stored.capture),
+          shortcuts: mergeShortcuts(stored.shortcuts),
+          proxy: { ...PROXY, ...stored.proxy }
+        }
 
-      try {
-        const enabled = await PUT_AUTOSTART(settings.general.autostart)
-        settings.general = { ...settings.general, autostart: enabled }
-      } catch (error) {
-        console.warn('[settings] syncAutostart on init failed', error)
-      }
+        try {
+          const enabled = await PUT_AUTOSTART(settings.general.autostart)
+          settings.general = { ...settings.general, autostart: enabled }
+        } catch (error) {
+          console.warn('[settings] syncAutostart on init failed', error)
+        }
 
-      try {
-        await syncProxyEnv(settings.proxy)
-      } catch (error) {
-        console.warn('[settings] syncProxy on init failed', error)
-      }
+        try {
+          await syncProxyEnv(settings.proxy)
+        } catch (error) {
+          console.warn('[settings] syncProxy on init failed', error)
+        }
 
-      await replacePref('settings', settings)
-      setter({ settings, loaded: true })
+        await replacePref('settings', settings)
+        setter({ settings, loaded: true })
+      })().finally(function () {
+        initializeTask = null
+      })
+      return initializeTask
     },
 
     async toUpdate(section, value) {
