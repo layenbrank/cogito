@@ -12,27 +12,17 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
+use super::capture::{self, CssRect};
 use super::cdp;
 use super::cdp_events::{self, EventSink};
 use super::emulate;
+use super::intercept;
 
 const MAIN_WINDOW: &str = "main";
 const OUTER_HTML_CAP: usize = 6_000;
 const TEXT_CAP: usize = 240;
 const EVENT_PICKED: &str = "browser://element-picked";
 const EVENT_ACTIVE: &str = "browser://element-picker-active";
-
-/// 截图前等两帧（高亮的清除也发生在渲染帧里，立刻截图会抓到旧帧）。
-///
-/// 页面被遮挡 / 刚从网络视图切回页面时 `requestAnimationFrame` 根本不跑 ——
-/// 再兜一个 120ms 的定时器，否则 `awaitPromise` 会一直挂到 CDP 超时（10s），
-/// 表现为「点了元素，十几秒才出结果」。
-const QUIESCE_FRAMES: &str = "new Promise((done) => {\
-    let settled = false;\
-    const finish = () => { if (settled) return; settled = true; done(true); };\
-    requestAnimationFrame(() => requestAnimationFrame(finish));\
-    setTimeout(finish, 120);\
-})";
 
 /// 与 `agent::read` outline 同源的 path/describe，保证 selector 能直接喂 `cogito_browser_act`
 const EXTRACT_FN: &str = r#"function () {
@@ -421,7 +411,7 @@ async fn quiesce_overlay(app: &AppHandle, label: &str) {
         label,
         "Runtime.evaluate",
         json!({
-            "expression": QUIESCE_FRAMES,
+            "expression": capture::PAINT_FRAMES,
             "awaitPromise": true,
             "returnByValue": true
         }),
@@ -434,38 +424,25 @@ async fn capture_clip(app: &AppHandle, label: &str, rect: &PickedRect) -> Option
         return None;
     }
     quiesce_overlay(app, label).await;
-    // 略扩边，避免裁切贴边文字
-    let pad = 2.0_f64;
-    // `getBoundingClientRect` 给的是视口坐标，`clip` 要的是文档坐标：补上滚动量
-    let x = (rect.x + rect.scroll_x - pad).max(0.0);
-    let y = (rect.y + rect.scroll_y - pad).max(0.0);
-    let width = rect.width + pad * 2.0;
-    let height = rect.height + pad * 2.0;
-
-    let params = json!({
-        "format": "jpeg",
-        "quality": 75,
-        "fromSurface": true,
-        "clip": {
-            "x": x,
-            "y": y,
-            "width": width,
-            "height": height,
-            "scale": 1
-        }
-    });
-
-    match cdp::call(app, label, "Page.captureScreenshot", params).await {
-        Ok(response) => {
-            let base64 = response.get("data").and_then(Value::as_str)?;
-            if base64.is_empty() {
-                return None;
-            }
-            Some(PickedShot {
-                mime_type: "image/jpeg".into(),
-                base64: base64.to_string(),
-            })
-        }
+    // 视口坐标 + 滚动量 = 文档坐标，再乘 zoom。缩放不为 1 时不乘，clip 会缺一块。
+    match capture::element_jpeg(
+        app,
+        label,
+        CssRect {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            scroll_x: rect.scroll_x,
+            scroll_y: rect.scroll_y,
+        },
+    )
+    .await
+    {
+        Ok(bytes) => Some(PickedShot {
+            mime_type: "image/jpeg".into(),
+            base64: intercept::base64_encode(&bytes),
+        }),
         Err(error) => {
             log::warn!("browser: 元素截图失败（{label}）: {error}");
             None

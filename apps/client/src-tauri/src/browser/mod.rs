@@ -18,6 +18,7 @@
 //! 方法，它会分裂出独立 profile，登录态不再共享。
 
 pub mod agent;
+pub mod capture;
 pub mod cdp;
 pub mod cdp_events;
 pub mod command;

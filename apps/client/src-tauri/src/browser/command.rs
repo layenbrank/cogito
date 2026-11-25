@@ -214,7 +214,7 @@ pub async fn browser_agent_screenshot(
     format: Option<String>,
 ) -> Result<serde_json::Value, String> {
     // 默认 PNG（用户截图进输入框）；浮层暂停占位传 jpeg 控制体积
-    agent::screenshot(&app, &label, format.as_deref()).await
+    agent::screenshot(&app, &label, format.as_deref(), false).await
 }
 
 #[tauri::command(rename = "browser:agent-act")]

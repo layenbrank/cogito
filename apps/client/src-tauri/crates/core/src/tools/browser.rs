@@ -125,11 +125,17 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             SCREENSHOT,
-            "对当前标签页截图，返回一张图片。只读 DOM 拿不到视觉信息（配色、间距、字体、布局、图片/图表内容）—— 需要判断页面到底长什么样、样式对不对、有没有错位，或者要看图本身时用它。",
+            "对当前标签页截图，返回一张图片。只读 DOM 拿不到视觉信息（配色、间距、字体、布局、图片/图表内容）—— 需要判断页面到底长什么样、样式对不对、有没有错位，或者要看图本身时用它。默认是眼前这一屏（完整视口）；只有需要滚动区域以下的内容时才传 fullPage=true。",
             Effect::Read,
             json!({
                 "type": "object",
-                "properties": { "tab": tab_property() }
+                "properties": {
+                    "tab": tab_property(),
+                    "fullPage": {
+                        "type": "boolean",
+                        "description": "true 时截整页（含视口以外）。默认 false，只截当前视口。整页图更大，且 Chromium 偶尔会在底部重复顶部内容"
+                    }
+                }
             }),
         ),
         spec(
@@ -290,6 +296,21 @@ mod tests {
             .find(|spec| spec.name == WAIT)
             .expect("wait 工具必须在目录里");
         assert_eq!(wait.effect, Effect::Read);
+    }
+
+    #[test]
+    fn screenshot_full_page_is_opt_in() {
+        let shot = specs()
+            .into_iter()
+            .find(|spec| spec.name == SCREENSHOT)
+            .expect("截图工具必须在目录里");
+        let full_page = &shot.input_schema["properties"]["fullPage"];
+        assert_eq!(full_page["type"], "boolean");
+        let required = shot.input_schema.get("required").and_then(Value::as_array);
+        assert!(
+            required.is_none_or(|items| !items.iter().any(|item| item == "fullPage")),
+            "fullPage 必须可选，默认仍是当前视口"
+        );
     }
 
     #[test]
