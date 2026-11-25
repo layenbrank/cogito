@@ -12,7 +12,11 @@ import {
 import { normalizeCopiedText, toCopiedHtml } from '@/views/knowledge/lib/copy-text.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { findOutlineFromEditor } from '@/views/knowledge/lib/outline.ts'
-import { openPath, saveDocument } from '@/views/knowledge/lib/session.ts'
+import {
+  openPath,
+  saveDocument,
+  setLiveHtmlReader
+} from '@/views/knowledge/lib/session.ts'
 import { findDocStats } from '@/views/knowledge/lib/stats.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import { rememberEditorBridge } from '@/views/knowledge/workspace/editor-context.ts'
@@ -29,8 +33,17 @@ import {
   openWikiLink
 } from '@/views/knowledge/workspace/link-navigation.ts'
 
-/** 字数 / 行数统计的节流窗口：扫全篇 Markdown 不贵到要防抖，但没必要逐键 */
-const STATS_DELAY_MS = 200
+/**
+ * 派生状态（HTML / Markdown / 大纲 / 统计）的合并窗口。
+ *
+ * 这四样都是**全文档级**操作：`getHTML()` 要序列化整棵 DOM，`serializeHtmlToMarkdown`
+ * 要跑完整 turndown 管线，大纲要遍历全部节点。逐键执行时，几百 KB 的页面单次就要
+ * 几十到几百毫秒，叠加右侧大纲 / 标题 / 底栏的重渲染，长任务实测能到 1.2–1.5s。
+ *
+ * 因此：按键只同步置「脏」标记（O(1)），派生状态 300ms 合并一次；保存、切模式、
+ * 取上下文时读编辑器本体（`setLiveHtmlReader`），不依赖这份节流快照。
+ */
+const DERIVE_DELAY_MS = 300
 
 function useKnowledgeWorkspace() {
   const composerRef = useRef<Editor | null>(null)
@@ -39,8 +52,8 @@ function useKnowledgeWorkspace() {
   const pendingActionRef = useRef<PendingAction>(null)
   const syncingRef = useRef(false)
   const lastSavedRef = useRef('')
-  /** 统计要扫全篇 Markdown，节流到 200ms；换文档 / 卸载时丢弃未落地的统计 */
-  const statsTimerRef = useRef<number | null>(null)
+  /** 派生状态的合并窗口（见 DERIVE_DELAY_MS） */
+  const deriveTimerRef = useRef<number | null>(null)
 
   const isSessionReady = useKnowledgeStore(function (state) {
     return state.isSessionReady
@@ -205,35 +218,58 @@ function useKnowledgeWorkspace() {
           return handled
         }
       },
-      onUpdate(props) {
+      onUpdate() {
         if (syncingRef.current) return
-        const nextHtml = props.editor.getHTML()
-        const matter = useKnowledgeStore.getState().frontMatter
-        const md = serializeHtmlToMarkdown(nextHtml, matter)
-        // 一次 setter 落地：逐个动作写会把标题 / 大纲 / 底栏各重渲染 4~5 轮
-        useKnowledgeStore.getState().toCommitEdit({
-          html: nextHtml,
-          markdown: md,
-          outline: findOutlineFromEditor(props.editor)
-        })
-        // 统计要扫全篇 Markdown：节流到 200ms，别每敲一个字都跑一遍
-        if (statsTimerRef.current !== null) window.clearTimeout(statsTimerRef.current)
-        statsTimerRef.current = window.setTimeout(function () {
-          statsTimerRef.current = null
-          useKnowledgeStore.getState().toUpdateStats(findDocStats(md))
-        }, STATS_DELAY_MS)
+        // 只同步置脏 + 推进编辑代数（标量）：窗口标题 / 关闭拦截 / 保存判定立刻生效
+        useKnowledgeStore.getState().toTouchEdit()
+        const pathAtSchedule = useKnowledgeStore.getState().activePath
+        if (deriveTimerRef.current !== null) window.clearTimeout(deriveTimerRef.current)
+        deriveTimerRef.current = window.setTimeout(function () {
+          deriveTimerRef.current = null
+          if (syncingRef.current) return
+          // 期间切了文档：这份派生属于上一篇，丢掉（否则会把旧文档的大纲写到新文档上）
+          if (useKnowledgeStore.getState().activePath !== pathAtSchedule) return
+          const editor = composerRef.current
+          if (!editor) return
+          const nextHtml = editor.getHTML()
+          const md = serializeHtmlToMarkdown(
+            nextHtml,
+            useKnowledgeStore.getState().frontMatter
+          )
+          // 一次 setter 落地：逐个动作写会把标题 / 大纲 / 底栏各重渲染 4~5 轮
+          const state = useKnowledgeStore.getState()
+          state.toCommitEdit({
+            html: nextHtml,
+            markdown: md,
+            outline: findOutlineFromEditor(editor)
+          })
+          state.toUpdateStats(findDocStats(md))
+        }, DERIVE_DELAY_MS)
       }
     },
     [isTypographyEnabled]
   )
 
-  // 换文档 / 卸载时丢掉还没落地的统计，避免把上一篇的字数写到新文档上
+  // 保存路径不依赖节流快照：`saveDocument()` 不带 liveHtml 时直接读编辑器本体
+  useEffect(
+    function () {
+      setLiveHtmlReader(function () {
+        return composerRef.current?.getHTML() ?? null
+      })
+      return function () {
+        setLiveHtmlReader(null)
+      }
+    },
+    []
+  )
+
+  // 换了文档 / 组件卸载时丢掉还没落地的派生，避免把上一篇的大纲与统计写到新文档上
   useEffect(
     function () {
       return function () {
-        if (statsTimerRef.current !== null) {
-          window.clearTimeout(statsTimerRef.current)
-          statsTimerRef.current = null
+        if (deriveTimerRef.current !== null) {
+          window.clearTimeout(deriveTimerRef.current)
+          deriveTimerRef.current = null
         }
       }
     },
@@ -252,7 +288,6 @@ function useKnowledgeWorkspace() {
     isDocLoading,
     isDirty,
     autosaveMs,
-    markdown,
     toSetExternalChanged: useKnowledgeStore.getState().toSetExternalChanged,
     toBumpTree: useKnowledgeStore.getState().toBumpTree,
     setDiscardOpen

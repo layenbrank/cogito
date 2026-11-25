@@ -24,7 +24,6 @@ interface KnowledgeDocumentEffectsInput {
   isDocLoading: boolean
   isDirty: boolean
   autosaveMs: number
-  markdown: string
   toSetExternalChanged: WorkspaceState['toSetExternalChanged']
   toBumpTree: WorkspaceState['toBumpTree']
   setDiscardOpen: (value: boolean) => void
@@ -44,7 +43,6 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
     isDocLoading,
     isDirty,
     autosaveMs,
-    markdown,
     toSetExternalChanged,
     toBumpTree,
     setDiscardOpen
@@ -103,8 +101,10 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
       return function () {
         window.clearTimeout(timer)
       }
+      // 刻意不依赖 markdown：派生状态是节流落地的，依赖它会让「持续打字」每 300ms
+      // 重启一次计时器，自动保存永远不触发。用 isDirty 的上升沿驱动即可。
     },
-    [isDirty, activePath, autosaveMs, markdown, composerRef]
+    [isDirty, activePath, autosaveMs, composerRef]
   )
 
   useEffect(
@@ -161,8 +161,15 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
       let debounceTimer = 0
       void watch(
         rootDir,
-        function () {
+        function (event) {
           if (disposed) return
+          // 自己写盘（自动保存 3s 一次、保存、ingest 批量写）不该触发整树重建：
+          // 以前每次保存都 clearDirListCache + 重置整棵树，展开状态与目录缓存全丢。
+          if (shouldIgnoreFileWatch()) return
+          // 内容修改（modify）只影响正文，单文件 watch 已经处理；只有增删改名才动树
+          if (typeof event.type === 'object' && event.type !== null && 'modify' in event.type) {
+            return
+          }
           window.clearTimeout(debounceTimer)
           debounceTimer = window.setTimeout(function () {
             if (disposed) return

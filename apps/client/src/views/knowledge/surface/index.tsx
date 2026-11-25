@@ -37,6 +37,14 @@ const KnowledgeSurface = memo(function KnowledgeSurface() {
 
   const [watchEpoch, setWatchEpoch] = useState(0)
 
+  // 只认「空间集合本身」的变化：refresh 每次都换新的 spaces 数组，用引用做依赖
+  // 会让每个空间每次都 unwatch + watch 一遍原始资料目录。
+  const spaceWatchKey = spaces
+    .map(function (space) {
+      return `${space.id}:${space.rootPath}`
+    })
+    .join('|')
+
   useEffect(
     function () {
       function onWatchChanged() {
@@ -58,7 +66,7 @@ const KnowledgeSurface = memo(function KnowledgeSurface() {
       let cancelled = false
       let stop: (() => void) | null = null
       void watchKnowledgeSpaces({
-        spaces: spaces.map(function (space) {
+        spaces: useSpacesStore.getState().spaces.map(function (space) {
           return { id: space.id, rootPath: space.rootPath }
         }),
         activeSpaceId: activeSpaceID,
@@ -75,7 +83,7 @@ const KnowledgeSurface = memo(function KnowledgeSurface() {
         stop?.()
       }
     },
-    [isOpen, activeSpaceID, spaces, watchEpoch]
+    [isOpen, activeSpaceID, spaceWatchKey, watchEpoch]
   )
 
   useEffect(

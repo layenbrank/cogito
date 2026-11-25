@@ -9,28 +9,12 @@ import { toast } from 'sonner'
 import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
-  findPageLinks,
   insertMissingWikiPage,
-  readWikiPagesFromDocs,
+  readPageLinkBuckets,
   type PageLinkBuckets
 } from '@/views/knowledge/lib/page-links.ts'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
-
-interface PageLinksQuery {
-  rootPath: string | null | undefined
-  relPath: string | null
-  docs: { relPath: string; title: string }[]
-}
-
-async function fetchPageLinkBuckets(query: PageLinksQuery): Promise<PageLinkBuckets | null> {
-  if (!query.rootPath || !query.relPath) return null
-  const pages = await readWikiPagesFromDocs({
-    rootPath: query.rootPath,
-    docs: query.docs
-  })
-  return findPageLinks(pages, query.relPath)
-}
 
 function PageLinks() {
   const docs = useSpacesStore(function (state) {
@@ -66,10 +50,11 @@ function PageLinks() {
   useEffect(
     function () {
       let alive = true
-      void fetchPageLinkBuckets({
+      void readPageLinkBuckets({
         rootPath: space?.rootPath,
         relPath,
-        docs
+        docs,
+        version: activeDoc?.revision ?? null
       })
         .then(function (next) {
           if (alive) setLinks(next)
@@ -81,16 +66,18 @@ function PageLinks() {
         alive = false
       }
     },
-    [space?.rootPath, relPath, docs]
+    [space?.rootPath, relPath, docs, activeDoc?.revision]
   )
 
   async function refresh() {
     try {
       setLinks(
-        await fetchPageLinkBuckets({
+        await readPageLinkBuckets({
           rootPath: space?.rootPath,
           relPath,
-          docs
+          docs,
+          version: activeDoc?.revision ?? null,
+          force: true
         })
       )
     } catch (error) {

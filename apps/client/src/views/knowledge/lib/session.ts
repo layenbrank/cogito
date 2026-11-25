@@ -254,12 +254,25 @@ function makeUntitled(): void {
   syncDerived('')
 }
 
+/**
+ * 实时正文读取器：编辑器挂载时注册（见 `use-knowledge-workspace`）。
+ *
+ * 派生状态（html / markdown / outline）现在是**节流落地**的，`store.html` 最多落后
+ * 一个节流窗口。`saveDocument()` 不带 `liveHtml` 的调用（脏确认、将来的快捷键）必须
+ * 读编辑器本体，否则会把最后一次输入之前的正文写盘。
+ */
+let liveHtmlReader: (() => string | null) | null = null
+
+function setLiveHtmlReader(reader: (() => string | null) | null): void {
+  liveHtmlReader = reader
+}
+
 function findCurrentMarkdown(liveHtml?: string): string {
   const store = useKnowledgeStore.getState()
   if (store.viewMode === 'source') {
     return store.markdown
   }
-  const html = liveHtml ?? store.html
+  const html = liveHtml ?? liveHtmlReader?.() ?? store.html
   return serializeHtmlToMarkdown(html, store.frontMatter)
 }
 
@@ -275,6 +288,7 @@ async function saveDocument(options?: {
   const depth = options?.depth ?? 0
   const content = findCurrentMarkdown(options?.liveHtml)
   const sequence = ++saveSequence
+  const revisionAtStart = store.editRevision
 
   try {
     let path = store.activePath
@@ -321,9 +335,9 @@ async function saveDocument(options?: {
     const latest = useKnowledgeStore.getState()
     if (!isSamePath(latest.activePath, path)) return true
 
-    // 写盘期间用户又改了：保留 dirty，切勿用旧 content 覆盖 store / 假装已保存
-    const currentContent = findCurrentMarkdown()
-    if (currentContent !== content) {
+    // 写盘期间用户又改了：保留 dirty，切勿用旧 content 覆盖 store / 假装已保存。
+    // 判据是编辑代数（每次内容入口 +1），不再把全文重新序列化一遍做字符串比对。
+    if (latest.editRevision !== revisionAtStart) {
       latest.toSetSaveConflict(false)
       if (depth >= 2) {
         // 仍脏着，留给下一次 autosave / 手动保存；不要死循环
@@ -370,6 +384,7 @@ export {
   confirmIfDirty,
   findDisplayTitle,
   syncDerived,
+  setLiveHtmlReader,
   shouldIgnoreFileWatch,
   noteSelfWrite
 }

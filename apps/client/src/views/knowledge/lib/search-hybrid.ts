@@ -62,34 +62,65 @@ async function mergeHybridHits(input: {
   })
 }
 
-function findImageHitsFromMarkdown(
-  pages: { relPath: string; content: string }[],
-  query: string
-): ImageHit[] {
+interface MarkdownImage {
+  relPath: string
+  alt: string
+  src: string
+}
+
+/**
+ * 抽出一页里的全部 Markdown 图片。
+ *
+ * 拆出来是因为检索页需要「按 docs 版本缓存一次、每次查询只做匹配」：以前每个按键
+ * 都把整库 Markdown 重新读盘 + 重新跑正则，文档多的时候一次输入就是几十次 IPC。
+ */
+function collectMarkdownImages(content: string, relPath: string): MarkdownImage[] {
+  const images: MarkdownImage[] = []
+  const re = /!\[([^\]]*)\]\(([^)]+)\)/g
+  let match: RegExpExecArray | null
+  while ((match = re.exec(content))) {
+    images.push({ relPath, alt: match[1] || '', src: match[2] || '' })
+  }
+  return images
+}
+
+/** 在已抽好的图片清单上做子串匹配（纯内存，按键级调用也安全） */
+function filterImageHits(images: MarkdownImage[], query: string): ImageHit[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return []
   const hits: ImageHit[] = []
-  const re = /!\[([^\]]*)\]\(([^)]+)\)/g
-  for (const page of pages) {
-    let match: RegExpExecArray | null
-    re.lastIndex = 0
-    while ((match = re.exec(page.content))) {
-      const alt = match[1] || ''
-      const src = match[2] || ''
-      const hay = `${alt} ${src}`.toLowerCase()
-      if (!hay.includes(needle)) continue
-      hits.push({
-        docId: page.relPath,
-        alt: alt || src,
-        src,
-        score: hay.startsWith(needle) ? 1 : 0.5
-      })
-    }
+  for (const image of images) {
+    const hay = `${image.alt} ${image.src}`.toLowerCase()
+    if (!hay.includes(needle)) continue
+    hits.push({
+      docId: image.relPath,
+      alt: image.alt || image.src,
+      src: image.src,
+      score: hay.startsWith(needle) ? 1 : 0.5
+    })
   }
   return hits.sort(function (a, b) {
     return b.score - a.score
   })
 }
 
-export { findImageHitsFromMarkdown, mergeHybridHits, reciprocalRankFusion }
-export type { ImageHit }
+/** 一次性版本（保留给「手头只有正文」的调用方；检索页请走 collect + filter） */
+function findImageHitsFromMarkdown(
+  pages: { relPath: string; content: string }[],
+  query: string
+): ImageHit[] {
+  const images: MarkdownImage[] = []
+  for (const page of pages) {
+    images.push(...collectMarkdownImages(page.content, page.relPath))
+  }
+  return filterImageHits(images, query)
+}
+
+export {
+  collectMarkdownImages,
+  filterImageHits,
+  findImageHitsFromMarkdown,
+  mergeHybridHits,
+  reciprocalRankFusion
+}
+export type { ImageHit, MarkdownImage }

@@ -26,6 +26,23 @@ interface WatchTarget {
   isActive: boolean
 }
 
+/**
+ * 整树重建的合并窗口。
+ *
+ * 拖一批资料进 `raw/sources` 时，watch 是**逐文件**回调的：原来每个事件都
+ * `toBumpTree()` → 清空目录缓存 + 整树重新 readDir。批量导入 200 个文件就是 200 次。
+ */
+const TREE_BUMP_DELAY_MS = 400
+let treeBumpTimer: number | null = null
+
+function scheduleTreeBump(): void {
+  if (treeBumpTimer !== null) return
+  treeBumpTimer = window.setTimeout(function () {
+    treeBumpTimer = null
+    useKnowledgeStore.getState().toBumpTree()
+  }, TREE_BUMP_DELAY_MS)
+}
+
 function toRelative(root: string, absolute: string): string {
   const normalized = absolute.replace(/\\/g, '/')
   const rootNorm = root.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -88,7 +105,7 @@ async function watchOneSourcesDir(target: WatchTarget): Promise<UnwatchFn | null
                     path: relative,
                     status: 'succeeded'
                   })
-                  useKnowledgeStore.getState().toBumpTree()
+                  scheduleTreeBump()
                   void useSpacesStore.getState().rescan()
                 }
               })
@@ -108,13 +125,13 @@ async function watchOneSourcesDir(target: WatchTarget): Promise<UnwatchFn | null
 
           if (!isPathAllowedBySourceWatch(path, latest)) {
             if (target.isActive) {
-              useKnowledgeStore.getState().toBumpTree()
+              scheduleTreeBump()
             }
             continue
           }
 
           if (target.isActive) {
-            useKnowledgeStore.getState().toBumpTree()
+            scheduleTreeBump()
             useFileSyncStore.getState().pushTask({
               kind: 'modify',
               path: relative,

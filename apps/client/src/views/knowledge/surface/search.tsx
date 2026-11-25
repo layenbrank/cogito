@@ -11,8 +11,10 @@ import { useEffect, useState } from 'react'
 
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import {
-  findImageHitsFromMarkdown,
-  type ImageHit
+  collectMarkdownImages,
+  filterImageHits,
+  type ImageHit,
+  type MarkdownImage
 } from '@/views/knowledge/lib/search-hybrid.ts'
 import { SpaceCombobox } from '@/views/knowledge/surface/space-combobox.tsx'
 import { useDocsTab } from '@/views/knowledge/surface/use-docs-tab.ts'
@@ -23,36 +25,73 @@ import {
   ToolStatPill
 } from '@/views/knowledge/surface/tool-surface.tsx'
 
+/**
+ * 图片索引按「docs 数组版本」缓存：store 每次刷新都会换一个新数组，WeakMap 自动失效。
+ * 以前是每敲一个键就把最多 80 篇 Markdown 串行读盘 + 全文正则；现在整库只在 docs
+ * 变化时读一次，查询阶段纯内存匹配。
+ */
+const imageIndexCache = new WeakMap<object, Promise<MarkdownImage[]>>()
+
+function readImageIndex(
+  rootPath: string,
+  docs: { relPath: string }[]
+): Promise<MarkdownImage[]> {
+  const cached = imageIndexCache.get(docs)
+  if (cached) return cached
+  const task = (async function () {
+    const images: MarkdownImage[] = []
+    for (const doc of docs) {
+      if (!/\.md$/i.test(doc.relPath)) continue
+      try {
+        const content = await readTextFile(joinPath(rootPath, doc.relPath))
+        images.push(...collectMarkdownImages(content, doc.relPath))
+      } catch (error) {
+        console.warn('[search] image scan skip', doc.relPath, error)
+      }
+    }
+    return images
+  })()
+  imageIndexCache.set(docs, task)
+  // 失败不进缓存：下次 docs / 空间变化时重试
+  void task.catch(function () {
+    imageIndexCache.delete(docs)
+  })
+  return task
+}
+
+/** 输入防抖窗口：与编辑器的派生窗口对齐 */
+const QUERY_DELAY_MS = 300
+
 function SearchTab() {
   const state = useDocsTab()
   const [imageHits, setImageHits] = useState<ImageHit[]>([])
 
   useEffect(
     function () {
-      if (!state.query.trim() || !state.activeSpace) {
+      const query = state.query.trim()
+      const space = state.activeSpace
+      if (!query || !space) {
         setImageHits([])
         return
       }
       let cancelled = false
-      void (async function () {
-        const pages: { relPath: string; content: string }[] = []
-        for (const doc of state.docs.slice(0, 80)) {
-          if (!/\.md$/i.test(doc.relPath)) continue
-          try {
-            const content = await readTextFile(joinPath(state.activeSpace!.rootPath, doc.relPath))
-            pages.push({ relPath: doc.relPath, content })
-          } catch (error) {
-            console.warn('[search] image scan skip', doc.relPath, error)
-          }
-        }
-        if (cancelled) return
-        setImageHits(findImageHitsFromMarkdown(pages, state.query).slice(0, 12))
-      })()
+      const timer = window.setTimeout(function () {
+        void readImageIndex(space.rootPath, state.docs)
+          .then(function (images) {
+            if (cancelled) return
+            setImageHits(filterImageHits(images, query).slice(0, 12))
+          })
+          .catch(function (error: unknown) {
+            console.warn('[search] image index failed', error)
+          })
+      }, QUERY_DELAY_MS)
       return function () {
         cancelled = true
+        window.clearTimeout(timer)
       }
+      // hits.length 不进依赖：以前回车搜索完成会再跑一遍整个读盘流程
     },
-    [state.query, state.activeSpace, state.docs, state.hits.length]
+    [state.query, state.activeSpace, state.docs]
   )
 
   return (

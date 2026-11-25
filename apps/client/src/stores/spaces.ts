@@ -36,6 +36,17 @@ import { DEMO_WIKI_NAME, writeDemoWikiTree } from '@/views/knowledge/lib/demo-wi
 import { ensureWikiScaffold, writeWikiTemplate } from '@/views/knowledge/lib/wiki-scaffold.ts'
 import { WIKI_TEMPLATE_GENERAL } from '@/views/knowledge/lib/wiki-templates.ts'
 
+/**
+ * 脚手架只需确认一次：`refresh()` 会在侧栏展开 / 切页签 / 发布后被反复触发，
+ * 每次都做 9 次 `exists` IPC 没必要。失败不写入，下次仍会重试。
+ */
+const scaffoldedRoots = new Set<string>()
+/** 同一空间的整库 rescan 冷却窗口 */
+const RESCAN_COOLDOWN_MS = 15_000
+const lastRescanAt = new Map<string, number>()
+/** 刷新单飞：侧栏 / staging / 发布后可能同时触发，串行化避免重复拉列表与扫盘 */
+let refreshTask: Promise<void> | null = null
+
 interface SpacesState {
   spaces: KnowledgeSpace[]
   activeSpaceID: string | null
@@ -129,12 +140,18 @@ const useSpacesStore = create<SpacesState>()(function (setter, getter) {
   /**
    * 空间开了「自动更新」时，打开面板就先回灌一次磁盘：
    * 用户在外面改文件不用再想起来点「重新扫描」。失败只告警，不影响列表。
+   *
+   * 带冷却：`refresh()` 会被侧栏展开、切页签、发布后反复触发，而后端 rescan 是整库扫盘，
+   * 连点几次就是几次全盘扫描。
    */
   async function syncFromDisk(spaceID: string | null): Promise<void> {
     const space = getter().spaces.find(function (item) {
       return item.id === spaceID
     })
     if (!space?.autoUpdate) return
+    const last = lastRescanAt.get(space.id) ?? 0
+    if (Date.now() - last < RESCAN_COOLDOWN_MS) return
+    lastRescanAt.set(space.id, Date.now())
     try {
       await POST_KNOWLEDGE_RESCAN(space.id)
     } catch (error) {
@@ -154,32 +171,39 @@ const useSpacesStore = create<SpacesState>()(function (setter, getter) {
     error: null,
 
     async refresh() {
-      setter({ isLoading: true, error: null })
-      try {
-        const spaces = await GET_KNOWLEDGE_SPACES()
-        const activeSpaceID =
-          getter().activeSpaceID && spaces.some((space) => space.id === getter().activeSpaceID)
-            ? getter().activeSpaceID
-            : (spaces[0]?.id ?? null)
-        setter({ spaces, activeSpaceID })
-        syncWorkspaceRoot(activeSpaceID)
-        const active = spaces.find(function (space) {
-          return space.id === activeSpaceID
-        })
-        if (active?.rootPath) {
-          try {
-            await ensureWikiScaffold(active.rootPath, WIKI_TEMPLATE_GENERAL)
-          } catch (error) {
-            reportCaught('spaces.wikiScaffold', error, 'warning')
+      if (refreshTask) return refreshTask
+      refreshTask = (async function () {
+        setter({ isLoading: true, error: null })
+        try {
+          const spaces = await GET_KNOWLEDGE_SPACES()
+          const activeSpaceID =
+            getter().activeSpaceID && spaces.some((space) => space.id === getter().activeSpaceID)
+              ? getter().activeSpaceID
+              : (spaces[0]?.id ?? null)
+          setter({ spaces, activeSpaceID })
+          syncWorkspaceRoot(activeSpaceID)
+          const active = spaces.find(function (space) {
+            return space.id === activeSpaceID
+          })
+          if (active?.rootPath && !scaffoldedRoots.has(active.rootPath)) {
+            try {
+              await ensureWikiScaffold(active.rootPath, WIKI_TEMPLATE_GENERAL)
+              scaffoldedRoots.add(active.rootPath)
+            } catch (error) {
+              reportCaught('spaces.wikiScaffold', error, 'warning')
+            }
           }
+          await syncFromDisk(activeSpaceID)
+          await fetchDocsAndStaging(activeSpaceID)
+          setter({ isLoading: false })
+        } catch (error) {
+          reportCaught('spaces.refresh', error, 'warning')
+          setter({ isLoading: false, error: toErrorMessage(error) })
         }
-        await syncFromDisk(activeSpaceID)
-        await fetchDocsAndStaging(activeSpaceID)
-        setter({ isLoading: false })
-      } catch (error) {
-        reportCaught('spaces.refresh', error, 'warning')
-        setter({ isLoading: false, error: toErrorMessage(error) })
-      }
+      })().finally(function () {
+        refreshTask = null
+      })
+      return refreshTask
     },
 
     async selectSpace(spaceID) {
@@ -223,6 +247,7 @@ const useSpacesStore = create<SpacesState>()(function (setter, getter) {
       try {
         const space = await POST_KNOWLEDGE_SPACE(name)
         await writeWikiTemplate(space.rootPath, templateId)
+        scaffoldedRoots.add(space.rootPath)
         setter({ spaces: [...getter().spaces, space], error: null })
         await getter().selectSpace(space.id)
         return true
@@ -239,6 +264,7 @@ const useSpacesStore = create<SpacesState>()(function (setter, getter) {
         await writeDemoWikiTree(space.rootPath)
         // 补齐 .agent / raw/parsed 等目录；已有 purpose/schema 不覆盖
         await ensureWikiScaffold(space.rootPath, WIKI_TEMPLATE_GENERAL)
+        scaffoldedRoots.add(space.rootPath)
         setter({ spaces: [...getter().spaces, space], error: null })
         await getter().selectSpace(space.id)
         await POST_KNOWLEDGE_RESCAN(space.id)
@@ -266,6 +292,7 @@ const useSpacesStore = create<SpacesState>()(function (setter, getter) {
       if (!spaceID) return
       setter({ isLoading: true, error: null })
       try {
+        lastRescanAt.set(spaceID, Date.now())
         await POST_KNOWLEDGE_RESCAN(spaceID)
         await fetchDocsAndStaging(spaceID)
         setter({ isLoading: false })

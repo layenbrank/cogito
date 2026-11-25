@@ -48,6 +48,14 @@ interface KnowledgeSession {
 }
 
 interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
+  /**
+   * 编辑代数：每次「内容入口」被调用就 +1，单调递增。
+   *
+   * 保存流程用它判断「写盘期间用户是否又改了」：以前是对比重新序列化出来的
+   * Markdown，等于每轮保存都把全文 turndown 一遍（大文档几百毫秒），而且派生状态
+   * 一旦改成节流落地就会读到过期快照。代数比较是 O(1) 且精确的。
+   */
+  editRevision: number
   hydratePreferences: () => void
   /** 从 tiles.json 灌入（启动后） */
   hydrateFromStore: () => Promise<void>
@@ -82,6 +90,8 @@ interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   /** 保存成功且内容仍是最新：一次写入 markdown + 清 dirty，避免先 dirty 再清除的闪烁 */
   toCommitSaved: (params: { path: string; markdown: string }) => void
   toMarkDirty: (isDirty?: boolean) => void
+  /** 记一次用户输入（O(1)）：置脏并推进编辑代数，派生状态落地不再推进 */
+  toTouchEdit: () => void
   toUpdateOutline: (outline: OutlineItem[]) => void
   toUpdateStats: (stats: DocStats) => void
   toSetViewMode: (mode: KnowledgeViewMode) => void
@@ -153,6 +163,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
         activeDoc: null,
         saveConflict: false,
         treeRevision: 0,
+        editRevision: 0,
         ...initial,
 
         hydratePreferences() {
@@ -297,6 +308,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
             function (state) {
               state.markdown = markdown
               state.isDirty = true
+              state.editRevision += 1
             },
             false,
             'toUpdateMarkdown'
@@ -306,8 +318,9 @@ const useKnowledgeStore = create<KnowledgeStore>()(
         toUpdateHtml(html) {
           setters(
             function (state) {
+              // 派生值：脏标记由 `toUpdateMarkdown` / `toTouchEdit` 负责。
+              // 这里再置脏会让「保存后迟到的源码派生」把 isDirty 又拉回 true。
               state.html = html
-              state.isDirty = true
             },
             false,
             'toUpdateHtml'
@@ -320,7 +333,8 @@ const useKnowledgeStore = create<KnowledgeStore>()(
               state.html = params.html
               state.markdown = params.markdown
               state.outline = params.outline
-              state.isDirty = true
+              // 不碰 isDirty：它是「用户输入」的标记（`toTouchEdit` 负责），
+              // 派生状态迟到落地时再把脏拉回 true 会导致保存后还显示未保存。
             },
             false,
             'toCommitEdit'
@@ -370,6 +384,17 @@ const useKnowledgeStore = create<KnowledgeStore>()(
             },
             false,
             'toMarkDirty'
+          )
+        },
+
+        toTouchEdit() {
+          setters(
+            function (state) {
+              state.isDirty = true
+              state.editRevision += 1
+            },
+            false,
+            'toTouchEdit'
           )
         },
 

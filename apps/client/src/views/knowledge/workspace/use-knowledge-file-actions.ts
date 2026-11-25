@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/react'
-import { startTransition } from 'react'
+import { startTransition, useEffect, useRef } from 'react'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
@@ -17,6 +17,14 @@ import { commitWikiReveal } from '@/views/knowledge/workspace/editor-context.ts'
 import type { PendingAction } from '@/views/knowledge/workspace/use-knowledge-document-effects.ts'
 
 type WorkspaceState = ReturnType<typeof useKnowledgeStore.getState>
+
+/**
+ * 源码模式派生（HTML 预览 / 大纲 / 统计）的合并窗口。
+ *
+ * 源码框本身必须同步写 `markdown`（受控输入），但 `marked.parse` + frontmatter +
+ * 大纲/统计都是全文档级操作，逐键跑会让长文档在源码模式里同样卡顿。
+ */
+const SOURCE_DERIVE_DELAY_MS = 300
 
 interface KnowledgeFileActionsInput {
   composer: Editor | null
@@ -43,6 +51,18 @@ function useKnowledgeFileActions(input: KnowledgeFileActionsInput) {
     toUpdateHtml,
     setDiscardOpen
   } = input
+
+  /** 源码模式派生状态的合并窗口 */
+  const sourceTimerRef = useRef<number | null>(null)
+
+  useEffect(function () {
+    return function () {
+      if (sourceTimerRef.current !== null) {
+        window.clearTimeout(sourceTimerRef.current)
+        sourceTimerRef.current = null
+      }
+    }
+  }, [])
 
   function runGuarded(action: () => void) {
     if (!isDirty) {
@@ -121,10 +141,16 @@ function useKnowledgeFileActions(input: KnowledgeFileActionsInput) {
 
   function onSourceChange(value: string) {
     if (syncingRef.current) return
+    // 源码框是受控输入：markdown 必须同步写入，否则光标/输入会回退
     toUpdateMarkdown(value)
-    syncDerived(value)
-    const parsed = parseMarkdown(value)
-    toUpdateHtml(parsed.html)
+    if (sourceTimerRef.current !== null) window.clearTimeout(sourceTimerRef.current)
+    sourceTimerRef.current = window.setTimeout(function () {
+      sourceTimerRef.current = null
+      // 用最新值重算：节流窗口内可能又敲了几个字
+      const latest = useKnowledgeStore.getState().markdown
+      syncDerived(latest)
+      toUpdateHtml(parseMarkdown(latest).html)
+    }, SOURCE_DERIVE_DELAY_MS)
   }
 
   function syncSourceToLive() {

@@ -13,36 +13,83 @@ interface PageLinkBuckets {
   broken: string[]
 }
 
-function findPageLinks(pages: WikiPage[], currentRelative: string): PageLinkBuckets {
+/** 文档列表项里参与缓存指纹的字段（store 的 `KnowledgeDocSummary` 本来就带） */
+interface PageLinkDocPointer {
+  relPath: string
+  title: string
+  updatedAt?: number
+  revision?: number
+}
+
+function normalizeRelPath(path: string): string {
+  return path.replace(/\\/g, '/').toLowerCase()
+}
+
+/**
+ * 一次算好的链接索引：`parseWikilinks` 是正则全文扫描，让它在「打开/切换文档」时
+ * 对整库每页各跑一遍是最贵的部分。这里按语料版本建一次（出链表 + 标题 → 反链表），
+ * 之后切文档就是两次 Map 查询。
+ */
+interface PageLinkIndex {
+  /** 规范化相对路径 → 页面 */
+  byPath: Map<string, WikiPage>
+  /** 小写标题 → 页面 */
+  byTitle: Map<string, WikiPage>
+  /** 规范化相对路径 → 去重后的出链标题 */
+  outbound: Map<string, string[]>
+  /** 小写标题 → 引用它的页面标题集合 */
+  inbound: Map<string, Set<string>>
+}
+
+function buildPageLinkIndex(pages: WikiPage[]): PageLinkIndex {
+  const byPath = new Map<string, WikiPage>()
   const byTitle = new Map<string, WikiPage>()
+  const outbound = new Map<string, string[]>()
+  const inbound = new Map<string, Set<string>>()
+
   for (const page of pages) {
+    const key = normalizeRelPath(page.relative)
+    byPath.set(key, page)
     byTitle.set(page.title.trim().toLowerCase(), page)
-  }
-  const current = pages.find(function (page) {
-    return page.relative.replace(/\\/g, '/') === currentRelative.replace(/\\/g, '/')
-  })
-  const outbound = current ? parseWikilinks(current.content) : []
-  const broken = outbound.filter(function (title) {
-    return !byTitle.has(title.toLowerCase())
-  })
-  const inbound: string[] = []
-  const currentTitle = current?.title.trim().toLowerCase()
-  if (currentTitle) {
-    for (const page of pages) {
-      if (page === current) continue
-      for (const link of parseWikilinks(page.content)) {
-        if (link.toLowerCase() === currentTitle) {
-          inbound.push(page.title)
-          break
-        }
-      }
+
+    const links = [...new Set(parseWikilinks(page.content))].filter(function (link) {
+      return link.trim().length > 0
+    })
+    outbound.set(key, links)
+    for (const link of links) {
+      const title = link.toLowerCase()
+      const sources = inbound.get(title)
+      if (sources) sources.add(page.title)
+      else inbound.set(title, new Set([page.title]))
     }
   }
-  return {
-    outbound: [...new Set(outbound)],
-    inbound: [...new Set(inbound)],
-    broken: [...new Set(broken)]
-  }
+
+  return { byPath, byTitle, outbound, inbound }
+}
+
+function findPageLinksFromIndex(
+  index: PageLinkIndex,
+  currentRelative: string
+): PageLinkBuckets {
+  const key = normalizeRelPath(currentRelative)
+  const current = index.byPath.get(key)
+  if (!current) return { outbound: [], inbound: [], broken: [] }
+
+  const outbound = index.outbound.get(key) ?? []
+  const broken = outbound.filter(function (title) {
+    return !index.byTitle.has(title.toLowerCase())
+  })
+  const selfTitle = current.title.trim().toLowerCase()
+  const inbound = [...(index.inbound.get(selfTitle) ?? [])].filter(function (title) {
+    return title.trim().toLowerCase() !== selfTitle
+  })
+
+  return { outbound, inbound, broken }
+}
+
+/** 一次性版本：手头只有正文时用；高频路径请用索引（见 `readPageLinkBuckets`） */
+function findPageLinks(pages: WikiPage[], currentRelative: string): PageLinkBuckets {
+  return findPageLinksFromIndex(buildPageLinkIndex(pages), currentRelative)
 }
 
 async function insertMissingWikiPage(input: {
@@ -99,5 +146,77 @@ async function readWikiPagesFromDocs(input: {
   return pages
 }
 
-export { findPageLinks, insertMissingWikiPage, readWikiPagesFromDocs }
-export type { PageLinkBuckets }
+/**
+ * 语料指纹：路径 + 更新时间 + 版本号。
+ *
+ * 只在 `docs` / 当前文档版本变化时重建索引；切文档、切页签都不再重新读盘。
+ * 当前文档刚保存时 `activeDoc.revision` 会变，`version` 参数用它把缓存打穿。
+ */
+function findCorpusSignature(
+  rootPath: string,
+  docs: PageLinkDocPointer[],
+  version: number | null | undefined
+): string {
+  const parts: string[] = [rootPath, String(version ?? 0)]
+  for (const doc of docs) {
+    parts.push(`${doc.relPath}:${doc.updatedAt ?? 0}:${doc.revision ?? 0}`)
+  }
+  return parts.join('\n')
+}
+
+/** 只保留最近几个语料的索引（切空间 / 局部刷新时不会无界增长） */
+const INDEX_CACHE_LIMIT = 3
+const indexCache = new Map<string, Promise<PageLinkIndex>>()
+
+function readPageLinkIndex(input: {
+  rootPath: string
+  docs: PageLinkDocPointer[]
+  version?: number | null
+  force?: boolean
+}): Promise<PageLinkIndex> {
+  const signature = findCorpusSignature(input.rootPath, input.docs, input.version)
+  if (!input.force) {
+    const cached = indexCache.get(signature)
+    if (cached) return cached
+  }
+  const task = readWikiPagesFromDocs({
+    rootPath: input.rootPath,
+    docs: input.docs
+  }).then(buildPageLinkIndex)
+  indexCache.set(signature, task)
+  void task.catch(function () {
+    indexCache.delete(signature)
+  })
+  while (indexCache.size > INDEX_CACHE_LIMIT) {
+    const oldest = indexCache.keys().next().value
+    if (oldest === undefined || oldest === signature) break
+    indexCache.delete(oldest)
+  }
+  return task
+}
+
+/** Page Links 面板的唯一入口：缓存读盘 + 缓存索引，返回当前页的三组链接 */
+async function readPageLinkBuckets(input: {
+  rootPath: string | null | undefined
+  relPath: string | null
+  docs: PageLinkDocPointer[]
+  version?: number | null
+  force?: boolean
+}): Promise<PageLinkBuckets | null> {
+  if (!input.rootPath || !input.relPath) return null
+  const index = await readPageLinkIndex({
+    rootPath: input.rootPath,
+    docs: input.docs,
+    version: input.version,
+    force: input.force
+  })
+  return findPageLinksFromIndex(index, input.relPath)
+}
+
+export {
+  findPageLinks,
+  insertMissingWikiPage,
+  readPageLinkBuckets,
+  readWikiPagesFromDocs
+}
+export type { PageLinkBuckets, PageLinkDocPointer }
