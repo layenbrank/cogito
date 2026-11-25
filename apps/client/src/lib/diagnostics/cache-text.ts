@@ -4,7 +4,14 @@
  * 抽出来是为了能单测 —— 验证 #5 要求页面上真的能看到「缓存根 / 上次清理 / 已清理字节」，
  * 而这些值的拼装逻辑（0 字节、没清理过、读不到状态）最容易在改动里退化。
  */
-import { formatBytes } from './capabilities'
+/** 字节数 → 便于阅读的文案（只用于展示，保留一位小数）。 */
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '—'
+  const mb = bytes / (1024 * 1024)
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  if (mb >= 1) return `${mb.toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
 
 /**
  * 缓存大小文案。
@@ -56,5 +63,5 @@ function cachePruneText(stats: CachePruneInfo | null | undefined): string {
   return parts.join(' · ')
 }
 
-export { cachePruneText, cacheSizeText, stampText }
+export { cachePruneText, cacheSizeText, formatBytes, stampText }
 export type { CachePruneInfo }

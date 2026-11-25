@@ -9,6 +9,7 @@ import { emit } from '@tauri-apps/api/event'
 import { STORE_FILE, type PersistNamespace } from '@/features/persist/files'
 import { cloneDefaults, parseNamespace } from '@/features/persist/parse'
 import type { PersistShape, PersistValue } from '@/features/persist/types'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 const NAMESPACES = Object.keys(STORE_FILE) as PersistNamespace[]
 
@@ -24,13 +25,6 @@ const stores = new Map<PersistNamespace, LazyStore>()
 let cache: PersistShape = cloneDefaults()
 let isReady = false
 let hydratePromise: Promise<void> | null = null
-
-function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
-}
 
 function findStore(ns: PersistNamespace): LazyStore {
   let store = stores.get(ns)
@@ -69,7 +63,7 @@ async function ensurePersist(): Promise<void> {
   }
   hydratePromise = (async function () {
     try {
-      if (!isTauriRuntime()) {
+      if (!canUseTauriIpc()) {
         cache = cloneDefaults()
         return
       }
@@ -93,7 +87,7 @@ function findPref<N extends PersistNamespace>(ns: N): PersistValue<N> {
 }
 
 async function writeNamespace<N extends PersistNamespace>(ns: N, value: PersistValue<N>): Promise<void> {
-  if (!isTauriRuntime()) return
+  if (!canUseTauriIpc()) return
   const store = findStore(ns)
   await store.init()
   if (ns === 'settings') {
@@ -121,7 +115,7 @@ async function notifyPrefChanged(ns: PersistNamespace): Promise<void> {
 
 /** 重读某个命名空间（别的窗口改完之后用；非 Tauri 运行时 直接返回内存值） */
 async function reloadPref<N extends PersistNamespace>(ns: N): Promise<PersistValue<N>> {
-  if (!isTauriRuntime()) return findPref(ns)
+  if (!canUseTauriIpc()) return findPref(ns)
   await bootstrapNamespace(ns)
   return findPref(ns)
 }

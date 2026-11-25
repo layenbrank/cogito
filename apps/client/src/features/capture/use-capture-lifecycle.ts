@@ -7,7 +7,7 @@ import {
   POST_CAPTURE_REFRESH,
   GET_CAPTURE_PENDING,
   POST_CAPTURE_SCREENSHOT
-} from '@/features/capture/tauri'
+} from '@/apis/capture'
 import { useCaptureActiveSession } from '@/features/capture/use-capture-active-session'
 import { useSettingsStore } from '@/stores/setting'
 import { reportCaught } from '@/utils/exception-report'

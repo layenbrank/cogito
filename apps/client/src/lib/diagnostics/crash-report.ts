@@ -9,8 +9,7 @@
  * 按 `eventID` 去重，所以「本次没送出去、下次启动再送」是安全的。
  * 连续失败 3 次后强制 ack，避免一条坏现场永远卡在磁盘上。
  */
-import { invoke } from '@tauri-apps/api/core'
-
+import { GET_DIAGNOSTICS_PENDING, POST_DIAGNOSTICS_ACK } from '@/apis/diagnostics'
 import { findPref, isPersistReady } from '@/features/persist'
 import { push } from '@/lib/diagnostics/log-bridge'
 import { reportException } from '@/utils/exception-report'
@@ -63,10 +62,6 @@ interface CrashReportResult {
   kept: number
 }
 
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-}
-
 function fingerprintOf(crash: PendingCrash): string {
   const location = crash.location ?? 'unknown'
   // 被兜住的 panic 与真正的应用崩溃分开归组，否则「一次写入失败」会把
@@ -77,7 +72,7 @@ function fingerprintOf(crash: PendingCrash): string {
 
 async function ack(id: string): Promise<void> {
   try {
-    await invoke('diagnostics:ack', { id })
+    await POST_DIAGNOSTICS_ACK(id)
   } catch (error) {
     console.warn('[crash-report] ack 失败（下次启动会再试）', error)
   }
@@ -89,7 +84,6 @@ async function ack(id: string): Promise<void> {
  */
 async function reportPendingCrashes(): Promise<CrashReportResult> {
   const result: CrashReportResult = { reported: 0, kept: 0 }
-  if (!isTauri()) return result
 
   // 「设置 → 诊断」里的开关：关掉后现场只留在本地，不再发送任何内容。
   // persist 没就绪时按默认（开）处理 —— 启动早期补报不该被存储层卡住。
@@ -100,7 +94,7 @@ async function reportPendingCrashes(): Promise<CrashReportResult> {
 
   let pending: PendingDiagnostics
   try {
-    pending = await invoke<PendingDiagnostics>('diagnostics:pending')
+    pending = await GET_DIAGNOSTICS_PENDING<PendingDiagnostics>()
   } catch (error) {
     console.warn('[crash-report] 读取待报现场失败', error)
     return result

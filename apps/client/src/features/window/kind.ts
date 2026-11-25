@@ -1,8 +1,10 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
-/** 当前窗口 label；非 Tauri 环境（单测 / 浏览器调试）返回空串。 */
+import { hasTauriRuntime } from '@/features/window/shell-mode'
+
+/** 当前窗口 label；单测（jsdom 无 Tauri 运行时）返回空串。环境判定只保留 shell-mode 一处。 */
 function findWindowLabel(): string {
-  if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return ''
+  if (!hasTauriRuntime()) return ''
   return getCurrentWindow().label
 }
 

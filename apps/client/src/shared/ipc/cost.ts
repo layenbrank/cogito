@@ -4,55 +4,13 @@
  * 与审计导出同一套口径：命令在 Rust 侧先按保留期裁一次，再给最近 N 条 + 汇总。
  * `priceMicros` / `currency` 为 null 表示**未计价**（模型不在内置价目表里），
  * 这种情况必须显示成「未计价」，不能显示成 0 —— 那是两件事。
+ *
+ * 取数 + 契约校验在 `@/apis/security`（schema 在 `specs/security.ts`），这里只剩文案。
  */
-import { invoke } from '@tauri-apps/api/core'
-import { z } from 'zod'
+import type { CostExport } from '@/shared/ipc/specs/security'
 
-import { CHANNELS } from './channels'
-
-const CostEntrySchema = z.object({
-  id: z.string(),
-  usageId: z.string(),
-  runId: z.string().nullish(),
-  sessionId: z.string().nullish(),
-  model: z.string(),
-  inputTokens: z.number().int(),
-  outputTokens: z.number().int(),
-  /** 微元（1 元 = 1_000_000）；null = 未计价 */
-  priceMicros: z.number().int().nullish(),
-  currency: z.string().nullish(),
-  /** `YYYY-MM-DD`（UTC） */
-  dayKey: z.string(),
-  createdAt: z.number().int().nonnegative()
-})
-
-const CostTotalsSchema = z.object({
-  runs: z.number().int().nonnegative(),
-  inputTokens: z.number().int().nonnegative(),
-  outputTokens: z.number().int().nonnegative(),
-  priceMicros: z.number().int().nonnegative(),
-  pricedRuns: z.number().int().nonnegative(),
-  unpricedRuns: z.number().int().nonnegative()
-})
-
-export const CostExportSchema = z.object({
-  exportedAt: z.number().int().nonnegative(),
-  retentionMs: z.number().int().positive(),
-  limit: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  currency: z.string(),
-  totals: CostTotalsSchema,
-  entries: z.array(CostEntrySchema)
-})
-
-export type CostEntry = z.infer<typeof CostEntrySchema>
-export type CostExport = z.infer<typeof CostExportSchema>
-
-/** 取一份成本账快照（默认由 Rust 侧夹到上限）。 */
-export async function POST_SECURITY_COST_EXPORT(limit?: number): Promise<CostExport> {
-  const raw = await invoke<unknown>(CHANNELS.SECURITY.COST_EXPORT, { limit })
-  return CostExportSchema.parse(raw)
-}
+export { CostEntrySchema, CostExportSchema, CostTotalsSchema } from '@/shared/ipc/specs/security'
+export type { CostEntry, CostExport } from '@/shared/ipc/specs/security'
 
 /** 微元 → 「¥1.23」；币种不认识就原样带上代码。 */
 export function formatMicros(micros: number, currency = 'CNY'): string {

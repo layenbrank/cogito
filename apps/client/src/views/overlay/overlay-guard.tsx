@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { POST_OVERLAY_PARK } from '@/apis/overlay'
 import { ErrorBoundary } from '@/components/fallback/ErrorBoundary.tsx'
 import Overlay from '@/views/overlay/overlay'
 
@@ -18,7 +17,7 @@ import Overlay from '@/views/overlay/overlay'
  */
 function OverlayGuard() {
   const park = useCallback(function () {
-    void invoke(CHANNELS.OVERLAY.PARK).catch(function (error) {
+    void POST_OVERLAY_PARK().catch(function (error) {
       console.error('[overlay.guard] park 失败', error)
     })
   }, [])

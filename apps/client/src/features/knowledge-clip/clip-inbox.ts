@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event'
 import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 
 import type { KnowledgeClipPayload } from '@/features/knowledge-clip/server.ts'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { WIKI_DIR_RAW_SOURCES } from '@/views/knowledge/lib/wiki-scaffold.ts'
@@ -23,12 +23,12 @@ function slugFromTitle(title: string): string {
 }
 
 async function writeClipMarkdown(payload: KnowledgeClipPayload): Promise<string> {
-  const bases = useKnowledgeBaseStore.getState().bases
-  const activeId = useKnowledgeBaseStore.getState().activeBaseID
-  const base = bases.find(function (b) {
+  const spaces = useSpacesStore.getState().spaces
+  const activeId = useSpacesStore.getState().activeSpaceID
+  const space = spaces.find(function (b) {
     return b.id === activeId
   })
-  const root = base?.rootPath
+  const root = space?.rootPath
   if (!root) {
     throw new Error('无活动知识库，无法写入剪藏')
   }

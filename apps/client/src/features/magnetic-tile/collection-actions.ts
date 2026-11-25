@@ -36,8 +36,6 @@ async function openBookmarkLibrary(): Promise<void> {
   const { admitSession } = await import('@/features/magnetic-tile/session')
   admitSession({
     component: 'bookmark',
-    id: 'bookmark',
-    url: '',
     path: '/bookmark'
   })
   const { router } = await import('@/routers')

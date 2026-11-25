@@ -85,7 +85,7 @@ const Example = lazy(function () {
 })
 
 const Gallery = lazy(function () {
-  return import('@/views/gallery/gallery.tsx')
+  return import('@/views/gallery/gallery-page.tsx')
 })
 
 const Capture = lazy(function () {

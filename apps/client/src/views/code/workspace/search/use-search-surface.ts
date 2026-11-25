@@ -1,4 +1,4 @@
-import { WorkspaceFiles, type ContentHit } from '@/lib/workspace-files'
+import { WorkspaceFiles, type ContentHit } from '@/apis/workspace-files'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 

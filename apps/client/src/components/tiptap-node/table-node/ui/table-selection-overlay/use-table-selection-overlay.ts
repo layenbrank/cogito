@@ -7,7 +7,6 @@ import { useFloating } from '@floating-ui/react'
 import { useResizeOverlay } from '@/components/tiptap-node/table-node/ui/table-selection-overlay/use-resize-overlay.ts'
 import {
   domCellAround,
-  findTable,
   rectEq
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
@@ -30,15 +29,16 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
   const [isVisible, setIsVisible] = useState(true)
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null)
   const [activeHandle, setActiveHandle] = useState<ResizeHandle>(null)
-  const [tableDom, setTableDom] = useState<HTMLElement | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const anchorCellRef = useRef<number | null>(null)
   const activeHandleRef = useRef<ResizeHandle>(null)
-  const containerRef = useRef<HTMLElement | null>(null)
 
+  // 坐标来自 `getBoundingClientRect`（视口系），因此浮层也必须是 `fixed`：
+  // 落回 absolute + 某个 DOM 容器会让两套坐标混用，滚动后一定错位。
   const { refs, floatingStyles, update } = useFloating({
-    placement: 'top-start'
+    placement: 'top-start',
+    strategy: 'fixed'
   })
 
   useEffect(() => {
@@ -85,6 +85,45 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
   }, [editor])
 
   useResizeOverlay(editor, updateSelectionRect)
+
+  /**
+   * 选中框是「此刻视口坐标」的快照，浮层又是 `pointer-events: none` 的固定定位，
+   * 滚动 / 窗口尺寸变化后不会自己跟着内容走 —— 必须重算，否则选中态停在原处。
+   *
+   * 用 capture 监听 `window` 的 `scroll`：滚动事件不冒泡，但会经过捕获阶段，
+   * 这样编辑器内层滚动容器（不是 window 本身）也能覆盖到。
+   */
+  const isVisibleRef = useRef(isVisible)
+  useEffect(
+    function () {
+      isVisibleRef.current = isVisible
+    },
+    [isVisible]
+  )
+
+  useEffect(
+    function () {
+      if (!editor) return
+      let frame: number | null = null
+
+      function schedule() {
+        if (!isVisibleRef.current || frame !== null) return
+        frame = window.requestAnimationFrame(function () {
+          frame = null
+          updateSelectionRect()
+        })
+      }
+
+      window.addEventListener('scroll', schedule, true)
+      window.addEventListener('resize', schedule)
+      return function () {
+        window.removeEventListener('scroll', schedule, true)
+        window.removeEventListener('resize', schedule)
+        if (frame !== null) window.cancelAnimationFrame(frame)
+      }
+    },
+    [editor, updateSelectionRect]
+  )
 
   useEffect(() => {
     if (update && selectionRect) {
@@ -175,25 +214,6 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
     [editor, selectionRect, isMenuOpen, showResizeHandles]
   )
 
-  const updateTableDom = useCallback(() => {
-    if (!editor) {
-      setTableDom(null)
-      return
-    }
-
-    const table = findTable(editor)
-    if (!table) {
-      setTableDom(null)
-      return
-    }
-
-    setTableDom((prev) => {
-      const currentDom = prev
-      const newDom = editor.view.nodeDOM(table.pos) as HTMLElement | null
-      return currentDom === newDom ? currentDom : newDom
-    })
-  }, [editor])
-
   const handleMenuOpenChange = useCallback(
     (isOpen: boolean) => {
       setIsMenuOpen(isOpen)
@@ -207,24 +227,15 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
 
     const handleSelectionUpdate = () => {
       updateSelectionRect()
-      updateTableDom()
     }
 
     editor.on('selectionUpdate', handleSelectionUpdate)
     updateSelectionRect()
-    updateTableDom()
 
     return () => {
       editor.off('selectionUpdate', handleSelectionUpdate)
     }
-  }, [editor, updateSelectionRect, updateTableDom])
-
-  useEffect(() => {
-    const c = tableDom?.querySelector(
-      '.table-selection-overlay-container'
-    ) as HTMLElement | null
-    containerRef.current = c ?? null
-  }, [tableDom])
+  }, [editor, updateSelectionRect])
 
   return {
     isVisible,
@@ -233,7 +244,6 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
     isMenuOpen,
     refs,
     floatingStyles,
-    containerRef,
     makeResizeHandler,
     handleMenuOpenChange
   }

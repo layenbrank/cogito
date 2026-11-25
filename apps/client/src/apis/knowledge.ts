@@ -1,29 +1,33 @@
 /**
  * 知识库 IPC（列表 / 检索 / staging 发布）。
  *
- * 写正文（发布）只在这里发生：agent 的 `cogito_knowledge_write_doc` 只写 staging，
- * 用户在这里点确认才落到正式目录与数据库。
+ * 写入分两层：agent 的 `cogito_knowledge_write_doc` 只写 staging（待发布区），
+ * 正文发布（`knowledge:publish`）只由用户在这里确认后触发。
  */
 import { invoke } from '@tauri-apps/api/core'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 import {
-  KnowledgeBaseSchema,
+  KnowledgeSpaceSchema,
   KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
   KnowledgeHitSchema,
+  MigrationReportSchema,
   PublishedDocSchema,
   StagedDocSchema,
   StagedFileSchema,
+  WikiContractSchema,
   WriteDocOutcomeSchema,
-  type KnowledgeBase,
+  type KnowledgeSpace,
   type KnowledgeDocRef,
   type KnowledgeDocSummary,
   type KnowledgeHit,
+  type MigrationReport,
   type PublishedDoc,
   type PublishMode,
   type StagedDoc,
   type StagedFile,
+  type WikiContract,
   type WriteDocOutcome
 } from '@/shared/ipc/specs/knowledge'
 
@@ -33,79 +37,107 @@ function asError(error: unknown, label: string): Error {
   return new Error(`${label}: ${String(error)}`)
 }
 
-async function GET_KNOWLEDGE_BASES(): Promise<KnowledgeBase[]> {
+async function GET_KNOWLEDGE_SPACES(): Promise<KnowledgeSpace[]> {
   try {
-    return KnowledgeBaseSchema.array().parse(await invoke(CHANNELS.KNOWLEDGE.LIST_BASES))
+    return KnowledgeSpaceSchema.array().parse(await invoke(CHANNELS.KNOWLEDGE.LIST_SPACES))
   } catch (error) {
     throw asError(error, '读取知识库失败')
   }
 }
 
-async function POST_KNOWLEDGE_BASE(name: string): Promise<KnowledgeBase> {
+async function POST_KNOWLEDGE_SPACE(name: string): Promise<KnowledgeSpace> {
   try {
-    return KnowledgeBaseSchema.parse(await invoke(CHANNELS.KNOWLEDGE.CREATE_BASE, { name }))
+    return KnowledgeSpaceSchema.parse(await invoke(CHANNELS.KNOWLEDGE.CREATE_SPACE, { name }))
   } catch (error) {
     throw asError(error, '新建知识库失败')
   }
 }
 
-/** 库级选项：只传要改的那几项，其余保持原值 */
-interface BasePatch {
-  autoUpdate?: boolean
-  autoExport?: boolean
-  citation?: boolean
-}
-
-async function PUT_KNOWLEDGE_BASE(baseId: string, patch: BasePatch): Promise<KnowledgeBase> {
+async function GET_KNOWLEDGE_DOCS(spaceId?: string): Promise<KnowledgeDocSummary[]> {
   try {
-    return KnowledgeBaseSchema.parse(
-      await invoke(CHANNELS.KNOWLEDGE.UPDATE_BASE, { baseId, ...patch })
-    )
-  } catch (error) {
-    throw asError(error, '保存知识库设置失败')
-  }
-}
-
-async function GET_KNOWLEDGE_DOCS(baseId?: string): Promise<KnowledgeDocSummary[]> {
-  try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_DOCS, { baseId })
+    const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_DOCS, { spaceId })
     return KnowledgeDocSummarySchema.array().parse(raw ?? [])
   } catch (error) {
     throw asError(error, '读取文档列表失败')
   }
 }
 
-async function GET_KNOWLEDGE_SEARCH(query: string, baseId?: string, topK?: number): Promise<KnowledgeHit[]> {
+async function GET_KNOWLEDGE_SEARCH(query: string, spaceId?: string, topK?: number): Promise<KnowledgeHit[]> {
   try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.SEARCH, { query, baseId, topK })
+    const raw = await invoke(CHANNELS.KNOWLEDGE.SEARCH, { query, spaceId, topK })
     return KnowledgeHitSchema.array().parse(raw ?? [])
   } catch (error) {
     throw asError(error, '检索失败')
   }
 }
 
-async function GET_KNOWLEDGE_STAGING(baseId?: string): Promise<StagedFile[]> {
+async function GET_KNOWLEDGE_STAGING(spaceId?: string): Promise<StagedFile[]> {
   try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_STAGING, { baseId })
+    const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_STAGING, { spaceId })
     return StagedFileSchema.array().parse(raw ?? [])
   } catch (error) {
     throw asError(error, '读取待发布草稿失败')
   }
 }
 
-async function POST_KNOWLEDGE_PUBLISH(baseId: string, path: string, mode: PublishMode): Promise<PublishedDoc> {
+async function POST_KNOWLEDGE_PUBLISH(spaceId: string, path: string, mode: PublishMode): Promise<PublishedDoc> {
   try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.PUBLISH, { baseId, path, mode })
+    const raw = await invoke(CHANNELS.KNOWLEDGE.PUBLISH, { spaceId, path, mode })
     return PublishedDocSchema.parse(raw)
   } catch (error) {
     throw asError(error, '发布失败')
   }
 }
 
-/** 合并分章（确定性拼接）：结果仍是 staging 草稿，发布要用户确认 */
-async function POST_KNOWLEDGE_MERGE(baseId: string, paths: string[], title: string): Promise<StagedDoc> {
+/** 批量发布：多章各自成页，索引只重建一次 */
+async function POST_KNOWLEDGE_PUBLISH_MANY(
+  spaceId: string,
+  paths: string[],
+  mode: PublishMode
+): Promise<KnowledgeDocSummary[]> {
   try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.MERGE_STAGING, { baseId, paths, title })
+    const raw = await invoke(CHANNELS.KNOWLEDGE.PUBLISH_MANY, { spaceId, paths, mode })
+    return KnowledgeDocSummarySchema.array().parse(raw ?? [])
+  } catch (error) {
+    throw asError(error, '批量发布失败')
+  }
+}
+
+/** 存量归位：库根 / 错目录的页面挪进 wiki/<type>/；dryRun 只出报告 */
+async function POST_KNOWLEDGE_MIGRATE_LAYOUT(
+  spaceId: string,
+  dryRun = true
+): Promise<MigrationReport> {
+  try {
+    const raw = await invoke(CHANNELS.KNOWLEDGE.MIGRATE_LAYOUT, { spaceId, dryRun })
+    return MigrationReportSchema.parse(raw)
+  } catch (error) {
+    throw asError(error, '归位存量文档失败')
+  }
+}
+
+/** 按库内文档重建 wiki/index.md */
+async function POST_KNOWLEDGE_REBUILD_INDEX(spaceId: string): Promise<number> {
+  try {
+    return await invoke<number>(CHANNELS.KNOWLEDGE.REBUILD_INDEX, { spaceId })
+  } catch (error) {
+    throw asError(error, '重建索引失败')
+  }
+}
+
+/** wiki 规范契约（类型 → 目录、必填 frontmatter）：不要在别处再维护一份 */
+async function GET_KNOWLEDGE_WIKI_CONTRACT(): Promise<WikiContract> {
+  try {
+    return WikiContractSchema.parse(await invoke(CHANNELS.KNOWLEDGE.WIKI_CONTRACT))
+  } catch (error) {
+    throw asError(error, '读取知识库规范失败')
+  }
+}
+
+/** 合并分章（确定性拼接）：结果仍是 staging 草稿，发布要用户确认 */
+async function POST_KNOWLEDGE_MERGE(spaceId: string, paths: string[], title: string): Promise<StagedDoc> {
+  try {
+    const raw = await invoke(CHANNELS.KNOWLEDGE.MERGE_STAGING, { spaceId, paths, title })
     return StagedDocSchema.parse(raw)
   } catch (error) {
     throw asError(error, '合并草稿失败')
@@ -120,9 +152,9 @@ async function DELETE_KNOWLEDGE_STAGING(path: string): Promise<boolean> {
   }
 }
 
-async function POST_KNOWLEDGE_RESCAN(baseId: string): Promise<number> {
+async function POST_KNOWLEDGE_RESCAN(spaceId: string): Promise<number> {
   try {
-    return await invoke<number>(CHANNELS.KNOWLEDGE.RESCAN, { baseId })
+    return await invoke<number>(CHANNELS.KNOWLEDGE.RESCAN, { spaceId })
   } catch (error) {
     throw asError(error, '重新扫描失败')
   }
@@ -133,18 +165,6 @@ async function DELETE_KNOWLEDGE_DOC(id: string): Promise<number> {
     return await invoke<number>(CHANNELS.KNOWLEDGE.REMOVE_DOC, { id })
   } catch (error) {
     throw asError(error, '删除文档失败')
-  }
-}
-
-/**
- * 删除整个知识库。`purgeFiles` 缺省：只删库记录，磁盘上的 Markdown 原样保留。
- * 连文件一起删是**不可逆**的，调用方必须先让用户显式选择。
- */
-async function DELETE_KNOWLEDGE_BASE(baseId: string, purgeFiles = false): Promise<number> {
-  try {
-    return await invoke<number>(CHANNELS.KNOWLEDGE.REMOVE_BASE, { baseId, purgeFiles })
-  } catch (error) {
-    throw asError(error, '删除知识库失败')
   }
 }
 
@@ -184,9 +204,9 @@ async function PUT_KNOWLEDGE_DOC(input: {
 }
 
 // 整包导出：把库里的 Markdown 打成 zip（后端写在 <库目录>/exports/），返回绝对路径
-async function POST_KNOWLEDGE_EXPORT(baseId: string): Promise<string> {
+async function POST_KNOWLEDGE_EXPORT(spaceId: string): Promise<string> {
   try {
-    return await invoke<string>(CHANNELS.KNOWLEDGE.EXPORT_BUNDLE, { baseId })
+    return await invoke<string>(CHANNELS.KNOWLEDGE.EXPORT_BUNDLE, { spaceId })
   } catch (error) {
     throw asError(error, '导出知识库失败')
   }
@@ -201,12 +221,13 @@ interface PdfExtractResult {
 
 async function POST_KNOWLEDGE_PDF(
   path: string,
-  mediaDir?: string
+  options: { mediaDir?: string; extractImages?: boolean } = {}
 ): Promise<PdfExtractResult> {
   try {
     return await invoke<PdfExtractResult>(CHANNELS.KNOWLEDGE.EXTRACT_PDF, {
       path,
-      mediaDir: mediaDir ?? null
+      mediaDir: options.mediaDir ?? null,
+      extractImages: options.extractImages
     })
   } catch (error) {
     throw asError(error, 'PDF 抽取失败')
@@ -223,23 +244,32 @@ async function GET_KNOWLEDGE_PDFIUM(): Promise<string | null> {
 }
 
 export {
-  POST_KNOWLEDGE_BASE,
+  POST_KNOWLEDGE_SPACE,
   DELETE_KNOWLEDGE_STAGING,
   POST_KNOWLEDGE_EXPORT,
   POST_KNOWLEDGE_PDF,
   GET_KNOWLEDGE_PDFIUM,
-  GET_KNOWLEDGE_BASES,
+  GET_KNOWLEDGE_SPACES,
   GET_KNOWLEDGE_DOCS,
   GET_KNOWLEDGE_STAGING,
+  GET_KNOWLEDGE_WIKI_CONTRACT,
   POST_KNOWLEDGE_MERGE,
+  POST_KNOWLEDGE_MIGRATE_LAYOUT,
   POST_KNOWLEDGE_PUBLISH,
-  DELETE_KNOWLEDGE_BASE,
+  POST_KNOWLEDGE_PUBLISH_MANY,
+  POST_KNOWLEDGE_REBUILD_INDEX,
   DELETE_KNOWLEDGE_DOC,
   POST_KNOWLEDGE_RESCAN,
   GET_KNOWLEDGE_DOC_REF,
   GET_KNOWLEDGE_SEARCH,
-  PUT_KNOWLEDGE_BASE,
   PUT_KNOWLEDGE_DOC
 }
 export type { PdfExtractResult }
-export type { BasePatch, KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }
+export type {
+  KnowledgeSpace,
+  KnowledgeDocSummary,
+  KnowledgeHit,
+  MigrationReport,
+  StagedFile,
+  WikiContract
+}

@@ -21,7 +21,6 @@ export {
 export type {
   PersistShape,
   PersistValue,
-  TileSessionPref,
   KnowledgeShell,
   CodeShell,
   TilesPref,

@@ -1,7 +1,7 @@
 import { Badge } from '@cogito/design/components/badge'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 
-import type { ListRunsReply } from '@/lib/directive-ipc.ts'
+import type { ListRunsReply } from '@/apis/directive'
 
 interface RunSurfaceHistoryTabProps {
   runHistory: ListRunsReply | null

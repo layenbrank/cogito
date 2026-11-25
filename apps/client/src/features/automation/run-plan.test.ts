@@ -42,8 +42,10 @@ describe('findInitialPhase / shouldContinueToGoal', function () {
 
 describe('findAutomationSystemPrompt', function () {
   it('按档位分叉：只读不许写，自动批准限定工作目录', function () {
-    expect(findAutomationSystemPrompt('readonly')).toBe(READONLY_PROMPT)
-    expect(findAutomationSystemPrompt('auto')).toBe(AUTO_PROMPT)
+    // 实现会在档位提示后追加「模式指引」，所以断言包含而不是相等
+    expect(findAutomationSystemPrompt('readonly')).toContain(READONLY_PROMPT)
+    expect(findAutomationSystemPrompt('auto')).toContain(AUTO_PROMPT)
+    expect(findAutomationSystemPrompt('auto')).toContain('【执行模式】')
     expect(READONLY_PROMPT).toContain('只做只读工作')
     expect(AUTO_PROMPT).toContain('不要越界')
     // 两档都不该出现「向用户提问」
@@ -56,8 +58,8 @@ describe('findAutomationSystemPrompt', function () {
     expect(prompt).toContain('C:\\work\\proj-a')
     expect(prompt).toContain('不要访问这个目录之外的任何文件')
     // 没给目录时不编一句空话
-    expect(findAutomationSystemPrompt('auto')).toBe(AUTO_PROMPT)
-    expect(findAutomationSystemPrompt('readonly', 'agent', '  ')).toBe(READONLY_PROMPT)
+    expect(findAutomationSystemPrompt('auto')).toContain(AUTO_PROMPT)
+    expect(findAutomationSystemPrompt('readonly', 'agent', '  ')).toContain(READONLY_PROMPT)
   })
 })
 

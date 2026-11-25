@@ -1,11 +1,11 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { invalidateGalleryMarkerThumbs } from '@/features/magnetic-tiles/gallery/preview-cache'
 import { isEmbeddedShell, isMainShell } from '@/features/window/shell-mode'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
 import {
   pickAndImportFiles,
@@ -26,6 +26,8 @@ import {
   setupVaultPin,
   unlockVault
 } from '@/views/gallery/model/vault'
+
+import { GET_ASSETS, PATCH_ASSETS, DELETE_ASSETS } from '@/apis/album'
 
 interface GalleryStore {
   medias: GalleryMedia[]
@@ -112,9 +114,7 @@ const useGalleryStore = create<GalleryStore>()(
 
         async toReadMedias(options) {
           try {
-            const assets = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, {
-              params: {}
-            })
+            const assets = await GET_ASSETS<GalleryAsset[]>()
             const medias = mapAssets(assets)
             setter(
               function (state) {
@@ -130,12 +130,10 @@ const useGalleryStore = create<GalleryStore>()(
               !options?.skipHydrate && isMainShell() && !isEmbeddedShell()
             if (canHydrate) {
               void hydrateCapturedDates(medias, async function (media, patch) {
-                await invoke(CHANNELS.ASSET.UPDATE, {
-                  params: {
+                await PATCH_ASSETS({
                     id: media.asset.id,
                     updates: buildChange(media.asset, patch)
-                  }
-                })
+                  })
               }).then(function (changed) {
                 if (changed) void getter().toReadMedias({ skipHydrate: true })
               })
@@ -192,9 +190,7 @@ const useGalleryStore = create<GalleryStore>()(
           })
           if (targets.length === 0) return
 
-          await invoke(CHANNELS.ASSET.UPDATE, {
-            params:
-              targets.length === 1
+          await PATCH_ASSETS(targets.length === 1
                 ? {
                     id: targets[0].asset.id,
                     updates: buildChange(targets[0].asset, { hidden })
@@ -204,22 +200,18 @@ const useGalleryStore = create<GalleryStore>()(
                       id: media.asset.id,
                       updates: buildChange(media.asset, { hidden })
                     }
-                  })
-          })
+                  }))
           invalidateGalleryMarkerThumbs()
           await getter().toReadMedias()
         },
 
         async toRemoveMedias(ids) {
           if (ids.length === 0) return
-          await invoke(CHANNELS.ASSET.REMOVE, {
-            params:
-              ids.length === 1
+          await DELETE_ASSETS(ids.length === 1
                 ? { id: ids[0] }
                 : ids.map(function (id) {
                     return { id }
-                  })
-          })
+                  }))
           invalidateGalleryMarkerThumbs()
           await getter().toReadMedias()
         },

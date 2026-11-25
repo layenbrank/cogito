@@ -1,6 +1,7 @@
 import { writeImage, writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { invoke } from '@tauri-apps/api/core'
-import { CHANNELS } from '@/shared/ipc/channels'
+
+import { POST_ASSETS } from '@/apis/album'
+import { POST_CAPTURE_PIN_TEXTURE, POST_CAPTURE_SAVE_PNG } from '@/apis/capture'
 
 /** 将文本写入系统剪贴板 */
 export async function copyText(text: string): Promise<void> {
@@ -38,11 +39,10 @@ export async function pinTexture(
   const w = Math.max(48, Math.round(naturalSize.w / dpr))
   const h = Math.max(48, Math.round(naturalSize.h / dpr))
 
-  const filePath = await invoke<string>(CHANNELS.CAPTURE.PIN_TEXTURE, { dataUrl })
+  const filePath = await POST_CAPTURE_PIN_TEXTURE(dataUrl)
   const fileName = filePath.replace(/\\/g, '/').split('/').pop() || filePath
 
-  await invoke(CHANNELS.ASSET.INSERT, {
-    params: {
+  await POST_ASSETS({
       filePath,
       fileName,
       mime: 'image/png',
@@ -57,8 +57,7 @@ export async function pinTexture(
       deviceID: null,
       archivedAt: null,
       tenantID: null
-    }
-  })
+    })
 
   return { filePath, w, h }
 }
@@ -67,10 +66,7 @@ export async function pinTexture(
 
 /** 弹出系统保存对话框，将裁剪+标注后的 PNG 写入用户选择的路径（Rust 侧落盘） */
 export async function POST_CAPTURE_PNG(dataUrl: string): Promise<string | null> {
-  return invoke<string | null>(CHANNELS.CAPTURE.SAVE_PNG, {
-    dataUrl,
-    defaultName: `screenshot-${formatTimestamp(new Date())}.png`
-  })
+  return POST_CAPTURE_SAVE_PNG(dataUrl, `screenshot-${formatTimestamp(new Date())}.png`)
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {

@@ -16,7 +16,7 @@ import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Terminal } from '@/lib/terminal'
+import { Terminal } from '@/apis/terminal'
 import { useTerminalStore } from '@/stores/terminal'
 
 import { TerminalView } from './terminal-view'
@@ -94,6 +94,8 @@ function TerminalTabs(props: TerminalTabsProps) {
     })
     useTerminalStore.getState().removeTab(id)
   }
+
+  const mountedSet = new Set(mountedIds)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -193,7 +195,7 @@ function TerminalTabs(props: TerminalTabsProps) {
          * 切回来不重绘（右栏 aside 里同样的取舍，见 aside.tsx 注释）。
          */}
         {tabs.map(function (tab) {
-          if (!mountedIds.includes(tab.id)) return null
+          if (!mountedSet.has(tab.id)) return null
           const isActive = tab.id === activeId
           return (
             <div

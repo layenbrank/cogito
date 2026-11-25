@@ -12,7 +12,7 @@ import { Separator } from '@cogito/design/components/separator'
 import { Textarea } from '@cogito/design/components/textarea'
 import { useState } from 'react'
 
-import type { ActionEntry } from '@/lib/directive-ipc.ts'
+import type { ActionEntry } from '@/apis/directive'
 import { findStepKind, switchStepKind } from '@/views/directive/model/step-utils.ts'
 import type { ControlKind } from '@/views/directive/model/step-utils.ts'
 import type { Step } from '@/views/directive/model/types.ts'

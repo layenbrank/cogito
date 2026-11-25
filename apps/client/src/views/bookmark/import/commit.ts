@@ -1,6 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
-
-import { CHANNELS } from '@/shared/ipc/channels'
+import { POST_BOOKMARK_IMPORT } from '@/apis/bookmark'
 import { pruneImportRoots } from '@/views/bookmark/import/prune'
 import type {
   BookmarkNode,
@@ -32,12 +30,10 @@ async function commitBookmarkImport(options: {
   }
 
   report?.({ percent: 40, label: '写入书签库…' })
-  const result = await invoke<Bookmark.ImportR>(CHANNELS.BOOKMARK.IMPORT, {
-    params: {
-      mirrorID: options.mirrorID,
-      strategy: options.strategy,
-      roots: pruned
-    }
+  const result = await POST_BOOKMARK_IMPORT<Bookmark.ImportR>({
+    mirrorID: options.mirrorID,
+    strategy: options.strategy,
+    roots: pruned
   })
 
   report?.({ percent: 100, label: '完成' })

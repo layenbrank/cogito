@@ -10,7 +10,7 @@
 import type { useAui } from '@assistant-ui/react'
 
 import { attachImageData } from '@/features/agent/attachment'
-import type { PickedBrowserElement } from '@/features/browser/api'
+import type { PickedBrowserElement } from '@/apis/browser'
 import { formatTabTitle } from '@/features/browser/address'
 import { useBrowserStore } from '@/features/browser/store'
 

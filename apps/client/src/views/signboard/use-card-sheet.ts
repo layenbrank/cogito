@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Dayjs } from 'dayjs'
 import { debounce } from 'lodash-es'
 import {
@@ -11,8 +11,9 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 
+import { GET_ASSETS } from '@/apis/album'
 import type { LightboxMedia } from '@/components/media-lightbox'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { useReminderStore } from '@/stores/reminder'
 import { useSignboardStore } from '@/stores/signboard'
 import {
@@ -27,7 +28,6 @@ import {
   pickAndImportImages
 } from '@/views/signboard/import-attachment'
 import type { GalleryAsset } from '@/views/gallery/model/media'
-
 
 function useCardSheet(props: CardSheetProps) {
   const tags = useSignboardStore(function (state) {
@@ -191,11 +191,11 @@ function useCardSheet(props: CardSheetProps) {
         }
         const rows = assetsForEntry(props.card.id)
         try {
-          const assets = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, {
-            params: rows.map(function (row) {
+          const assets = await GET_ASSETS<GalleryAsset[]>(
+            rows.map(function (row) {
               return { id: row.assetID }
             })
-          })
+          )
           const byID = new Map(
             assets.map(function (asset) {
               return [asset.id, asset]

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
@@ -13,8 +13,10 @@ import {
   findSignboardTilePrefs,
   persistSignboardTilePrefs
 } from '@/features/magnetic-tile/tile-prefs'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
+
+import { GET_SIGNBOARDS, POST_SIGNBOARDS, PATCH_SIGNBOARDS, GET_SIGNBOARD_COLUMNS, POST_SIGNBOARD_COLUMNS, PATCH_SIGNBOARD_COLUMNS, GET_SIGNBOARD_ENTRIES, POST_SIGNBOARD_ENTRIES, PATCH_SIGNBOARD_ENTRIES, DELETE_SIGNBOARD_ENTRIES, GET_SIGNBOARD_ENTRY_ASSETS, POST_SIGNBOARD_ENTRY_ASSETS, PATCH_SIGNBOARD_ENTRY_ASSETS, DELETE_SIGNBOARD_ENTRY_ASSETS, GET_SIGNBOARD_TAGS, POST_SIGNBOARD_TAGS, PATCH_SIGNBOARD_TAGS, DELETE_SIGNBOARD_TAGS, GET_SIGNBOARD_TAGGED, POST_SIGNBOARD_TAGGED, DELETE_SIGNBOARD_TAGGED, GET_SIGNBOARD_CHECKS, POST_SIGNBOARD_CHECKS, PATCH_SIGNBOARD_CHECKS, DELETE_SIGNBOARD_CHECKS, GET_SIGNBOARD_AUTOMATIONS, POST_SIGNBOARD_AUTOMATIONS, PATCH_SIGNBOARD_AUTOMATIONS, DELETE_SIGNBOARD_AUTOMATIONS } from '@/apis/signboard'
 
 interface SignboardBoard {
   id: string
@@ -354,9 +356,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toReadBoards() {
           try {
-            const boards = await invoke<SignboardBoard[]>(CHANNELS.SIGNBOARD.READ, {
-              params: {}
-            })
+            const boards = await GET_SIGNBOARDS<SignboardBoard[]>()
             setter(
               function (state) {
                 state.boards = boards
@@ -374,15 +374,9 @@ const useSignboardStore = create<SignboardStore>()(
         async toActivateBoard(boardID) {
           try {
             const [columns, tags, automations] = await Promise.all([
-              invoke<SignboardColumn[]>(CHANNELS.SIGNBOARD_COLUMN.READ, {
-                params: { boardID }
-              }),
-              invoke<SignboardTag[]>(CHANNELS.SIGNBOARD_TAG.READ, {
-                params: { boardID }
-              }),
-              invoke<SignboardAutomation[]>(CHANNELS.SIGNBOARD_AUTOMATION.READ, {
-                params: { boardID }
-              })
+              GET_SIGNBOARD_COLUMNS<SignboardColumn[]>({ boardID }),
+              GET_SIGNBOARD_TAGS<SignboardTag[]>({ boardID }),
+              GET_SIGNBOARD_AUTOMATIONS<SignboardAutomation[]>({ boardID })
             ])
 
             const columnIDs = columns.map(function (column) {
@@ -390,11 +384,9 @@ const useSignboardStore = create<SignboardStore>()(
             })
             let entries: SignboardEntry[] = []
             if (columnIDs.length > 0) {
-              entries = await invoke<SignboardEntry[]>(CHANNELS.SIGNBOARD_ENTRY.READ, {
-                params: columnIDs.map(function (columnID) {
+              entries = await GET_SIGNBOARD_ENTRIES<SignboardEntry[]>(columnIDs.map(function (columnID) {
                   return { columnID }
-                })
-              })
+                }))
             }
 
             const cardIDs = entries.map(function (card) {
@@ -405,21 +397,15 @@ const useSignboardStore = create<SignboardStore>()(
             let entryAssets: SignboardEntryAsset[] = []
             if (cardIDs.length > 0) {
               ;[tagged, checks, entryAssets] = await Promise.all([
-                invoke<SignboardTagged[]>(CHANNELS.SIGNBOARD_TAGGED.READ, {
-                  params: cardIDs.map(function (entryID) {
+                GET_SIGNBOARD_TAGGED<SignboardTagged[]>(cardIDs.map(function (entryID) {
                     return { entryID }
-                  })
-                }),
-                invoke<SignboardCheck[]>(CHANNELS.SIGNBOARD_CHECK.READ, {
-                  params: cardIDs.map(function (entryID) {
+                  })),
+                GET_SIGNBOARD_CHECKS<SignboardCheck[]>(cardIDs.map(function (entryID) {
                     return { entryID }
-                  })
-                }),
-                invoke<SignboardEntryAsset[]>(CHANNELS.SIGNBOARD_ENTRY_ASSET.READ, {
-                  params: cardIDs.map(function (entryID) {
+                  })),
+                GET_SIGNBOARD_ENTRY_ASSETS<SignboardEntryAsset[]>(cardIDs.map(function (entryID) {
                     return { entryID }
-                  })
-                })
+                  }))
               ])
             }
 
@@ -467,13 +453,10 @@ const useSignboardStore = create<SignboardStore>()(
           const boards = await getter().toReadBoards()
           if (boards.length === 0) {
             try {
-              const boardIDs = await invoke<string[]>(CHANNELS.SIGNBOARD.WRITE, {
-                params: { title: '个人', index: 0 }
-              })
+              const boardIDs = await POST_SIGNBOARDS<string[]>({ title: '个人', index: 0 })
               const boardID = boardIDs[0]
               if (!boardID) return
-              await invoke<string[]>(CHANNELS.SIGNBOARD_COLUMN.WRITE, {
-                params: SEED_COLUMN_DEFS.map(function (row, index) {
+              await POST_SIGNBOARD_COLUMNS<string[]>(SEED_COLUMN_DEFS.map(function (row, index) {
                   return {
                     boardID,
                     title: row.title,
@@ -482,8 +465,7 @@ const useSignboardStore = create<SignboardStore>()(
                     wipLimit: null,
                     role: row.role
                   } satisfies ColumnWrite
-                })
-              })
+                }))
               await getter().toReadBoards()
               await getter().toActivateBoard(boardID)
               return
@@ -512,9 +494,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toWriteBoard(title) {
           try {
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD.WRITE, {
-              params: { title, index: getter().boards.length }
-            })
+            const ids = await POST_SIGNBOARDS<string[]>({ title, index: getter().boards.length })
             await getter().toReadBoards()
             const id = ids[0]
             if (id) await getter().toActivateBoard(id)
@@ -527,9 +507,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toUpdateBoard(key, change) {
           try {
-            await invoke(CHANNELS.SIGNBOARD.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_SIGNBOARDS({ key, change })
             await getter().toReadBoards()
             return true
           } catch (error) {
@@ -543,16 +521,14 @@ const useSignboardStore = create<SignboardStore>()(
             const index = getter().columns.filter(function (column) {
               return column.boardID === boardID
             }).length
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_COLUMN.WRITE, {
-              params: {
+            const ids = await POST_SIGNBOARD_COLUMNS<string[]>({
                 boardID,
                 title,
                 index,
                 color: null,
                 wipLimit: null,
                 role: role ?? null
-              } satisfies ColumnWrite
-            })
+              } satisfies ColumnWrite)
             await getter().toActivateBoard(boardID)
             return ids[0]
           } catch (error) {
@@ -563,9 +539,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toUpdateColumn(key, change) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_COLUMN.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_SIGNBOARD_COLUMNS({ key, change })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -626,9 +600,7 @@ const useSignboardStore = create<SignboardStore>()(
                   change: { index: column.index }
                 }
               })
-            await invoke(CHANNELS.SIGNBOARD_COLUMN.UPDATE, {
-              params: updates.length === 1 ? updates[0] : updates
-            })
+            await PATCH_SIGNBOARD_COLUMNS(updates.length === 1 ? updates[0] : updates)
             return true
           } catch (error) {
             reportCaught('signboard-store.toMoveColumn', error)
@@ -647,8 +619,7 @@ const useSignboardStore = create<SignboardStore>()(
           try {
             const index =
               value.index ?? getter().entriesInColumn(value.columnID).length
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_ENTRY.WRITE, {
-              params: {
+            const ids = await POST_SIGNBOARD_ENTRIES<string[]>({
                 columnID: value.columnID,
                 title: value.title,
                 notes: value.notes ?? '',
@@ -658,8 +629,7 @@ const useSignboardStore = create<SignboardStore>()(
                 reminderID: value.reminderID ?? null,
                 priority: value.priority ?? 0,
                 color: value.color ?? null
-              }
-            })
+              })
             const entryID = ids[0]
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
@@ -685,9 +655,7 @@ const useSignboardStore = create<SignboardStore>()(
             })
             const dueChanged =
               change.dueAt !== undefined && change.dueAt !== previous?.dueAt
-            await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_SIGNBOARD_ENTRIES({ key, change })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             if (dueChanged && change.dueAt !== null && change.dueAt !== undefined) {
@@ -776,9 +744,7 @@ const useSignboardStore = create<SignboardStore>()(
                 }
               })
 
-            await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
-              params: updates.length === 1 ? updates[0] : updates
-            })
+            await PATCH_SIGNBOARD_ENTRIES(updates.length === 1 ? updates[0] : updates)
 
             if (fromColumnID !== toColumnID) {
               const tagIDs = getter().tagIDsForEntry(entryID)
@@ -813,7 +779,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toRemoveEntry(key) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_ENTRY.REMOVE, { params: key })
+            await DELETE_SIGNBOARD_ENTRIES(key)
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -833,9 +799,7 @@ const useSignboardStore = create<SignboardStore>()(
                     })
                   )
                 : color
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_TAG.WRITE, {
-              params: { boardID, title, color: nextColor }
-            })
+            const ids = await POST_SIGNBOARD_TAGS<string[]>({ boardID, title, color: nextColor })
             await getter().toActivateBoard(boardID)
             return ids[0]
           } catch (error) {
@@ -846,9 +810,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toUpdateTag(key, change) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_TAG.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_SIGNBOARD_TAGS({ key, change })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -860,7 +822,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toRemoveTag(key) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_TAG.REMOVE, { params: key })
+            await DELETE_SIGNBOARD_TAGS(key)
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -872,9 +834,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toTagEntry(entryID, tagID) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_TAGGED.WRITE, {
-              params: { entryID, tagID }
-            })
+            await POST_SIGNBOARD_TAGGED({ entryID, tagID })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -886,9 +846,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toUntagEntry(entryID, tagID) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_TAGGED.REMOVE, {
-              params: { entryID, tagID }
-            })
+            await DELETE_SIGNBOARD_TAGGED({ entryID, tagID })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -901,9 +859,7 @@ const useSignboardStore = create<SignboardStore>()(
         async toWriteCheck(entryID, title) {
           try {
             const index = getter().checksForEntry(entryID).length
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_CHECK.WRITE, {
-              params: { entryID, title, done: false, index }
-            })
+            const ids = await POST_SIGNBOARD_CHECKS<string[]>({ entryID, title, done: false, index })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             await syncEntryProgressFromChecks(getter, entryID)
@@ -919,9 +875,7 @@ const useSignboardStore = create<SignboardStore>()(
             const existing = getter().checks.find(function (item) {
               return item.id === key
             })
-            await invoke(CHANNELS.SIGNBOARD_CHECK.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_SIGNBOARD_CHECKS({ key, change })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             if (existing) await syncEntryProgressFromChecks(getter, existing.entryID)
@@ -937,7 +891,7 @@ const useSignboardStore = create<SignboardStore>()(
             const existing = getter().checks.find(function (item) {
               return item.id === key
             })
-            await invoke(CHANNELS.SIGNBOARD_CHECK.REMOVE, { params: key })
+            await DELETE_SIGNBOARD_CHECKS(key)
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             if (existing) await syncEntryProgressFromChecks(getter, existing.entryID)
@@ -950,9 +904,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toAttachAsset(entryID, assetID) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_ENTRY_ASSET.WRITE, {
-              params: { entryID, assetID }
-            })
+            await POST_SIGNBOARD_ENTRY_ASSETS({ entryID, assetID })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -964,9 +916,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toDetachAsset(entryID, assetID) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_ENTRY_ASSET.REMOVE, {
-              params: { entryID, assetID }
-            })
+            await DELETE_SIGNBOARD_ENTRY_ASSETS({ entryID, assetID })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -988,15 +938,13 @@ const useSignboardStore = create<SignboardStore>()(
             })
           ]
           try {
-            await invoke(CHANNELS.SIGNBOARD_ENTRY_ASSET.UPDATE, {
-              params: reordered.map(function (row, index) {
+            await PATCH_SIGNBOARD_ENTRY_ASSETS(reordered.map(function (row, index) {
                 return {
                   entryID,
                   assetID: row.assetID,
                   change: { index }
                 }
-              })
-            })
+              }))
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -1013,8 +961,7 @@ const useSignboardStore = create<SignboardStore>()(
               getter().automations.filter(function (row) {
                 return row.boardID === value.boardID
               }).length
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_AUTOMATION.WRITE, {
-              params: {
+            const ids = await POST_SIGNBOARD_AUTOMATIONS<string[]>({
                 boardID: value.boardID,
                 title: value.title,
                 enabled: value.enabled ?? true,
@@ -1022,8 +969,7 @@ const useSignboardStore = create<SignboardStore>()(
                 conditionJson: value.conditionJson ?? '{}',
                 actionJson: value.actionJson ?? '[]',
                 index
-              }
-            })
+              })
             await getter().toActivateBoard(value.boardID)
             return ids[0]
           } catch (error) {
@@ -1034,9 +980,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toUpdateAutomation(key, change) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_AUTOMATION.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_SIGNBOARD_AUTOMATIONS({ key, change })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -1048,7 +992,7 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toRemoveAutomation(key) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_AUTOMATION.REMOVE, { params: key })
+            await DELETE_SIGNBOARD_AUTOMATIONS(key)
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
@@ -1100,9 +1044,7 @@ async function runAutomationAction(
     }
     case 'attachTag':
       try {
-        await invoke(CHANNELS.SIGNBOARD_TAGGED.WRITE, {
-          params: { entryID, tagID: action.tagID }
-        })
+        await POST_SIGNBOARD_TAGGED({ entryID, tagID: action.tagID })
         const boardID = getter().activeBoardID
         if (boardID) await getter().toActivateBoard(boardID)
       } catch (error) {
@@ -1127,9 +1069,7 @@ async function syncEntryProgressFromChecks(getter: () => SignboardStore, entryID
   })
   if (!entry || entry.progress === pct) return
   try {
-    await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
-      params: { key: entryID, change: { progress: pct } satisfies EntryChange }
-    })
+    await PATCH_SIGNBOARD_ENTRIES({ key: entryID, change: { progress: pct } satisfies EntryChange })
     const boardID = getter().activeBoardID
     if (boardID) await getter().toActivateBoard(boardID)
   } catch (error) {
@@ -1144,9 +1084,7 @@ async function persistCardChange(
   change: EntryChange
 ) {
   try {
-    await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
-      params: { key, change }
-    })
+    await PATCH_SIGNBOARD_ENTRIES({ key, change })
     const boardID = getter().activeBoardID
     if (boardID) await getter().toActivateBoard(boardID)
   } catch (error) {

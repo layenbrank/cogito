@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { trimSessions, type TileSession } from '@/features/magnetic-tile/session'
 
 function session(component: MagneticTile.Component): TileSession {
-  return { component, tileId: component, url: '', path: `/${component}` }
+  return { component, path: `/${component}` }
 }
 
 describe('trimSessions', function () {

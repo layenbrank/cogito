@@ -1,9 +1,17 @@
-import { invoke } from '@tauri-apps/api/core'
+
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { clsx } from 'clsx'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+import {
+  GET_OVERLAY_MODE,
+  GET_OVERLAY_PENDING_UNMOUNT,
+  POST_OVERLAY_CONCEALED,
+  POST_OVERLAY_CONTENT,
+  POST_OVERLAY_PARK,
+  POST_OVERLAY_PING
+} from '@/apis/overlay'
+import { EVENTS } from '@/shared/ipc/channels'
 
 import { isMagneticTileComponent } from '@/constants/magnetic-tile/components'
 import { useThrough } from '@/hooks/use-through'
@@ -116,7 +124,7 @@ function useOverlayHostGuards(recover: () => void): void {
   /** 心跳：宿主（overlay:ensure）据此判断渲染进程是否已挂，必要时重载页面 */
   useEffect(function () {
     function ping() {
-      void invoke(CHANNELS.OVERLAY.PING).catch(function (error) {
+      void POST_OVERLAY_PING().catch(function (error) {
         console.warn('[overlay] 心跳失败', error)
       })
     }
@@ -171,7 +179,7 @@ function OverlayShell() {
   useEffect(
     function () {
       const hasContent = mode !== 'screenshot' && items.length > 0
-      void invoke(CHANNELS.OVERLAY.REPORT_CONTENT, { hasContent }).catch(function (error) {
+      void POST_OVERLAY_CONTENT(hasContent).catch(function (error) {
         console.warn('[overlay] report-content failed', error)
       })
     },
@@ -196,7 +204,7 @@ function OverlayShell() {
       .catch(function (error) {
         console.warn('[overlay] 恢复时退出截屏失败', error)
       })
-    void invoke(CHANNELS.OVERLAY.PARK).catch(function (error) {
+    void POST_OVERLAY_PARK().catch(function (error) {
       console.warn('[overlay] 恢复时收起浮层失败', error)
     })
   }, [])
@@ -316,7 +324,7 @@ function OverlayShell() {
               // 等 DOM 隐藏绘制完成后回报，宿主据此继续截屏（替代固定 sleep）
               requestAnimationFrame(function () {
                 requestAnimationFrame(function () {
-                  void invoke(CHANNELS.OVERLAY.CONCEALED).catch(function (error) {
+                  void POST_OVERLAY_CONCEALED().catch(function (error) {
                     console.warn('[overlay] concealed 回报失败', error)
                   })
                 })
@@ -330,9 +338,9 @@ function OverlayShell() {
           )
           await useOverlayStore.getState().toInitialize()
           // 页面可能是被宿主重载的：只靠事件会丢模式，这里主动同步一次
-          toMode(await invoke<OverlayMode>(CHANNELS.OVERLAY.READ_MODE))
+          toMode(await GET_OVERLAY_MODE<OverlayMode>())
           rememberUnmount(
-            await invoke<{ magneticTileID: string } | null>(CHANNELS.OVERLAY.TAKE_PENDING_UNMOUNT)
+            await GET_OVERLAY_PENDING_UNMOUNT<{ magneticTileID: string } | null>()
           )
           if (cancelled) return
           setReady(true)

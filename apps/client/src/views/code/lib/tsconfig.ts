@@ -7,7 +7,7 @@
  */
 import type * as Monaco from 'monaco-editor'
 
-import { WorkspaceFiles } from '@/lib/workspace-files'
+import { WorkspaceFiles } from '@/apis/workspace-files'
 import { parseJsonc } from '@/views/code/lib/jsonc.ts'
 import { joinPath, normalizeSeparators } from '@/views/code/lib/path.ts'
 

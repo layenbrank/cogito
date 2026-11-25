@@ -19,7 +19,7 @@ import {
   type DirectiveEntry,
   type ImportResult,
   type ListRunsReply
-} from '@/lib/directive-ipc.ts'
+} from '@/apis/directive'
 import type { DirectiveContent } from '@/shared/ipc/specs/sidecar'
 import { reportCaught } from '@/utils/exception-report'
 import { makeDirective } from '@/views/directive/model/draft.ts'

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
 import { clearCaptureSession, makeCaptureSessionID } from '@/features/capture/history'
-import { fetchImageFromPath, GET_CAPTURE_PENDING } from '@/features/capture/tauri'
+import { fetchImageFromPath, GET_CAPTURE_PENDING } from '@/apis/capture'
 import { reportCaught } from '@/utils/exception-report'
 
 function useCaptureActiveSession(input: {

@@ -4,7 +4,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Checkbox } from '@cogito/design/components/checkbox'
 import { cn } from 'cn'
-import { useState, type MouseEvent } from 'react'
+import { useState, type KeyboardEvent, type MouseEvent } from 'react'
 
 import styles from '@/views/bookmark/bookmark.module.scss'
 import {
@@ -90,17 +90,25 @@ function FolderRow(props: FolderRowProps) {
     })
   }
 
+  function onRowKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    props.onToggle(props.path, !checked)
+  }
+
   return (
     <div className={styles.importTreeBranch}>
       <div
         role="treeitem"
+        tabIndex={0}
         aria-selected={checked}
         data-checked={checked ? 'true' : undefined}
         className={styles.importTreeRow}
         style={{ paddingLeft: `${0.65 + props.depth * 1.15}rem` }}
         onClick={function () {
           props.onToggle(props.path, !checked)
-        }}>
+        }}
+        onKeyDown={onRowKeyDown}>
         <button
           type="button"
           className={styles.importTreeTwist}

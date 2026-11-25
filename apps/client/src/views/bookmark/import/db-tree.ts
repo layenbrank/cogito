@@ -1,13 +1,9 @@
-import { invoke } from '@tauri-apps/api/core'
-
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_BOOKMARKS } from '@/apis/bookmark'
 import type { BookmarkNode } from '@/views/bookmark/import/types'
 
 /** 从 bookmark 表重建前端树 */
 async function fetchBookmarkTree(mirrorID: string): Promise<BookmarkNode[]> {
-  const rows = await invoke<Bookmark.Entry[]>(CHANNELS.BOOKMARK.READ, {
-    params: { mirrorID }
-  })
+  const rows = await GET_BOOKMARKS<Bookmark.Entry[]>({ mirrorID })
   return buildTreeFromRows(rows)
 }
 

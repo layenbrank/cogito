@@ -6,7 +6,7 @@
  *
  * `preserveCase` 仍导出，作为与 Rust 对齐的契约单测。
  */
-import { WorkspaceFiles } from '@/lib/workspace-files'
+import { WorkspaceFiles } from '@/apis/workspace-files'
 import { useCodeStore } from '@/stores/code'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
 import { isValidQuery, type SearchQuery } from '@/views/code/lib/search-query.ts'

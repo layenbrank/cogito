@@ -1,11 +1,10 @@
 /**
  * 将已入库书签可选挂到磁贴：navigation 或 collection。
  */
-import { invoke } from '@tauri-apps/api/core'
-
+import { GET_BOOKMARKS } from '@/apis/bookmark'
+import { GET_MAGNETIC_TILES, POST_MAGNETIC_TILES } from '@/apis/magnetic-tile'
 import { findFaviconFallback } from '@/features/magnetic-tile/mark.ts'
-import { GET_SITE_FAVICON } from '@/lib/site-favicon.ts'
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_SITE_FAVICON } from '@/apis/site-favicon'
 import { useMirrorStore, type MagneticTileWrite } from '@/stores/mirror'
 
 type MountAs = 'navigation' | 'collection'
@@ -20,7 +19,7 @@ type MountOptions = {
 async function insertWrites(writes: MagneticTileWrite[]): Promise<string[]> {
   if (!writes.length) return []
   const params = writes.length === 1 ? writes[0] : writes
-  return invoke<string[]>(CHANNELS.MAGNETIC_TILE.WRITE, { params })
+  return POST_MAGNETIC_TILES<string[]>(params)
 }
 
 /** 写完整批后刷一次墙；只在导入的正是当前墙时才刷，别把别的镜像顶到界面上 */
@@ -89,15 +88,11 @@ function buildCollectionWrite(
 }
 
 async function findMirrorTiles(mirrorID: string) {
-  return invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-    params: { mirrorID }
-  })
+  return GET_MAGNETIC_TILES<MagneticTile[]>({ mirrorID })
 }
 
 async function findBookmarkSubtree(mirrorID: string, rootId: string) {
-  const all = await invoke<Bookmark.Entry[]>(CHANNELS.BOOKMARK.READ, {
-    params: { mirrorID }
-  })
+  const all = await GET_BOOKMARKS<Bookmark.Entry[]>({ mirrorID })
   const byParent = new Map<string | null, Bookmark.Entry[]>()
   for (const row of all) {
     const key = row.parentID

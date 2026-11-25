@@ -4,7 +4,7 @@
 import { create } from 'zustand'
 
 import { GET_DICT_CATALOG } from '@/apis/dict'
-import { GET_DICT_TYPES, POST_DICT_MERGE } from '@/lib/dict-ipc'
+import { GET_DICT_TYPES, POST_DICT_MERGE } from '@/apis/dict'
 import { DICT_TYPE, type DictItem, type DictType, type RemoteCatalog } from '@/shared/ipc/specs/dict'
 import { findActiveTenantID } from '@/utils/tenant'
 import { findAuthToken } from '@/utils/auth'

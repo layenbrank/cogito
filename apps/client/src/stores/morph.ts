@@ -5,7 +5,7 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { parseRangesToOffsets } from '@/features/magnetic-tiles/morph/page-ranges'
-import { MorphIpc } from '@/lib/morph-ipc'
+import { MorphIpc } from '@/apis/morph'
 import { reportCaught } from '@/utils/exception-report'
 
 import {

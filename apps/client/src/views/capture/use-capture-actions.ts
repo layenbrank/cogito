@@ -3,16 +3,17 @@
  *
  * 每个动作都要「现取最新 media 列表再落库」，与渲染无关；抽成 hook 之后面板本体只管工具栏与网格。
  */
-import { invoke } from '@tauri-apps/api/core'
+
 import { writeImage, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { save as dialogSave } from '@/shared/ipc/dialog'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
-import { CHANNELS } from '@/shared/ipc/channels'
 import { useAlbumStore } from '@/stores/album'
 import { buildChange, useGalleryStore } from '@/stores/gallery'
 import type { GalleryMedia } from '@/views/gallery/model/media'
+
+import { PATCH_ASSETS, DELETE_ASSETS } from '@/apis/album'
 
 interface CaptureActionsOptions {
   /** 当前面板范围内的媒体（复制 / 另存要在这里找目标） */
@@ -41,9 +42,7 @@ function useCaptureActions(options: CaptureActionsOptions) {
       return idSet.has(media.asset.id)
     })
     if (targets.length === 0) return
-    await invoke(CHANNELS.ASSET.UPDATE, {
-      params:
-        targets.length === 1
+    await PATCH_ASSETS(targets.length === 1
           ? {
               id: targets[0].asset.id,
               updates: buildChange(targets[0].asset, { keep })
@@ -53,8 +52,7 @@ function useCaptureActions(options: CaptureActionsOptions) {
                 id: media.asset.id,
                 updates: buildChange(media.asset, { keep })
               }
-            })
-    })
+            }))
     await toReadMedias({ skipHydrate: true })
     toast.success(keep ? '已保存，不会被自动清理' : '已取消保存')
   }
@@ -80,14 +78,11 @@ function useCaptureActions(options: CaptureActionsOptions) {
         }
       })
     )
-    await invoke(CHANNELS.ASSET.REMOVE, {
-      params:
-        ids.length === 1
+    await DELETE_ASSETS(ids.length === 1
           ? { id: ids[0] }
           : ids.map(function (id) {
               return { id }
-            })
-    })
+            }))
     onSelectedIds(new Set())
     onSelecting(false)
     await toReadMedias({ skipHydrate: true })

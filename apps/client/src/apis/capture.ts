@@ -160,6 +160,63 @@ async function DELETE_OVERLAY_TILE(magneticTileID: string): Promise<void> {
   })
 }
 
+// ------------------------------------------------------------ 落盘 / 识别 / 保活
+
+/** 把截图贴成浮层磁贴，返回落盘路径 */
+function POST_CAPTURE_PIN_TEXTURE(dataUrl: string): Promise<string> {
+  return invoke<string>(CHANNELS.CAPTURE.PIN_TEXTURE, { dataUrl })
+}
+
+/** 弹系统保存对话框写 PNG；用户取消返回 `null` */
+function POST_CAPTURE_SAVE_PNG(dataUrl: string, defaultName: string): Promise<string | null> {
+  return invoke<string | null>(CHANNELS.CAPTURE.SAVE_PNG, { dataUrl, defaultName })
+}
+
+/** 取字：Rust 侧跑 OCR，返回纯文本 */
+function POST_CAPTURE_OCR(params: {
+  path: string
+  crop?: unknown
+  language?: string | null
+}): Promise<{ text: string }> {
+  return invoke<{ text: string }>(CHANNELS.CAPTURE.OCR, { params })
+}
+
+/** 容量清理策略：按种类给「保留天数 / 条数 / 字节」上限 */
+interface CapturePrunePolicy {
+  kind: 'screenshot' | 'recording'
+  days: number
+  count: number
+  maxBytes: number
+}
+
+interface CapturePruneResult {
+  /** 被删掉的素材 id */
+  ids: string[]
+  /** 实际释放的字节数 */
+  freedBytes: number
+}
+
+/** 按策略清理截图/录屏，返回删了哪些、释放了多少 */
+function POST_CAPTURE_PRUNE(params: { policies: CapturePrunePolicy[] }): Promise<CapturePruneResult> {
+  return invoke<CapturePruneResult>(CHANNELS.CAPTURE.PRUNE, { params })
+}
+
+function POST_CAPTURE_OPEN(): Promise<void> {
+  return invoke(CHANNELS.CAPTURE.OPEN)
+}
+
+function POST_CAPTURE_CLOSE(): Promise<void> {
+  return invoke(CHANNELS.CAPTURE.CLOSE)
+}
+
+/** 注册 / 注销全局快捷键（传 `accelerator` 注册，传 `release` 注销） */
+function POST_CAPTURE_HOTKEY(params: {
+  accelerator: string | null
+  release: string | null
+}): Promise<void> {
+  return invoke(CHANNELS.CAPTURE.HOTKEY, { params })
+}
+
 export {
   POST_OVERLAY_ENSURE,
   fetchImageFromPath,
@@ -174,6 +231,20 @@ export {
   DELETE_OVERLAY_TILE,
   GET_CAPTURE_PENDING,
   POST_CAPTURE_SCREENSHOT,
+  POST_CAPTURE_CLOSE,
+  POST_CAPTURE_HOTKEY,
+  POST_CAPTURE_OCR,
+  POST_CAPTURE_OPEN,
+  POST_CAPTURE_PIN_TEXTURE,
+  POST_CAPTURE_PRUNE,
+  POST_CAPTURE_SAVE_PNG,
   PUT_OVERLAY_MODE
 }
-export type { CaptureRect, CaptureRegion, MountOverlayOptions, ScreenshotResult }
+export type {
+  CapturePrunePolicy,
+  CapturePruneResult,
+  CaptureRect,
+  CaptureRegion,
+  MountOverlayOptions,
+  ScreenshotResult
+}

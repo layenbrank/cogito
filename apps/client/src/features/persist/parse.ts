@@ -5,7 +5,6 @@ import {
   CODE_TAB_CAP,
   PERSIST_DEFAULTS,
   RECENT_HIT_CAP,
-  SESSION_CAP,
   TIPTAP_COLOR_CAP
 } from '@/features/persist/defaults'
 import type { PersistNamespace } from '@/features/persist/files'
@@ -24,7 +23,6 @@ import type {
   SearchIslandEdge,
   SettingsPref,
   SignboardViewMode,
-  TileSessionPref,
   TilesPref,
   VaultPref,
   WindowPref
@@ -60,24 +58,6 @@ function parsePathList(raw: unknown, cap: number): string[] {
     if (list.length >= cap) break
   }
   return list
-}
-
-function parseSessions(raw: unknown): TileSessionPref[] {
-  if (!Array.isArray(raw)) return []
-  const sessions: TileSessionPref[] = []
-  for (const item of raw) {
-    if (!isRecord(item)) continue
-    if (typeof item.component !== 'string') continue
-    if (typeof item.path !== 'string' || !item.path) continue
-    sessions.push({
-      component: item.component as MagneticTile.Component,
-      tileId: typeof item.tileId === 'string' ? item.tileId : item.component,
-      url: typeof item.url === 'string' ? item.url : '',
-      path: item.path
-    })
-    if (sessions.length >= SESSION_CAP) break
-  }
-  return sessions
 }
 
 const SIGNBOARD_VIEWS: SignboardViewMode[] = [
@@ -159,10 +139,15 @@ function parseTiles(raw: unknown): TilesPref {
   }
 
   return {
-    sessions: parseSessions(raw.sessions),
     knowledge: {
       ...base.knowledge,
       ...knowledge,
+      // 布局改版：旧偏好里右栏默认是开的，一次性收起；用户之后自己打开会重新持久化
+      isOutlineOpen:
+        knowledge.knowledgeLayoutVersion === 2
+          ? parseBoolean(knowledge.isOutlineOpen, base.knowledge.isOutlineOpen)
+          : false,
+      knowledgeLayoutVersion: 2,
       viewMode: mdView,
       recentPaths: Array.isArray(knowledge.recentPaths)
         ? knowledge.recentPaths
@@ -437,8 +422,28 @@ function parseWindow(raw: unknown): WindowPref {
   }
 }
 
+const GALLERY_SORTS = ['capturedAt', 'name', 'size', 'rating', 'addedAt'] as const
+
 function parseGallery(raw: unknown): GalleryPref {
-  return { placeholder: true, ...(isRecord(raw) ? {} : {}) }
+  const base = PERSIST_DEFAULTS.gallery
+  if (!isRecord(raw)) return structuredClone(base)
+  const sortKey =
+    GALLERY_SORTS.find(function (key) {
+      return key === raw.sortKey
+    }) ?? base.sortKey
+  return {
+    viewID: typeof raw.viewID === 'string' ? raw.viewID : base.viewID,
+    sortKey,
+    sectionScope: raw.sectionScope === 'month' ? 'month' : 'day',
+    columnCount:
+      typeof raw.columnCount === 'number'
+        ? Math.min(8, Math.max(2, Math.round(raw.columnCount)))
+        : base.columnCount,
+    isStackFolded: parseBoolean(raw.isStackFolded, base.isStackFolded),
+    isSidebarOpen: parseBoolean(raw.isSidebarOpen, base.isSidebarOpen),
+    isInspectorOpen: parseBoolean(raw.isInspectorOpen, base.isInspectorOpen),
+    filter: typeof raw.filter === 'string' ? raw.filter : ''
+  }
 }
 
 function parseDiagnostics(raw: unknown): DiagnosticsPref {

@@ -15,7 +15,7 @@ import { bindingLabels, parseBinding } from '@/keyboard/binding'
 import { findCommands, runCommand } from '@/keyboard/commands'
 import { findShortcut, resolveBinding } from '@/keyboard/definitions'
 import type { Command } from '@/keyboard/types'
-import { WorkspaceFiles } from '@/lib/workspace-files'
+import { WorkspaceFiles } from '@/apis/workspace-files'
 import { useCodeStore } from '@/stores/code'
 import {
   findFileName,

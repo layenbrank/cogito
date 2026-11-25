@@ -47,15 +47,16 @@ function CapturePane(props: CapturePaneProps) {
   const [lightboxId, onLightboxId] = useState<string | null>(null)
   const [isLightboxOpen, onLightboxOpen] = useState(false)
 
-  useEffect(
-    function () {
-      onSelecting(false)
-      onSelectedIds(new Set())
-      onLightboxOpen(false)
-      onLightboxId(null)
-    },
-    [props.kind]
-  )
+  // 切换截图/录屏等分区时把子面板状态清空：
+  // 渲染期比对而不是 effect —— effect 会先拿上一个分区的选区画一帧。
+  const [activeKind, updateActiveKind] = useState(props.kind)
+  if (activeKind !== props.kind) {
+    updateActiveKind(props.kind)
+    onSelecting(false)
+    onSelectedIds(new Set())
+    onLightboxOpen(false)
+    onLightboxId(null)
+  }
 
   const scoped = useMemo(
     function () {

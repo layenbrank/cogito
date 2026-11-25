@@ -24,14 +24,6 @@ function StagePhoto(props: { frame: WallpaperFrame }) {
   const [src, updateSrc] = useState(props.frame.src)
   const [isBroken, onBroken] = useState(false)
 
-  useEffect(
-    function () {
-      updateSrc(props.frame.src)
-      onBroken(false)
-    },
-    [props.frame.src]
-  )
-
   if (isBroken) {
     return (
       <div className="flex size-full items-center justify-center bg-signin-brand px-8 text-center text-sm text-signin-brand-muted">
@@ -66,14 +58,6 @@ function FilmThumb(props: {
   const [src, updateSrc] = useState(props.frame.thumb || props.frame.src)
   const [isBroken, onBroken] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
-
-  useEffect(
-    function () {
-      updateSrc(props.frame.thumb || props.frame.src)
-      onBroken(false)
-    },
-    [props.frame.src, props.frame.thumb]
-  )
 
   useEffect(
     function () {
@@ -225,7 +209,7 @@ function WallpaperPage() {
 
   return (
     <div className="relative size-full bg-signin-brand">
-      {selected ? <StagePhoto frame={selected} /> : null}
+      {selected ? <StagePhoto key={selected.src} frame={selected} /> : null}
 
       <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-lg bg-background/90 px-2 py-1.5">
         <ToggleGroup
@@ -264,7 +248,7 @@ function WallpaperPage() {
           {frames.map(function (frame) {
             return (
               <FilmThumb
-                key={frame.src}
+                key={`${frame.src}|${frame.thumb ?? ''}`}
                 frame={frame}
                 isSelected={frame.src === selected?.src}
                 onPick={onPick}

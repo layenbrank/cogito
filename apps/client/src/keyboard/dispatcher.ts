@@ -18,6 +18,7 @@ import { hasCommand, runCommand } from '@/keyboard/commands'
 import { LOCAL_SHORTCUTS, findBindingTexts } from '@/keyboard/definitions'
 import { isFindShortcut } from '@/keyboard/native-find-block'
 import type { LocalShortcutDefinition, ShortcutWindow } from '@/keyboard/types'
+import { hasTauriRuntime } from '@/features/window/shell-mode'
 
 /** 作用域具体度：编辑器 > 视图 > 应用；同键命中多个时具体者优先 */
 const SCOPE_RANK: Record<LocalShortcutDefinition['scope'], number> = {
@@ -38,7 +39,7 @@ type Candidate = {
  * 宁可多派发也不能让所有键位静默失效。环境判定与 `features/window/appearance.ts` 同一套。
  */
 function findWindowLabel(): string | null {
-  if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return null
+  if (!hasTauriRuntime()) return null
   return getCurrentWindow().label
 }
 

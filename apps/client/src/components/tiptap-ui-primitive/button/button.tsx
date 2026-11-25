@@ -112,9 +112,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function TipTap
     'aria-label': ariaLabel,
     tabIndex,
     className: cn(
-      'shrink-0 [&_svg]:size-3.5',
+      'shrink-0 [&_svg]:size-4',
       // 有文案：用条形钮并左对齐；宽度由工具栏内容撑开，菜单行由 DropdownMenuItem 加 w-full
-      isMenuRow && 'h-7 justify-start gap-1.5 px-2',
+      isMenuRow && 'h-8 justify-start gap-2 px-2.5 text-[13px]',
       className
     ),
     onClick,
@@ -140,7 +140,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function TipTap
   ) : (
     <DesignButton
       {...shared}
-      size={isMenuRow ? 'sm' : 'icon-sm'}
+      size={isMenuRow ? 'sm' : 'icon'}
       variant={variant}
       {...rest}>
       {children}

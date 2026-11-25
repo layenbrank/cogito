@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import type { Progress } from '@/lib/directive-ipc.ts'
+import type { Progress } from '@/apis/directive'
 
 type CorexProgress = Progress
 type StepProgress = Exclude<CorexProgress, { kind: 'started' }>

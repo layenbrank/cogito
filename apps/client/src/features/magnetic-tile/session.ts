@@ -1,11 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 import { isMagneticTileComponent } from '@/constants/magnetic-tile/components'
-import {
-  findTileSessions,
-  persistTileSessions,
-  type TileSessionPref
-} from '@/features/magnetic-tile/tile-prefs'
 import { isMainShell } from '@/features/window/shell-mode'
 import { useKnowledgeStore } from '@/stores/knowledge'
 
@@ -15,19 +10,20 @@ import { useKnowledgeStore } from '@/stores/knowledge'
  * 同一组件只留一条（store 是单例）。名单只记 path，不复制应用界面：
  * 切走路由仍卸掉对应应用页。磁贴墙由 WorkspaceShell + Activity 常驻，
  * 与名单无关。后台超过上限只从名单拿掉，不清 store。笔记还脏着时留在名单里。
+ *
+ * **只在内存里，不落盘**：重启后名单从空开始，等用户点磁贴再进哪个应用。
+ * “上次停在哪个子页”不属于要记住的状态 —— 落了盘就会出现「退出时在设置页，
+ * 重启再进 Agent 还是设置页，顶栏后退却只能回到磁贴墙」。应用自己的偏好
+ * （如 knowledge / code 的目录、标签）仍由各自的 prefs 恢复。
  */
 
 interface TileSession {
   component: MagneticTile.Component
-  tileId: string
-  url: string
   path: string
 }
 
 interface SessionInput {
   component: MagneticTile.Component
-  id: string
-  url: string
   path: string
 }
 
@@ -56,30 +52,6 @@ function isKnowledgeDirty() {
 
 function publish() {
   for (const listener of listeners) listener()
-  const snapshot: TileSessionPref[] = sessions.map(function (session) {
-    return {
-      component: session.component,
-      tileId: session.tileId,
-      url: session.url,
-      path: session.path
-    }
-  })
-  void persistTileSessions(snapshot)
-}
-
-/** 启动时从 tiles.json 灌回会话名单 */
-function hydrateSessionsFromPrefs() {
-  const stored = findTileSessions()
-  if (stored.length === 0) return
-  sessions = stored.map(function (session) {
-    return {
-      component: session.component,
-      tileId: session.tileId,
-      url: session.url,
-      path: session.path
-    }
-  })
-  for (const listener of listeners) listener()
 }
 
 function trimSessions(
@@ -106,8 +78,6 @@ function trimSessions(
 function admitSession(input: SessionInput) {
   const next: TileSession = {
     component: input.component,
-    tileId: input.id,
-    url: input.url,
     path: input.path
   }
   const rest = sessions.filter(function (session) {
@@ -122,9 +92,7 @@ function rememberRoute(component: MagneticTile.Component, path: string) {
     return session.component === component
   })
   if (!existing) {
-    const query = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
-    const url = new URLSearchParams(query).get('url') ?? ''
-    admitSession({ component, id: component, url, path })
+    admitSession({ component, path })
     return
   }
   if (existing.path === path && sessions[0]?.component === component) return
@@ -188,7 +156,6 @@ export {
   bindSessionHome,
   dismissSession,
   findAppComponent,
-  hydrateSessionsFromPrefs,
   isMainWindow,
   leaveTileSession,
   parkSessions,

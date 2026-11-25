@@ -6,21 +6,21 @@
  * **完全一样**（都是 `capture:open`），属于新旧两条路并存 —— 已删。
  */
 
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
-import { POST_CAPTURE_PRUNE } from '@/features/capture/retention'
+import { POST_CAPTURE_OPEN } from '@/apis/capture'
+import { pruneCaptures } from '@/features/capture/retention'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { isMainWindow } from '@/keyboard/global'
 import { useCommands } from '@/keyboard/react'
 import type { Command } from '@/keyboard/types'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
 
 async function POST_CAPTURE(): Promise<void> {
   try {
-    await invoke(CHANNELS.CAPTURE.OPEN)
+    await POST_CAPTURE_OPEN()
   } catch (error) {
     reportCaught('capture.open', error)
     const text = error instanceof Error ? error.message : String(error)
@@ -45,7 +45,7 @@ function useCaptureCommands(): void {
   useEffect(function () {
     // 只在主窗跑：overlay 与磁贴窗不重复清理
     if (!isMainWindow()) return
-    void POST_CAPTURE_PRUNE({ silent: true })
+    void pruneCaptures({ silent: true })
   }, [])
 }
 

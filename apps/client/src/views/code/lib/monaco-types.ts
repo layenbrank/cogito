@@ -30,7 +30,7 @@ import type * as Monaco from 'monaco-editor'
 
 import { runWhenIdle } from '@/lib/perf/idle.ts'
 import { findMonaco, importMonaco } from '@/lib/monaco-loader.ts'
-import { WorkspaceFiles, type PackTypesFile } from '@/lib/workspace-files'
+import { WorkspaceFiles, type PackTypesFile } from '@/apis/workspace-files'
 import { normalizeSeparators } from '@/views/code/lib/path.ts'
 import { readTsconfigChain, toCompilerOptions } from '@/views/code/lib/tsconfig.ts'
 

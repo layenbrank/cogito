@@ -1,9 +1,9 @@
 /**
  * 检索编排：同步本地命中 + 异步 Web 建议合并
  */
-import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
+import { POST_SEARCH_OPEN_FILE } from '@/apis/search'
 import { findEngine } from '@/constants/engine'
 import { RECENT_ID_PREFIX } from '@/features/command-bar/constants'
 import { matchesFilter, parseQuery } from '@/features/command-bar/query'
@@ -17,7 +17,6 @@ import {
 } from '@/features/command-bar/store'
 import type { DomainFilter, Hit } from '@/features/command-bar/types'
 import { buildMatchUrl } from '@/features/command-bar/url'
-import { CHANNELS } from '@/shared/ipc/channels'
 
 type RecentHitRevive = Pick<RecentHit, 'domain' | 'id' | 'title'>
 
@@ -25,7 +24,7 @@ type RecentHitRevive = Pick<RecentHit, 'domain' | 'id' | 'title'>
 async function reviveRecentHit(item: RecentHitRevive): Promise<void> {
   // 文件命中没有同步 provider 可查，直接按路径重新交给索引命令
   if (item.domain === 'file') {
-    await invoke(CHANNELS.SEARCH.OPEN_FILE, { params: { path: item.id } })
+    await POST_SEARCH_OPEN_FILE(item.id)
     return
   }
   const revivedLocal = searchLocalProviders(parseQuery(item.title, item.domain))

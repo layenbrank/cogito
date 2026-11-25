@@ -16,7 +16,7 @@ import {
   POST_BROWSER_TAB,
   type BrowserSnapshot,
   type BrowserTab
-} from './api'
+} from '@/apis/browser'
 import { parseAddress } from './address'
 import type { DeviceProfile } from './device'
 

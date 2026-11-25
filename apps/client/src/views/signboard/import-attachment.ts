@@ -1,9 +1,10 @@
-import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
+
+import { POST_ASSETS } from '@/apis/album'
 import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { BaseDirectory, exists, mkdir, writeFile, stat } from '@tauri-apps/plugin-fs'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { IMAGE_EXTENSIONS } from '@/views/gallery/constraints'
 import { findMimeFromPath, stringifyMeta } from '@/views/gallery/model/media'
 
@@ -62,23 +63,21 @@ async function insertImagePath(path: string): Promise<string | undefined> {
     size = null
   }
 
-  const rows = await invoke<{ id: string }[]>(CHANNELS.ASSET.INSERT, {
-    params: {
-      filePath: path,
-      fileName,
-      mime,
-      kind,
-      hash: null,
-      sha: null,
-      size,
-      index: null,
-      extension,
-      metadata: stringifyMeta({ source: 'import', hidden: false }),
-      status: null,
-      deviceID: null,
-      archivedAt: null,
-      tenantID: null
-    }
+  const rows = await POST_ASSETS<{ id: string }[]>({
+    filePath: path,
+    fileName,
+    mime,
+    kind,
+    hash: null,
+    sha: null,
+    size,
+    index: null,
+    extension,
+    metadata: stringifyMeta({ source: 'import', hidden: false }),
+    status: null,
+    deviceID: null,
+    archivedAt: null,
+    tenantID: null
   })
   return rows[0]?.id
 }

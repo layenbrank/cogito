@@ -5,7 +5,7 @@
  */
 import { z } from 'zod'
 
-const KnowledgeBaseSchema = z.object({
+const KnowledgeSpaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
@@ -25,7 +25,7 @@ const KnowledgeBaseSchema = z.object({
 
 const KnowledgeDocSummarySchema = z.object({
   id: z.string(),
-  baseId: z.string(),
+  spaceId: z.string(),
   title: z.string(),
   relPath: z.string(),
   wordCount: z.number(),
@@ -37,7 +37,7 @@ const KnowledgeDocSummarySchema = z.object({
 
 const KnowledgeHitSchema = z.object({
   docId: z.string(),
-  baseId: z.string(),
+  spaceId: z.string(),
   title: z.string(),
   relPath: z.string(),
   snippet: z.string(),
@@ -47,18 +47,24 @@ const KnowledgeHitSchema = z.object({
 })
 
 const StagedFileSchema = z.object({
-  baseId: z.string(),
+  spaceId: z.string(),
   path: z.string(),
   name: z.string(),
   session: z.string(),
   size: z.number(),
-  modifiedAt: z.number()
+  modifiedAt: z.number(),
+  /** frontmatter 里的标题（没写就是空） */
+  title: z.string().nullish(),
+  /** frontmatter 里的页面类型 */
+  pageType: z.string().nullish(),
+  /** 发布后的目标相对路径（按 type 推导） */
+  relPath: z.string().nullish()
 })
 
 /** 发布返回的是整行 `knowledge_doc`，界面只用得到这几个字段 */
 const PublishedDocSchema = z.object({
   id: z.string(),
-  baseId: z.string(),
+  spaceId: z.string(),
   title: z.string(),
   relPath: z.string(),
   status: z.string(),
@@ -67,10 +73,38 @@ const PublishedDocSchema = z.object({
 
 /** 合并后的 staging 草稿（仍是草稿，发布要用户点） */
 const StagedDocSchema = z.object({
-  baseId: z.string(),
+  spaceId: z.string(),
   path: z.string(),
   title: z.string(),
-  slug: z.string()
+  slug: z.string(),
+  pageType: z.string(),
+  relPath: z.string()
+})
+
+/** 归位计划里的一条搬迁 */
+const PageMoveSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  pageType: z.string(),
+  title: z.string()
+})
+
+/** 存量归位报告：dryRun 只列计划，不动磁盘 */
+const MigrationReportSchema = z.object({
+  dryRun: z.boolean(),
+  moves: PageMoveSchema.array(),
+  skipped: z.object({ path: z.string(), reason: z.string() }).array()
+})
+
+/** wiki 规范契约：类型 → 目录与必填 frontmatter（Rust 单一源） */
+const WikiContractSchema = z.object({
+  types: z
+    .object({ name: z.string(), dir: z.string(), label: z.string() })
+    .array(),
+  defaultType: z.string(),
+  requiredFrontMatter: z.string().array(),
+  aggregatePaths: z.string().array(),
+  naming: z.string()
 })
 
 /** 有云端索引的文档：docID ↔ 云端 assetID（两路召回靠它对回去重） */
@@ -94,7 +128,7 @@ const PublishModeSchema = z.enum(['replace', 'keepboth'])
 const KnowledgeDocRefSchema = z.object({
   matched: z.boolean(),
   docId: z.string().nullish(),
-  baseId: z.string().nullish(),
+  spaceId: z.string().nullish(),
   relPath: z.string().nullish(),
   hash: z.string().nullish(),
   revision: z.number().nullish()
@@ -111,11 +145,11 @@ const WriteDocOutcomeSchema = z.object({
 
 const SearchInputSchema = z.object({
   query: z.string().min(1),
-  baseId: z.string().optional(),
+  spaceId: z.string().optional(),
   topK: z.number().int().positive().max(20).optional()
 })
 
-type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+type KnowledgeSpace = z.infer<typeof KnowledgeSpaceSchema>
 type KnowledgeDocRef = z.infer<typeof KnowledgeDocRefSchema>
 type KnowledgeDocSummary = z.infer<typeof KnowledgeDocSummarySchema>
 type KnowledgeHit = z.infer<typeof KnowledgeHitSchema>
@@ -126,31 +160,40 @@ type StagedDoc = z.infer<typeof StagedDocSchema>
 type PublishedDoc = z.infer<typeof PublishedDocSchema>
 type PublishMode = z.infer<typeof PublishModeSchema>
 type WriteDocOutcome = z.infer<typeof WriteDocOutcomeSchema>
+type PageMove = z.infer<typeof PageMoveSchema>
+type MigrationReport = z.infer<typeof MigrationReportSchema>
+type WikiContract = z.infer<typeof WikiContractSchema>
 
 export {
   CloudDocSchema,
   CloudStateSchema,
-  KnowledgeBaseSchema,
+  KnowledgeSpaceSchema,
   KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
   KnowledgeHitSchema,
+  MigrationReportSchema,
+  PageMoveSchema,
   PublishedDocSchema,
   PublishModeSchema,
   SearchInputSchema,
   StagedDocSchema,
   StagedFileSchema,
+  WikiContractSchema,
   WriteDocOutcomeSchema
 }
 export type {
   CloudDoc,
   CloudState,
-  KnowledgeBase,
+  KnowledgeSpace,
   KnowledgeDocRef,
   KnowledgeDocSummary,
   KnowledgeHit,
+  MigrationReport,
+  PageMove,
   PublishedDoc,
   PublishMode,
   StagedDoc,
   StagedFile,
+  WikiContract,
   WriteDocOutcome
 }

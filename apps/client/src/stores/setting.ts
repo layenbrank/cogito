@@ -1,9 +1,8 @@
-import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 
 import { ensurePersist, findPref, patchPref, replacePref } from '@/features/persist'
-import { PUT_AUTOSTART } from '@/features/magnetic-tiles/settings/autostart'
-import { CHANNELS } from '@/shared/ipc/channels'
+import { PUT_AUTOSTART } from '@/apis/autostart'
+import { PATCH_SYSTEM_PROXY } from '@/apis/system'
 
 declare namespace Setting {
   export interface General {
@@ -324,7 +323,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
 })
 
 async function syncProxyEnv(proxy: Setting.Proxy): Promise<void> {
-  await invoke(CHANNELS.SYSTEM.PROXY_APPLY, { config: proxy })
+  await PATCH_SYSTEM_PROXY(proxy)
 }
 
 export {

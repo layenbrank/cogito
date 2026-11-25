@@ -7,7 +7,9 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
-import type { DeviceProfile } from './device'
+import { CHANNELS } from '@/shared/ipc/channels'
+
+import type { DeviceProfile } from '@/features/browser/device'
 
 interface BrowserTab {
   label: string
@@ -20,31 +22,31 @@ interface BrowserTab {
 
 /** `forceNew` 默认 true：UI 开页总新建；agent 工具面自己走 bridge 复用逻辑 */
 async function POST_BROWSER_TAB(url: string, forceNew = true): Promise<BrowserTab> {
-  return invoke<BrowserTab>('browser:open', { url, forceNew })
+  return invoke<BrowserTab>(CHANNELS.BROWSER.OPEN, { url, forceNew })
 }
 
 async function DELETE_BROWSER_TAB(label: string): Promise<void> {
-  await invoke('browser:close', { label })
+  await invoke(CHANNELS.BROWSER.CLOSE, { label })
 }
 
 async function PUT_BROWSER_TAB_ACTIVE(label: string): Promise<void> {
-  await invoke('browser:activate', { label })
+  await invoke(CHANNELS.BROWSER.ACTIVATE, { label })
 }
 
 async function PUT_BROWSER_URL(label: string, url: string): Promise<void> {
-  await invoke('browser:navigate', { label, url })
+  await invoke(CHANNELS.BROWSER.NAVIGATE, { label, url })
 }
 
 async function GET_BROWSER_URL(label: string): Promise<string> {
-  return invoke<string>('browser:current-url', { label })
+  return invoke<string>(CHANNELS.BROWSER.CURRENT_URL, { label })
 }
 
 async function POST_BROWSER_RELOAD(label: string): Promise<void> {
-  await invoke('browser:reload', { label })
+  await invoke(CHANNELS.BROWSER.RELOAD, { label })
 }
 
 async function POST_BROWSER_HISTORY(label: string, backward: boolean): Promise<void> {
-  await invoke('browser:history', { label, backward })
+  await invoke(CHANNELS.BROWSER.HISTORY, { label, backward })
 }
 
 interface BrowserHistoryState {
@@ -53,7 +55,7 @@ interface BrowserHistoryState {
 }
 
 async function GET_BROWSER_HISTORY(label: string): Promise<BrowserHistoryState> {
-  return invoke<BrowserHistoryState>('browser:history-state', { label })
+  return invoke<BrowserHistoryState>(CHANNELS.BROWSER.HISTORY_STATE, { label })
 }
 
 interface BrowserNavigationEntry {
@@ -63,12 +65,12 @@ interface BrowserNavigationEntry {
 
 /** 当前 tab 会话历史（关 tab 即消失） */
 async function GET_BROWSER_NAVIGATION(label: string): Promise<BrowserNavigationEntry[]> {
-  return invoke<BrowserNavigationEntry[]>('browser:navigation-history', { label })
+  return invoke<BrowserNavigationEntry[]>(CHANNELS.BROWSER.NAVIGATION_HISTORY, { label })
 }
 
 /** 打开这个 tab 的 DevTools（独立窗口） */
 async function POST_BROWSER_DEVTOOLS(label: string): Promise<void> {
-  await invoke('browser:devtools', { label })
+  await invoke(CHANNELS.BROWSER.DEVTOOLS, { label })
 }
 
 /** 单项能力探测结果 */
@@ -116,7 +118,7 @@ interface BrowserDeviceResult {
 
 /** 诊断：确认 CDP 通道（读取 / 网络 / 拦截 / 截图）在本机可用 */
 async function GET_BROWSER_PROBE(label: string): Promise<BrowserProbe> {
-  return invoke<BrowserProbe>('browser:probe', { label })
+  return invoke<BrowserProbe>(CHANNELS.BROWSER.PROBE, { label })
 }
 
 interface BrowserOutlineItem {
@@ -146,7 +148,7 @@ async function GET_BROWSER_PAGE(
   maxChars = 8000
 ): Promise<BrowserReadResult> {
   // `limit` 只管 outline 条目数，`maxChars` 只管 text 正文字符数（Rust 侧默认 8000）
-  return invoke<BrowserReadResult>('browser:agent-read', {
+  return invoke<BrowserReadResult>(CHANNELS.BROWSER.AGENT_READ, {
     label,
     mode,
     limit,
@@ -158,15 +160,15 @@ async function GET_BROWSER_PAGE(
 interface BrowserShot {
   mimeType: string
   base64: string
-  /** 实际出图通道：CDP 合成器 / CDP view / OS 兜底（不可见时才知道画面从哪来） */
-  mode?: 'surface' | 'view' | 'os'
+  /** 实际出图通道：控件位图 / 校正后的 CDP / 所在屏幕兜底 */
+  mode?: 'preview' | 'surface' | 'os'
 }
 
 async function POST_BROWSER_SCREENSHOT(
   label: string,
   format?: 'png' | 'jpeg'
 ): Promise<BrowserShot> {
-  return invoke<BrowserShot>('browser:agent-screenshot', {
+  return invoke<BrowserShot>(CHANNELS.BROWSER.AGENT_SCREENSHOT, {
     label,
     format: format ?? null
   })
@@ -187,7 +189,7 @@ interface BrowserSnapshot {
 }
 
 async function GET_BROWSER_SNAPSHOT(): Promise<BrowserSnapshot> {
-  return invoke<BrowserSnapshot>('browser:snapshot')
+  return invoke<BrowserSnapshot>(CHANNELS.BROWSER.SNAPSHOT)
 }
 
 /**
@@ -230,7 +232,7 @@ async function GET_BROWSER_NETWORK(
   filter?: string,
   limit = 200
 ): Promise<NetworkEntry[]> {
-  return invoke<NetworkEntry[]>('browser:network-list', { label, filter, limit })
+  return invoke<NetworkEntry[]>(CHANNELS.BROWSER.NETWORK_LIST, { label, filter, limit })
 }
 
 /** 一条拦截规则：与 Rust `browser::intercept::Rule` 同形（camelCase） */
@@ -262,7 +264,7 @@ async function PUT_BROWSER_INTERCEPT(
   label: string,
   rules: InterceptRule[]
 ): Promise<InterceptStatus> {
-  return invoke<InterceptStatus>('browser:update-intercept', { label, rules })
+  return invoke<InterceptStatus>(CHANNELS.BROWSER.UPDATE_INTERCEPT, { label, rules })
 }
 
 /**
@@ -272,12 +274,12 @@ async function PUT_BROWSER_INTERCEPT(
  * 两个都停在 0 时不要怀疑页面，先看拦截通道本身。
  */
 async function GET_BROWSER_INTERCEPT_STATUS(label: string): Promise<InterceptStatus> {
-  return invoke<InterceptStatus>('browser:intercept-status', { label })
+  return invoke<InterceptStatus>(CHANNELS.BROWSER.INTERCEPT_STATUS, { label })
 }
 
 /** 当前生效的规则（agent 也会改，UI 进视图时用它对齐） */
 async function GET_BROWSER_INTERCEPT_RULES(label: string): Promise<InterceptRule[]> {
-  return invoke<InterceptRule[]>('browser:intercept-list', { label })
+  return invoke<InterceptRule[]>(CHANNELS.BROWSER.INTERCEPT_LIST, { label })
 }
 
 /** 上报内容区 rect（CSS px，相对窗口客户区；Tauri 会按 scale factor 换成物理像素） */
@@ -287,21 +289,21 @@ async function PUT_BROWSER_LAYOUT(
   width: number,
   height: number
 ): Promise<void> {
-  await invoke('browser:layout', { x, y, width, height })
+  await invoke(CHANNELS.BROWSER.LAYOUT, { x, y, width, height })
 }
 
 /** 前端要弹浮层 / 切走页签时让位 —— 原生子 webview 永远盖在 HTML 之上 */
 async function PUT_BROWSER_VISIBLE(visible: boolean): Promise<void> {
-  await invoke('browser:visible', { visible })
+  await invoke(CHANNELS.BROWSER.VISIBLE, { visible })
 }
 
 /** CDP Overlay 元素拾取（VS Code 同款） */
 async function POST_BROWSER_PICKER(label: string): Promise<void> {
-  await invoke('browser:picker-start', { label })
+  await invoke(CHANNELS.BROWSER.PICKER_START, { label })
 }
 
 async function DELETE_BROWSER_PICKER(label: string): Promise<void> {
-  await invoke('browser:picker-stop', { label })
+  await invoke(CHANNELS.BROWSER.PICKER_STOP, { label })
 }
 
 /**
@@ -315,12 +317,12 @@ async function PUT_BROWSER_DEVICE(
   device: DeviceProfile | null,
   fit: number
 ): Promise<BrowserDeviceResult> {
-  return invoke<BrowserDeviceResult>('browser:update-device', { label, device, fit })
+  return invoke<BrowserDeviceResult>(CHANNELS.BROWSER.UPDATE_DEVICE, { label, device, fit })
 }
 
 /** 当前 tab 的设备档案（agent 也可能改过，UI 靠它对齐） */
 async function GET_BROWSER_DEVICE(label: string): Promise<DeviceProfile | null> {
-  return invoke<DeviceProfile | null>('browser:find-device', { label })
+  return invoke<DeviceProfile | null>(CHANNELS.BROWSER.FIND_DEVICE, { label })
 }
 
 interface PickedBrowserRect {

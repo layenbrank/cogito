@@ -1,6 +1,6 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_ASSETS } from '@/apis/album'
 import {
   filterVisible,
   sortByCapturedAt,
@@ -16,7 +16,7 @@ let inflight: Promise<string[]> | null = null
 let generation = 0
 
 async function fetchGalleryThumbs(): Promise<string[]> {
-  const assets = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, { params: {} })
+  const assets = await GET_ASSETS<GalleryAsset[]>()
   const medias = sortByCapturedAt(
     filterVisible(
       assets

@@ -4,7 +4,7 @@ import { Skeleton } from '@cogito/design/components/skeleton'
 import { cn } from 'cn'
 import { useMemo, type ReactNode } from 'react'
 
-import type { CommitHit, ShowFile } from '@/lib/workspace-git'
+import type { CommitHit, ShowFile } from '@/apis/workspace-git'
 import {
   GIT_FILE_STATUS_TONE,
   formatCommitRelativeTime,

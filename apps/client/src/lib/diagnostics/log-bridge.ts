@@ -9,7 +9,7 @@
  *   一个窗口挂死时能从日志里区分是谁在刷；
  * - 非 Tauri 环境（浏览器预览）自动降级成什么都不做，绝不报错。
  */
-import { invoke } from '@tauri-apps/api/core'
+import { POST_DIAGNOSTICS_APPEND } from '@/apis/diagnostics'
 
 /** 一批最多攒多久（毫秒）就 flush 一次 */
 const FLUSH_INTERVAL_MS = 250
@@ -38,10 +38,6 @@ let windowCount = 0
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 /** 原始 console 引用：停用桥时要还原 */
 let originals: { warn: typeof console.warn; error: typeof console.error } | null = null
-
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-}
 
 /** 当前窗口 label；取不到就退化成 `main`（日志里不至于出现空列）。 */
 function currentWindowLabel(): string {
@@ -111,7 +107,7 @@ async function flush(): Promise<void> {
     droppedByRate = 0
   }
   try {
-    await invoke('diagnostics:append', { entries: batch })
+    await POST_DIAGNOSTICS_APPEND(batch)
   }
   // eslint-disable-next-line ith/catch-must-report -- 下面用 nativeWarn 报过；再调 console.warn 会被自己的包装捕获 → 自我循环
   catch (error) {
@@ -165,12 +161,6 @@ function installLogBridge(): void {
   const originalError = console.error.bind(console)
   nativeWarn = originalWarn
   originals = { warn: originalWarn, error: originalError }
-
-  if (!isTauri()) {
-    // 浏览器预览：只保留原行为
-    installed = false
-    return
-  }
 
   console.warn = function (...args: unknown[]) {
     originalWarn(...args)

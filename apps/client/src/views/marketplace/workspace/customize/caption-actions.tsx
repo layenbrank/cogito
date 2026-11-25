@@ -1,7 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
-import { invoke } from '@tauri-apps/api/core'
 import {
   isPermissionGranted,
   requestPermission,
@@ -10,8 +9,8 @@ import {
 import { useContext, useRef } from 'react'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
-import { CHANNELS } from '@/shared/ipc/channels'
 
+import { GET_MAGNETIC_TILES } from '@/apis/magnetic-tile'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
 import { TILE_IMPORT_SCHEMA } from '@/views/marketplace/workspace/customize/form'
 import {
@@ -60,9 +59,7 @@ function CaptionActions() {
     }
 
     try {
-      const tiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-        params: { mirrorID: targetMirrorID }
-      })
+      const tiles = await GET_MAGNETIC_TILES<MagneticTile[]>({ mirrorID: targetMirrorID })
       const exported = await exportTiles(tiles)
       if (!exported) return
 

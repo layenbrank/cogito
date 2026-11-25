@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { findTileRoute } from '@/constants/magnetic-tile/window'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { admitSession } from '@/features/magnetic-tile/session'
-import { ensureTilePrefs, findSessionPath } from '@/features/magnetic-tile/tile-prefs'
 import { reportCaught } from '@/utils/exception-report'
 
 type Tile = Pick<MagneticTile, 'component' | 'url' | 'id' | 'title'>
@@ -50,19 +49,11 @@ const ACTIVATE: Partial<Record<MagneticTile.Component, ActivateHandler>> = {
   }
 }
 
-/** 默认：主窗口开对应路由并记入会话；无 tile.url 时恢复上次路径 */
+/** 默认：主窗口开磁贴自己的路由并记入会话；不还原上次停留的子页 */
 async function activateRoute(tile: Tile) {
-  await ensureTilePrefs()
-  let path = findTileWindowUrl(tile)
-  // 集合每块磁贴对应不同文件夹，不能用组件级「上次路径」覆盖当前 id
-  if (!tile.url && tile.component !== 'collection') {
-    const remembered = findSessionPath(tile.component)
-    if (remembered) path = remembered
-  }
+  const path = findTileWindowUrl(tile)
   admitSession({
     component: tile.component,
-    id: tile.id,
-    url: tile.url ?? '',
     path
   })
   const { router } = await import('@/routers')

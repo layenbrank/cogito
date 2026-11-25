@@ -8,7 +8,7 @@ import {
 import { ConvertPreview } from '@/views/morph/workspace/tasks/convert-preview.tsx'
 import { PathField } from '@/views/morph/workspace/tasks/path-field.tsx'
 import { OperationStage } from '@/views/morph/workspace/tasks/stage/operation-stage.tsx'
-import { MorphIpc } from '@/lib/morph-ipc'
+import { MorphIpc } from '@/apis/morph'
 import { useMorphStore } from '@/stores/morph.ts'
 
 type SampleState = {

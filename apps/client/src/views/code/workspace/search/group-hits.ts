@@ -1,4 +1,4 @@
-import type { ContentHit } from '@/lib/workspace-files'
+import type { ContentHit } from '@/apis/workspace-files'
 
 interface FileGroup {
   relative: string

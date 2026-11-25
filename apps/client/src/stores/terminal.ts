@@ -8,7 +8,7 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { subscribeWithSelector } from 'zustand/middleware'
 
-import { Terminal } from '@/lib/terminal'
+import { Terminal } from '@/apis/terminal'
 
 type TerminalTabKind = 'pty'
 

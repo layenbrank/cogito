@@ -5,7 +5,7 @@ import { CaptureErrorBoundary } from '@/features/capture/capture-error-boundary'
 import { CaptureStageView } from '@/features/capture/capture-stage-view'
 import { type AnnotationHandle } from '@/features/capture/components/annotation'
 import { type GraphicsEnum, type GraphicsProps } from '@/features/capture/components/graphics'
-import { POST_CAPTURE_PRUNE } from '@/features/capture/retention'
+import { pruneCaptures } from '@/features/capture/retention'
 import { useCaptureActions } from '@/features/capture/use-capture-actions'
 import { useCaptureHistory } from '@/features/capture/use-capture-history'
 import { useCaptureLifecycle } from '@/features/capture/use-capture-lifecycle'
@@ -15,7 +15,7 @@ import { useCaptureWorkArea } from '@/features/capture/use-work-area'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useCommands, useShortcut } from '@/keyboard/react'
 import { DETECT_ELEMENT, DETECT_WINDOW, useSettingsStore, type Setting } from '@/stores/setting'
-import { GET_CAPTURE_ELEMENTS, GET_CAPTURE_CURSOR } from '@/features/capture/tauri'
+import { GET_CAPTURE_ELEMENTS, GET_CAPTURE_CURSOR } from '@/apis/capture'
 
 export interface CaptureProps {
   /** Rendered inside the shared overlay window. */
@@ -217,7 +217,7 @@ function Capture(props: CaptureProps = {}) {
     onTexture,
     sessionID,
     onHistoryWritten: function () {
-      void POST_CAPTURE_PRUNE({ silent: true })
+      void pruneCaptures({ silent: true })
     }
   })
 

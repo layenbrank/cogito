@@ -1,8 +1,7 @@
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_MAGNETIC_TILES } from '@/apis/magnetic-tile'
 
 function useCollectionMembers(currentId: string) {
   const [magneticTiles, onUpdateMagneticTiles] = useState<MagneticTile[]>([])
@@ -16,12 +15,8 @@ function useCollectionMembers(currentId: string) {
       async function fetchMembers() {
         try {
           const [members, hosts] = await Promise.all([
-            invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-              params: { collectionID: currentId }
-            }),
-            invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-              params: { id: currentId }
-            })
+            GET_MAGNETIC_TILES<MagneticTile[]>({ collectionID: currentId }),
+            GET_MAGNETIC_TILES<MagneticTile[]>({ id: currentId })
           ])
           if (cancelled) return
           onUpdateMagneticTiles(

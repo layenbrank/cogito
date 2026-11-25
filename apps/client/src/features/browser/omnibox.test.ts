@@ -8,7 +8,7 @@ vi.mock('@/features/command-bar/store', function () {
   }
 })
 
-vi.mock('@/lib/engine-ipc', function () {
+vi.mock('@/apis/search', function () {
   return {
     EngineIpc: {
       GET_SEARCH_SUGGEST: vi.fn(async function () {

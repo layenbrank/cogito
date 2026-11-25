@@ -19,7 +19,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal as XtermTerminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 
-import { Terminal } from '@/lib/terminal'
+import { Terminal } from '@/apis/terminal'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import { EVENTS } from '@/shared/ipc/channels'
 import { useTerminalStore } from '@/stores/terminal'
 import type { TerminalTabOrigin } from '@/stores/terminal'
@@ -116,10 +117,17 @@ function TerminalView(props: TerminalViewProps) {
    * 表现出来就是「终端时不时空白/重启」。用 ref 读，不触发重挂。
    */
   const restoredRef = useRef(props.restored === true)
-  restoredRef.current = restoredRef.current || props.restored === true
+  useIsomorphicLayoutEffect(
+    function () {
+      if (props.restored === true) restoredRef.current = true
+    },
+    [props.restored]
+  )
   /** 同上：`active` 也不进主 effect 依赖，否则切 tab 会重挂整个 xterm */
   const activeRef = useRef(props.active)
-  activeRef.current = props.active
+  useIsomorphicLayoutEffect(function () {
+    activeRef.current = props.active
+  })
 
   useEffect(
     function () {

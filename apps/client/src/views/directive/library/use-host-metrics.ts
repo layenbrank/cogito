@@ -3,13 +3,14 @@
  * 只暴露 API 真实字段：memory/swap used·total、CPU 规格；不做占用率伪造。
  */
 
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useState } from 'react'
 
+import { GET_SYSTEM_OS } from '@/apis/system'
 import type { ChartPoint, NamedCount } from '@cogito/design/components/charts'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 /** 侧栏宿主状态刷新间隔 */
 const POLL_MS = 2_000
@@ -62,13 +63,6 @@ const EMPTY: HostMetrics = {
   isReady: false,
   error: null,
   pollMs: POLL_MS
-}
-
-function isTauriRuntime() {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
 }
 
 function pad2(value: number) {
@@ -124,7 +118,7 @@ function buildBars(used: number, total: number): NamedCount[] {
 
 function useHostMetrics(): HostMetrics {
   const [state, updateState] = useState<HostMetrics>(function () {
-    if (!isTauriRuntime()) {
+    if (!canUseTauriIpc()) {
       return {
         ...EMPTY,
         isReady: true,
@@ -135,14 +129,14 @@ function useHostMetrics(): HostMetrics {
   })
 
   useEffect(function () {
-    if (!isTauriRuntime()) return
+    if (!canUseTauriIpc()) return
 
     let cancelled = false
     let memoryUsedTrend: ChartPoint[] = []
 
     async function sample() {
       try {
-        const os = await invoke<HostOs>(CHANNELS.SYSTEM.OS)
+        const os = await GET_SYSTEM_OS<HostOs>()
         if (cancelled) return
 
         const at = Date.now()

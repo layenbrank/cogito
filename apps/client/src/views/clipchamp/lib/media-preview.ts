@@ -18,7 +18,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
-import { FILMSTRIP_FRAME_EVENT, MediaIpc, type FilmstripFrameEvent } from '@/lib/media-ipc'
+import { FILMSTRIP_FRAME_EVENT, MediaIpc, type FilmstripFrameEvent } from '@/apis/media'
 import type { MediaAsset, WaveformMeta } from '@/views/clipchamp/lib/project'
 
 const ASPECT_FALLBACK = 16 / 9

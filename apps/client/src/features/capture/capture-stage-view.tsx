@@ -10,7 +10,7 @@ import { OcrSurface } from '@/features/capture/components/ocr-surface'
 import Utility from '@/features/capture/components/utility'
 import type { useCaptureActions } from '@/features/capture/use-capture-actions'
 import type { Phase } from '@/features/capture/use-capture-stage'
-import type { CaptureRect } from '@/features/capture/tauri'
+import type { CaptureRect } from '@/apis/capture'
 
 import styles from '@/features/capture/capture.module.scss'
 

@@ -7,7 +7,6 @@ import { hasRunningThreads } from '@/features/agent/acp/run-state'
 import {
   bindSessionHome,
   findAppComponent,
-  hydrateSessionsFromPrefs,
   isMainWindow,
   parkSessions,
   rememberRoute
@@ -73,7 +72,6 @@ function AppHost() {
       await ensurePersist()
       await ensureSecrets()
       adoptAppearance(findPref('window').appearance)
-      hydrateSessionsFromPrefs()
       await useMirrorStore.getState().toInitialize()
       await useSettingsStore.getState().toInitialize()
     }

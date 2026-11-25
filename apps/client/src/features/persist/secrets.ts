@@ -3,9 +3,10 @@
  * 非 Tauri 环境只走内存。
  */
 import { emit, listen } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/core'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { DELETE_COGITO_TOKEN, POST_COGITO_TOKEN } from '@/apis/agent-runtime'
+import { DELETE_SECRET, GET_SECRET, PUT_SECRET } from '@/apis/secret'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 const AUTH_CHANGED = 'auth:changed'
 const SECRET_SERVICE = 'cogito'
@@ -15,24 +16,14 @@ type SecretAccount = 'jwt' | `provider:${string}`
 let jwtCache: string | null = null
 let secretsReady = false
 
-function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
-}
-
 async function ensureSecrets(): Promise<void> {
   if (secretsReady) return
-  if (!isTauriRuntime()) {
+  if (!canUseTauriIpc()) {
     secretsReady = true
     return
   }
   try {
-    jwtCache = await invoke<string | null>(CHANNELS.SECRET.FIND, {
-      service: SECRET_SERVICE,
-      account: 'jwt'
-    })
+    jwtCache = await GET_SECRET(SECRET_SERVICE, 'jwt')
   } catch (error) {
     console.warn('[secrets] hydrate jwt failed', error)
     jwtCache = null
@@ -54,19 +45,12 @@ function findJwtCache(): string | null {
  */
 async function writeJwtSecret(token: string | null): Promise<void> {
   jwtCache = token
-  if (!isTauriRuntime()) return
+  if (!canUseTauriIpc()) return
   try {
     if (token) {
-      await invoke(CHANNELS.SECRET.WRITE, {
-        service: SECRET_SERVICE,
-        account: 'jwt',
-        secret: token
-      })
+      await PUT_SECRET(SECRET_SERVICE, 'jwt', token)
     } else {
-      await invoke(CHANNELS.SECRET.REMOVE, {
-        service: SECRET_SERVICE,
-        account: 'jwt'
-      })
+      await DELETE_SECRET(SECRET_SERVICE, 'jwt')
     }
   } catch (error) {
     // 写失败不拦登录：本次会话仍可用，下次启动再重试
@@ -75,9 +59,9 @@ async function writeJwtSecret(token: string | null): Promise<void> {
   // 侧车桥接：会话期内写 goose 可读的 jwt 文件（Rust 内部）
   try {
     if (token) {
-      await invoke(CHANNELS.COGITO.TOKEN_WRITE, { token })
+      await POST_COGITO_TOKEN(token)
     } else {
-      await invoke(CHANNELS.COGITO.TOKEN_CLEAR)
+      await DELETE_COGITO_TOKEN()
     }
   } catch (error) {
     console.warn('[secrets] cogito jwt bridge failed', error)
@@ -87,12 +71,9 @@ async function writeJwtSecret(token: string | null): Promise<void> {
 }
 
 async function GET_PROVIDER_SECRET(providerID: string): Promise<string | null> {
-  if (!isTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   try {
-    return await invoke<string | null>(CHANNELS.SECRET.FIND, {
-      service: SECRET_SERVICE,
-      account: `provider:${providerID}`
-    })
+    return await GET_SECRET(SECRET_SERVICE, `provider:${providerID}`)
   } catch (error) {
     console.warn('[secrets] get provider key failed', error)
     return null
@@ -100,28 +81,21 @@ async function GET_PROVIDER_SECRET(providerID: string): Promise<string | null> {
 }
 
 async function PUT_PROVIDER_SECRET(providerID: string, apiKey: string | null): Promise<void> {
-  if (!isTauriRuntime()) return
+  if (!canUseTauriIpc()) return
   const account: SecretAccount = `provider:${providerID}`
   try {
     if (apiKey) {
-      await invoke(CHANNELS.SECRET.WRITE, {
-        service: SECRET_SERVICE,
-        account,
-        secret: apiKey
-      })
+      await PUT_SECRET(SECRET_SERVICE, account, apiKey)
       return
     }
-    await invoke(CHANNELS.SECRET.REMOVE, {
-      service: SECRET_SERVICE,
-      account
-    })
+    await DELETE_SECRET(SECRET_SERVICE, account)
   } catch (error) {
     console.warn('[secrets] write provider key failed', error)
   }
 }
 
 function subscribeAuthChanged(onChange: () => void): () => void {
-  if (!isTauriRuntime()) {
+  if (!canUseTauriIpc()) {
     return function () {}
   }
   let unlisten: (() => void) | undefined

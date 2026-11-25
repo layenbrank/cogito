@@ -1,4 +1,4 @@
-import type { SearchField } from '@/lib/workspace-git'
+import type { SearchField } from '@/apis/workspace-git'
 
 const GIT_SEARCH_FIELDS: { id: SearchField; label: string }[] = [
   { id: 'all', label: '全部' },

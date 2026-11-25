@@ -84,6 +84,8 @@ describe('persist store (memory)', function () {
   it('keeps vault pinHash out of gallery', async function () {
     await patchPref('vault', { pinHash: 'abc' })
     expect(findPref('vault').pinHash).toBe('abc')
-    expect(findPref('gallery')).toEqual({ placeholder: true })
+    // 图库偏好只有视图状态；PIN 留在 vault 命名空间
+    expect(findPref('gallery').viewID).toBe('all')
+    expect(findPref('gallery')).not.toHaveProperty('pinHash')
   })
 })

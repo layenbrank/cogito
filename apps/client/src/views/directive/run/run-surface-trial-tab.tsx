@@ -9,7 +9,7 @@ import {
 } from '@cogito/design/components/select'
 import { Textarea } from '@cogito/design/components/textarea'
 
-import type { ActionEntry } from '@/lib/directive-ipc.ts'
+import type { ActionEntry } from '@/apis/directive'
 
 interface RunSurfaceTrialTabProps {
   catalog: ActionEntry[]

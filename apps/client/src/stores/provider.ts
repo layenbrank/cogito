@@ -1,8 +1,12 @@
 import { parseModels } from '@/features/agent/model/providers'
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
-import { CHANNELS } from '@/shared/ipc/channels'
+import {
+  DELETE_AGENT_PROVIDERS,
+  GET_AGENT_PROVIDERS,
+  PATCH_AGENT_PROVIDERS,
+  POST_AGENT_PROVIDERS
+} from '@/apis/agent-provider'
 import { reportCaught } from '@/utils/exception-report'
-import { invoke } from '@tauri-apps/api/core'
 import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
@@ -111,7 +115,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       await ensurePersist()
       try {
         const providers = (
-          await invoke<AgentProvider[]>(CHANNELS.AGENT_PROVIDER.TO_READ, { params: {} })
+          await GET_AGENT_PROVIDERS<AgentProvider[]>()
         ).filter(function (provider) {
           return provider.kind !== 'goose'
         })
@@ -173,9 +177,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke(CHANNELS.AGENT_PROVIDER.TO_WRITE, {
-          params: values.map(toProviderWrite)
-        })
+        await POST_AGENT_PROVIDERS(values.map(toProviderWrite))
       } catch (error) {
         setters({ providers: former }, false, 'toWriteProvider/rollback')
         throw error
@@ -211,7 +213,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AGENT_PROVIDER.TO_UPDATE, { params })
+        await PATCH_AGENT_PROVIDERS(params)
       } catch (error) {
         setters({ providers }, false, 'toUpdateProvider/rollback')
         throw error
@@ -236,7 +238,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
           false,
           'toRemoveProvider/optimistic'
         )
-        await invoke(CHANNELS.AGENT_PROVIDER.TO_REMOVE, { params: keys })
+        await DELETE_AGENT_PROVIDERS(keys)
       } catch (error) {
         setters({ providers: former }, false, 'toRemoveProvider/rollback')
         throw error

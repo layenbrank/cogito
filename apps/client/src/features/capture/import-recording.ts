@@ -1,8 +1,10 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { stat } from '@tauri-apps/plugin-fs'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { POST_ASSETS } from '@/apis/album'
+
+
 import { VIDEO_EXTENSIONS } from '@/views/gallery/constraints'
 import { findMimeFromPath, stringifyMeta, type GalleryAssetMeta } from '@/views/gallery/model/media'
 import { probeVideoDurationMs } from '@/views/gallery/import-media'
@@ -63,23 +65,21 @@ async function insertRecordingPath(path: string): Promise<string | undefined> {
       albums: [],
       durationMs: await probeVideoDurationMs(src)
     }
-    const rows = await invoke<{ id: string }[]>(CHANNELS.ASSET.INSERT, {
-      params: {
-        filePath: path,
-        fileName,
-        mime,
-        kind: 'video',
-        hash: null,
-        sha: null,
-        size,
-        index: null,
-        extension,
-        metadata: stringifyMeta(meta),
-        status: null,
-        deviceID: null,
-        archivedAt: null,
-        tenantID: null
-      }
+    const rows = await POST_ASSETS<{ id: string }[]>({
+      filePath: path,
+      fileName,
+      mime,
+      kind: 'video',
+      hash: null,
+      sha: null,
+      size,
+      index: null,
+      extension,
+      metadata: stringifyMeta(meta),
+      status: null,
+      deviceID: null,
+      archivedAt: null,
+      tenantID: null
     })
     return rows[0]?.id
   } catch (error) {

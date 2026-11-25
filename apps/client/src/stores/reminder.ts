@@ -1,9 +1,11 @@
-import { invoke } from '@tauri-apps/api/core'
+
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
+
+import { GET_REMINDERS, POST_REMINDERS, PATCH_REMINDERS, DELETE_REMINDERS } from '@/apis/calendar'
 
 interface Reminder {
   id: string
@@ -83,9 +85,7 @@ const useReminderStore = create<ReminderStore>()(
 
         async toReadReminders(filter = {}) {
           try {
-            const reminders = await invoke<Reminder[]>(CHANNELS.REMINDER.READ, {
-              params: filter
-            })
+            const reminders = await GET_REMINDERS<Reminder[]>(filter)
             setter(
               function (state) {
                 state.reminders = reminders
@@ -110,8 +110,7 @@ const useReminderStore = create<ReminderStore>()(
 
         async toWriteReminder(value) {
           try {
-            const ids = await invoke<string[]>(CHANNELS.REMINDER.WRITE, {
-              params: {
+            const ids = await POST_REMINDERS<string[]>({
                 title: value.title,
                 notes: value.notes ?? '',
                 dueAt: value.dueAt ?? null,
@@ -122,8 +121,7 @@ const useReminderStore = create<ReminderStore>()(
                 enabled: value.enabled ?? true,
                 snoozeUntil: value.snoozeUntil ?? null,
                 priority: value.priority ?? 0
-              }
-            })
+              })
             await getter().toReadReminders()
             return ids[0]
           } catch (err) {
@@ -146,7 +144,7 @@ const useReminderStore = create<ReminderStore>()(
             'toUpdateReminder/optimistic'
           )
           try {
-            await invoke(CHANNELS.REMINDER.UPDATE, { params: value })
+            await PATCH_REMINDERS(value)
             await getter().toReadReminders()
           } catch (err) {
             setter(
@@ -173,7 +171,7 @@ const useReminderStore = create<ReminderStore>()(
             'toRemoveReminder/optimistic'
           )
           try {
-            await invoke(CHANNELS.REMINDER.REMOVE, { params: key })
+            await DELETE_REMINDERS(key)
           } catch (err) {
             setter(
               function (state) {

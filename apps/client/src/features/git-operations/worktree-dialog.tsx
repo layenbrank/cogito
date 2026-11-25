@@ -20,7 +20,7 @@ import { Switch } from '@cogito/design/components/switch'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import type { WorktreeEntry } from '@/lib/workspace-git'
+import type { WorktreeEntry } from '@/apis/workspace-git'
 import type { GitOpOutcome } from '@/features/git-operations/types.ts'
 
 interface WorktreeDialogProps {

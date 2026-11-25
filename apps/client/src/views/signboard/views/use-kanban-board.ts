@@ -8,11 +8,13 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_ASSETS } from '@/apis/album'
+
+
 import {
   useSignboardStore,
   type SignboardColumn,
@@ -137,11 +139,11 @@ function useKanbanBoard(props: KanbanViewProps) {
           return
         }
         try {
-          const assets = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, {
-            params: pairs.map(function (row) {
+          const assets = await GET_ASSETS<GalleryAsset[]>(
+            pairs.map(function (row) {
               return { id: row.assetID }
             })
-          })
+          )
           const byID = new Map(
             assets.map(function (asset) {
               return [asset.id, asset]

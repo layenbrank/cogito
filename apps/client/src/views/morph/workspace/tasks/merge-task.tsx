@@ -11,7 +11,7 @@ import { PathField } from '@/views/morph/workspace/tasks/path-field.tsx'
 import { MergeBoard } from '@/views/morph/workspace/tasks/stage/merge-board.tsx'
 import { OperationStage } from '@/views/morph/workspace/tasks/stage/operation-stage.tsx'
 import styles from '@/views/morph/workspace/tasks/tasks.module.scss'
-import { MorphIpc } from '@/lib/morph-ipc'
+import { MorphIpc } from '@/apis/morph'
 import { useMorphStore } from '@/stores/morph.ts'
 
 function MergeTask() {

@@ -13,6 +13,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 
 import { DEFAULT_PROMPTS } from './defaults'
 import type { SavedPrompt } from './types'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 const STORE_FILE = 'prompts.json'
 const STORE_KEY = 'value'
@@ -26,12 +27,6 @@ let isHydrated = false
 let hydratePromise: Promise<void> | null = null
 let store: LazyStore | null = null
 const listeners = new Set<() => void>()
-
-function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
-}
 
 function rebuildSnapshot(): void {
   snapshot = cache.slice().sort(function (left, right) {
@@ -111,7 +106,7 @@ async function ensurePrompts(): Promise<void> {
   }
   hydratePromise = (async function hydrate() {
     try {
-      if (!isTauriRuntime()) {
+      if (!canUseTauriIpc()) {
         cache = DEFAULT_PROMPTS.slice()
         return
       }
@@ -132,7 +127,7 @@ async function ensurePrompts(): Promise<void> {
 }
 
 async function persist(): Promise<void> {
-  if (!isTauriRuntime()) return
+  if (!canUseTauriIpc()) return
   try {
     const lazy = findStore()
     await lazy.init()

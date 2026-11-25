@@ -2,7 +2,7 @@
  * 运行能力：指令是否声明 cron / watch 触发器。
  */
 
-import { GET_SIDECAR_DIRECTIVE } from '@/lib/directive-ipc.ts'
+import { GET_SIDECAR_DIRECTIVE } from '@/apis/directive'
 
 interface Caps {
   hasCron: boolean

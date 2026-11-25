@@ -34,7 +34,7 @@ const AutomationSchema = z.object({
   id: z.string(),
   name: z.string(),
   prompt: z.string(),
-  knowledgeBaseId: z.string().nullish(),
+  knowledgeSpaceId: z.string().nullish(),
   /** 执行目录：`agent_workspace` 的 id；空 = 家目录 */
   workspaceId: z.string().nullish(),
   /** 目录：工作区下的具体文件夹（绝对路径）；空 = 跟随工作区默认目录 */
@@ -102,7 +102,7 @@ const AutomationSaveSchema = z
     name: z.string().min(1),
     /** 绑定计划时可空；执行依据是计划正文 */
     prompt: z.string(),
-    knowledgeBaseId: z.string().nullish(),
+    knowledgeSpaceId: z.string().nullish(),
     workspaceId: z.string().nullish(),
     /** 目录：工作区下的具体文件夹（绝对路径）；空 = 跟随工作区默认目录 */
     workspacePath: z.string().nullish(),
@@ -192,7 +192,7 @@ const AutomationDueSchema = z.object({
   automationId: z.string(),
   name: z.string(),
   prompt: z.string(),
-  knowledgeBaseId: z.string().nullish(),
+  knowledgeSpaceId: z.string().nullish(),
   workspaceId: z.string().nullish(),
   /** 目录：工作区下的具体文件夹（绝对路径）；空 = 跟随工作区默认目录 */
   workspacePath: z.string().nullish(),

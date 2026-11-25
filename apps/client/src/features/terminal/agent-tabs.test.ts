@@ -157,7 +157,7 @@ const { fakeStore, listMock, listenMock, reportCaughtMock } = vi.hoisted(functio
   }
 })
 
-vi.mock('@/lib/terminal', function () {
+vi.mock('@/apis/terminal', function () {
   return {
     Terminal: {
       GET_TERMINALS: listMock,

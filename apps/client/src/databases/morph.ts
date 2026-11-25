@@ -3,25 +3,19 @@
  * 键：`annotations:<path>` → Morph.Annotation[]
  */
 import { LazyStore } from '@tauri-apps/plugin-store'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 const STORE_FILE = 'morph.json'
 
 let store: LazyStore | null = null
 let hydratePromise: Promise<void> | null = null
 
-function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
-}
-
 function annotationKey(path: string): string {
   return `annotations:${path}`
 }
 
 async function ensureStore(): Promise<LazyStore | null> {
-  if (!isTauriRuntime()) return null
+  if (!canUseTauriIpc()) return null
   if (store) return store
   if (hydratePromise) {
     await hydratePromise

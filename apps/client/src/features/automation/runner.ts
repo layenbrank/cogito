@@ -51,7 +51,7 @@ import {
   type AutomationApproval,
   type RunCounters
 } from '@/features/automation/run-plan'
-import { POST_AUTOMATION_RUN_FINISH, PATCH_AUTOMATION_RUN, PUT_AUTOMATION_RUN_TOUCH } from '@/lib/automation-ipc'
+import { POST_AUTOMATION_RUN_FINISH, PATCH_AUTOMATION_RUN, PUT_AUTOMATION_RUN_TOUCH } from '@/apis/automation'
 import { EVENTS } from '@/shared/ipc/channels'
 import {
   AutomationDueSchema,

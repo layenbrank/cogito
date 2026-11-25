@@ -15,7 +15,7 @@ const mocks = vi.hoisted(function () {
   }
 })
 
-vi.mock('@/lib/terminal', function () {
+vi.mock('@/apis/terminal', function () {
   return {
     Terminal: {
       DELETE_TERMINAL: mocks.kill,

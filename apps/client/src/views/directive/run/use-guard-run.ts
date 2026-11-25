@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { GET_SIDECAR_JOBS as fetchJobsIpc, POST_SIDECAR_JOB, DELETE_SIDECAR_JOB } from '@/lib/directive-ipc.ts'
+import { GET_SIDECAR_JOBS as fetchJobsIpc, POST_SIDECAR_JOB, DELETE_SIDECAR_JOB } from '@/apis/directive'
 import type { JobKind, JobView } from '@/shared/ipc/specs/sidecar'
 import { useCorexStore } from '@/stores/corex.ts'
 

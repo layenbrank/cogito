@@ -8,7 +8,7 @@ vi.mock('@tauri-apps/api/event', function () {
 })
 
 import { buildPickedBlock } from '@/features/browser/attach-picked-element'
-import type { PickedBrowserElement } from '@/features/browser/api'
+import type { PickedBrowserElement } from '@/apis/browser'
 import { useBrowserStore } from '@/features/browser/store'
 
 describe('buildPickedBlock', function () {

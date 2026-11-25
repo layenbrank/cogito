@@ -33,7 +33,6 @@ export function TableSelectionOverlay({
     isMenuOpen,
     refs,
     floatingStyles,
-    containerRef,
     makeResizeHandler,
     handleMenuOpenChange
   } = useTableSelectionOverlay({
@@ -64,12 +63,8 @@ export function TableSelectionOverlay({
     )
   }
 
-  const portalRoot = containerRef.current?.isConnected
-    ? containerRef.current
-    : undefined
-
   return (
-    <FloatingPortal root={portalRoot}>
+    <FloatingPortal>
       <div
         ref={refs.setFloating}
         style={{

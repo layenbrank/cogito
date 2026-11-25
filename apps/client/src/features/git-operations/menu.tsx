@@ -21,7 +21,7 @@ import {
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import type { StashEntry } from '@/lib/workspace-git'
+import type { StashEntry } from '@/apis/workspace-git'
 import { RebaseDialog } from '@/features/git-operations/rebase-dialog.tsx'
 import { StashDialog } from '@/features/git-operations/stash-dialog.tsx'
 import type { GitOpHandlers, GitOpOutcome } from '@/features/git-operations/types.ts'

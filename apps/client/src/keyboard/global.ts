@@ -15,16 +15,15 @@
  * 无论哪种情况，`effective` 都只改运行时，**不覆写用户在设置里写的值**。
  */
 
-import { invoke } from '@tauri-apps/api/core'
 import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { isMainShell } from '@/features/window/shell-mode'
+import { POST_CAPTURE_HOTKEY } from '@/apis/capture'
 import { toAcceleratorText, validateBinding } from '@/keyboard/binding'
 import { runCommand } from '@/keyboard/commands'
 import { GLOBAL_SHORTCUTS, resolveBinding, SHORTCUT_COMMAND } from '@/keyboard/definitions'
-import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 import { publishGlobalShortcuts, readGlobalShortcuts } from '@/keyboard/state'
 import type { GlobalShortcutDefinition, GlobalShortcutRuntime } from '@/keyboard/types'
@@ -46,12 +45,12 @@ function isNativeGlobal(id: string): boolean {
 
 /** 宿主注册；被占用 / 非法组合会抛错，由 fallback 链决定下一步 */
 async function registerNative(accelerator: string): Promise<void> {
-  await invoke(CHANNELS.CAPTURE.HOTKEY, { params: { accelerator, release: null } })
+  await POST_CAPTURE_HOTKEY({ accelerator, release: null })
 }
 
 /** 宿主注销；`release` 显式给出要撤的组合（命令行不猜） */
 async function unregisterNative(accelerator: string): Promise<void> {
-  await invoke(CHANNELS.CAPTURE.HOTKEY, { params: { accelerator: null, release: accelerator } })
+  await POST_CAPTURE_HOTKEY({ accelerator: null, release: accelerator })
 }
 
 /** id → 当前真正注册在 OS 上的 accelerator（null = 没注册） */
@@ -76,8 +75,6 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 }
 
 function isMainWindow(): boolean {
-  // 环境判定与 `features/window/appearance.ts` 同一套；非 Tauri 环境下不碰全局键
-  if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return false
   // 判定统一走 shell-mode：右栏标签页是挂在主窗上的子 webview，它的
   // `getCurrentWindow().label` 也是 `main`，只看 window label 会在自载页里
   // 把全局键 / 设置同步整套跑一遍（然后整片 `not allowed by ACL`）。

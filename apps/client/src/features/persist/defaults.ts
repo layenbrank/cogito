@@ -1,6 +1,5 @@
 import type { PersistShape } from '@/features/persist/types'
 
-const SESSION_CAP = 8
 const CODE_TAB_CAP = 16
 const RECENT_HIT_CAP = 20
 const BROWSER_VISIT_CAP = 50
@@ -29,10 +28,10 @@ const PERSIST_DEFAULTS: PersistShape = {
     }
   },
   tiles: {
-    sessions: [],
     knowledge: {
       isSidebarOpen: true,
-      isOutlineOpen: true,
+      isOutlineOpen: false,
+      knowledgeLayoutVersion: 2,
       viewMode: 'live',
       fontSize: 16,
       contentMaxWidth: 760,
@@ -110,7 +109,16 @@ const PERSIST_DEFAULTS: PersistShape = {
     rememberedUsername: null
   },
   clipchamp: {},
-  gallery: { placeholder: true },
+  gallery: {
+    viewID: 'all',
+    sortKey: 'capturedAt',
+    sectionScope: 'day',
+    columnCount: 5,
+    isStackFolded: true,
+    isSidebarOpen: true,
+    isInspectorOpen: false,
+    filter: ''
+  },
   vault: { pinHash: null },
   diagnostics: { reportCrashes: true },
   overlay: {
@@ -130,6 +138,5 @@ export {
   CODE_TAB_CAP,
   PERSIST_DEFAULTS,
   RECENT_HIT_CAP,
-  SESSION_CAP,
   TIPTAP_COLOR_CAP
 }

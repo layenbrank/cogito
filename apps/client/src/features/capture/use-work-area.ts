@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { GET_CAPTURE_VIEWPORT, type CaptureRect } from '@/features/capture/tauri'
+import { GET_CAPTURE_VIEWPORT, type CaptureRect } from '@/apis/capture'
 
 /**
  * 这次截屏会话的可用矩形（overlay 局部 CSS 像素，已扣掉任务栏）。

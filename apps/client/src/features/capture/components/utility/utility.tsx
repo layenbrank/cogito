@@ -2,7 +2,7 @@ import { AnimatePresence } from 'motion/react'
 import * as m from 'motion/react-m'
 
 import { type GraphicsEnum } from '@/features/capture/components/graphics'
-import type { CaptureRect } from '@/features/capture/tauri'
+import type { CaptureRect } from '@/apis/capture'
 
 import { UtilityPropsSurface } from './props-surface'
 import { UtilityToolbar } from './toolbar'

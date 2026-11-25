@@ -2,6 +2,21 @@ import { z } from 'zod'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 
+/**
+ * daemon 回包里的任意 JSON。
+ *
+ * `sidecar:run` / `sidecar:invoke` 在 Rust 侧是 `serde_json::Value` 透传 —— 结果形状由
+ * 被调用的指令/动作自己决定，套不出固定 schema，但也不该退化成 `unknown`：
+ * 这里用递归 JSON 联合表达「任意 JSON」，读取方必须显式收窄才能取字段。
+ */
+type SidecarValue =
+  | string
+  | number
+  | boolean
+  | null
+  | SidecarValue[]
+  | { [key: string]: SidecarValue }
+
 const StatusSchema = z.object({
   isReady: z.boolean(),
   version: z.string(),
@@ -502,6 +517,7 @@ export type {
   ParallelStep,
   Progress,
   RepeatStep,
+  SidecarValue,
   Step,
   StepsStep
 }

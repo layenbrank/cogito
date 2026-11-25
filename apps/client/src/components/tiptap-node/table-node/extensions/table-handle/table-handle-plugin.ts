@@ -1,15 +1,5 @@
 // @ts-nocheck
-import type { Editor } from '@tiptap/core'
-import type { Node as TiptapNode } from '@tiptap/pm/model'
-import type { PluginView, Transaction } from '@tiptap/pm/state'
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
-import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import {
-  CellSelection,
-  moveTableColumn,
-  moveTableRow,
-  TableMap
-} from '@tiptap/pm/tables'
+import { makeTableDragImage } from '@/components/tiptap-node/table-node/extensions/table-handle/helpers/create-image.ts'
 import {
   clamp,
   domCellAround,
@@ -24,7 +14,12 @@ import {
   selectCellsByCoords
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import { isValidPosition } from '@/lib/tiptap-utils.ts'
-import { makeTableDragImage } from '@/components/tiptap-node/table-node/extensions/table-handle/helpers/create-image.ts'
+import type { Editor } from '@tiptap/core'
+import type { Node as TiptapNode } from '@tiptap/pm/model'
+import type { PluginView, Transaction } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { CellSelection, moveTableColumn, moveTableRow, TableMap } from '@tiptap/pm/tables'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
 export type TableHandlesState = {
   show: boolean
@@ -81,22 +76,15 @@ class TableHandleView implements PluginView {
     this.editorView.dom.addEventListener('mousedown', this.viewMousedownHandler)
     window.addEventListener('mouseup', this.mouseUpHandler)
 
-    this.editorView.root.addEventListener(
-      'dragover',
-      this.dragOverHandler as EventListener
-    )
-    this.editorView.root.addEventListener(
-      'drop',
-      this.dropHandler as unknown as EventListener
-    )
+    this.editorView.root.addEventListener('dragover', this.dragOverHandler as EventListener)
+    this.editorView.root.addEventListener('drop', this.dropHandler as unknown as EventListener)
   }
 
   private viewMousedownHandler = (event: MouseEvent) => {
     this.mouseState = 'down'
 
     const { state, view } = this.editor
-    if (!(state.selection instanceof CellSelection) || this.editor.isFocused)
-      return
+    if (!(state.selection instanceof CellSelection) || this.editor.isFocused) return
 
     const posInfo = view.posAtCoords({
       left: event.clientX,
@@ -111,10 +99,7 @@ class TableHandleView implements PluginView {
 
     for (let d = $pos.depth; d >= 0; d--) {
       const node = $pos.node(d)
-      if (
-        !inTableCell &&
-        (node.type === nodes.tableCell || node.type === nodes.tableHeader)
-      ) {
+      if (!inTableCell && (node.type === nodes.tableCell || node.type === nodes.tableHeader)) {
         inTableCell = true
       }
       if (paraDepth === -1 && node.type === nodes.paragraph) {
@@ -167,11 +152,7 @@ class TableHandleView implements PluginView {
     const around = domCellAround(event.target as Element)
 
     // Hide handles while selecting inside a cell
-    if (
-      around?.type === 'cell' &&
-      this.mouseState === 'down' &&
-      !this.state?.draggingState
-    ) {
+    if (around?.type === 'cell' && this.mouseState === 'down' && !this.state?.draggingState) {
       this.mouseState = 'selecting'
       this.hideHandles()
       return
@@ -204,25 +185,17 @@ class TableHandleView implements PluginView {
     }
     if (!blockInfo || blockInfo.node.type.name !== 'table') return
 
-    this.tableElement = this.editor.view.nodeDOM(blockInfo.pos) as
-      | HTMLElement
-      | undefined
+    this.tableElement = this.editor.view.nodeDOM(blockInfo.pos) as HTMLElement | undefined
     this.tablePos = blockInfo.pos
     this.tableId = blockInfo.node.attrs.id
 
     const wrapper = safeClosest<HTMLElement>(around.domNode, '.tableWrapper')
-    const widgetContainer = wrapper?.querySelector('.table-controls') as
-      | HTMLElement
-      | undefined
+    const widgetContainer = wrapper?.querySelector('.table-controls') as HTMLElement | undefined
 
     // Hovering around the table (outside cells)
     if (around.type === 'wrapper') {
-      const below =
-        event.clientY >= tableRect.bottom - 1 &&
-        event.clientY < tableRect.bottom + 20
-      const right =
-        event.clientX >= tableRect.right - 1 &&
-        event.clientX < tableRect.right + 20
+      const below = event.clientY >= tableRect.bottom - 1 && event.clientY < tableRect.bottom + 20
+      const right = event.clientX >= tableRect.right - 1 && event.clientX < tableRect.right + 20
       const cursorBeyondRightOrBottom =
         event.clientX > tableRect.right || event.clientY > tableRect.bottom
 
@@ -237,9 +210,7 @@ class TableHandleView implements PluginView {
         widgetContainer,
         colIndex: cursorBeyondRightOrBottom ? undefined : this.state?.colIndex,
         rowIndex: cursorBeyondRightOrBottom ? undefined : this.state?.rowIndex,
-        referencePosCell: cursorBeyondRightOrBottom
-          ? undefined
-          : this.state?.referencePosCell
+        referencePosCell: cursorBeyondRightOrBottom ? undefined : this.state?.referencePosCell
       }
     } else {
       // Hovering over a cell
@@ -253,8 +224,7 @@ class TableHandleView implements PluginView {
       const { rowIndex, colIndex } = cellPosition
       const cellRect = (around.domNode as HTMLElement).getBoundingClientRect()
       const lastRowIndex = blockInfo.node.content.childCount - 1
-      const lastColIndex =
-        (blockInfo.node.content.firstChild?.content.childCount ?? 0) - 1
+      const lastColIndex = (blockInfo.node.content.firstChild?.content.childCount ?? 0) - 1
 
       // Skip update if same cell
       if (
@@ -337,10 +307,7 @@ class TableHandleView implements PluginView {
       this.state.draggingState.draggedCellOrientation === 'row'
         ? this.state.rowIndex
         : this.state.colIndex
-    const newIndex =
-      this.state.draggingState.draggedCellOrientation === 'row'
-        ? rowIndex
-        : colIndex
+    const newIndex = this.state.draggingState.draggedCellOrientation === 'row' ? rowIndex : colIndex
     const dispatchDecorationsTransaction = newIndex !== oldIndex
 
     const mousePos =
@@ -349,8 +316,7 @@ class TableHandleView implements PluginView {
         : boundedMouseCoords.left
 
     // Check if anything needs updating
-    const cellChanged =
-      this.state.rowIndex !== rowIndex || this.state.colIndex !== colIndex
+    const cellChanged = this.state.rowIndex !== rowIndex || this.state.colIndex !== colIndex
     const mousePosChanged = this.state.draggingState.mousePos !== mousePos
 
     if (cellChanged || mousePosChanged) {
@@ -370,9 +336,7 @@ class TableHandleView implements PluginView {
 
     // Dispatch decorations transaction if needed
     if (dispatchDecorationsTransaction) {
-      this.editor.view.dispatch(
-        this.editor.state.tr.setMeta(tableHandlePluginKey, true)
-      )
+      this.editor.view.dispatch(this.editor.state.tr.setMeta(tableHandlePluginKey, true))
     }
   }
 
@@ -386,13 +350,10 @@ class TableHandleView implements PluginView {
     if (!isValidPosition(blockPos)) return false
 
     if (
-      (draggingState.draggedCellOrientation === 'row' &&
-        rowIndex === undefined) ||
+      (draggingState.draggedCellOrientation === 'row' && rowIndex === undefined) ||
       (draggingState.draggedCellOrientation === 'col' && colIndex === undefined)
     ) {
-      console.warn(
-        '[TableHandle] Drop ignored: no hovered row/column index.'
-      )
+      console.warn('[TableHandle] Drop ignored: no hovered row/column index.')
       this.state = { ...st, draggingState: undefined }
       this.emitUpdate()
       return false
@@ -410,12 +371,9 @@ class TableHandleView implements PluginView {
     })
     if (!cellCoords) return false
 
-    const stateWithCellSel = selectCellsByCoords(
-      this.editor,
-      blockPos,
-      cellCoords,
-      { mode: 'state' }
-    )
+    const stateWithCellSel = selectCellsByCoords(this.editor, blockPos, cellCoords, {
+      mode: 'state'
+    })
     if (!stateWithCellSel) return false
 
     const dispatch = (tr: Transaction) => this.editor.view.dispatch(tr)
@@ -439,9 +397,7 @@ class TableHandleView implements PluginView {
     this.state = { ...st, draggingState: undefined }
     this.emitUpdate()
 
-    this.editor.view.dispatch(
-      this.editor.state.tr.setMeta(tableHandlePluginKey, null)
-    )
+    this.editor.view.dispatch(this.editor.state.tr.setMeta(tableHandlePluginKey, null))
 
     return true
   }
@@ -467,8 +423,7 @@ class TableHandleView implements PluginView {
 
     // Check if table changed
     const blockChanged =
-      this.state.block !== tableInfo.node ||
-      this.state.blockPos !== tableInfo.pos
+      this.state.block !== tableInfo.node || this.state.blockPos !== tableInfo.pos
 
     if (
       !tableInfo.node ||
@@ -539,23 +494,11 @@ class TableHandleView implements PluginView {
   }
 
   destroy(): void {
-    this.editorView.dom.removeEventListener(
-      'mousemove',
-      this.mouseMoveHandler as EventListener
-    )
+    this.editorView.dom.removeEventListener('mousemove', this.mouseMoveHandler as EventListener)
     window.removeEventListener('mouseup', this.mouseUpHandler as EventListener)
-    this.editorView.dom.removeEventListener(
-      'mousedown',
-      this.viewMousedownHandler as EventListener
-    )
-    this.editorView.root.removeEventListener(
-      'dragover',
-      this.dragOverHandler as EventListener
-    )
-    this.editorView.root.removeEventListener(
-      'drop',
-      this.dropHandler as unknown as EventListener
-    )
+    this.editorView.dom.removeEventListener('mousedown', this.viewMousedownHandler as EventListener)
+    this.editorView.root.removeEventListener('dragover', this.dragOverHandler as EventListener)
+    this.editorView.root.removeEventListener('drop', this.dropHandler as unknown as EventListener)
   }
 }
 
@@ -608,14 +551,8 @@ export function TableHandlePlugin(
         const { draggingState } = tableHandleView.state
         const { originalIndex } = draggingState
 
-        if (
-          tableHandleView.state.draggingState.draggedCellOrientation === 'row'
-        ) {
-          const originalCells = findRowCells(
-            editor,
-            originalIndex,
-            tableHandleView.state.blockPos
-          )
+        if (tableHandleView.state.draggingState.draggedCellOrientation === 'row') {
+          const originalCells = findRowCells(editor, originalIndex, tableHandleView.state.blockPos)
           originalCells.cells.forEach((cell) => {
             if (cell.node) {
               decorations.push(
@@ -649,14 +586,8 @@ export function TableHandlePlugin(
           return DecorationSet.create(state.doc, decorations)
         }
 
-        if (
-          tableHandleView.state.draggingState.draggedCellOrientation === 'row'
-        ) {
-          const cellsInRow = findRowCells(
-            editor,
-            newIndex,
-            tableHandleView.state.blockPos
-          )
+        if (tableHandleView.state.draggingState.draggedCellOrientation === 'row') {
+          const cellsInRow = findRowCells(editor, newIndex, tableHandleView.state.blockPos)
 
           cellsInRow.cells.forEach((cell) => {
             const cellNode = cell.node
@@ -667,8 +598,7 @@ export function TableHandlePlugin(
             // Creates a decoration at the start or end of each cell,
             // depending on whether the new index is before or after the
             // original index.
-            const decorationPos =
-              cell.pos + (newIndex > originalIndex ? cellNode.nodeSize - 2 : 2)
+            const decorationPos = cell.pos + (newIndex > originalIndex ? cellNode.nodeSize - 2 : 2)
             decorations.push(
               Decoration.widget(decorationPos, () => {
                 const widget = document.createElement('div')
@@ -692,11 +622,7 @@ export function TableHandlePlugin(
             )
           })
         } else {
-          const cellsInColumn = findColumnCells(
-            editor,
-            newIndex,
-            tableHandleView.state.blockPos
-          )
+          const cellsInColumn = findColumnCells(editor, newIndex, tableHandleView.state.blockPos)
           cellsInColumn.cells.forEach((cell) => {
             const cellNode = cell.node
             if (!cellNode) {
@@ -705,8 +631,7 @@ export function TableHandlePlugin(
             // Creates a decoration at the start or end of each cell,
             // depending on whether the new index is before or after the
             // original index.
-            const decorationPos =
-              cell.pos + (newIndex > originalIndex ? cellNode.nodeSize - 2 : 2)
+            const decorationPos = cell.pos + (newIndex > originalIndex ? cellNode.nodeSize - 2 : 2)
             decorations.push(
               Decoration.widget(decorationPos, () => {
                 const widget = document.createElement('div')
@@ -749,9 +674,7 @@ const tableDragStart = (
   }
 ) => {
   if (!tableHandleView?.state) {
-    console.warn(
-      `[TableHandle] Drag ignored: no table handle state for ${orientation}.`
-    )
+    console.warn(`[TableHandle] Drag ignored: no table handle state for ${orientation}.`)
     return
   }
 
@@ -759,9 +682,7 @@ const tableDragStart = (
   const index = orientation === 'col' ? state.colIndex : state.rowIndex
 
   if (index === undefined) {
-    console.warn(
-      `[TableHandle] Drag ignored: no ${orientation} index hovered.`
-    )
+    console.warn(`[TableHandle] Drag ignored: no ${orientation} index hovered.`)
     return
   }
 
@@ -778,16 +699,11 @@ const tableDragStart = (
 
   // Configure drag image
   if (event.dataTransfer) {
-    const handleRect = (
-      event.currentTarget as HTMLElement
-    ).getBoundingClientRect()
+    const handleRect = (event.currentTarget as HTMLElement).getBoundingClientRect()
     const offset =
-      orientation === 'col'
-        ? { x: handleRect.width / 2, y: 0 }
-        : { x: 0, y: handleRect.height / 2 }
+      orientation === 'col' ? { x: handleRect.width / 2, y: 0 } : { x: 0, y: handleRect.height / 2 }
 
-    event.dataTransfer.effectAllowed =
-      orientation === 'col' ? 'move' : 'copyMove'
+    event.dataTransfer.effectAllowed = orientation === 'col' ? 'move' : 'copyMove'
     event.dataTransfer.setDragImage(dragImage, offset.x, offset.y)
   }
 
@@ -797,8 +713,7 @@ const tableDragStart = (
   document.addEventListener('dragend', cleanup, { once: true })
 
   const initialOffset = referencePosCell
-    ? (orientation === 'col' ? referencePosCell.left : referencePosCell.top) -
-      mousePos
+    ? (orientation === 'col' ? referencePosCell.left : referencePosCell.top) - mousePos
     : 0
 
   // Update dragging state

@@ -14,7 +14,7 @@ import {
   parseKeywordUrl,
   parseSuggestionLabel
 } from '@/features/command-bar/url'
-import { EngineIpc } from '@/lib/engine-ipc'
+import { EngineIpc } from '@/apis/search'
 
 /** 同步即时命中：打开网址 / 在引擎搜索（不依赖 IPC，跟手刷新） */
 function findInstantWebHits(query: string): Hit[] {

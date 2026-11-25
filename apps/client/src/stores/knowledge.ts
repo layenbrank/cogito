@@ -68,6 +68,15 @@ interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   toNewDocument: () => void
   toUpdateMarkdown: (markdown: string) => void
   toUpdateHtml: (html: string) => void
+  /**
+   * 一次编辑只 emit 一次：html / markdown / outline 同批落地（统计另走节流）。
+   * 原来逐个动作写 4~5 次，每个订阅方（标题、大纲、底栏）都要重渲染 4~5 轮。
+   */
+  toCommitEdit: (params: {
+    html: string
+    markdown: string
+    outline: OutlineItem[]
+  }) => void
   toUpdateFrontMatter: (frontMatter: string | null) => void
   toMarkSaved: (path: string) => void
   /** 保存成功且内容仍是最新：一次写入 markdown + 清 dirty，避免先 dirty 再清除的闪烁 */
@@ -109,6 +118,8 @@ const useKnowledgeStore = create<KnowledgeStore>()(
         persistPreferences({
           isSidebarOpen: state.isSidebarOpen,
           isOutlineOpen: state.isOutlineOpen,
+          // 布局版本写死：老库读入时靠它决定是否重置右栏默认值
+          knowledgeLayoutVersion: 2,
           viewMode: state.viewMode,
           fontSize: state.fontSize,
           contentMaxWidth: state.contentMaxWidth,
@@ -300,6 +311,19 @@ const useKnowledgeStore = create<KnowledgeStore>()(
             },
             false,
             'toUpdateHtml'
+          )
+        },
+
+        toCommitEdit(params) {
+          setters(
+            function (state) {
+              state.html = params.html
+              state.markdown = params.markdown
+              state.outline = params.outline
+              state.isDirty = true
+            },
+            false,
+            'toCommitEdit'
           )
         },
 

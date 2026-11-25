@@ -1,11 +1,13 @@
-import { invoke } from '@tauri-apps/api/core'
+
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { findPref, patchPref, type ClockStyle } from '@/features/persist'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
+
+import { GET_COUNTDOWN, PATCH_COUNTDOWN } from '@/apis/calendar'
 
 export type { ClockStyle }
 
@@ -64,7 +66,7 @@ export const useClockStore = create<ClockStore>()(
         async initialize() {
           if (getter().loaded) return
           try {
-            const config = await invoke<CountdownConfig | null>(CHANNELS.COUNTDOWN.READ)
+            const config = await GET_COUNTDOWN<CountdownConfig | null>()
             setter(function (state) {
               state.config = config ?? COUNTDOWN_CONFIG
               state.clockStyle = findClockStyle()
@@ -86,7 +88,7 @@ export const useClockStore = create<ClockStore>()(
             Object.assign(state.config, update)
           })
           try {
-            await invoke(CHANNELS.COUNTDOWN.UPDATE, { params: update })
+            await PATCH_COUNTDOWN(update)
           } catch (e) {
             // Rollback on failure
             setter(function (state) {

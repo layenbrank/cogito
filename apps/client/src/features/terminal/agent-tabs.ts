@@ -14,7 +14,7 @@
  */
 import { listen } from '@tauri-apps/api/event'
 
-import { Terminal, type TerminalInfo } from '@/lib/terminal'
+import { Terminal, type TerminalInfo } from '@/apis/terminal'
 import { EVENTS } from '@/shared/ipc/channels'
 import { useTerminalStore } from '@/stores/terminal'
 import { reportCaught } from '@/utils/exception-report'

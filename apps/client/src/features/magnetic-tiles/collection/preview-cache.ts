@@ -1,11 +1,9 @@
-import { invoke } from '@tauri-apps/api/core'
-
 import {
   findNavigationIconSrc,
   findNavigationLabel
 } from '@/features/magnetic-tile/mark.ts'
 import { findCollectionPreviewLimit } from '@/features/magnetic-tiles/collection/preview-layout'
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_MAGNETIC_TILES } from '@/apis/magnetic-tile'
 
 /** 按最大磁贴能放下的格数取，切换 size / direction 时缓存里已经有下一档图标 */
 const PREVIEW_COUNT = findCollectionPreviewLimit()
@@ -72,9 +70,7 @@ function parseMemberPreview(tile: MagneticTile): CollectionPreview {
 async function fetchCollectionPreviews(
   collectionId: string
 ): Promise<CollectionPreview[]> {
-  const members = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-    params: { collectionID: collectionId }
-  })
+  const members = await GET_MAGNETIC_TILES<MagneticTile[]>({ collectionID: collectionId })
   return members
     .toSorted(function (a, b) {
       return a.index - b.index

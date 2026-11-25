@@ -21,12 +21,17 @@
   outline: none;
   caret-color: var(--tt-cursor-color);
 
-  // Paragraph spacing
-  p:not(:first-child):not(td p):not(th p) {
+  // 段间距只留一小截。以前 20px 再叠 prose 的段距，复制到别的编辑器会变成大段空行。
+  p:not(td p):not(th p) {
     font-size: 1rem;
     line-height: 1.6;
     font-weight: normal;
-    margin-top: 20px;
+    margin-top: 0.5em;
+    margin-bottom: 0;
+  }
+
+  p:first-child {
+    margin-top: 0;
   }
 
   // Selection styles

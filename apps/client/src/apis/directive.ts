@@ -28,7 +28,8 @@ import {
   ValidateSchema,
   type JobView,
   type JobsReply,
-  type Progress
+  type Progress,
+  type SidecarValue
 } from '@/shared/ipc/specs/sidecar'
 import type { z } from 'zod'
 
@@ -123,14 +124,16 @@ async function POST_SIDECAR_DIRECTIVE_EDIT(name: string): Promise<void> {
   await invoke(CHANNELS.SIDECAR.EDIT_DIRECTIVE, { input: { name } })
 }
 
-async function POST_SIDECAR_RUN(input: z.infer<typeof RunSchema>): Promise<unknown> {
+/** 跑一条指令：回包是 daemon 的原始 JSON（形状由指令自己决定） */
+async function POST_SIDECAR_RUN(input: z.infer<typeof RunSchema>): Promise<SidecarValue> {
   const payload = RunSchema.parse(input)
-  return invoke(CHANNELS.SIDECAR.RUN, { input: payload })
+  return invoke<SidecarValue>(CHANNELS.SIDECAR.RUN, { input: payload })
 }
 
-async function POST_SIDECAR_INVOKE(input: z.infer<typeof InvokeSchema>): Promise<unknown> {
+/** 试跑一个动作：回包同样是原始 JSON */
+async function POST_SIDECAR_INVOKE(input: z.infer<typeof InvokeSchema>): Promise<SidecarValue> {
   const payload = InvokeSchema.parse(input)
-  return invoke(CHANNELS.SIDECAR.INVOKE, { input: payload })
+  return invoke<SidecarValue>(CHANNELS.SIDECAR.INVOKE, { input: payload })
 }
 
 async function GET_SIDECAR_RUNS(input: z.infer<typeof ListRunsSchema> = {}): Promise<ListRunsReply> {

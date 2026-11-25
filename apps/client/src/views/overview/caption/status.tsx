@@ -9,13 +9,13 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { cn } from 'cn'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
+import { GET_IPC_READY } from '@/apis/agent-runtime'
 import { canUseTauriIpc } from '@/features/window/shell-mode'
-import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+import { EVENTS } from '@/shared/ipc/channels'
 import {
   autoCheckUpdate,
   checkUpdate,
@@ -40,7 +40,7 @@ function useCorexState() {
   const check = useCallback(function () {
     // 嵌套预览壳没有 IPC：别把「调不通」当成「corex 未就绪」挂在标题栏上
     if (!canUseTauriIpc()) return
-    void invoke<boolean | null>(CHANNELS.IPC.READY)
+    void GET_IPC_READY()
       .then(function (ready) {
         updateState(ready === false ? 'missing' : 'ready')
       })

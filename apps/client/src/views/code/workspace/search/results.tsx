@@ -6,7 +6,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Skeleton } from '@cogito/design/components/skeleton'
-import type { ContentHit } from '@/lib/workspace-files'
+import type { ContentHit } from '@/apis/workspace-files'
 import { groupHits, type FileGroup } from '@/views/code/workspace/search/group-hits.ts'
 import { cn } from 'cn'
 import { useMemo, useState } from 'react'

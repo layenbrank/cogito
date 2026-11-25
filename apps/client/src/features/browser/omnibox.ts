@@ -14,9 +14,9 @@ import {
   parseSuggestionLabel
 } from '@/features/command-bar/url'
 import { parseAddress } from '@/features/browser/address'
-import type { BrowserNavigationEntry } from '@/features/browser/api'
+import type { BrowserNavigationEntry } from '@/apis/browser'
 import { matchBrowserVisits } from '@/features/browser/visit-history'
-import { EngineIpc } from '@/lib/engine-ipc'
+import { EngineIpc } from '@/apis/search'
 import { useMirrorStore } from '@/stores/mirror'
 
 type OmniboxKind = 'url' | 'search'

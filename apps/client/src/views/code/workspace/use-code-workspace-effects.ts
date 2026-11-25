@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { subscribeWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
-import { WorkspaceFiles, type WatchDir } from '@/lib/workspace-files.ts'
+import { WorkspaceFiles, type WatchDir } from '@/apis/workspace-files'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'

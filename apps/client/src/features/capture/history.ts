@@ -1,14 +1,15 @@
-import { invoke } from '@tauri-apps/api/core'
+
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
 
-import { CHANNELS } from '@/shared/ipc/channels'
 import {
   parseMeta,
   stringifyMeta,
   type GalleryAsset,
   type GalleryAssetMeta
 } from '@/views/gallery/model/media'
+
+import { GET_ASSETS, POST_ASSETS, PATCH_ASSETS } from '@/apis/album'
 
 interface SessionRecord {
   assetID: string
@@ -76,15 +77,12 @@ async function toRecordCapture(input: RecordCaptureInput): Promise<string | null
       await writeFile(existing.filePath, bytes)
       let previousMeta: GalleryAssetMeta | undefined
       try {
-        const rows = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, {
-          params: { id: existing.assetID }
-        })
+        const rows = await GET_ASSETS<GalleryAsset[]>({ id: existing.assetID })
         previousMeta = parseMeta(rows[0]?.metadata)
       } catch (error) {
         console.warn('[capture] read existing capture meta failed', error)
       }
-      await invoke(CHANNELS.ASSET.UPDATE, {
-        params: {
+      await PATCH_ASSETS({
           id: existing.assetID,
           updates: {
             tenantID: null,
@@ -102,8 +100,7 @@ async function toRecordCapture(input: RecordCaptureInput): Promise<string | null
             deviceID: null,
             archivedAt: null
           }
-        }
-      })
+        })
       return existing.assetID
     }
 
@@ -112,8 +109,7 @@ async function toRecordCapture(input: RecordCaptureInput): Promise<string | null
     const filePath = await join(dir, fileName)
     await writeFile(filePath, bytes)
 
-    const inserted = await invoke<InsertResult[]>(CHANNELS.ASSET.INSERT, {
-      params: {
+    const inserted = await POST_ASSETS<InsertResult[]>({
         filePath,
         fileName,
         mime: 'image/png',
@@ -128,8 +124,7 @@ async function toRecordCapture(input: RecordCaptureInput): Promise<string | null
         deviceID: null,
         archivedAt: null,
         tenantID: null
-      }
-    })
+      })
     const assetID = inserted[0]?.id
     if (!assetID) {
       console.warn('[capture] history insert returned no id')

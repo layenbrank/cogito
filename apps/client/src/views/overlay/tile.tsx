@@ -14,7 +14,7 @@ import { useThrough } from '@/hooks/use-through'
 import { useOverlayStore, type OverlayTile } from '@/stores/overlay'
 import { RenderMarker } from '@/views/overlay/markers'
 import styles from '@/views/overlay/overlay.module.scss'
-import { DELETE_OVERLAY_TILE } from '@/features/capture/tauri'
+import { DELETE_OVERLAY_TILE } from '@/apis/capture'
 
 interface TileProps {
   item: OverlayTile

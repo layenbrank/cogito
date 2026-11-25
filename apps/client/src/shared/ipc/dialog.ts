@@ -10,7 +10,7 @@
 import type { OpenDialogOptions, SaveDialogOptions } from '@tauri-apps/plugin-dialog'
 import { open as tauriOpen, save as tauriSave } from '@tauri-apps/plugin-dialog'
 
-import { POST_SECURITY_GRANTS } from './grants'
+import { grantPaths } from './grants'
 
 export { ask, confirm, message } from '@tauri-apps/plugin-dialog'
 
@@ -32,14 +32,14 @@ const openImpl = async (options?: OpenDialogOptions): Promise<PickedPath> => {
   const picked = await tauriOpen(options)
   if (picked === null) return null
   // 选目录时递归放行（否则只能列根目录）；选文件时只放行该文件。
-  await POST_SECURITY_GRANTS(collect(picked), options?.directory === true)
+    await grantPaths(collect(picked), options?.directory === true)
   return picked
 }
 
 const saveImpl = async (options?: SaveDialogOptions): Promise<string | null> => {
   const target = await tauriSave(options)
   if (target === null || target === undefined) return null
-  await POST_SECURITY_GRANTS([target], false)
+    await grantPaths([target], false)
   return target
 }
 

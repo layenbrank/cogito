@@ -17,7 +17,9 @@ import {
   POST_BROWSER_SCREENSHOT,
   PUT_BROWSER_LAYOUT,
   PUT_BROWSER_VISIBLE
-} from './api'
+} from '@/apis/browser'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
+
 import { findCoveringOverlay, hasCoverMarker } from './overlay-cover'
 
 /** 截图超时：宁可用缓存帧立刻让位，也不把菜单堵在 webview 下面 */
@@ -64,7 +66,10 @@ async function settlePauseFrame(src: string | null) {
 function useBrowserRect(active: boolean, activeLabel: string | null) {
   const ref = useRef<HTMLDivElement | null>(null)
   const activeLabelRef = useRef(activeLabel)
-  activeLabelRef.current = activeLabel
+  // 写入放布局副作用：渲染可能被丢弃/重放，渲染期间写 ref 会把未提交的值漏给已跑起来的回调
+  useIsomorphicLayoutEffect(function () {
+    activeLabelRef.current = activeLabel
+  })
 
   const [isPaused, updatePaused] = useState(false)
   const [pauseSrc, updatePauseSrc] = useState<string | null>(null)

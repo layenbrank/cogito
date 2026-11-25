@@ -9,22 +9,21 @@ import {
   GET_SEARCH_FILE_INDEX,
   POST_SEARCH_FILE_INDEX_REBUILD,
   type FileIndexStatus
-} from '@/features/command-bar/providers/files.ts'
-import { cachePruneText, cacheSizeText } from '@/lib/diagnostics/cache-text'
+} from '@/apis/search'
+import { cachePruneText, cacheSizeText, formatBytes } from '@/lib/diagnostics/cache-text'
 import {
   DELETE_AGENT_CACHE,
-  formatBytes,
-  POST_DIAGNOSTICS_DIR,
-  GET_CAPABILITIES,
-  GET_AGENT_CACHE,
+  GET_AGENT_CACHE_INFO,
   GET_BUILD_INFO,
+  GET_CAPABILITIES,
   GET_DIAGNOSTICS_CAPABILITIES,
+  POST_DIAGNOSTICS_OPEN_DIR,
   type AgentCacheStats,
   type BuildInfo,
   type Capabilities,
   type DiagnosticsCapabilities,
   type ToolCapability
-} from '@/lib/diagnostics/capabilities'
+} from '@/apis/diagnostics'
 import { reportPendingCrashes } from '@/lib/diagnostics/crash-report'
 import {
   SURFACE_STACK,
@@ -88,7 +87,7 @@ function DiagnosticSurface() {
       const [nextCaps, nextTools, nextCache, nextBuild] = await Promise.all([
         GET_DIAGNOSTICS_CAPABILITIES(),
         GET_CAPABILITIES(),
-        GET_AGENT_CACHE(),
+        GET_AGENT_CACHE_INFO(),
         GET_BUILD_INFO()
       ])
       setCaps(nextCaps)
@@ -170,7 +169,7 @@ function DiagnosticSurface() {
   }
 
   async function onOpen(kind: 'log' | 'crash' | 'data', label: string): Promise<void> {
-    const opened = await POST_DIAGNOSTICS_DIR(kind)
+    const opened = await POST_DIAGNOSTICS_OPEN_DIR(kind)
     if (opened) {
       toast.success(`已打开${label}`, { description: opened })
       return

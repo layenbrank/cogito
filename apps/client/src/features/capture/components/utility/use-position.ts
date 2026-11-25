@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
-import type { CaptureRect } from '@/features/capture/tauri'
+import type { CaptureRect } from '@/apis/capture'
 
 interface SelectionRect {
   x: number

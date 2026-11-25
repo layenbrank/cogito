@@ -12,7 +12,7 @@ import {
   PUT_DIRECTIVE_DRAFT_STATUS,
   type DirectiveDraft,
   type DraftSave
-} from '@/lib/directive-draft-ipc'
+} from '@/apis/directive-draft'
 import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import { reportCaught } from '@/utils/exception-report'
 
@@ -32,7 +32,7 @@ interface DirectiveDraftState {
   discard: (id: string) => Promise<void>
 }
 
-function toMessage(error: unknown): string {
+function toErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === 'string' && error.trim()) return error
   return String(error)
@@ -50,7 +50,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
         const drafts = await GET_DIRECTIVE_DRAFTS(DRAFT.PENDING)
         setter({ drafts, isLoading: false })
       } catch (error) {
-        setter({ isLoading: false, fetchError: toMessage(error) })
+        setter({ isLoading: false, fetchError: toErrorMessage(error) })
         reportCaught('directiveDraft.refresh', error, 'warning')
       }
     },
@@ -65,7 +65,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
         })
         return draft
       } catch (error) {
-        setter({ fetchError: toMessage(error) })
+        setter({ fetchError: toErrorMessage(error) })
         reportCaught('directiveDraft.save', error, 'warning')
         return null
       }
@@ -80,7 +80,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
           })
         })
       } catch (error) {
-        setter({ fetchError: toMessage(error) })
+        setter({ fetchError: toErrorMessage(error) })
         reportCaught('directiveDraft.markSaved', error, 'warning')
       }
     },
@@ -94,7 +94,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
           })
         })
       } catch (error) {
-        setter({ fetchError: toMessage(error) })
+        setter({ fetchError: toErrorMessage(error) })
         reportCaught('directiveDraft.discard', error, 'warning')
       }
     }

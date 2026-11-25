@@ -10,28 +10,27 @@
  *    真正的失败会在后续读写时以可读错误暴露；
  * 2. 去重 + 只传存在的路径由 Rust 侧负责（`security/grants.rs`），前端不重复判断。
  */
-import { invoke } from '@tauri-apps/api/core'
-
-import { CHANNELS } from './channels'
+import { POST_SECURITY_GRANTS } from '@/apis/security'
 
 /**
  * 放行一批路径（文件或目录）。
  *
+ * 与接口层的差别只在「容错」：过滤空值、失败时 `warn` 并返回 0，不让「另存 / 打开」
+ * 整条链因为授权失败断掉（真正的失败会在后续读写时以可读错误暴露）。
+ *
  * @param paths 用户刚选的绝对路径
  * @param recursive 目录是否递归放行；选「文件夹」时传 true，选单个文件传 false
  */
-export async function POST_SECURITY_GRANTS(paths: Array<string | null | undefined>, recursive = true): Promise<number> {
+export async function grantPaths(
+  paths: Array<string | null | undefined>,
+  recursive = true
+): Promise<number> {
   const list = paths.filter((path): path is string => Boolean(path && path.trim()))
   if (list.length === 0) return 0
   try {
-    return await invoke<number>(CHANNELS.SECURITY.GRANT_PATHS, { paths: list, recursive })
+    return await POST_SECURITY_GRANTS(list, recursive)
   } catch (error) {
     console.warn('[security] 放行路径失败', error)
     return 0
   }
-}
-
-/** 重建授权集（设置 → 诊断用：工作区/素材改动后手动刷新）。 */
-export async function POST_SECURITY_GRANTS_REBUILD(): Promise<{ grantedDirs: number; grantedFiles: number; errors: string[] }> {
-  return invoke(CHANNELS.SECURITY.REBUILD)
 }

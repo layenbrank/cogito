@@ -3,7 +3,7 @@
  *
  * 一个文件同时有暂存与未暂存改动时会出现在两组里，这与 VS Code 的行为一致。
  */
-import type { StatusEntry } from '@/lib/workspace-git'
+import type { StatusEntry } from '@/apis/workspace-git'
 
 interface GitGroups {
   staged: StatusEntry[]

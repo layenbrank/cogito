@@ -108,11 +108,12 @@ function isValidMinute(value: number): boolean {
 /** 按周一到周日的顺序去重排序，保证同样的选择永远生成同一个表达式 */
 function sortWeekdays(weekdays: number[]): number[] {
   const seen = new Set<number>()
+  const picked = new Set(weekdays)
   const order = WEEKDAY_OPTIONS.map(function (option) {
     return option.value
   })
   return order.filter(function (value) {
-    if (!weekdays.includes(value) || seen.has(value)) return false
+    if (!picked.has(value) || seen.has(value)) return false
     seen.add(value)
     return true
   })

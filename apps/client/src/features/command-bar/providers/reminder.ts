@@ -25,7 +25,7 @@ function searchReminder(query: string): Hit[] {
       score: 1 - index * 0.01,
       icon: 'lucide:alarm-clock',
       async run() {
-        await openComponentRoute('clock', { id: item.id })
+        await openComponentRoute('clock')
       }
     }
   })

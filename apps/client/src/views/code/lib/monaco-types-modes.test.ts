@@ -108,7 +108,7 @@ vi.mock('@/lib/perf/idle.ts', function () {
   }
 })
 
-vi.mock('@/lib/workspace-files', function () {
+vi.mock('@/apis/workspace-files', function () {
   return { WorkspaceFiles: { GET_WORKSPACE_TYPES: state.packTypes } }
 })
 

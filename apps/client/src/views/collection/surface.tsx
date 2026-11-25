@@ -93,10 +93,11 @@ function CollectionSurface(props: CollectionSurfaceProps) {
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <h2 className="text-foreground max-w-full truncate text-lg font-semibold tracking-tight" />
-                }>
-                {props.title}
-              </TooltipTrigger>
+                  <h2 className="text-foreground max-w-full truncate text-lg font-semibold tracking-tight">
+                    {props.title}
+                  </h2>
+                }
+              />
               <TooltipContent
                 side="bottom"
                 align="start"

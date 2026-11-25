@@ -4,20 +4,20 @@
  * 按住 Ctrl 时 sortablejs 已被禁用（见 `controller.tsx` 的 `isDisabled`），
  * 所以「Ctrl+单击」天然不会和拖拽重排打架。
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 
 function useTileSelection(mirrorID: string | null) {
   const [selected, updateSelected] = useState<ReadonlySet<string>>(function () {
     return new Set<string>()
   })
 
-  // 换镜像清空：跨墙的选择没有意义
-  useEffect(
-    function () {
-      updateSelected(new Set<string>())
-    },
-    [mirrorID]
-  )
+  // 换镜像清空：跨墙的选择没有意义。
+  // 渲染期比对而不是 effect —— effect 会先拿旧选区画一帧，看起来像「切墙后选中还挂着」。
+  const [mirror, updateMirror] = useState(mirrorID)
+  if (mirror !== mirrorID) {
+    updateMirror(mirrorID)
+    updateSelected(new Set<string>())
+  }
 
   const clear = useCallback(function () {
     updateSelected(function (prev) {

@@ -12,7 +12,7 @@ import { cn } from 'cn'
 import { useCallback, useState } from 'react'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
-import type { StatusEntry } from '@/lib/workspace-git'
+import type { StatusEntry } from '@/apis/workspace-git'
 import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 import { findStatusBadge } from '@/views/code/lib/git-status.ts'
 

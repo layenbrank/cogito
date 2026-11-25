@@ -1,9 +1,10 @@
-import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
+
+import { GET_CALENDAR_EVENTS, POST_CALENDAR_EVENTS, PATCH_CALENDAR_EVENTS, DELETE_CALENDAR_EVENTS } from '@/apis/calendar'
 
 interface Calendar {
   id: string
@@ -75,9 +76,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toReadEvents(filter = {}) {
           try {
-            const events = await invoke<Calendar[]>(CHANNELS.CALENDAR.READ, {
-              params: filter
-            })
+            const events = await GET_CALENDAR_EVENTS<Calendar[]>(filter)
             setter(
               function (state) {
                 state.events = events
@@ -102,7 +101,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toWriteEvent(value) {
           try {
-            const ids = await invoke<string[]>(CHANNELS.CALENDAR.WRITE, { params: value })
+            const ids = await POST_CALENDAR_EVENTS<string[]>(value)
             return ids[0]
           } catch (err) {
             reportCaught('calendar-store.toWriteEvent', err)
@@ -114,7 +113,7 @@ const useCalendarStore = create<CalendarStore>()(
         async toWriteEvents(values) {
           if (values.length === 0) return []
           try {
-            return await invoke<string[]>(CHANNELS.CALENDAR.WRITE, { params: values })
+            return await POST_CALENDAR_EVENTS<string[]>(values)
           } catch (err) {
             reportCaught('calendar-store.toWriteEvents', err)
             throw err
@@ -123,7 +122,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toUpdateEvent(value) {
           try {
-            await invoke(CHANNELS.CALENDAR.UPDATE, { params: value })
+            await PATCH_CALENDAR_EVENTS(value)
           } catch (err) {
             reportCaught('calendar-store.toUpdateEvent', err)
           }
@@ -131,7 +130,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toRemoveEvent(key) {
           try {
-            await invoke(CHANNELS.CALENDAR.REMOVE, { params: key })
+            await DELETE_CALENDAR_EVENTS(key)
           } catch (err) {
             reportCaught('calendar-store.toRemoveEvent', err)
           }
@@ -141,7 +140,7 @@ const useCalendarStore = create<CalendarStore>()(
         async toRemoveEvents(keys) {
           if (keys.length === 0) return
           try {
-            await invoke(CHANNELS.CALENDAR.REMOVE, { params: keys })
+            await DELETE_CALENDAR_EVENTS(keys)
           } catch (err) {
             reportCaught('calendar-store.toRemoveEvents', err)
             // 必须冒上去：以前吞在这里，调用点无条件弹「已撤销」

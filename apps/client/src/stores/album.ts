@@ -1,12 +1,13 @@
-import { invoke } from '@tauri-apps/api/core'
+
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 import { buildChange, useGalleryStore } from '@/stores/gallery'
 import { parseMeta } from '@/views/gallery/model/media'
+
+import { GET_ALBUMS, POST_ALBUMS, PATCH_ALBUMS, DELETE_ALBUMS, PATCH_ASSETS } from '@/apis/album'
 
 interface Album {
   id: string
@@ -54,9 +55,7 @@ const useAlbumStore = create<AlbumStore>()(
 
         async toReadAlbums() {
           try {
-            const albums = await invoke<Album[]>(CHANNELS.ALBUM.READ, {
-              params: {}
-            })
+            const albums = await GET_ALBUMS<Album[]>()
             setter(
               function (state) {
                 state.albums = albums
@@ -81,14 +80,12 @@ const useAlbumStore = create<AlbumStore>()(
 
         async toWriteAlbum(value) {
           try {
-            const ids = await invoke<string[]>(CHANNELS.ALBUM.WRITE, {
-              params: {
+            const ids = await POST_ALBUMS<string[]>({
                 name: value.name,
                 index: value.index ?? getter().albums.length,
                 coverAssetID: value.coverAssetID ?? null,
                 status: value.status ?? '001'
-              }
-            })
+              })
             await getter().toReadAlbums()
             return ids[0]
           } catch (error) {
@@ -99,9 +96,7 @@ const useAlbumStore = create<AlbumStore>()(
 
         async toUpdateAlbum(key, change) {
           try {
-            await invoke(CHANNELS.ALBUM.UPDATE, {
-              params: { key, change }
-            })
+            await PATCH_ALBUMS({ key, change })
             await getter().toReadAlbums()
           } catch (error) {
             reportCaught('album-store.toUpdateAlbum', error)
@@ -110,7 +105,7 @@ const useAlbumStore = create<AlbumStore>()(
 
         async toRemoveAlbum(key) {
           try {
-            await invoke(CHANNELS.ALBUM.REMOVE, { params: key })
+            await DELETE_ALBUMS(key)
             await getter().toReadAlbums()
           } catch (error) {
             reportCaught('album-store.toRemoveAlbum', error)
@@ -135,9 +130,7 @@ const useAlbumStore = create<AlbumStore>()(
             }
           })
 
-          await invoke(CHANNELS.ASSET.UPDATE, {
-            params: updates.length === 1 ? updates[0] : updates
-          })
+          await PATCH_ASSETS(updates.length === 1 ? updates[0] : updates)
           await useGalleryStore.getState().toReadMedias({ skipHydrate: true })
         },
 
@@ -160,9 +153,7 @@ const useAlbumStore = create<AlbumStore>()(
             }
           })
 
-          await invoke(CHANNELS.ASSET.UPDATE, {
-            params: updates.length === 1 ? updates[0] : updates
-          })
+          await PATCH_ASSETS(updates.length === 1 ? updates[0] : updates)
           await useGalleryStore.getState().toReadMedias({ skipHydrate: true })
         }
       }

@@ -8,7 +8,7 @@
  * `terminal-view` 先 await 这条链才 `new Terminal()`，字体一大就永久白屏。
  */
 import { readFile } from '@tauri-apps/plugin-fs'
-import { Terminal, type TerminalFont } from '@/lib/terminal'
+import { Terminal, type TerminalFont } from '@/apis/terminal'
 import type { FontWeight } from '@xterm/xterm'
 
 const FALLBACK_FONT_FAMILY = '"Cascadia Mono", "Cascadia Code", Consolas, monospace'

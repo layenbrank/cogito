@@ -15,6 +15,7 @@ import { emit } from '@tauri-apps/api/event'
 import { Effect, getCurrentWindow, type Theme } from '@tauri-apps/api/window'
 
 import { findPref, patchPref } from '@/features/persist'
+import { canUseTauriIpc, hasTauriRuntime } from '@/features/window/shell-mode'
 
 /** 独立设置窗写入后通知主窗口。主窗口里的磁贴不再逐窗广播。 */
 const APPEARANCE_SYNC = 'appearance://sync'
@@ -207,9 +208,8 @@ function findWindowEffects(isDark: boolean) {
  * overlay 会被误套 mica，截屏 conceal 后仍把云母背景打进位图。
  */
 function syncNativeWindow(appearance: Appearance) {
-  if (typeof window === 'undefined') return
-  // 非 Tauri 环境（浏览器预览）没有原生窗 API
-  if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return
+  // 单测（jsdom）没有原生窗 API；嵌入式壳也一样跑不到这里
+  if (!hasTauriRuntime()) return
 
   const win = getCurrentWindow()
   if (!canUseWindowEffects(win.label)) {
@@ -268,12 +268,8 @@ function storeAppearance(next: Appearance) {
   })
 }
 
-function isTauriWindow() {
-  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-}
-
 function publishAppearance(appearance: Appearance) {
-  if (!isTauriWindow()) return
+  if (!canUseTauriIpc()) return
   void emit(APPEARANCE_SYNC, appearance).catch(function (error: unknown) {
     console.warn('[appearance] 通知主窗口失败', error)
   })

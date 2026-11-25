@@ -19,7 +19,7 @@ import {
   type StashEntry,
   type StatusEntry,
   type WorktreeEntry
-} from '@/lib/workspace-git'
+} from '@/apis/workspace-git'
 
 interface GitDiff {
   /** 相对仓库根的路径 */
@@ -203,7 +203,7 @@ function toDiffKey(revs?: DiffRevs): { oldOid?: string; newOid?: string } {
 
 const HUNK_PAGE = 40
 
-function toMessage(error: unknown, fallback: string): string {
+function toErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'string' && error.trim()) return error
   if (error instanceof Error && error.message) return error.message
   return fallback
@@ -217,7 +217,7 @@ function success(summary: string): GitOutcome {
 /** 失败出口：统一留痕 + 转成可直接提示的文案 */
 function reportFailure(error: unknown, fallback: string): GitOutcome {
   console.error('[code] git action failed', fallback, error)
-  return { ok: false, message: toMessage(error, fallback) }
+  return { ok: false, message: toErrorMessage(error, fallback) }
 }
 
 const useCodeGitStore = create<CodeGitState>()(
@@ -331,7 +331,7 @@ const useCodeGitStore = create<CodeGitState>()(
             state.repoRoot = null
             state.isRepo = false
             state.branch = ''
-            state.error = toMessage(error, '无法读取仓库信息')
+            state.error = toErrorMessage(error, '无法读取仓库信息')
           })
         }
       },
@@ -375,7 +375,7 @@ const useCodeGitStore = create<CodeGitState>()(
           console.error('[code] git status failed', error)
           set(function (state) {
             state.isLoading = false
-            state.error = toMessage(error, '读取 Git 状态失败')
+            state.error = toErrorMessage(error, '读取 Git 状态失败')
           })
         }
       },
@@ -676,7 +676,7 @@ const useCodeGitStore = create<CodeGitState>()(
           console.error('[code] git search failed', error)
           set(function (state) {
             state.isSearchLoading = false
-            state.searchError = toMessage(error, '搜索提交失败')
+            state.searchError = toErrorMessage(error, '搜索提交失败')
           })
         }
       },
@@ -709,7 +709,7 @@ const useCodeGitStore = create<CodeGitState>()(
           console.error('[code] git search more failed', error)
           set(function (state) {
             state.isSearchLoading = false
-            state.searchError = toMessage(error, '加载更多提交失败')
+            state.searchError = toErrorMessage(error, '加载更多提交失败')
           })
         }
       },
@@ -757,7 +757,7 @@ const useCodeGitStore = create<CodeGitState>()(
           set(function (state) {
             state.commitFiles = []
             state.isShowLoading = false
-            state.showError = toMessage(error, '读取提交变更失败')
+            state.showError = toErrorMessage(error, '读取提交变更失败')
           })
         }
       },

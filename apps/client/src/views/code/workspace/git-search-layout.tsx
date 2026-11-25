@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-g
 import { cn } from 'cn'
 import type { KeyboardEventHandler, RefObject } from 'react'
 
-import type { SearchField } from '@/lib/workspace-git'
+import type { SearchField } from '@/apis/workspace-git'
 import type { useCodeGitStore } from '@/stores/code-git'
 import { GIT_SEARCH_FIELDS } from '@/views/code/workspace/git-search-format.ts'
 import { GitSearchChangesPanel } from '@/views/code/workspace/git-search-changes-panel.tsx'

@@ -16,16 +16,11 @@ type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max'
 type AppearanceMode = 'system' | 'light' | 'dark'
 type MotionPreference = 'system' | 'on' | 'off'
 
-interface TileSessionPref {
-  component: MagneticTile.Component
-  tileId: string
-  url: string
-  path: string
-}
-
 interface KnowledgeShell {
   isSidebarOpen: boolean
   isOutlineOpen: boolean
+  /** 布局版本：2 = 编辑区优先（右栏默认收起）；旧数据读入时强制重置一次 */
+  knowledgeLayoutVersion: number
   viewMode: KnowledgeViewMode
   fontSize: number
   contentMaxWidth: number
@@ -87,7 +82,6 @@ interface BookmarkShell {
 }
 
 interface TilesPref {
-  sessions: TileSessionPref[]
   knowledge: KnowledgeShell
   code: CodeShell
   signboard: SignboardShell
@@ -166,8 +160,18 @@ interface WindowPref {
 }
 
 interface GalleryPref {
-  /** 预留图库域偏好；PIN 不在此文件 */
-  placeholder: true
+  /** 当前视图 id（见 views/gallery/model/views.ts） */
+  viewID: string
+  sortKey: 'capturedAt' | 'name' | 'size' | 'rating' | 'addedAt'
+  sectionScope: 'day' | 'month'
+  /** 网格列数 2–8 */
+  columnCount: number
+  /** 成组折叠（RAW+JPEG / Live Photo 只显示一张） */
+  isStackFolded: boolean
+  isSidebarOpen: boolean
+  isInspectorOpen: boolean
+  /** 序列化后的 FilterState；空串 = 无筛选 */
+  filter: string
 }
 
 /** 诊断偏好：只放「要不要上报」这类开关，不留任何内容副本 */
@@ -263,7 +267,6 @@ type PersistValue<N extends PersistNamespace> = PersistShape[N]
 export type {
   PersistShape,
   PersistValue,
-  TileSessionPref,
   KnowledgeShell,
   CodeShell,
   SignboardShell,

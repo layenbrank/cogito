@@ -3,7 +3,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
-  useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode
 } from 'react'
@@ -84,11 +84,10 @@ function buildShellSlotsStore(): ShellSlotsStore {
 const ShellSlotsStoreContext = createContext<ShellSlotsStore | null>(null)
 
 function ShellSlotsProvider(props: { children: ReactNode }) {
-  const storeRef = useRef<ShellSlotsStore | null>(null)
-  if (!storeRef.current) storeRef.current = buildShellSlotsStore()
+  const [store] = useState(buildShellSlotsStore)
 
   return (
-    <ShellSlotsStoreContext.Provider value={storeRef.current}>
+    <ShellSlotsStoreContext.Provider value={store}>
       {props.children}
     </ShellSlotsStoreContext.Provider>
   )
@@ -126,20 +125,21 @@ function useShellSlots(): ShellSlots {
  */
 function useShellSurface(slots: ShellSlots) {
   const store = useShellSlotsStore()
-  const ownerRef = useRef(Symbol('shell-surface'))
+  const [owner] = useState(function () {
+    return Symbol('shell-surface')
+  })
 
   useLayoutEffect(function () {
-    store.writeSlots(slots, ownerRef.current)
+    store.writeSlots(slots, owner)
   })
 
   useEffect(
     function () {
-      const owner = ownerRef.current
       return function () {
         store.writeSlots(null, owner)
       }
     },
-    [store]
+    [store, owner]
   )
 }
 

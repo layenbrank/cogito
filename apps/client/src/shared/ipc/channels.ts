@@ -61,9 +61,9 @@ export const CHANNELS = {
   KNOWLEDGE: {
     EXTRACT_PDF: 'knowledge:extract-pdf',
     FIND_PDFIUM: 'knowledge:find-pdfium',
-    LIST_BASES: 'knowledge:listBases',
-    CREATE_BASE: 'knowledge:createBase',
-    UPDATE_BASE: 'knowledge:updateBase',
+    LIST_SPACES: 'knowledge:listSpaces',
+    CREATE_SPACE: 'knowledge:createSpace',
+    UPDATE_SPACE: 'knowledge:updateSpace',
     LIST_DOCS: 'knowledge:listDocs',
     CLOUD_DOCS: 'knowledge:cloudDocs',
     CLOUD_STATES: 'knowledge:cloudStates',
@@ -71,11 +71,14 @@ export const CHANNELS = {
     SEARCH: 'knowledge:search',
     LIST_STAGING: 'knowledge:listStaging',
     PUBLISH: 'knowledge:publish',
+    PUBLISH_MANY: 'knowledge:publishMany',
+    MIGRATE_LAYOUT: 'knowledge:migrateLayout',
+    REBUILD_INDEX: 'knowledge:rebuildIndex',
+    WIKI_CONTRACT: 'knowledge:wikiContract',
     DISCARD_STAGING: 'knowledge:discardStaging',
     MERGE_STAGING: 'knowledge:mergeStaging',
     RESCAN: 'knowledge:rescan',
     REMOVE_DOC: 'knowledge:removeDoc',
-    REMOVE_BASE: 'knowledge:removeBase',
     RESOLVE_DOC: 'knowledge:resolveDoc',
     WRITE_DOC: 'knowledge:writeDoc',
     EXPORT_BUNDLE: 'knowledge:exportBundle'
@@ -114,10 +117,33 @@ export const CHANNELS = {
     SAVE_PNG: 'capture:savePng',
     PIN_TEXTURE: 'capture:pinTexture'
   },
+  /**
+   * 在线工具（完整版才内置的大件）：精简版在 设置 → 诊断 里按需下载 / 移除。
+   * 版本与 sha256 钉在 `scripts/commands/features/sidecar/tools.lock.json`。
+   */
+  TOOLS: {
+    INSTALL: 'tools:install',
+    REMOVE: 'tools:remove',
+    /** 下载进度事件（payload: `{ key, phase, received, total }`） */
+    INSTALL_PROGRESS: 'tools://install-progress'
+  },
   MEDIA: {
     STAT: 'media:stat',
     SCAN_DIR: 'media:scanDir',
-    PICK: 'media:pick'
+    PICK: 'media:pick',
+    /** ffprobe 探测（时长 / 分辨率 / 有无音视频轨） */
+    PROBE: 'media:probe',
+    /** ffmpeg 导出成片 */
+    EXPORT: 'media:export',
+    /** LOD 抽帧（时间点数组 → 缩略图） */
+    FILMSTRIP_FRAMES: 'media:filmstrip-frames',
+    /** 波形图（落盘 PNG + 时长） */
+    WAVEFORM: 'media:waveform',
+    /** 批量重命名：先用 plan 预览（dry-run），确认后才 apply 真改文件 */
+    RENAME_PLAN: 'media:rename-plan',
+    RENAME_APPLY: 'media:rename-apply',
+    /** 按 apply 返回的迁移日志反向操作（撤销最近一次批量改名） */
+    RENAME_UNDO: 'media:rename-undo'
   },
   /**
    * 授权集（S1/1A）。capabilities 的静态 scope 只是下限，运行期真正能碰的目录
@@ -160,6 +186,36 @@ export const CHANNELS = {
     WRITE: 'album:write',
     UPDATE: 'album:update',
     REMOVE: 'album:remove'
+  },
+  /**
+   * 图库（gallery）：索引/策展全在 Rust 侧。
+   * catalog 一次拿全量紧凑行；详情与检索按需；写操作走 curate 单入口。
+   */
+  GALLERY: {
+    CATALOG: 'gallery:catalog',
+    DETAILS: 'gallery:details',
+    CURATE: 'gallery:curate',
+    SEARCH: 'gallery:search',
+    ALBUM_ATTACH: 'gallery:album-attach',
+    ALBUM_DETACH: 'gallery:album-detach',
+    SMART_ALBUMS_READ: 'gallery:smart-albums-read',
+    SMART_ALBUMS_SAVE: 'gallery:smart-albums-save',
+    SMART_ALBUMS_REMOVE: 'gallery:smart-albums-remove',
+    ROOTS_READ: 'gallery:roots-read',
+    ROOTS_ADD: 'gallery:roots-add',
+    ROOTS_REMOVE: 'gallery:roots-remove',
+    MARK_MISSING: 'gallery:mark-missing',
+    IMPORT: 'gallery:import',
+    IMPORT_PROGRESS: 'gallery://import-progress',
+    TRASH: 'gallery:trash',
+    /** 字节级去重：按 size 分组算内容哈希，写 dupGroup */
+    DEDUPE: 'gallery:dedupe',
+    DEDUPE_PROGRESS: 'gallery://dedupe-progress',
+    /** 感知哈希（aHash）：相似图检索的地基 */
+    COMPUTE_PHASH: 'gallery:compute-phash',
+    SIMILAR: 'gallery:similar',
+    /** 位置失效重扫：盘拔了/文件挪走后标记 missing，插回来自动恢复 */
+    RESCAN: 'gallery:rescan'
   },
   BOOKMARK: {
     READ: 'bookmark:read',
@@ -257,6 +313,11 @@ export const CHANNELS = {
   /** 子 agent（S10）：渲染进程跑完一轮后把结果交回 Rust 的任务板 */
   AGENT_SUBAGENT: {
     RESULT: 'agent:subagentResult'
+  },
+  /** 输入框待发送队列（每会话一条替换写） */
+  AGENT_COMPOSER_QUEUE: {
+    TO_READ: 'agentComposerQueue:toRead',
+    TO_REPLACE: 'agentComposerQueue:toReplace'
   },
   /** 分层路由（S11）：本地优先 → 云兜底的判定与档位落库 */
   AGENT_ROUTE: {
@@ -388,6 +449,60 @@ export const CHANNELS = {
   },
   SITE: {
     FETCH_FAVICON: 'site:fetch-favicon'
+  },
+  /** 运行环境自检（前端能力探测） */
+  CAPABILITIES: {
+    PROBE: 'capabilities:probe'
+  },
+  /** 知识库向量索引（Rust `knowledge/vectorstore.rs`，按函数名注册，故用下划线） */
+  VECTOR: {
+    SEARCH: 'vector_search',
+    UPSERT: 'vector_upsert',
+    DELETE: 'vector_delete',
+    COUNT: 'vector_count',
+    CLEAR: 'vector_clear'
+  },
+  /** 内嵌浏览器面板（Rust `browser/*`，按函数名注册，故用 `browser:` 前缀而非 rename） */
+  BROWSER: {
+    OPEN: 'browser:open',
+    CLOSE: 'browser:close',
+    ACTIVATE: 'browser:activate',
+    NAVIGATE: 'browser:navigate',
+    CURRENT_URL: 'browser:current-url',
+    RELOAD: 'browser:reload',
+    HISTORY: 'browser:history',
+    HISTORY_STATE: 'browser:history-state',
+    NAVIGATION_HISTORY: 'browser:navigation-history',
+    DEVTOOLS: 'browser:devtools',
+    PROBE: 'browser:probe',
+    AGENT_READ: 'browser:agent-read',
+    AGENT_SCREENSHOT: 'browser:agent-screenshot',
+    SNAPSHOT: 'browser:snapshot',
+    NETWORK_LIST: 'browser:network-list',
+    UPDATE_INTERCEPT: 'browser:update-intercept',
+    INTERCEPT_STATUS: 'browser:intercept-status',
+    INTERCEPT_LIST: 'browser:intercept-list',
+    LAYOUT: 'browser:layout',
+    VISIBLE: 'browser:visible',
+    PICKER_START: 'browser:picker-start',
+    PICKER_STOP: 'browser:picker-stop',
+    UPDATE_DEVICE: 'browser:update-device',
+    FIND_DEVICE: 'browser:find-device'
+  },
+  /** wiki 检索的 HTTP 配置下发 */
+  WIKI: {
+    HTTP_CONFIGURE: 'wiki_http_configure'
+  },
+  /** 诊断日志 / 目录 / 构建信息 / agent 缓存 */
+  DIAGNOSTICS: {
+    CAPABILITIES: 'diagnostics:capabilities',
+    OPEN_DIR: 'diagnostics:open-dir',
+    ACK: 'diagnostics:ack',
+    PENDING: 'diagnostics:pending',
+    APPEND: 'diagnostics:append',
+    AGENT_CACHE_INFO: 'agent_cache_info',
+    AGENT_CACHE_CLEAR: 'agent_cache_clear',
+    BUILD_INFO: 'app_build_info'
   },
   WORKSPACE_SKILLS: {
     LIST: 'workspaceSkills:list'

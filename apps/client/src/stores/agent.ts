@@ -1,9 +1,35 @@
-import { invoke } from '@tauri-apps/api/core'
 import { Subject } from 'rxjs'
 import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import { CHANNELS } from '@/shared/ipc/channels'
+import {
+  DELETE_AGENT_MESSAGES,
+  GET_AGENT_MESSAGES,
+  PATCH_AGENT_MESSAGES,
+  POST_AGENT_MESSAGES
+} from '@/apis/agent-message'
+import {
+  DELETE_AGENT_SESSIONS,
+  GET_AGENT_SESSIONS,
+  PATCH_AGENT_SESSIONS,
+  POST_AGENT_SESSIONS
+} from '@/apis/agent-session'
+import {
+  DELETE_AGENT_USAGES,
+  GET_AGENT_USAGES,
+  PATCH_AGENT_USAGES,
+  POST_AGENT_USAGES
+} from '@/apis/agent-provider'
+import {
+  DELETE_AGENT_WORKSPACES,
+  DELETE_AGENT_WORKSPACE_FOLDERS,
+  GET_AGENT_WORKSPACES,
+  GET_AGENT_WORKSPACE_FOLDERS,
+  PATCH_AGENT_WORKSPACES,
+  PATCH_AGENT_WORKSPACE_FOLDERS,
+  POST_AGENT_WORKSPACES,
+  POST_AGENT_WORKSPACE_FOLDERS
+} from '@/apis/agent-workspace'
 import { reportCaught } from '@/utils/exception-report'
 
 type Session = MagneticTile.Agent.Session
@@ -206,7 +232,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
 
     async toReadSessions() {
       try {
-        const sessions = await invoke<Session[]>(CHANNELS.AGENT_SESSION.TO_READ, { params: {} })
+        const sessions = await GET_AGENT_SESSIONS<Session[]>()
         setters(
           function (state) {
             state.sessions = sessions
@@ -287,9 +313,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke(CHANNELS.AGENT_SESSION.TO_WRITE, {
-          params: values.map(toSessionWrite)
-        })
+        await POST_AGENT_SESSIONS(values.map(toSessionWrite))
         event$.next({
           type: 'SESSION:INSERTED',
           payload: values,
@@ -330,7 +354,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AGENT_SESSION.TO_UPDATE, { params })
+        await PATCH_AGENT_SESSIONS(params)
         event$.next({
           type: 'SESSION:UPDATED',
           payload: values,
@@ -358,7 +382,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
           false,
           'toRemoveSession/optimistic'
         )
-        await invoke(CHANNELS.AGENT_SESSION.TO_REMOVE, { params: keys })
+        await DELETE_AGENT_SESSIONS(keys)
         const activeSessionID = getters().activeSessionID
         if (activeSessionID) {
           await getters().toReadMessages(activeSessionID)
@@ -421,7 +445,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
     async toReadMessages(sessionID?: string) {
       try {
         const params = sessionID ? { sessionID } : {}
-        const messages = await invoke<Message[]>(CHANNELS.AGENT_MESSAGE.TO_READ, { params })
+        const messages = await GET_AGENT_MESSAGES<Message[]>(params)
         setters(
           function (state) {
             if (sessionID) {
@@ -481,9 +505,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke(CHANNELS.AGENT_MESSAGE.TO_WRITE, {
-          params: values.map(toMessageWrite)
-        })
+        await POST_AGENT_MESSAGES(values.map(toMessageWrite))
         event$.next({
           type: 'MESSAGE:INSERTED',
           payload: values,
@@ -530,7 +552,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AGENT_MESSAGE.TO_UPDATE, { params })
+        await PATCH_AGENT_MESSAGES(params)
         event$.next({
           type: 'MESSAGE:UPDATED',
           payload: values,
@@ -547,7 +569,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       try {
         // 乐观先用入参清一次；落库返回的是「入参 + 按 parentID 级联的子孙」的完整集合，
         // 用它再收敛一次 —— 服务端会级联删分支，本地状态得跟它对上，否则子孙行残留
-        const removed = await invoke<string[]>(CHANNELS.AGENT_MESSAGE.TO_REMOVE, { params: keys })
+        const removed = await DELETE_AGENT_MESSAGES(keys)
         const removedSet = new Set(removed)
         setters(
           function (state) {
@@ -590,9 +612,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
 
     async toReadWorkspaces() {
       try {
-        const workspaces = await invoke<Workspace[]>(CHANNELS.AGENT_WORKSPACE.TO_READ, {
-          params: { archived: false }
-        })
+        const workspaces = await GET_AGENT_WORKSPACES<Workspace[]>({ archived: false })
         setters(
           function (state) {
             state.workspaces = workspaces
@@ -636,9 +656,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         'toWriteWorkspace/optimistic'
       )
       try {
-        await invoke(CHANNELS.AGENT_WORKSPACE.TO_WRITE, {
-          params: values.map(toWorkspaceWrite)
-        })
+        await POST_AGENT_WORKSPACES(values.map(toWorkspaceWrite))
       } catch (error) {
         setters({ workspaces: former }, false, 'toWriteWorkspace/rollback')
         throw error
@@ -686,7 +704,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AGENT_WORKSPACE.TO_UPDATE, { params })
+        await PATCH_AGENT_WORKSPACES(params)
       } catch (error) {
         setters({ workspaces }, false, 'toUpdateWorkspace/rollback')
         throw error
@@ -713,7 +731,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           false,
           'toRemoveWorkspace/optimistic'
         )
-        await invoke(CHANNELS.AGENT_WORKSPACE.TO_REMOVE, { params: keys })
+        await DELETE_AGENT_WORKSPACES(keys)
       } catch (error) {
         setters(
           { workspaces: former, workspaceFolders: formerFolders },
@@ -746,9 +764,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
     async toReadWorkspaceFolders(workspaceID) {
       try {
         const params = workspaceID ? { workspaceID } : {}
-        const folders = await invoke<WorkspaceFolder[]>(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_READ, {
-          params
-        })
+        const folders = await GET_AGENT_WORKSPACE_FOLDERS<WorkspaceFolder[]>(params)
         setters(
           function (state) {
             if (workspaceID) {
@@ -795,9 +811,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         'toWriteWorkspaceFolder/optimistic'
       )
       try {
-        await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_WRITE, {
-          params: values.map(toWorkspaceFolderWrite)
-        })
+        await POST_AGENT_WORKSPACE_FOLDERS(values.map(toWorkspaceFolderWrite))
       } catch (error) {
         setters({ workspaceFolders: former }, false, 'toWriteWorkspaceFolder/rollback')
         throw error
@@ -833,7 +847,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_UPDATE, { params })
+        await PATCH_AGENT_WORKSPACE_FOLDERS(params)
       } catch (error) {
         setters({ workspaceFolders: folders }, false, 'toUpdateWorkspaceFolder/rollback')
         throw error
@@ -853,7 +867,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           false,
           'toRemoveWorkspaceFolder/optimistic'
         )
-        await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_REMOVE, { params: keys })
+        await DELETE_AGENT_WORKSPACE_FOLDERS(keys)
       } catch (error) {
         setters({ workspaceFolders: former }, false, 'toRemoveWorkspaceFolder/rollback')
         throw error
@@ -885,12 +899,10 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
 
       try {
         if (removeKeys.length) {
-          await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_REMOVE, { params: removeKeys })
+          await DELETE_AGENT_WORKSPACE_FOLDERS(removeKeys)
         }
         if (folders.length) {
-          await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_WRITE, {
-            params: folders.map(toWorkspaceFolderWrite)
-          })
+          await POST_AGENT_WORKSPACE_FOLDERS(folders.map(toWorkspaceFolderWrite))
         }
       } catch (error) {
         setters({ workspaceFolders: former }, false, 'toReplaceWorkspaceFolders/rollback')
@@ -922,7 +934,7 @@ const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
     async toReadUsages(filter) {
       try {
         const params = filter?.sessionID ? { sessionID: filter.sessionID } : {}
-        const usages = await invoke<Usage[]>(CHANNELS.AGENT_USAGE.TO_READ, { params })
+        const usages = await GET_AGENT_USAGES<Usage[]>(params)
         setters(
           function (state) {
             // 按 session 拉取时合并进全局，勿整表覆盖（其它会话用量还在 settings 页要用）
@@ -963,7 +975,7 @@ const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
         'toWriteUsage/optimistic'
       )
       try {
-        await invoke(CHANNELS.AGENT_USAGE.TO_WRITE, { params: values.map(toUsageWrite) })
+        await POST_AGENT_USAGES(values.map(toUsageWrite))
       } catch (error) {
         setters({ usages: former }, false, 'toWriteUsage/rollback')
         throw error
@@ -999,7 +1011,7 @@ const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AGENT_USAGE.TO_UPDATE, { params })
+        await PATCH_AGENT_USAGES(params)
       } catch (error) {
         setters({ usages }, false, 'toUpdateUsage/rollback')
         throw error
@@ -1019,7 +1031,7 @@ const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
           false,
           'toRemoveUsage/optimistic'
         )
-        await invoke(CHANNELS.AGENT_USAGE.TO_REMOVE, { params: keys })
+        await DELETE_AGENT_USAGES(keys)
       } catch (error) {
         setters({ usages: former }, false, 'toRemoveUsage/rollback')
         throw error

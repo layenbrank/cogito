@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef, type RefObject } from 'react'
-import { CHANNELS } from '@/shared/ipc/channels'
+
+import { POST_THROUGH_RECTS } from '@/apis/system'
 
 const HIT_SELECTOR = "[data-region='false']"
 
@@ -77,7 +77,7 @@ function diffThroughPayload(
 }
 
 function report(source: string, rects: readonly ThroughRect[]): void {
-  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, { source, rects }).catch(function (error: unknown) {
+  void POST_THROUGH_RECTS(source, rects).catch(function (error: unknown) {
     console.debug('[through] 更新穿透区失败:', error)
     // 失败不写指纹：下一次 flush 会重试
     published.delete(source)

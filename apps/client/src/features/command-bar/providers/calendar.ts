@@ -31,7 +31,7 @@ function searchCalendar(query: string): Hit[] {
       score: 1 - index * 0.01,
       icon: 'lucide:calendar',
       async run() {
-        await openComponentRoute('calendar', { id: event.id })
+        await openComponentRoute('calendar')
       }
     }
   })

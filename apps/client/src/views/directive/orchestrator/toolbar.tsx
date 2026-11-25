@@ -10,7 +10,7 @@ import { Icon } from '@iconify/react/offline'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { POST_SIDECAR_DIRECTIVE_EDIT, GET_SIDECAR_DIRECTIVE } from '@/lib/directive-ipc.ts'
+import { POST_SIDECAR_DIRECTIVE_EDIT, GET_SIDECAR_DIRECTIVE } from '@/apis/directive'
 import type { Caps } from '@/views/directive/run/run-caps'
 import { RunMenu } from '@/views/directive/run/run-menu'
 import { SurfaceToggle } from '@/views/directive/orchestrator/toolbar-surface-toggle.tsx'

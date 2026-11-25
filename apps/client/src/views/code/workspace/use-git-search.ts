@@ -2,7 +2,7 @@ import type { KeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import type { SearchField } from '@/lib/workspace-git'
+import type { SearchField } from '@/apis/workspace-git'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { joinPath } from '@/views/code/lib/path.ts'

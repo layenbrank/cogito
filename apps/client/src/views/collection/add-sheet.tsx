@@ -11,12 +11,11 @@ import {
   SheetDescription,
   SheetTitle
 } from '@cogito/design/components/sheet'
-import { invoke } from '@tauri-apps/api/core'
 import Fuse from 'fuse.js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CHANNELS } from '@/shared/ipc/channels'
 
+import { GET_MAGNETIC_TILES } from '@/apis/magnetic-tile'
 import { useMirrorStore } from '@/stores/mirror'
 import { Controller } from '@/views/collection/controller.tsx'
 
@@ -48,9 +47,7 @@ function AddSheet(props: AddSheetProps) {
 
       async function toLoad() {
         try {
-          const result = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-            params: {}
-          })
+          const result = await GET_MAGNETIC_TILES<MagneticTile[]>()
           if (cancelled) return
 
           const candidates = (result ?? []).filter(function (tile) {

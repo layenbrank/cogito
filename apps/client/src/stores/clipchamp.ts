@@ -5,7 +5,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 import { findPref, replacePref } from '@/features/persist'
-import { MediaIpc } from '@/lib/media-ipc'
+import { MediaIpc } from '@/apis/media'
 import { reportCaught } from '@/utils/exception-report'
 import {
   MAX_UNDO,

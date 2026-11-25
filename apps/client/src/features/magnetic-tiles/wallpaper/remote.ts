@@ -7,6 +7,7 @@
  *
  * 浏览器里维基、NASA 带 CORS；必应没有，桌面壳用 Tauri HTTP。失败只打日志，不把空结果写进缓存。
  */
+import { hasTauriRuntime } from '@/features/window/shell-mode'
 import type { WallpaperFrame } from './catalog'
 
 type WallpaperSource = 'commons' | 'nasa' | 'bing'
@@ -69,11 +70,6 @@ const BING_MARKETS = ['zh-CN', 'en-US', 'ja-JP', 'en-GB', 'de-DE', 'fr-FR', 'en-
 const BING_COUNT = '8'
 
 const shelfCache = new Map<WallpaperSource, WallpaperFrame[]>()
-
-function hasTauriRuntime(): boolean {
-  if (typeof window === 'undefined') return false
-  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window
-}
 
 function toHttps(href: string) {
   return href.replace(/^http:\/\//i, 'https://')

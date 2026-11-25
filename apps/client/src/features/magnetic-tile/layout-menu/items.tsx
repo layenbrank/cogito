@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 
 import type { MenuItem } from '@/components/contextmenu'
-import { POST_OVERLAY_TILE, DELETE_OVERLAY_TILE } from '@/features/capture/tauri'
+import { POST_OVERLAY_TILE, DELETE_OVERLAY_TILE } from '@/apis/capture'
 
 import { LayoutPicker } from './picker'
 import type { Tile } from './types'

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu } from '@/components/contextmenu'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import { useCodeStore } from '@/stores/code'
 import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 import {
@@ -165,11 +166,13 @@ function ExplorerTree(props: ExplorerTreeProps) {
    * （刷新时十几个目录 = 十几次整树渲染）。可变数据走 ref 读最新值。
    */
   const rootsRef = useRef(props.roots)
-  rootsRef.current = props.roots
   const treeNodesRef = useRef(treeNodes)
-  treeNodesRef.current = treeNodes
   const isHiddenVisibleRef = useRef(isHiddenVisible)
-  isHiddenVisibleRef.current = isHiddenVisible
+  useIsomorphicLayoutEffect(function () {
+    rootsRef.current = props.roots
+    treeNodesRef.current = treeNodes
+    isHiddenVisibleRef.current = isHiddenVisible
+  })
 
   /** 每层目录的分帧写入取消器：折叠 / 重取 / 卸载都要停 */
   const chunkCancelsRef = useRef(new Map<string, () => void>())

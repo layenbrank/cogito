@@ -31,6 +31,7 @@ import { installSubagentRunner } from '@/features/agent/acp/subagent'
 import { registerIngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
 import { bootstrapIngestEnqueueBridge } from '@/views/knowledge/lib/ingest-enqueue-bridge.ts'
 import { bootstrapWikiApiConfig } from '@/views/knowledge/lib/wiki-api-config.ts'
+import { bootstrapWikiContextBridge } from '@/views/knowledge/lib/wiki-context-bridge.ts'
 import '@/styles/tailwind.css'
 import '@/styles/index.scss'
 
@@ -140,6 +141,8 @@ async function bootstrap() {
     void bootstrapIngestEnqueueBridge().catch(function (error: unknown) {
       console.warn('[bootstrap] ingest 入队桥安装失败', error)
     })
+    // 知识库说明书：聊天页要在没打开知识库时也能拿到 purpose/schema/overview
+    bootstrapWikiContextBridge()
     // 状态字典：本地 seed 冷启动；有登录态再主动拉远端（无设置页，用户不可见/不可配）
     const dict = useDictStore.getState()
     void dict.bootstrap().then(function () {

@@ -11,7 +11,7 @@ import { cn } from 'cn'
 import { useEffect, useState, type RefObject } from 'react'
 import { toast } from 'sonner'
 
-import type { CommitHit } from '@/lib/workspace-git'
+import type { CommitHit } from '@/apis/workspace-git'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 

@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { ResultsSurface } from '@/features/command-bar/results'
 import { useCommandSearch } from '@/features/command-bar/use-command-search.ts'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 import {
   ensurePersist,
   findPref,
@@ -26,6 +27,7 @@ import {
   reloadPref
 } from '@/features/persist'
 import type { SearchIslandEdge, SearchIslandPref } from '@/features/persist/types'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import {
   clampIslandPoint,
   findIslandOrientation,
@@ -102,7 +104,9 @@ function SearchIsland() {
   const inputRef = search.inputRef
   /** 收合时同步关掉搜索面（`search` 每次渲染都是新对象，用 ref 避开依赖抖动） */
   const closeSearchRef = useRef(search.close)
-  closeSearchRef.current = search.close
+  useIsomorphicLayoutEffect(function () {
+    closeSearchRef.current = search.close
+  })
 
   // 首次读偏好：位置存的是相对坐标，换分辨率也不会跑出屏幕
   useEffect(
@@ -126,8 +130,8 @@ function SearchIsland() {
   // 设置窗里改开关 / 位置：本窗口的 persist cache 不会自己更新，靠广播 + 重读磁盘
   useEffect(
     function () {
-      // 非 Tauri（浏览器 playground / 预览）没有 IPC，`listen` 会直接抛错，别让它带崩整个岛
-      if (!('__TAURI_INTERNALS__' in window)) return
+      // 嵌套壳 / 无 IPC 环境没有命令通道，`listen` 会直接抛错，别让它带崩整个岛
+      if (!canUseTauriIpc()) return
       let cancelled = false
       let unlisten: (() => void) | null = null
       try {
@@ -269,6 +273,13 @@ function SearchIsland() {
     if (edge) setEdge(null)
   }
 
+  function onPointerCancel(event: React.PointerEvent<HTMLDivElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    // 指针被系统夺走（滚轮接管 / 手势取消）时不能再按「松手等于点击」处理
+    dragRef.current = null
+    setDragging(false)
+  }
+
   function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
@@ -353,6 +364,7 @@ function SearchIsland() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onBlur={function (event) {
           if (!isExpanded) return
           const next = event.relatedTarget

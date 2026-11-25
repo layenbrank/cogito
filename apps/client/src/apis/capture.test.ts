@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/core', function () {
 
 import { CHANNELS } from '@/shared/ipc/channels'
 
-import { GET_CAPTURE_PENDING } from './tauri'
+import { GET_CAPTURE_PENDING } from './capture'
 
 const SHOT = { path: 'shot.png', width: 1920, height: 1080, scale_factor: 1 }
 

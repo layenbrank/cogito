@@ -11,30 +11,7 @@
  * 逐条改写（写坏格式会让 goose 启动 panic）；删完必须重启内层 goose 才生效
  * （`PermissionManager` 在进程内缓存整表），所以重置命令自己带了重启。
  */
-import { invoke } from '@tauri-apps/api/core'
-import { z } from 'zod'
-
-import { CHANNELS } from './channels'
-
-const PermissionBucketsSchema = z.object({
-  alwaysAllow: z.array(z.string()),
-  askBefore: z.array(z.string()),
-  neverAllow: z.array(z.string())
-})
-
-const GoosePermissionsSchema = z.object({
-  path: z.string(),
-  exists: z.boolean(),
-  /** 解析失败：应提示「建议重置」而不是「没有偏好」 */
-  unreadable: z.boolean(),
-  /** 用户手动记下的（「总是允许 / 从不允许」点出来的），优先级最高 */
-  user: PermissionBucketsSchema,
-  /** goose 的 LLM 判定缓存，不是用户偏好 */
-  smartApprove: PermissionBucketsSchema
-})
-
-type PermissionBuckets = z.infer<typeof PermissionBucketsSchema>
-type GoosePermissions = z.infer<typeof GoosePermissionsSchema>
+import { GoosePermissionsSchema, type GoosePermissions } from '@/shared/ipc/specs/security'
 
 /** 权限桶的三种取值 + 展示文案（顺序即 UI 顺序：宽 → 严）。 */
 const PERMISSION_BUCKETS = [
@@ -69,24 +46,10 @@ function classifyEntry(name: string, toolNames: ReadonlySet<string>): 'live' | '
   return toolNames.has(name) ? 'live' : 'stale'
 }
 
-async function GET_GOOSE_PERMISSIONS(): Promise<GoosePermissions> {
-  const raw = await invoke(CHANNELS.GOOSE.PERMISSIONS_READ)
-  return GoosePermissionsSchema.parse(raw)
-}
-
-/** 重置：备份后删掉 `permission.yaml` 并重启内层 goose。返回备份路径（本来没有文件时为 null）。 */
-async function DELETE_GOOSE_PERMISSIONS(): Promise<string | null> {
-  const raw = await invoke(CHANNELS.GOOSE.PERMISSIONS_RESET)
-  // Rust 侧是 `Option<String>`：没有文件时 IPC 给的是 `null`
-  return typeof raw === 'string' && raw.length > 0 ? raw : null
-}
-
 export {
   classifyEntry,
   GoosePermissionsSchema,
   listUserEntries,
-  PERMISSION_BUCKETS,
-  GET_GOOSE_PERMISSIONS,
-  DELETE_GOOSE_PERMISSIONS
+  PERMISSION_BUCKETS
 }
-export type { GoosePermissions, PermissionBuckets }
+export type { GoosePermissions, PermissionBuckets } from '@/shared/ipc/specs/security'

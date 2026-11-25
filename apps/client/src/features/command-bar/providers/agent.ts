@@ -26,7 +26,6 @@ function searchAgent(query: string): Hit[] {
       async run() {
         useAgentStore.getState().toReadSession(session.id)
         await openComponentRoute('agent', {
-          id: session.id,
           path: '/agent/chat'
         })
       }

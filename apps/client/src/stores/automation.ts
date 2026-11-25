@@ -17,7 +17,7 @@ import {
   type Automation,
   type AutomationRun,
   type AutomationSave
-} from '@/lib/automation-ipc'
+} from '@/apis/automation'
 import { reportCaught } from '@/utils/exception-report'
 import { runDue } from '@/features/automation/runner'
 import { subscribeAutomationLife } from '@/features/automation/events'
@@ -200,10 +200,13 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         // 内存 running 只由 runNow / 生命周期事件写入。
         // 禁止用 DB lastStatus=RUNNING 回填：跑挂 / 未 finish 时库里会长期停在 RUNNING，
         // 一刷新就把按钮永久锁死。库状态只用来驱动轮询（findHasRunning）。
-        for (const id of Object.keys(memory)) {
-          const item = items.find(function (row) {
-            return row.id === id
+        const byID = new Map(
+          items.map(function (row) {
+            return [row.id, row]
           })
+        )
+        for (const id of Object.keys(memory)) {
+          const item = byID.get(id)
           if (!item) {
             delete memory[id]
             continue
@@ -356,7 +359,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
           automationId: due.automation.id,
           name: due.automation.name,
           prompt: due.automation.prompt,
-          knowledgeBaseId: due.automation.knowledgeBaseId ?? null,
+          knowledgeSpaceId: due.automation.knowledgeSpaceId ?? null,
           workspaceId: due.automation.workspaceId ?? null,
           workspacePath: due.automation.workspacePath ?? null,
           sessionMode: due.automation.sessionMode ?? 'new',

@@ -10,7 +10,7 @@ import {
 
 const files = new Map<string, string>()
 
-vi.mock('@/lib/workspace-files', function () {
+vi.mock('@/apis/workspace-files', function () {
   return {
     WorkspaceFiles: {
       GET_WORKSPACE_FILE: async function (_roots: string[], path: string) {
