@@ -404,6 +404,30 @@ fn tenant_id_of(row: &rag_index_task::Model) -> TenantId {
     TenantId::from_uuid(row.tenant_id)
 }
 
+/// 平台运维：跨租户列出最近 100 条索引任务。
+pub async fn admin_indexes(
+    scope: &crate::guards::platform::PlatformScope,
+    status: Option<&str>,
+    tenant_id: Option<uuid::Uuid>,
+) -> Result<Vec<IndexTaskR>, RagError> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+
+    let mut query = rag_index_task::Entity::find();
+    if let Some(status) = status.filter(|value| !value.is_empty()) {
+        query = query.filter(rag_index_task::Column::Status.eq(status));
+    }
+    if let Some(tenant_id) = tenant_id {
+        query = query.filter(rag_index_task::Column::TenantId.eq(tenant_id));
+    }
+    let rows = query
+        .order_by_desc(rag_index_task::Column::CreatedAt)
+        .limit(100)
+        .all(scope.tx())
+        .await
+        .map_err(|err| RagError::Database(err.to_string()))?;
+    Ok(rows.iter().map(|row| render(row, None)).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

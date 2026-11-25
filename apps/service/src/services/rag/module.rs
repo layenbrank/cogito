@@ -12,6 +12,14 @@ use crate::services::rag::controller::IndexController;
 pub struct RagModule;
 
 impl RagModule {
+    pub fn configure_admin(cfg: &mut web::ServiceConfig) {
+        cfg.service(
+            web::resource("/admin/rag/index-tasks")
+                .wrap(Auth::admin())
+                .route(web::get().to(IndexController::admin_list)),
+        );
+    }
+
     pub fn configure(cfg: &mut web::ServiceConfig) {
         cfg.service(
             web::scope("/rag")

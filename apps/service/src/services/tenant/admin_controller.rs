@@ -16,8 +16,12 @@ use crate::filters::exception::Exception;
 use crate::guards::platform::PlatformScope;
 use crate::guards::session::Session;
 use crate::guards::tenant::TenantCtx;
-use crate::interceptors::envelope::Envelope;
+use crate::interceptors::envelope::{Envelope, Paginated};
+use crate::services::gateway::schema::AuditFilter;
+use crate::services::gateway::service::GatewayService;
+use crate::services::payment::service::PaymentService;
 use crate::services::subscription::schema::SubscribeP;
+use crate::services::subscription::service::SubscriptionService;
 use crate::services::tenant::schema::{
     AdminTenantQueryP, MemberUpdateP, MemberWriteP, TenantUpdateP, TenantWriteP,
 };
@@ -247,6 +251,124 @@ impl AdminTenantController {
             Err(err) => err.transform(),
         }
     }
+
+    pub async fn orders(
+        db: web::Data<Arc<Storage>>,
+        config: web::Data<Arc<Configure>>,
+        http: HttpRequest,
+        path: web::Path<String>,
+    ) -> Result<HttpResponse> {
+        let session = session(&http)?;
+        let ctx = enter(&db, &session, &path.into_inner()).await?;
+        match PaymentService::list(&ctx, &config, 50).await {
+            Ok(items) => {
+                ctx.commit().await?;
+                Envelope::success(items, "获取订单成功").transform()
+            }
+            Err(err) => {
+                let _ = ctx.rollback().await;
+                Exception::from(err).transform()
+            }
+        }
+    }
+
+    pub async fn order_sync(
+        db: web::Data<Arc<Storage>>,
+        config: web::Data<Arc<Configure>>,
+        redis: web::Data<Arc<RedisPool>>,
+        http: HttpRequest,
+        path: web::Path<(String, String)>,
+    ) -> Result<HttpResponse> {
+        let session = session(&http)?;
+        let (tenant_id, order_no) = path.into_inner();
+        let mut ctx = enter(&db, &session, &tenant_id).await?;
+        match PaymentService::sync(&mut ctx, &db, &config, &redis, &order_no).await {
+            Ok(item) => {
+                ctx.commit().await?;
+                Envelope::success(item, "同步订单成功").transform()
+            }
+            Err(err) => {
+                let _ = ctx.rollback().await;
+                Exception::from(err).transform()
+            }
+        }
+    }
+
+    pub async fn order_close(
+        db: web::Data<Arc<Storage>>,
+        config: web::Data<Arc<Configure>>,
+        http: HttpRequest,
+        path: web::Path<(String, String)>,
+    ) -> Result<HttpResponse> {
+        let session = session(&http)?;
+        let (tenant_id, order_no) = path.into_inner();
+        let ctx = enter(&db, &session, &tenant_id).await?;
+        match PaymentService::close(&ctx, &config, &order_no).await {
+            Ok(item) => {
+                ctx.commit().await?;
+                Envelope::success(item, "关闭订单成功").transform()
+            }
+            Err(err) => {
+                let _ = ctx.rollback().await;
+                Exception::from(err).transform()
+            }
+        }
+    }
+
+    pub async fn subscription_cancel(
+        db: web::Data<Arc<Storage>>,
+        redis: web::Data<Arc<RedisPool>>,
+        http: HttpRequest,
+        path: web::Path<(String, String)>,
+    ) -> Result<HttpResponse> {
+        let session = session(&http)?;
+        let (tenant_id, subscription_id) = path.into_inner();
+        let ctx = enter(&db, &session, &tenant_id).await?;
+        let subscription_id = subscription_id
+            .parse()
+            .map_err(|_| Exception::bad_request("ID 格式无效"))?;
+        match SubscriptionService::cancel(&ctx, &redis, subscription_id).await {
+            Ok(()) => {
+                ctx.commit().await?;
+                Envelope::message_only("取消订阅成功").transform()
+            }
+            Err(err) => {
+                let _ = ctx.rollback().await;
+                err.transform()
+            }
+        }
+    }
+
+    pub async fn audit(
+        db: web::Data<Arc<Storage>>,
+        path: web::Path<String>,
+        query: web::Query<AuditPageP>,
+    ) -> Result<HttpResponse> {
+        let tenant_id = path
+            .into_inner()
+            .parse()
+            .map_err(|_| Exception::bad_request("ID 格式无效"))?;
+        let page = query.page.unwrap_or(1).max(1);
+        let size = query.size.unwrap_or(20).clamp(1, 100);
+        let scope = PlatformScope::open(&db).await.map_err(db_error)?;
+        let filter = AuditFilter {
+            tenant_id: Some(tenant_id),
+            ..AuditFilter::default()
+        };
+        let result = GatewayService::list_audit(&scope, filter, page, size)
+            .await
+            .map(|(items, count)| Paginated::new(items, count, page, size));
+        platform_read(scope, result, |page| {
+            Envelope::success(page, "获取租户审计成功").transform()
+        })
+        .await
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AuditPageP {
+    page: Option<u32>,
+    size: Option<u32>,
 }
 
 fn session(http: &HttpRequest) -> Result<Session, Exception> {

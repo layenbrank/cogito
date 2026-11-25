@@ -260,6 +260,12 @@ OOM、断电）时没人续期，租约到期后框架把这一步**重新投给
 `require_compute_settings()` 同样只在 orchestrator 启动路径上校验：地址与令牌必须齐全。
 模型由 cogito 决定——出网与计量都以 cogito 的网关为唯一入口，compute 不许自己换模型。
 
+本机 Qwen3-Embedding 不改上表的默认值（测试与未覆盖的部署仍是 `text-embedding-3-small`）。要接 `dengcao/Qwen3-Embedding-0.6B:F16` 时在 `config.local.yaml` 覆盖：
+
+- `compute.embed_model`：与 llama-server 的 `--alias` 相同，并在网关建一行 `kind=ollama`、`baseUrl` 为 `http://127.0.0.1:11435/v1`（或隧道 `https://<域名>/embed/v1`）、`capabilities.embeddings=true` 且 `tools=false` 的模型。Ollama `:11434` 把这只 GGUF 标成对话模型，`/v1/embeddings` 会 501，不要把 `baseUrl` 指到那里。
+- `compute.embed_batch_size`：`8`。`compute.timeout_ms`：`120000`。0.6B 在 CPU 上一批 16 段容易超过 30 秒。
+- 查询前缀不在这张表里。compute 用 `COMPUTE_EMBED_QUERY_PREFIX`（默认空）。Qwen3 建议设成 `Instruct: Given a web search query, retrieve relevant passages that answer the query` 加换行再加 `Query: `。只加在检索和记忆召回上，索引块与记忆写入仍嵌原文。换模型后重新跑 `POST /api/v1/rag/index-tasks`；旧的 1536 维行按模型名隔开，不必迁移。
+
 ### 资产正文、嵌入与对话算力回打 cogito（服务身份）
 
 compute 是叶子进程，不直连模型厂商、不碰对象存储布局，也不持长期云凭据；它要算力或资产字节时回打 cogito 的

@@ -15,6 +15,15 @@ use crate::utils::code::external;
 pub struct ConsoleController;
 
 impl ConsoleController {
+    pub async fn summary(db: web::Data<Arc<Storage>>) -> Result<HttpResponse> {
+        let scope = PlatformScope::open(&db).await.map_err(db_error)?;
+        let result = ConsoleService::summary(&scope).await;
+        platform_read(scope, result, |item| {
+            Envelope::success(item, "获取概览成功").transform()
+        })
+        .await
+    }
+
     pub async fn toRead(db: web::Data<Arc<Storage>>, http: HttpRequest) -> Result<HttpResponse> {
         let actor = actor(&http)?;
         let scope = PlatformScope::open(&db).await.map_err(db_error)?;

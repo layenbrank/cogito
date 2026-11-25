@@ -19,7 +19,9 @@ use crate::filters::exception::Exception;
 use crate::guards::session::Session;
 use crate::guards::tenant::TenantCtx;
 use crate::interceptors::envelope::Envelope;
-use crate::services::agent::schema::{ApprovalP, TaskP};
+use crate::guards::platform::PlatformScope;
+use crate::services::agent::schema::{ApprovalP, TaskP, TaskQueryP};
+use crate::services::agent::service::admin_tasks;
 use crate::services::agent::service::AgentService;
 use crate::utils::code::request;
 
@@ -100,6 +102,39 @@ impl AgentController {
         {
             Ok(approval) => Envelope::success(approval, "审批决定已记录").transform(),
             Err(err) => err.transform(),
+        }
+    }
+
+    /// 平台运维列表：不要求 `X-Tenant-ID`。
+    pub async fn admin_list(
+        db: web::Data<Arc<Storage>>,
+        query: web::Query<TaskQueryP>,
+    ) -> Result<HttpResponse> {
+        let scope = PlatformScope::open(&db).await.map_err(|err| {
+            tracing::error!(error = %err, "agent admin scope failed");
+            Exception::custom(crate::utils::code::external::DATABASE_ERROR, "数据库错误")
+        })?;
+        let tenant_id = match query.tenant_id.as_deref().filter(|value| !value.is_empty()) {
+            Some(raw) => match raw.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => {
+                    let _ = scope.rollback().await;
+                    return Exception::bad_request("tenantID 格式无效").transform();
+                }
+            },
+            None => None,
+        };
+        match admin_tasks(&scope, query.status.as_deref(), tenant_id).await {
+            Ok(items) => {
+                scope.rollback().await.map_err(|err| {
+                    Exception::custom(crate::utils::code::external::DATABASE_ERROR, err.to_string())
+                })?;
+                Envelope::success(items, "获取任务列表成功").transform()
+            }
+            Err(err) => {
+                let _ = scope.rollback().await;
+                Exception::from(err).transform()
+            }
         }
     }
 }

@@ -1,12 +1,12 @@
 use chrono::Utc;
-use entity::console_preference;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use entity::{agent_task, auth, console_preference, exception, rag_index_task, tenant};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::filters::exception::Exception;
 use crate::guards::platform::PlatformScope;
-use crate::services::console::schema::{PreferenceP, PreferenceR};
+use crate::services::console::schema::{PreferenceP, PreferenceR, SummaryR};
 use crate::utils::code::{external, request};
 
 #[derive(Debug, thiserror::Error)]
@@ -32,6 +32,40 @@ impl From<ConsoleError> for Exception {
 pub struct ConsoleService;
 
 impl ConsoleService {
+    pub async fn summary(scope: &PlatformScope) -> Result<SummaryR, ConsoleError> {
+        let tx = scope.tx();
+        let users = auth::Entity::find()
+            .count(tx)
+            .await
+            .map_err(|err| ConsoleError::Db(err.to_string()))?;
+        let tenants = tenant::Entity::find()
+            .count(tx)
+            .await
+            .map_err(|err| ConsoleError::Db(err.to_string()))?;
+        let open_exceptions = exception::Entity::find()
+            .filter(exception::Column::Level.is_in(["fatal", "error"]))
+            .count(tx)
+            .await
+            .map_err(|err| ConsoleError::Db(err.to_string()))?;
+        let running_agents = agent_task::Entity::find()
+            .filter(agent_task::Column::Status.eq("015"))
+            .count(tx)
+            .await
+            .map_err(|err| ConsoleError::Db(err.to_string()))?;
+        let running_indexes = rag_index_task::Entity::find()
+            .filter(rag_index_task::Column::Status.eq("009"))
+            .count(tx)
+            .await
+            .map_err(|err| ConsoleError::Db(err.to_string()))?;
+        Ok(SummaryR {
+            users,
+            tenants,
+            open_exceptions,
+            running_agents,
+            running_indexes,
+        })
+    }
+
     pub async fn toRead(
         scope: &PlatformScope,
         actor: Uuid,

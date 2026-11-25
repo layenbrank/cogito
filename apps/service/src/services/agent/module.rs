@@ -12,6 +12,15 @@ use crate::services::agent::controller::AgentController;
 pub struct AgentModule;
 
 impl AgentModule {
+    /// 平台运维列表，与租户面 `/agent` 分开，避免 `Auth::isRequired` 吃掉 ADMIN 路由。
+    pub fn configure_admin(cfg: &mut web::ServiceConfig) {
+        cfg.service(
+            web::resource("/admin/agent/tasks")
+                .wrap(Auth::admin())
+                .route(web::get().to(AgentController::admin_list)),
+        );
+    }
+
     pub fn configure(cfg: &mut web::ServiceConfig) {
         cfg.service(
             web::scope("/agent")

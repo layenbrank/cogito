@@ -17,11 +17,12 @@ use crate::clients::compute::ComputeClient;
 use crate::configures::configure::Configure;
 use crate::databases::database::Storage;
 use crate::filters::exception::Exception;
+use crate::guards::platform::PlatformScope;
 use crate::guards::session::Session;
 use crate::guards::tenant::TenantCtx;
 use crate::interceptors::envelope::Envelope;
-use crate::services::rag::schema::{IndexTaskP, SearchP};
-use crate::services::rag::service::{IndexService, SearchService};
+use crate::services::rag::schema::{IndexQueryP, IndexTaskP, SearchP};
+use crate::services::rag::service::{admin_indexes, IndexService, SearchService};
 use crate::utils::code::request;
 
 pub struct IndexController;
@@ -99,6 +100,37 @@ impl IndexController {
         {
             Ok(result) => Envelope::success(result, "检索成功").transform(),
             Err(err) => err.transform(),
+        }
+    }
+
+    /// 平台运维列表：不要求 `X-Tenant-ID`。
+    pub async fn admin_list(
+        db: web::Data<Arc<Storage>>,
+        query: web::Query<IndexQueryP>,
+    ) -> Result<HttpResponse> {
+        let scope = PlatformScope::open(&db).await.map_err(|err| {
+            tracing::error!(error = %err, "rag admin scope failed");
+            Exception::custom(crate::utils::code::external::DATABASE_ERROR, "数据库错误")
+        })?;
+        let tenant_id = match query.tenant_id.as_deref().filter(|value| !value.is_empty()) {
+            Some(raw) => match raw.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => {
+                    let _ = scope.rollback().await;
+                    return Exception::bad_request("tenantID 格式无效").transform();
+                }
+            },
+            None => None,
+        };
+        match admin_indexes(&scope, query.status.as_deref(), tenant_id).await {
+            Ok(items) => {
+                let _ = scope.rollback().await;
+                Envelope::success(items, "获取索引任务成功").transform()
+            }
+            Err(err) => {
+                let _ = scope.rollback().await;
+                Exception::from(err).transform()
+            }
         }
     }
 }

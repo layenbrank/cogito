@@ -7,6 +7,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 
+/// 平台运维列表过滤。
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexQueryP {
+    pub status: Option<String>,
+    #[serde(rename = "tenantID")]
+    pub tenant_id: Option<String>,
+}
+
 /// 起索引任务请求。
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

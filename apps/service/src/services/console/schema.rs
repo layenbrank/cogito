@@ -2,6 +2,20 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 
+/// 概览指标。数字与各列表的全量计数对齐，不在浏览器里抽样。
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SummaryR {
+    pub users: u64,
+    pub tenants: u64,
+    /// fatal + error
+    pub open_exceptions: u64,
+    /// agent 台账 status = 015
+    pub running_agents: u64,
+    /// rag 台账 status = 009
+    pub running_indexes: u64,
+}
+
 /// 控制台偏好写入 / 覆盖（upsert）
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

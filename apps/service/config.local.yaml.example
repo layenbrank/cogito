@@ -40,6 +40,14 @@ events:
 redis:
   url: redis://127.0.0.1:6379
 
+# 可选：本机 Qwen3-Embedding。不要改仓库 config.yaml 的默认值。
+# 上游是 llama-server 的 /v1，不是 Ollama :11434。查询前缀写在 compute 的
+# COMPUTE_EMBED_QUERY_PREFIX，不写在这里。
+# compute:
+#   timeout_ms: 120000
+#   embed_batch_size: 8
+#   embed_model: "dengcao/Qwen3-Embedding-0.6B:F16"
+
 # 支付渠道凭据（均为敏感值，只放本机/部署环境，见 src/services/payment/README.md）。
 # enabled: true 时会强校验必填项：宁启动失败，也不带半截凭据上线。
 # 回调地址必须公网 HTTPS；本机联调用内网穿透或反向代理，否则只能靠订单 sync 兜底。

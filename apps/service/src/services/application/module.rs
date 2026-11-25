@@ -32,8 +32,10 @@ impl ApplicationModule {
                 .configure(SsoModule::configure)
                 // agent 任务：起任务 / 查任务（`/api/v1/agent/tasks`）
                 .configure(AgentModule::configure)
+                .configure(AgentModule::configure_admin)
                 // rag 索引：起任务 / 查任务（`/api/v1/rag/index-tasks`）
                 .configure(RagModule::configure)
+                .configure(RagModule::configure_admin)
                 // 定时任务：CRUD（`/api/v1/automations`），执行在 worker
                 .configure(ScheduleModule::configure)
                 // 会话同步：推一批 / 拉增量（`/api/v1/chat/sync`）

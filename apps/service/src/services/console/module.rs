@@ -10,6 +10,7 @@ impl ConsoleModule {
         cfg.service(
             web::scope("/console")
                 .wrap(Auth::admin())
+                .route("/summary", web::get().to(ConsoleController::summary))
                 .route("/preference", web::get().to(ConsoleController::toRead))
                 .route("/preference", web::put().to(ConsoleController::toUpdate)),
         );

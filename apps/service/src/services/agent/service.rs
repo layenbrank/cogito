@@ -536,6 +536,30 @@ fn requested_tools(
     Ok(picked)
 }
 
+/// 平台运维：跨租户列出最近 100 条任务。不询问编排进度。
+pub async fn admin_tasks(
+    scope: &crate::guards::platform::PlatformScope,
+    status: Option<&str>,
+    tenant_id: Option<Uuid>,
+) -> Result<Vec<TaskR>, AgentError> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+
+    let mut query = agent_task::Entity::find();
+    if let Some(status) = status.filter(|value| !value.is_empty()) {
+        query = query.filter(agent_task::Column::Status.eq(status));
+    }
+    if let Some(tenant_id) = tenant_id {
+        query = query.filter(agent_task::Column::TenantId.eq(tenant_id));
+    }
+    let rows = query
+        .order_by_desc(agent_task::Column::CreatedAt)
+        .limit(100)
+        .all(scope.tx())
+        .await
+        .map_err(|err| AgentError::Database(err.to_string()))?;
+    Ok(rows.iter().map(|row| render(row, None)).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -76,7 +76,21 @@ impl TenantModule {
                     "/{id}/subscriptions",
                     web::post().to(AdminTenantController::subscription_grant),
                 )
-                .route("/{id}/quota", web::get().to(AdminTenantController::quota)),
+                .route("/{id}/quota", web::get().to(AdminTenantController::quota))
+                .route("/{id}/orders", web::get().to(AdminTenantController::orders))
+                .route(
+                    "/{id}/orders/{orderNo}/sync",
+                    web::post().to(AdminTenantController::order_sync),
+                )
+                .route(
+                    "/{id}/orders/{orderNo}/close",
+                    web::post().to(AdminTenantController::order_close),
+                )
+                .route(
+                    "/{id}/subscriptions/{subscriptionID}",
+                    web::delete().to(AdminTenantController::subscription_cancel),
+                )
+                .route("/{id}/audit", web::get().to(AdminTenantController::audit)),
         );
     }
 }
