@@ -140,8 +140,17 @@ pub fn diagnostics_append(entries: Vec<FrontendLogEntry>) -> usize {
 }
 
 /// 待上报的崩溃现场 + 会话状态 + 日志尾巴。
+///
+/// 异步：要读目录里全部崩溃 JSON（每个带日志尾巴）再读一份 8KB 日志，
+/// 文件多时是几百毫秒的磁盘 IO，不能跑在 IPC 主线程上。
 #[tauri::command(rename = "diagnostics:pending")]
-pub fn diagnostics_pending() -> PendingDiagnostics {
+pub async fn diagnostics_pending() -> Result<PendingDiagnostics, String> {
+    tauri::async_runtime::spawn_blocking(collect_pending)
+        .await
+        .map_err(|error| format!("读取崩溃现场失败：{error}"))
+}
+
+fn collect_pending() -> PendingDiagnostics {
     let session = diagnostics::read_session();
     let previous_session_crashed = diagnostics::previous_session_crashed(session.as_ref());
     PendingDiagnostics {
@@ -177,7 +186,13 @@ fn dir_for_kind(kind: &str) -> Result<Option<PathBuf>, String> {
 /// 目录可能还没被创建（首次启动 / 还没崩溃过），这里先补齐再打开 ——
 /// 否则用户点「打开目录」只会看到资源管理器的报错弹窗。
 #[tauri::command(rename = "diagnostics:open-dir")]
-pub fn diagnostics_open_dir(kind: String) -> Result<String, String> {
+pub async fn diagnostics_open_dir(kind: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || open_dir_for(kind))
+        .await
+        .map_err(|error| format!("打开目录失败：{error}"))?
+}
+
+fn open_dir_for(kind: String) -> Result<String, String> {
     let target = dir_for_kind(&kind)?.ok_or_else(|| "取不到应用数据目录".to_string())?;
     fs::create_dir_all(&target).map_err(|error| format!("创建目录失败：{error}"))?;
     let path = target.display().to_string();
@@ -188,8 +203,17 @@ pub fn diagnostics_open_dir(kind: String) -> Result<String, String> {
 }
 
 /// 能力自述：版本、档位、目录、待报数量。
+///
+/// **必须异步**：这里要列目录、读崩溃现场 JSON，同步命令会跑在主线程上；诊断页本身
+/// 就是用来查卡死的，它自己把界面卡住是最难解释的一类问题。
 #[tauri::command(rename = "diagnostics:capabilities")]
-pub fn diagnostics_capabilities() -> DiagnosticsCapabilities {
+pub async fn diagnostics_capabilities() -> Result<DiagnosticsCapabilities, String> {
+    tauri::async_runtime::spawn_blocking(collect_capabilities)
+        .await
+        .map_err(|error| format!("读取诊断信息失败：{error}"))
+}
+
+fn collect_capabilities() -> DiagnosticsCapabilities {
     DiagnosticsCapabilities {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         identifier: crate::utils::instance::identifier().to_string(),

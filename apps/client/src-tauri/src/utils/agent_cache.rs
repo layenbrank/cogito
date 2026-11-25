@@ -632,26 +632,37 @@ pub fn prune_in_background(force: bool) {
 }
 
 /// 设置页读取缓存概况（顺手做一次节流清理 —— 打开诊断面板就是一次「该收拾了」的信号）。
+///
+/// **必须异步**：一次清理要递归统计旧目录、按 mtime 判定超期、再按体积 LRU 淘汰，
+/// 缓存大时是几百毫秒到几秒的磁盘 IO。同步命令跑在主线程上，就是「点开诊断页整页卡住」。
 #[tauri::command]
-pub fn agent_cache_info() -> AgentCacheStats {
-    if take_prune_slot(false).is_some() {
-        run_prune(retention_days(), max_bytes_limit());
-    }
-    stats()
+pub async fn agent_cache_info() -> Result<AgentCacheStats, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        if take_prune_slot(false).is_some() {
+            run_prune(retention_days(), max_bytes_limit());
+        }
+        stats()
+    })
+    .await
+    .map_err(|error| format!("读取 Agent 缓存信息失败：{error}"))
 }
 
 /// 设置页「清空」：返回释放的字节数。
 #[tauri::command]
-pub fn agent_cache_clear() -> Result<u64, String> {
-    let mut freed = clear()?;
-    let (_, legacy_bytes) = migrate_legacy_in(&legacy_roots());
-    freed = freed.saturating_add(legacy_bytes);
-    record_prune(PruneReport {
-        removed_dirs: 0,
-        freed_bytes: freed,
-        at_ms: PruneReport::now(),
-    });
-    Ok(freed)
+pub async fn agent_cache_clear() -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut freed = clear()?;
+        let (_, legacy_bytes) = migrate_legacy_in(&legacy_roots());
+        freed = freed.saturating_add(legacy_bytes);
+        record_prune(PruneReport {
+            removed_dirs: 0,
+            freed_bytes: freed,
+            at_ms: PruneReport::now(),
+        });
+        Ok(freed)
+    })
+    .await
+    .map_err(|error| format!("清空 Agent 缓存失败：{error}"))?
 }
 
 #[cfg(test)]

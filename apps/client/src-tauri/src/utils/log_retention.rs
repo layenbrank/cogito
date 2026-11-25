@@ -11,6 +11,12 @@ pub const LOG_RETENTION_DAYS: u64 = 30;
 /// 单文件上限（字节），超出后轮转为带日期后缀的归档。
 pub const LOG_MAX_FILE_SIZE: u128 = 5_000_000; // 5MB：一次崩溃前后的上下文能完整落在一两个文件里
 
+/// 滚动日志最多保留的文件数（5MB × 20 ≈ 100MB）。
+///
+/// 30 天保留策略挡不住「几秒钟刷满一个 5MB 文件」的日志风暴：2026-11-23 出现过
+/// 3 分钟轮转 16 个文件。磁盘被打满时 SQLite / WebView 都会跟着失败。
+pub const LOG_FILE_KEEP: usize = 20;
+
 /// 删除 `app_log_dir` 中修改时间早于保留期的 `.log` / `.log.bak`。
 pub fn prune_stale_logs(app: &AppHandle) {
     let Ok(dir) = app.path().app_log_dir() else {

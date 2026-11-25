@@ -7,8 +7,10 @@
  * - 单条截断到 **4KB**，避免一条巨大 JSON 把日志刷爆；
  * - 每条带**当前 window label**（`main` / `overlay` / `capture`），
  *   一个窗口挂死时能从日志里区分是谁在刷；
- * - 非 Tauri 环境（浏览器预览）自动降级成什么都不做，绝不报错。
+ * - 没有 IPC 能力时（嵌套壳 / 单测）自动降级成什么都不做，绝不报错。
  */
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
 import { POST_DIAGNOSTICS_APPEND } from '@/apis/diagnostics'
 
 /** 一批最多攒多久（毫秒）就 flush 一次 */
@@ -41,11 +43,12 @@ let originals: { warn: typeof console.warn; error: typeof console.error } | null
 
 /** 当前窗口 label；取不到就退化成 `main`（日志里不至于出现空列）。 */
 function currentWindowLabel(): string {
-  // 全程可选链：拿不到就退化成 `main`，不需要 try/catch
-  const internals = (window as unknown as {
-    __TAURI_INTERNALS__?: { metadata?: { currentWindow?: { label?: string } } }
-  }).__TAURI_INTERNALS__
-  return internals?.metadata?.currentWindow?.label ?? 'main'
+  try {
+    return getCurrentWindow().label
+  } catch (error) {
+    console.warn('[log-bridge] 读不到当前窗口 label', error)
+    return 'main'
+  }
 }
 
 function truncate(input: string, max: number): string {
