@@ -23,10 +23,9 @@ import {
 } from '@/apis/user.ts'
 import { ConfirmDialog } from '@/components/console/confirm-dialog.tsx'
 import { ConsolePage } from '@/components/console/console-page.tsx'
-import { DataTable } from '@/components/console/data-table.tsx'
 import { EntitySheet } from '@/components/console/entity-sheet.tsx'
-import { FilterBar } from '@/components/console/filter-bar.tsx'
-import { QueryState } from '@/components/console/query-state.tsx'
+import { useQueryText } from '@/components/console/use-query-text.ts'
+import { Workbench } from '@/components/console/workbench.tsx'
 import { StatusBadge } from '@/components/console/status-badge.tsx'
 import { provisionPersonalTenant } from '@/features/tenant/provision-personal.ts'
 import { useSessionStore } from '@/stores/session.ts'
@@ -69,7 +68,8 @@ export default function UsersView() {
   const selfID = useSessionStore(function (state) {
     return state.user?.id
   })
-  const [keyword, updateKeyword] = useState('')
+  const { query, writeQuery } = useQueryText()
+  const [selected, updateSelected] = useState<string[]>([])
   const [sheetOpen, updateSheetOpen] = useState(false)
   const [editing, updateEditing] = useState<UserRecord | null>(null)
   const [draft, updateDraft] = useState({
@@ -96,7 +96,7 @@ export default function UsersView() {
 
   const filtered = useMemo(
     function () {
-      const needle = keyword.trim().toLowerCase()
+      const needle = query.trim().toLowerCase()
       const rows = users.data ?? []
       if (!needle) return rows
       return rows.filter(function (user) {
@@ -109,7 +109,7 @@ export default function UsersView() {
         )
       })
     },
-    [keyword, users.data]
+    [query, users.data]
   )
 
   const createUser = useMutation({
@@ -235,22 +235,33 @@ export default function UsersView() {
           新建用户
         </Button>
       }
-      toolbar={
-        <FilterBar
-          search={keyword}
-          searchPlaceholder="搜索用户名 / 邮箱 / 手机 / ID / 角色"
-          onSearchChange={updateKeyword}
-        />
-      }>
-      <QueryState
+    >
+      <Workbench
+        query={query}
+        onQuery={writeQuery}
+        queryPlaceholder="搜索用户名 / 邮箱 / 手机 / ID / 角色"
         isLoading={users.isLoading}
         isError={users.isError}
         error={users.error}
         onRetry={function () {
           void users.refetch()
-        }}>
-        <DataTable
-          columns={[
+        }}
+        selected={new Set(selected)}
+        onToggle={function (id) {
+          updateSelected(function (current) {
+            return current.includes(id)
+              ? current.filter(function (item) {
+                  return item !== id
+                })
+              : [...current, id]
+          })
+        }}
+        bulk={
+          selected.length > 0 ? (
+            <span className="text-muted-foreground">已选 {selected.length} 人</span>
+          ) : null
+        }
+        columns={[
             {
               key: 'username',
               title: '用户名',
@@ -403,11 +414,8 @@ export default function UsersView() {
             return row.id
           }}
           emptyTitle="暂无用户"
-          emptyActionLabel="新建用户"
-          onEmptyAction={openCreate}
           onRowClick={openEdit}
         />
-      </QueryState>
 
       <EntitySheet
         open={sheetOpen}
@@ -420,6 +428,15 @@ export default function UsersView() {
         contentClassName="sm:max-w-lg"
         submitLabel={editing ? '保存' : '创建'}
         isPending={createUser.isPending || patchUser.isPending}
+        bookmark={
+          editing
+            ? {
+                id: `user:${editing.id}`,
+                label: editing.username,
+                path: `/users?focus=${editing.id}`
+              }
+            : undefined
+        }
         onOpenChange={updateSheetOpen}
         onSubmit={function () {
           if (editing) {

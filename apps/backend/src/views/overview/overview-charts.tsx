@@ -34,8 +34,8 @@ interface ChartPanelProps {
 function ChartPanel(props: ChartPanelProps) {
   return (
     <section
-      className="rounded-lg border border-border/80 bg-[var(--backend-surface)] p-3"
-      style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+      className="rounded-lg border border-border/80 bg-card p-3"
+      >
       <header className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs font-medium">
           <Icon

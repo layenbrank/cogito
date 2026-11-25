@@ -22,7 +22,7 @@
 
 ```
 登录（ADMIN 门禁）
-└── Shell（可拖拽排序的侧栏 + 命令面板）
+└── Shell（56px 顶栏 + 无背景文字分组 + 命令面板）
     ├── 概览 Overview          — 健康信号、用量火花线、待办审批
     ├── 身份 Identity
     │   ├── 用户 Users
@@ -44,7 +44,7 @@
         └── 偏好（导航序 / 钉选 / 看板小部件 / 书签）
 ```
 
-侧栏条目支持 **@dnd-kit 排序** 与 **钉选**；顺序持久化到 cogito `console_preference`。
+顶栏不画背景侧轨。当前分组的页面是文字链接，当前项只用主色字重。钉选进顶栏快捷项；排序在偏好页，持久化到 `console_preference`。
 
 ## 3. 模块职责（对照 API）
 
@@ -64,16 +64,15 @@
 
 ## 4. 视觉与动效原则
 
-对齐仓库 design token（`@cogito/design`），品牌气质取 client 登录侧：**深海蓝 → 青绿**，避免紫白渐变 / 奶油衬线套路。
+对齐仓库 design token（`@cogito/design`）与 client 外观：主色 `#4080ff`，圆角 10px，明暗跟随系统。登录 shader 与 client 共用「思 · 台」（`packages/brand`），不用 Swirl / CursorRipples。
 
 | 层 | 做法 |
 | -- | ---- |
-| 登录 | `shaders` Swirl + FilmGrain（`prefers-reduced-motion` / 无 WebGPU 时降级） |
-| 壳层 | 冷静浅底 + 左侧窄轨；主区一大块工作面，**默认无卡片堆** |
-| 表格 | 行高紧凑；悬停高亮；批量条从底滑入 |
-| DnD | 侧栏 / 供应商序 / 看板小部件；拖时半透明 + 占位线 |
-| 动效 | 路由 enter 150–220ms；列表 stagger；尊重 reduced-motion |
-| 字体 | 沿用 design 系统；标题字重拉开层次，不用 Inter 作为「特色」卖点 |
+| 登录 | 海军蓝桌面 + 薰衣草线框 + 慢速粒子 + 静态 FilmGrain |
+| 壳层 | 一根顶栏加一行文字导航，铺在 `bg-background` 上，没有侧栏面 |
+| 表格 | 筛选进 URL；列显隐；实体 ID 可跳转 |
+| 主题 | `.dark` + `--primary` / `--radius`，选择写入偏好 |
+| 动效 | 路由淡入；尊重 reduced-motion；按压用色阶 |
 
 ## 5. 体验原则（专业 PM）
 

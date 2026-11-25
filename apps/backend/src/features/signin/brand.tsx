@@ -55,7 +55,9 @@ function SignInBrand() {
       const openTimer = window.setTimeout(
         function () {
           cancelIdle = scheduleIdle(function () {
-            if (!isCancelled) updateShaderReady(true)
+            if (isCancelled) return
+            if (document.visibilityState !== 'visible') return
+            updateShaderReady(true)
           })
         },
         isReducedMotion ? 0 : SHADER_OPEN_MS
@@ -77,7 +79,7 @@ function SignInBrand() {
     <aside className="relative isolate flex min-h-44 flex-col justify-between overflow-hidden bg-signin-brand px-6 py-7 text-signin-brand-foreground lg:min-h-0 lg:px-10 lg:py-10">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(28%_22%_at_82%_28%,color-mix(in_oklab,var(--backend-accent)_24%,transparent),transparent_70%),radial-gradient(22%_18%_at_16%_82%,color-mix(in_oklab,var(--backend-accent)_14%,transparent),transparent_72%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(28%_22%_at_82%_28%,color-mix(in_oklab,var(--primary)_24%,transparent),transparent_70%),radial-gradient(22%_18%_at_16%_82%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent_72%)]"
       />
 
       {showsShader ? (

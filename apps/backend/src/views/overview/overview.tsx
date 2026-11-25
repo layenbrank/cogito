@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { GET_CONSOLE_SUMMARY } from '@/apis/console.ts'
 import { GET_EXCEPTIONS, GET_EXCEPTION_SUMMARY } from '@/apis/exception.ts'
 import { GET_GATEWAY_PROVIDERS, GET_GATEWAY_USAGE } from '@/apis/gateway.ts'
 import { GET_ADMIN_TENANTS } from '@/apis/tenant.ts'
@@ -64,10 +65,9 @@ function WidgetCard(props: WidgetCardProps) {
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.6 : 1,
-        boxShadow: 'var(--backend-elevation-1)'
+        opacity: isDragging ? 0.6 : 1
       }}
-      className="rounded-lg border border-border/80 bg-[var(--backend-surface)] p-3">
+      className="rounded-lg border border-border/80 bg-card p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Icon
@@ -121,6 +121,7 @@ export default function OverviewView() {
     return state.reorderWidgets
   })
 
+  const summary = useQuery({ queryKey: ['console-summary'], queryFn: GET_CONSOLE_SUMMARY })
   const users = useQuery({ queryKey: ['users'], queryFn: GET_USERS })
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
   const tenants = useQuery({
@@ -204,7 +205,7 @@ export default function OverviewView() {
         />
         <Link
           to="/gateway/usage"
-          className="mt-1.5 inline-flex text-[11px] text-[var(--backend-accent)] hover:underline">
+          className="mt-1.5 inline-flex text-[11px] text-primary hover:underline">
           查看用量
         </Link>
       </div>
@@ -231,12 +232,12 @@ export default function OverviewView() {
         <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
           <Link
             to="/exceptions"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             异常台
           </Link>
           <Link
             to="/logs"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             操作日志
           </Link>
         </div>
@@ -247,28 +248,28 @@ export default function OverviewView() {
         <li>
           <Link
             to="/logs"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             操作日志
           </Link>
         </li>
         <li>
           <Link
             to="/exceptions"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             异常台
           </Link>
         </li>
         <li>
           <Link
             to="/billing/reconciliation"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             计量对账
           </Link>
         </li>
         <li>
           <Link
             to="/agent"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             Agent 探针
           </Link>
         </li>
@@ -279,6 +280,26 @@ export default function OverviewView() {
   return (
     <ConsolePage bare>
       <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-5">
+          {[
+            { label: '用户', value: summary.data?.users },
+            { label: '租户', value: summary.data?.tenants },
+            { label: '未关闭异常', value: summary.data?.openExceptions },
+            { label: '进行中 Agent', value: summary.data?.runningAgents },
+            { label: '进行中索引', value: summary.data?.runningIndexes }
+          ].map(function (metric) {
+            return (
+              <div
+                key={metric.label}
+                className="bg-card px-3 py-3">
+                <p className="text-xs text-muted-foreground">{metric.label}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">
+                  {summary.isError ? '—' : summary.isLoading ? '…' : (metric.value ?? 0)}
+                </p>
+              </div>
+            )
+          })}
+        </div>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

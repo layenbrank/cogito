@@ -15,9 +15,23 @@ async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
   return HttpEnvelope(await pending)
 }
 
+function GET_AGENT_TASKS(query: { status?: string; tenantID?: string } = {}) {
+  return unwrap(http.get<RSF<AgentTask[]>>('/admin/agent/tasks', { ...ENV, query }))
+}
+
 function GET_AGENT_TASK(id: string) {
   return unwrap(http.get<RSF<AgentTask>>(`/agent/tasks/${id}`, ENV))
 }
 
-export { GET_AGENT_TASK }
+function POST_AGENT_APPROVAL(taskID: string, approvalID: string, decision: string) {
+  return unwrap(
+    http.post<RSF<unknown>>(
+      `/agent/tasks/${taskID}/approvals/${approvalID}`,
+      { decision },
+      ENV
+    )
+  )
+}
+
+export { GET_AGENT_TASK, GET_AGENT_TASKS, POST_AGENT_APPROVAL }
 export type { AgentTask }

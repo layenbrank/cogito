@@ -5,7 +5,8 @@ interface NavItem {
   icon: string
   /** 对应 NavGroup.id */
   group: string
-  /** 悬停提示；侧栏折叠时一并展示 */
+  /** `G` 再按此键跳转 */
+  key: string
   hint?: string
 }
 
@@ -33,7 +34,8 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/overview',
     icon: 'lucide:layout-dashboard',
     group: '总览',
-    hint: '日活 / 月活与异常信号；小部件可拖拽同步'
+    key: 'o',
+    hint: '日活 / 月活与异常信号'
   },
   {
     id: 'users',
@@ -41,6 +43,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/users',
     icon: 'lucide:users',
     group: '身份',
+    key: 'u',
     hint: '平台账号；角色与状态可调整'
   },
   {
@@ -49,7 +52,8 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/tenants',
     icon: 'lucide:building-2',
     group: '身份',
-    hint: '组织与成员'
+    key: 't',
+    hint: '组织、成员、订阅、订单与审计'
   },
   {
     id: 'providers',
@@ -57,6 +61,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/gateway/providers',
     icon: 'lucide:server',
     group: '网关',
+    key: 'p',
     hint: '上游模型供应商；密钥只写不读'
   },
   {
@@ -65,6 +70,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/gateway/models',
     icon: 'lucide:boxes',
     group: '网关',
+    key: 'm',
     hint: '按供应商治理能力与配额'
   },
   {
@@ -73,6 +79,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/gateway/usage',
     icon: 'lucide:chart-column',
     group: '网关',
+    key: 'y',
     hint: '跨租户 token 用量'
   },
   {
@@ -81,6 +88,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/logs',
     icon: 'lucide:scroll-text',
     group: '观测',
+    key: 'l',
     hint: '网关操作时间线，可导出'
   },
   {
@@ -89,6 +97,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/exceptions',
     icon: 'lucide:triangle-alert',
     group: '观测',
+    key: 'e',
     hint: '客户端运行时异常；问题分组与详情'
   },
   {
@@ -97,6 +106,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/billing/prices',
     icon: 'lucide:tags',
     group: '商业',
+    key: 'c',
     hint: '平台默认价与租户专属价'
   },
   {
@@ -105,6 +115,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/billing/reconciliation',
     icon: 'lucide:scale',
     group: '商业',
+    key: 'r',
     hint: '用量 × 价目运维汇总'
   },
   {
@@ -113,6 +124,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/sso',
     icon: 'lucide:key-round',
     group: '接入',
+    key: 's',
     hint: 'OIDC 连接；客户端密钥只写不读'
   },
   {
@@ -121,7 +133,8 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/agent',
     icon: 'lucide:bot',
     group: '运行时',
-    hint: '按任务 ID 查询 durable agent 状态'
+    key: 'a',
+    hint: '跨租户 agent 任务'
   },
   {
     id: 'rag',
@@ -129,7 +142,8 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/rag',
     icon: 'lucide:database',
     group: '运行时',
-    hint: '按索引任务 ID 查询进度与结果'
+    key: 'i',
+    hint: '跨租户 RAG 索引任务'
   },
   {
     id: 'preferences',
@@ -137,6 +151,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/preferences',
     icon: 'lucide:sliders-horizontal',
     group: '控制台',
+    key: 'f',
     hint: '导航序、钉选、看板小部件与书签'
   },
   {
@@ -145,6 +160,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     path: '/dict',
     icon: 'lucide:book-type',
     group: '控制台',
+    key: 'k',
     hint: '全局池、类型认领与租户覆盖'
   }
 ] as const

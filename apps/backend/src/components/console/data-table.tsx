@@ -3,6 +3,13 @@ import clsx from 'clsx'
 import type { ReactNode } from 'react'
 
 import { EmptyState } from '@/components/console/empty-state.tsx'
+import { formatFieldValue } from '@/components/console/field-label.ts'
+
+function cellNode(value: ReactNode): ReactNode {
+  if (value === null || value === undefined || typeof value !== 'object') return value
+  if (Array.isArray(value) || '$$typeof' in value) return value
+  return formatFieldValue(value)
+}
 
 interface DataTableColumn<T> {
   key: string
@@ -84,10 +91,10 @@ function DataTable<T>(props: DataTableProps<T>) {
                     <td
                       key={column.key}
                       className={clsx(
-                        'h-[var(--backend-row-h)] px-3 align-middle',
+                        'h-12 px-3 align-middle',
                         column.className
                       )}>
-                      {column.render(row)}
+                      {cellNode(column.render(row))}
                     </td>
                   )
                 })}

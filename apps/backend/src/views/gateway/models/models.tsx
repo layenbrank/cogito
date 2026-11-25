@@ -252,8 +252,8 @@ export default function ModelsView() {
             return (
               <section
                 key={providerID}
-                className="overflow-hidden rounded-xl border border-border/80 bg-[var(--backend-surface)]"
-                style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+                className="overflow-hidden rounded-xl border border-border/80 bg-card"
+                >
                 <h3 className="border-b border-border/60 bg-muted/30 px-4 py-2.5 text-sm font-medium">
                   {providerName.get(providerID) ?? rows[0]?.providerName ?? providerID}
                 </h3>
@@ -264,7 +264,7 @@ export default function ModelsView() {
                         key={model.id}
                         className={[
                           'flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm',
-                          model.id === focusID ? 'bg-[var(--backend-accent-soft)]' : ''
+                          model.id === focusID ? 'bg-primary/10' : ''
                         ].join(' ')}>
                         <div>
                           <p className="font-medium">

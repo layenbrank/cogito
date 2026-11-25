@@ -15,9 +15,13 @@ async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
   return HttpEnvelope(await pending)
 }
 
+function GET_RAG_INDEX_TASKS(query: { status?: string; tenantID?: string } = {}) {
+  return unwrap(http.get<RSF<RagIndexTask[]>>('/admin/rag/index-tasks', { ...ENV, query }))
+}
+
 function GET_RAG_INDEX_TASK(id: string) {
   return unwrap(http.get<RSF<RagIndexTask>>(`/rag/index-tasks/${id}`, ENV))
 }
 
-export { GET_RAG_INDEX_TASK }
+export { GET_RAG_INDEX_TASK, GET_RAG_INDEX_TASKS }
 export type { RagIndexTask }

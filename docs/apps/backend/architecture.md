@@ -9,7 +9,9 @@ apps/backend (React SPA)
 apps/service /api/v1/*
     │
     ├── 既有 ADMIN 面：users / gateway/* / billing/* / sso/connections / tenants…
-    └── 新增：console/preference（控制台布局持久化）
+    ├── console/preference、console/summary
+    ├── admin/agent/tasks、admin/rag/index-tasks
+    └── admin/tenants/{id}/orders|audit|subscriptions/{id}
 ```
 
 - **不做** 第二套业务后端；不写 Node CRUD 服务。  
@@ -24,9 +26,9 @@ src/
   utils/http/    # 浏览器 fetch（无 @tauri-apps/plugin-http）
   utils/auth.ts  # JWT local/sessionStorage；isAdmin()
   stores/        # zustand：session / console-layout
-  features/      # 登录、侧栏 DnD、看板小部件
+  features/      # 登录、外观（品牌蓝 / 明暗）
   views/         # 路由页
-  components/    # shell、data-table、brand shader
+  components/    # 顶栏 shell、workbench、brand shader（@cogito/brand）
   routers/       # createBrowserRouter + ADMIN loader
 ```
 

@@ -24,7 +24,7 @@ export default function SignInView() {
       <section className="relative flex items-center justify-center bg-background px-6 py-10 sm:px-10">
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 hidden w-9 bg-[linear-gradient(90deg,color-mix(in_oklab,var(--backend-accent)_16%,transparent),transparent)] lg:block"
+          className="pointer-events-none absolute inset-y-0 left-0 hidden w-9 bg-[linear-gradient(90deg,color-mix(in_oklab,var(--primary)_16%,transparent),transparent)] lg:block"
         />
         <SignInForm />
       </section>

@@ -8,11 +8,33 @@ import { toast } from 'sonner'
 import { EXPORT_GATEWAY_AUDIT, GET_GATEWAY_AUDIT } from '@/apis/gateway.ts'
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import { DataTable, TableFooter } from '@/components/console/data-table.tsx'
+import { formatFieldValue } from '@/components/console/field-label.ts'
 import { FilterBar } from '@/components/console/filter-bar.tsx'
 import { QueryState } from '@/components/console/query-state.tsx'
 import { RefreshButton } from '@/components/console/refresh-button.tsx'
 import { reportCaught } from '@/utils/exception-report.ts'
 import { HttpError } from '@/utils/http/errors.ts'
+
+function formatAuditDetail(detail: unknown) {
+  if (detail === null || detail === undefined || detail === '') return '—'
+  if (typeof detail === 'string') return detail
+  if (typeof detail === 'object' && !Array.isArray(detail)) {
+    const record = detail as Record<string, unknown>
+    const parts: string[] = []
+    if (record.status !== null && record.status !== undefined) {
+      parts.push(formatFieldValue(record.status))
+    }
+    if (typeof record.totalTokens === 'number') {
+      parts.push(`${record.totalTokens.toLocaleString()} tokens`)
+    }
+    for (const [key, value] of Object.entries(record)) {
+      if (key === 'status' || key === 'totalTokens') continue
+      parts.push(`${key} ${formatFieldValue(value)}`)
+    }
+    if (parts.length > 0) return parts.join(' · ')
+  }
+  return formatFieldValue(detail)
+}
 
 /** 平台操作日志：对接 cogito `GET /gateway/audit` */
 export default function LogsView() {
@@ -125,7 +147,7 @@ export default function LogsView() {
                 return (
                   <Link
                     to={`/tenants?focus=${row.tenantID}`}
-                    className="text-[var(--backend-accent)] hover:underline">
+                    className="text-primary hover:underline">
                     {row.tenantID}
                   </Link>
                 )
@@ -136,7 +158,7 @@ export default function LogsView() {
               title: '详情',
               className: 'max-w-xs truncate text-xs text-muted-foreground',
               render(row) {
-                return row.detail ?? '—'
+                return formatAuditDetail(row.detail)
               }
             }
           ]}

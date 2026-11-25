@@ -25,6 +25,8 @@ import {
 } from '@cogito/design/components/select'
 import { Icon } from '@iconify/react/offline'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -44,7 +46,6 @@ import { QueryState } from '@/components/console/query-state.tsx'
 import { StatusBadge } from '@/components/console/status-badge.tsx'
 import { HttpError } from '@/utils/http/errors.ts'
 
-const ORDER_KEY = 'backend-provider-order'
 
 type ProviderKind = (typeof GATEWAY_PROVIDER_KINDS)[number]
 
@@ -151,26 +152,15 @@ function SortableProvider(props: {
   )
 }
 
-function findSavedOrder(ids: string[]): string[] {
-  try {
-    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as string[]
-    return [
-      ...saved.filter(function (id) {
-        return ids.includes(id)
-      }),
-      ...ids.filter(function (id) {
-        return !saved.includes(id)
-      })
-    ]
-  } catch {
-    return ids
-  }
-}
-
 export default function ProvidersView() {
   const queryClient = useQueryClient()
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
-  const [orderOverride, updateOrderOverride] = useState<string[] | null>(null)
+  const providerOrder = useConsoleLayoutStore(function (state) {
+    return state.providerOrder
+  })
+  const writeProviderOrder = useConsoleLayoutStore(function (state) {
+    return state.writeProviderOrder
+  })
   const [sheetOpen, updateSheetOpen] = useState(false)
   const [editingID, updateEditingID] = useState<string | null>(null)
   const [pendingDelete, updatePendingDelete] = useState<GatewayProvider | null>(null)
@@ -184,19 +174,16 @@ export default function ProvidersView() {
         return item.id
       })
       if (!ids.length) return []
-      if (orderOverride) {
-        return [
-          ...orderOverride.filter(function (id) {
-            return ids.includes(id)
-          }),
-          ...ids.filter(function (id) {
-            return !orderOverride.includes(id)
-          })
-        ]
-      }
-      return findSavedOrder(ids)
+      return [
+        ...providerOrder.filter(function (id) {
+          return ids.includes(id)
+        }),
+        ...ids.filter(function (id) {
+          return !providerOrder.includes(id)
+        })
+      ]
     },
-    [providers.data, orderOverride]
+    [providers.data, providerOrder]
   )
 
   function closeSheet() {
@@ -291,8 +278,7 @@ export default function ProvidersView() {
     const newIndex = order.indexOf(String(over.id))
     if (oldIndex < 0 || newIndex < 0) return
     const next = arrayMove(order, oldIndex, newIndex)
-    updateOrderOverride(next)
-    localStorage.setItem(ORDER_KEY, JSON.stringify(next))
+    writeProviderOrder(next)
   }
 
   return (

@@ -10,6 +10,8 @@ import {
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 
+import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
+
 interface EntitySheetProps {
   open: boolean
   title: string
@@ -23,11 +25,27 @@ interface EntitySheetProps {
   contentClassName?: string
   onOpenChange(open: boolean): void
   onSubmit?(): void
+  /** 收藏进控制台偏好，出现在顶栏书签 */
+  bookmark?: { id: string; label: string; path: string }
 }
 
 function EntitySheet(props: EntitySheetProps) {
   const hasSubmit = typeof props.onSubmit === 'function'
   const hasFooter = Boolean(props.footer) || hasSubmit
+  const writeBookmark = useConsoleLayoutStore(function (state) {
+    return state.writeBookmark
+  })
+  const bookmarks = useConsoleLayoutStore(function (state) {
+    return state.bookmarks
+  })
+  const removeBookmark = useConsoleLayoutStore(function (state) {
+    return state.removeBookmark
+  })
+  const isBookmarked = props.bookmark
+    ? bookmarks.some(function (item) {
+        return item.id === props.bookmark?.id
+      })
+    : false
 
   return (
     <Sheet
@@ -39,7 +57,22 @@ function EntitySheet(props: EntitySheetProps) {
         side="right"
         className={clsx('flex w-full flex-col sm:max-w-md', props.contentClassName)}>
         <SheetHeader>
-          <SheetTitle className="text-lg">{props.title}</SheetTitle>
+          <div className="flex items-start justify-between gap-3 pe-8">
+            <SheetTitle className="text-lg">{props.title}</SheetTitle>
+            {props.bookmark ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={isBookmarked ? 'default' : 'outline'}
+                onClick={function () {
+                  if (!props.bookmark) return
+                  if (isBookmarked) removeBookmark(props.bookmark.id)
+                  else writeBookmark(props.bookmark)
+                }}>
+                {isBookmarked ? '已收藏' : '收藏'}
+              </Button>
+            ) : null}
+          </div>
           {props.description ? (
             <SheetDescription className="text-sm">{props.description}</SheetDescription>
           ) : null}

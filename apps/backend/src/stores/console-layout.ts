@@ -16,13 +16,63 @@ import {
   NAV_GROUP_SHOW_ICON,
   RAIL_DEFAULT_COLLAPSED
 } from '@/constants/nav.ts'
+import type { AppearanceMode } from '@/features/appearance/paint.ts'
 import { isAdmin, isAuthenticated } from '@/utils/auth.ts'
 import { reportCaught } from '@/utils/exception-report.ts'
+
+const PREF_APPEARANCE = 'pref:appearance'
+const PREF_PROVIDER_ORDER = 'pref:provider-order'
+
+function splitBookmarks(bookmarks: ConsoleBookmark[]) {
+  let appearanceMode: AppearanceMode = 'system'
+  const providerOrder: string[] = []
+  const visible = bookmarks.filter(function (item) {
+    if (item.id === PREF_APPEARANCE) {
+      if (item.label === 'light' || item.label === 'dark' || item.label === 'system') {
+        appearanceMode = item.label
+      }
+      return false
+    }
+    if (item.id === PREF_PROVIDER_ORDER) {
+      item.label
+        .split(',')
+        .filter(Boolean)
+        .forEach(function (id) {
+          providerOrder.push(id)
+        })
+      return false
+    }
+    return true
+  })
+  return { appearanceMode, providerOrder, bookmarks: visible }
+}
+
+function packBookmarks(state: {
+  bookmarks: ConsoleBookmark[]
+  appearanceMode: AppearanceMode
+  providerOrder: string[]
+}): ConsoleBookmark[] {
+  return [
+    ...state.bookmarks,
+    {
+      id: PREF_APPEARANCE,
+      label: state.appearanceMode,
+      path: 'cogito:appearance'
+    },
+    {
+      id: PREF_PROVIDER_ORDER,
+      label: state.providerOrder.join(','),
+      path: 'cogito:provider-order'
+    }
+  ]
+}
 
 interface ConsoleLayoutStore extends ConsolePreference {
   isHydrated: boolean
   isSyncing: boolean
-  /** 侧栏宽度折叠（本地）：antd collapsed / Naive collapsed / Element collapse */
+  appearanceMode: AppearanceMode
+  providerOrder: string[]
+  /** 侧栏已移除；字段保留以免旧的本地 persist 解析失败 */
   isRailCollapsed: boolean
   /** 已收起的导航分组（对齐 antd openKeys 的补集） */
   collapsedNavGroups: string[]
@@ -35,6 +85,8 @@ interface ConsoleLayoutStore extends ConsolePreference {
   toggleWidget: (id: string) => void
   writeBookmark: (bookmark: ConsoleBookmark) => void
   removeBookmark: (id: string) => void
+  writeAppearance: (mode: AppearanceMode) => void
+  writeProviderOrder: (order: string[]) => void
   toggleRailCollapsed: () => void
   writeRailCollapsed: (collapsed: boolean) => void
   toggleNavGroup: (group: string) => void
@@ -53,7 +105,7 @@ function snapshot(state: ConsoleLayoutStore): ConsolePreference {
     navOrder: state.navOrder,
     pinnedNav: state.pinnedNav,
     dashboardWidgets: state.dashboardWidgets,
-    bookmarks: state.bookmarks
+    bookmarks: packBookmarks(state)
   }
 }
 
@@ -75,6 +127,8 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
         pinnedNav: [],
         dashboardWidgets: [...DEFAULT_DASHBOARD_WIDGETS],
         bookmarks: [],
+        appearanceMode: 'system',
+        providerOrder: [],
         isHydrated: false,
         isSyncing: false,
         isRailCollapsed: RAIL_DEFAULT_COLLAPSED,
@@ -112,13 +166,16 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
           try {
             const remote = await GET_CONSOLE_PREFERENCE()
             if (remote) {
+              const parsed = splitBookmarks(remote.bookmarks)
               set({
                 navOrder: remote.navOrder.length ? remote.navOrder : [...DEFAULT_NAV_ORDER],
                 pinnedNav: remote.pinnedNav,
                 dashboardWidgets: remote.dashboardWidgets.length
                   ? remote.dashboardWidgets
                   : [...DEFAULT_DASHBOARD_WIDGETS],
-                bookmarks: remote.bookmarks,
+                bookmarks: parsed.bookmarks,
+                appearanceMode: parsed.appearanceMode,
+                providerOrder: parsed.providerOrder,
                 isHydrated: true,
                 isSyncing: false
               })
@@ -176,6 +233,14 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
             })
           })
           void syncPreference(snapshot(get()))
+        },
+        writeAppearance(mode) {
+          set({ appearanceMode: mode })
+          void syncPreference(snapshot(get()))
+        },
+        writeProviderOrder(order) {
+          set({ providerOrder: order })
+          void syncPreference(snapshot(get()))
         }
       }
     },
@@ -187,6 +252,8 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
           pinnedNav: state.pinnedNav,
           dashboardWidgets: state.dashboardWidgets,
           bookmarks: state.bookmarks,
+          appearanceMode: state.appearanceMode,
+          providerOrder: state.providerOrder,
           isRailCollapsed: state.isRailCollapsed,
           collapsedNavGroups: state.collapsedNavGroups,
           isNavGroupIconVisible: state.isNavGroupIconVisible

@@ -47,10 +47,10 @@ const LEVEL_OPTIONS = [
 ] as const
 
 const SUMMARY_METRICS = [
-  { key: 'total', label: '合计', accent: 'var(--backend-accent)', filter: '' },
-  { key: 'fatal', label: '致命', accent: 'var(--backend-danger)', filter: 'fatal' },
-  { key: 'error', label: '错误', accent: 'var(--backend-danger)', filter: 'error' },
-  { key: 'warning', label: '警告', accent: 'var(--backend-warn)', filter: 'warning' }
+  { key: 'total', label: '合计', accent: 'var(--primary)', filter: '' },
+  { key: 'fatal', label: '致命', accent: 'var(--destructive)', filter: 'fatal' },
+  { key: 'error', label: '错误', accent: 'var(--destructive)', filter: 'error' },
+  { key: 'warning', label: '警告', accent: 'var(--warning)', filter: 'warning' }
 ] as const
 
 function findLevelLabel(level: string) {
@@ -61,19 +61,19 @@ function findLevelTone(level: string) {
   const key = level.toLowerCase()
   if (key === 'fatal' || key === 'error') {
     return {
-      color: 'var(--backend-danger)',
-      background: 'var(--backend-danger-soft)'
+      color: 'var(--destructive)',
+      background: 'color-mix(in oklab, var(--destructive) 12%, transparent)'
     }
   }
   if (key === 'warning') {
     return {
-      color: 'var(--backend-warn)',
-      background: 'var(--backend-warn-soft)'
+      color: 'var(--warning)',
+      background: 'color-mix(in oklab, var(--warning) 12%, transparent)'
     }
   }
   return {
-    color: 'var(--backend-accent)',
-    background: 'var(--backend-accent-soft)'
+    color: 'var(--primary)',
+    background: 'color-mix(in oklab, var(--primary) 12%, transparent)'
   }
 }
 
@@ -235,13 +235,14 @@ export default function ExceptionsView() {
             ).map(function (item) {
               const active = tab === item.id
               return (
-                <button
+                <Button
                   key={item.id}
                   type="button"
+                  variant="ghost"
                   className={clsx(
-                    '-mb-px border-b-2 px-3 py-2.5 text-sm transition',
+                    'h-auto rounded-none border-b-2 px-3 py-2.5 text-sm',
                     active
-                      ? 'border-[var(--backend-accent)] font-medium text-foreground'
+                      ? 'border-primary font-medium text-foreground'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                   )}
                   onClick={function () {
@@ -250,7 +251,7 @@ export default function ExceptionsView() {
                     resetPage()
                   }}>
                   {item.label}
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -342,18 +343,19 @@ export default function ExceptionsView() {
         </div>
 
         <div
-          className="grid shrink-0 grid-cols-2 overflow-hidden rounded-lg border border-border/70 bg-[var(--backend-surface)] sm:grid-cols-4"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="grid shrink-0 grid-cols-2 overflow-hidden rounded-lg border border-border/70 bg-card sm:grid-cols-4"
+          >
           {SUMMARY_METRICS.map(function (metric, index) {
             const active = metric.filter ? level === metric.filter : !level
             return (
-              <button
+              <Button
                 key={metric.key}
                 type="button"
+                variant="ghost"
                 className={clsx(
-                  'px-3 py-3 text-left transition hover:bg-muted/30',
+                  'h-auto rounded-none px-3 py-3 text-left hover:bg-muted/30',
                   index > 0 && 'border-l border-border/60',
-                  active && 'bg-[var(--backend-accent-soft)]/40'
+                  active && 'bg-primary/10'
                 )}
                 onClick={function () {
                   toggleLevelFilter(metric.filter)
@@ -369,14 +371,14 @@ export default function ExceptionsView() {
                 <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums">
                   {summary.isLoading ? '…' : findSummaryCount(metric.key).toLocaleString()}
                 </p>
-              </button>
+              </Button>
             )
           })}
         </div>
 
         <div
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-[var(--backend-surface)]"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card"
+          >
           <QueryState
             isLoading={isListLoading}
             isError={isListError}

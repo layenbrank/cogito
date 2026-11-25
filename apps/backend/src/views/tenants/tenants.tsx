@@ -16,7 +16,9 @@ import { toast } from 'sonner'
 import {
   DELETE_ADMIN_TENANT,
   DELETE_ADMIN_TENANT_MEMBER,
+  DELETE_ADMIN_TENANT_SUBSCRIPTION,
   GET_ADMIN_TENANT,
+  GET_ADMIN_TENANT_ORDERS,
   GET_ADMIN_TENANTS,
   POST_ADMIN_TENANT,
   POST_ADMIN_TENANT_MEMBER,
@@ -105,6 +107,13 @@ export default function TenantsView() {
     queryKey: ['admin-tenant', selectedID],
     queryFn: function () {
       return GET_ADMIN_TENANT(selectedID!)
+    },
+    enabled: Boolean(selectedID)
+  })
+  const orders = useQuery({
+    queryKey: ['admin-tenant-orders', selectedID],
+    queryFn: function () {
+      return GET_ADMIN_TENANT_ORDERS(selectedID!)
     },
     enabled: Boolean(selectedID)
   })
@@ -239,6 +248,19 @@ export default function TenantsView() {
     }
   })
 
+  const cancelSubscription = useMutation({
+    mutationFn: function (input: { tenantID: string; subscriptionID: string }) {
+      return DELETE_ADMIN_TENANT_SUBSCRIPTION(input.tenantID, input.subscriptionID)
+    },
+    onSuccess() {
+      toast.success('已取消订阅')
+      invalidateTenants()
+    },
+    onError(error) {
+      toast.error(HttpError(error).message)
+    }
+  })
+
   const grantSubscription = useMutation({
     mutationFn: function (input: { tenantID: string; plan: string }) {
       return POST_ADMIN_TENANT_SUBSCRIPTION(input.tenantID, { plan: input.plan })
@@ -362,8 +384,8 @@ export default function TenantsView() {
       }>
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div
-          className="overflow-hidden rounded-xl border border-border/80 bg-[var(--backend-surface)]"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="overflow-hidden rounded-xl border border-border/80 bg-card"
+          >
           <QueryState
             isLoading={tenants.isLoading}
             isError={tenants.isError}
@@ -497,8 +519,8 @@ export default function TenantsView() {
         </div>
 
         <div
-          className="space-y-4 rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="space-y-4 rounded-xl border border-border/80 bg-card p-4"
+          >
           {!selectedID ? (
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>选择左侧租户查看详情、成员与配额。</p>
@@ -575,6 +597,29 @@ export default function TenantsView() {
                           render(row) {
                             return formatTime(row.createdAt)
                           }
+                        },
+                        {
+                          key: 'cancel',
+                          title: '',
+                          className: 'text-right',
+                          render(row) {
+                            if (row.status === 'CANCELED') return null
+                            return (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={function () {
+                                  if (!selectedID) return
+                                  cancelSubscription.mutate({
+                                    tenantID: selectedID,
+                                    subscriptionID: row.id
+                                  })
+                                }}>
+                                取消
+                              </Button>
+                            )
+                          }
                         }
                       ]}
                       rows={detail.data.subscriptions}
@@ -608,6 +653,49 @@ export default function TenantsView() {
                         TEAM 租户走全局配额，不可订阅。
                       </p>
                     )}
+                  </section>
+
+                  <section className="space-y-2">
+                    <h4 className="text-sm font-medium">订单</h4>
+                    <DataTable
+                      columns={[
+                        {
+                          key: 'orderNo',
+                          title: '单号',
+                          className: 'font-mono text-xs',
+                          render(row) {
+                            return row.orderNo
+                          }
+                        },
+                        {
+                          key: 'plan',
+                          title: '档位',
+                          render(row) {
+                            return row.plan
+                          }
+                        },
+                        {
+                          key: 'status',
+                          title: '状态',
+                          render(row) {
+                            return <StatusBadge status={row.status} />
+                          }
+                        },
+                        {
+                          key: 'amount',
+                          title: '金额（分）',
+                          className: 'tabular-nums',
+                          render(row) {
+                            return row.amount
+                          }
+                        }
+                      ]}
+                      rows={orders.data ?? []}
+                      rowKey={function (row) {
+                        return row.orderNo
+                      }}
+                      emptyTitle={orders.isError ? '订单加载失败' : '无订单'}
+                    />
                   </section>
 
                   <section className="space-y-2">

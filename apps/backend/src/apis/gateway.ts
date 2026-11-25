@@ -117,7 +117,7 @@ interface AuditRecord {
   actor: string
   action: string
   resource: string
-  detail: string | null
+  detail: unknown
   ip: string | null
   createdAt: number
 }

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import 'reflect-metadata'
 
 import App from '@/App.tsx'
+import { paintAppearance } from '@/features/appearance/paint.ts'
 import {
   installExceptionReporting,
   reportUnknown
@@ -14,6 +15,7 @@ import LucideIconify from '@iconify/json/json/lucide.json'
 
 addCollection(LucideIconify)
 installExceptionReporting()
+paintAppearance('system')
 
 const rootElement = document.getElementById('root') as HTMLElement
 createRoot(rootElement, {

@@ -20,7 +20,7 @@ function ConsolePage(props: ConsolePageProps) {
         'flex shrink-0 flex-wrap items-center gap-3',
         props.bare
           ? 'mb-4'
-          : 'border-b border-[var(--backend-rail-border)] bg-[var(--backend-surface)] px-3 py-2.5'
+          : 'border-b border-border bg-card px-3 py-2.5'
       )}>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{props.toolbar}</div>
       {props.actions ? (
@@ -38,8 +38,8 @@ function ConsolePage(props: ConsolePageProps) {
         </>
       ) : (
         <div
-          className="flex min-h-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-[var(--backend-surface)]"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="flex min-h-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card"
+          >
           {chrome}
           <div className="flex min-h-0 flex-1 flex-col">{props.children}</div>
         </div>

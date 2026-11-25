@@ -124,8 +124,8 @@ export default function ReconciliationView() {
         {totals ? (
           <dl className="mb-6 grid gap-3 sm:grid-cols-3">
             <div
-              className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-3"
-              style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+              className="rounded-xl border border-border/80 bg-card p-3"
+              >
               <dt className="text-xs text-muted-foreground">用量金额</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums">
                 {formatFen(totals.usageAmount)}
@@ -135,16 +135,16 @@ export default function ReconciliationView() {
               </dd>
             </div>
             <div
-              className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-3"
-              style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+              className="rounded-xl border border-border/80 bg-card p-3"
+              >
               <dt className="text-xs text-muted-foreground">实收金额</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums">
                 {formatFen(totals.orderAmount)}
               </dd>
             </div>
             <div
-              className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-3"
-              style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+              className="rounded-xl border border-border/80 bg-card p-3"
+              >
               <dt className="text-xs text-muted-foreground">差额（用量 − 实收）</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums">{formatFen(totals.delta)}</dd>
             </div>
@@ -153,8 +153,8 @@ export default function ReconciliationView() {
 
         <h2 className="mb-2 text-sm font-medium">型号明细</h2>
         <div
-          className="mb-8 overflow-hidden rounded-xl border border-border/80 bg-[var(--backend-surface)]"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="mb-8 overflow-hidden rounded-xl border border-border/80 bg-card"
+          >
           <DataTable
             columns={[
               {
@@ -219,8 +219,8 @@ export default function ReconciliationView() {
               return (
                 <li
                   key={`${row.kind}-${row.orderNo ?? row.modelID ?? index}`}
-                  className="rounded-xl border border-border/80 bg-[var(--backend-surface)] px-3 py-2"
-                  style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+                  className="rounded-xl border border-border/80 bg-card px-3 py-2"
+                  >
                   <p className="font-medium">
                     {row.description}{' '}
                     <span className="font-mono text-xs font-normal text-muted-foreground">

@@ -178,21 +178,66 @@ function POST_ADMIN_TENANT_SUBSCRIPTION(id: string, body: SubscribeWrite) {
   )
 }
 
+interface TenantOrder {
+  orderNo: string
+  plan: string
+  channel: string
+  amount: number
+  status: string
+  createdAt: number
+}
+
+interface TenantAuditPage {
+  items: TenantAudit[]
+  count: number
+  page: number
+  size: number
+}
+
+function GET_ADMIN_TENANT_ORDERS(id: string) {
+  return unwrap(http.get<RSF<TenantOrder[]>>(`/admin/tenants/${id}/orders`, ENV))
+}
+
+function POST_ADMIN_TENANT_ORDER_SYNC(id: string, orderNo: string) {
+  return unwrap(http.post<RSF<TenantOrder>>(`/admin/tenants/${id}/orders/${orderNo}/sync`, {}, ENV))
+}
+
+function POST_ADMIN_TENANT_ORDER_CLOSE(id: string, orderNo: string) {
+  return unwrap(http.post<RSF<TenantOrder>>(`/admin/tenants/${id}/orders/${orderNo}/close`, {}, ENV))
+}
+
+function DELETE_ADMIN_TENANT_SUBSCRIPTION(id: string, subscriptionID: string) {
+  return unwrap(
+    http.delete<RSF<null>>(`/admin/tenants/${id}/subscriptions/${subscriptionID}`, ENV)
+  )
+}
+
+function GET_ADMIN_TENANT_AUDIT(id: string, page = 1) {
+  return unwrap(
+    http.get<RSF<TenantAuditPage>>(`/admin/tenants/${id}/audit`, { ...ENV, query: { page, size: 20 } })
+  )
+}
+
 function GET_ADMIN_TENANT_QUOTA(id: string) {
   return unwrap(http.get<RSF<TenantQuota>>(`/admin/tenants/${id}/quota`, ENV))
 }
 
 export {
   DELETE_ADMIN_TENANT,
+  DELETE_ADMIN_TENANT_SUBSCRIPTION,
   DELETE_ADMIN_TENANT_MEMBER,
   GET_ADMIN_TENANT,
   GET_ADMIN_TENANT_MEMBERS,
+  GET_ADMIN_TENANT_AUDIT,
+  GET_ADMIN_TENANT_ORDERS,
   GET_ADMIN_TENANT_QUOTA,
   GET_ADMIN_TENANT_SUBSCRIPTIONS,
   GET_ADMIN_TENANTS,
   GET_MY_TENANTS,
   POST_ADMIN_TENANT,
   POST_ADMIN_TENANT_MEMBER,
+  POST_ADMIN_TENANT_ORDER_CLOSE,
+  POST_ADMIN_TENANT_ORDER_SYNC,
   POST_ADMIN_TENANT_SUBSCRIPTION,
   PUT_ADMIN_TENANT,
   PUT_ADMIN_TENANT_MEMBER
@@ -202,6 +247,8 @@ export type {
   MemberWrite,
   SubscribeWrite,
   TenantAudit,
+  TenantAuditPage,
+  TenantOrder,
   TenantDetail,
   TenantMember,
   TenantPage,

@@ -5,10 +5,7 @@ import { Switch } from '@cogito/design/components/switch'
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import {
   DEFAULT_DASHBOARD_WIDGETS,
-  NAV_GROUP_DEFAULT_OPEN,
-  NAV_GROUP_SHOW_ICON,
   NAV_ITEMS,
-  RAIL_DEFAULT_COLLAPSED,
   findNavById
 } from '@/constants/nav.ts'
 import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
@@ -42,17 +39,14 @@ export default function PreferencesView() {
   const removeBookmark = useConsoleLayoutStore(function (state) {
     return state.removeBookmark
   })
-  const isRailCollapsed = useConsoleLayoutStore(function (state) {
-    return state.isRailCollapsed
+  const appearanceMode = useConsoleLayoutStore(function (state) {
+    return state.appearanceMode
   })
-  const writeRailCollapsed = useConsoleLayoutStore(function (state) {
-    return state.writeRailCollapsed
+  const writeAppearance = useConsoleLayoutStore(function (state) {
+    return state.writeAppearance
   })
-  const isNavGroupIconVisible = useConsoleLayoutStore(function (state) {
-    return state.isNavGroupIconVisible
-  })
-  const writeNavGroupIconVisible = useConsoleLayoutStore(function (state) {
-    return state.writeNavGroupIconVisible
+  const reorderNav = useConsoleLayoutStore(function (state) {
+    return state.reorderNav
   })
   const isHydrated = useConsoleLayoutStore(function (state) {
     return state.isHydrated
@@ -64,58 +58,47 @@ export default function PreferencesView() {
   return (
     <ConsolePage bare>
       <div className="grid gap-4 lg:grid-cols-2">
-        <section
-          className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+        <section className="rounded-xl border border-border/80 bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-medium">侧栏</h3>
-            <Badge variant="secondary">本地</Badge>
+            <h3 className="text-sm font-medium">外观</h3>
+            <Badge variant="secondary">已同步</Badge>
           </div>
-          <ul className="space-y-3 text-sm">
-            <li className="flex items-center justify-between gap-3">
-              <div>
-                <p>折叠侧栏</p>
-                <p className="text-xs text-muted-foreground">
-                  对齐 antd Sider collapsed；代码默认{' '}
-                  {RAIL_DEFAULT_COLLAPSED ? '收起' : '展开'}（`RAIL_DEFAULT_COLLAPSED`）
-                </p>
-              </div>
-              <Switch
-                checked={isRailCollapsed}
-                onCheckedChange={function (checked) {
-                  writeRailCollapsed(checked)
-                }}
-              />
-            </li>
-            <li className="flex items-center justify-between gap-3">
-              <div>
-                <p>分类显示图标</p>
-                <p className="text-xs text-muted-foreground">
-                  代码默认 {NAV_GROUP_SHOW_ICON ? '显示' : '隐藏'}（`NAV_GROUP_SHOW_ICON`）
-                </p>
-              </div>
-              <Switch
-                checked={isNavGroupIconVisible}
-                onCheckedChange={function (checked) {
-                  writeNavGroupIconVisible(checked)
-                }}
-              />
-            </li>
-            <li className="rounded-md bg-muted/40 px-2.5 py-2 text-xs text-muted-foreground">
-              导航分组默认{NAV_GROUP_DEFAULT_OPEN ? '展开' : '收起'}（`NAV_GROUP_DEFAULT_OPEN`）；侧栏内点分组标题可单独开合。
-            </li>
-          </ul>
+          <p className="mb-3 text-xs text-muted-foreground">
+            主色与 client 一致（品牌蓝）。明暗跟随系统，也可固定。快捷键 D 循环切换。
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['system', '跟随系统'],
+                ['light', '浅色'],
+                ['dark', '深色']
+              ] as const
+            ).map(function (item) {
+              return (
+                <Button
+                  key={item[0]}
+                  type="button"
+                  size="sm"
+                  variant={appearanceMode === item[0] ? 'default' : 'outline'}
+                  onClick={function () {
+                    writeAppearance(item[0])
+                  }}>
+                  {item[1]}
+                </Button>
+              )
+            })}
+          </div>
         </section>
 
         <section
-          className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="rounded-xl border border-border/80 bg-card p-4"
+          >
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium">导航</h3>
             <Badge variant="secondary">{isSyncing ? '同步中…' : isHydrated ? '已同步' : '本地'}</Badge>
           </div>
           <p className="mb-3 text-xs text-muted-foreground">
-            在侧栏拖拽即可改序；此处可开关钉选。当前序：
+            钉选出现在顶栏。上下移动改变命令面板与偏好里的顺序。
           </p>
           <ol className="space-y-1 text-sm">
             {navOrder.map(function (id, index) {
@@ -131,14 +114,31 @@ export default function PreferencesView() {
                     <span className="mr-2 tabular-nums text-muted-foreground">{index + 1}.</span>
                     {item.label}
                   </span>
-                  <Button
-                    size="sm"
-                    variant={pinnedNav.includes(id) ? 'default' : 'outline'}
-                    onClick={function () {
-                      togglePin(id)
-                    }}>
-                    {pinnedNav.includes(id) ? '已钉选' : '钉选'}
-                  </Button>
+                  <span className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={index === 0}
+                      onClick={function () {
+                        const next = [...navOrder]
+                        const previous = next[index - 1]
+                        const current = next[index]
+                        if (!previous || !current) return
+                        next[index - 1] = current
+                        next[index] = previous
+                        reorderNav(next)
+                      }}>
+                      上移
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={pinnedNav.includes(id) ? 'default' : 'outline'}
+                      onClick={function () {
+                        togglePin(id)
+                      }}>
+                      {pinnedNav.includes(id) ? '已钉选' : '钉选'}
+                    </Button>
+                  </span>
                 </li>
               )
             })}
@@ -146,8 +146,8 @@ export default function PreferencesView() {
         </section>
 
         <section
-          className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="rounded-xl border border-border/80 bg-card p-4"
+          >
           <h3 className="mb-3 text-sm font-medium">概览小部件</h3>
           <ul className="space-y-3 text-sm">
             {DEFAULT_DASHBOARD_WIDGETS.map(function (id) {
@@ -170,8 +170,8 @@ export default function PreferencesView() {
         </section>
 
         <section
-          className="rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4 lg:col-span-2"
-          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          className="rounded-xl border border-border/80 bg-card p-4 lg:col-span-2"
+          >
           <h3 className="mb-3 text-sm font-medium">书签</h3>
           {bookmarks.length === 0 ? (
             <p className="text-sm text-muted-foreground">暂无书签。后续可在实体页一键收藏。</p>

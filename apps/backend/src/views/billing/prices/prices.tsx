@@ -10,6 +10,7 @@ import {
   DELETE_BILLING_PRICE,
   GET_BILLING_PRICES,
   POST_BILLING_PRICE,
+  PUT_BILLING_PRICE,
   type BillingPrice
 } from '@/apis/billing.ts'
 import { ConfirmDialog } from '@/components/console/confirm-dialog.tsx'
@@ -23,6 +24,7 @@ export default function PricesView() {
   const queryClient = useQueryClient()
   const prices = useQuery({ queryKey: ['billing-prices'], queryFn: GET_BILLING_PRICES })
   const [sheetOpen, updateSheetOpen] = useState(false)
+  const [editing, updateEditing] = useState<BillingPrice | null>(null)
   const [pendingDelete, updatePendingDelete] = useState<BillingPrice | null>(null)
   const [draft, updateDraft] = useState({
     modelID: '',
@@ -38,6 +40,24 @@ export default function PricesView() {
       toast.success('已创建价目')
       void queryClient.invalidateQueries({ queryKey: ['billing-prices'] })
       updateSheetOpen(false)
+    },
+    onError(error) {
+      toast.error(HttpError(error).message)
+    }
+  })
+
+  const updatePrice = useMutation({
+    mutationFn: function (input: { id: string; inputPerMTok: number; outputPerMTok: number }) {
+      return PUT_BILLING_PRICE(input.id, {
+        inputPerMTok: input.inputPerMTok,
+        outputPerMTok: input.outputPerMTok
+      })
+    },
+    onSuccess() {
+      toast.success('已更新价目')
+      void queryClient.invalidateQueries({ queryKey: ['billing-prices'] })
+      updateSheetOpen(false)
+      updateEditing(null)
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -63,6 +83,14 @@ export default function PricesView() {
           size="lg"
           className="h-10 px-4"
           onClick={function () {
+            updateEditing(null)
+            updateDraft({
+              modelID: '',
+              tenantID: '',
+              currency: 'CNY',
+              inputPerMTok: '',
+              outputPerMTok: ''
+            })
             updateSheetOpen(true)
           }}>
           新建价目
@@ -125,14 +153,31 @@ export default function PricesView() {
               className: 'text-right',
               render(row) {
                 return (
-                  <Button
-                    variant="ghost"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={function () {
-                      updatePendingDelete(row)
-                    }}>
-                    删除
-                  </Button>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      variant="outline"
+                      onClick={function () {
+                        updateEditing(row)
+                        updateDraft({
+                          modelID: row.modelID,
+                          tenantID: row.tenantID ?? '',
+                          currency: row.currency,
+                          inputPerMTok: String(row.inputPerMTok),
+                          outputPerMTok: String(row.outputPerMTok)
+                        })
+                        updateSheetOpen(true)
+                      }}>
+                      编辑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={function () {
+                        updatePendingDelete(row)
+                      }}>
+                      删除
+                    </Button>
+                  </div>
                 )
               }
             }
@@ -151,12 +196,25 @@ export default function PricesView() {
 
       <EntitySheet
         open={sheetOpen}
-        title="新建价目"
-        description="新开一条生效窗口，不原地改价。"
-        submitLabel="创建"
-        isPending={createPrice.isPending}
-        onOpenChange={updateSheetOpen}
+        title={editing ? '编辑价目' : '新建价目'}
+        description={editing ? '就地更新单价。模型与租户范围保持不变。' : '新开一条生效窗口。'}
+        submitLabel={editing ? '保存' : '创建'}
+        isPending={createPrice.isPending || updatePrice.isPending}
+        onOpenChange={function (open) {
+          updateSheetOpen(open)
+          if (!open) updateEditing(null)
+        }}
         onSubmit={function () {
+          const inputPerMTok = Number(draft.inputPerMTok)
+          const outputPerMTok = Number(draft.outputPerMTok)
+          if (!Number.isFinite(inputPerMTok) || !Number.isFinite(outputPerMTok)) {
+            toast.error('填写单价')
+            return
+          }
+          if (editing) {
+            updatePrice.mutate({ id: editing.id, inputPerMTok, outputPerMTok })
+            return
+          }
           if (!draft.modelID || !draft.inputPerMTok || !draft.outputPerMTok) {
             toast.error('填写模型与单价')
             return

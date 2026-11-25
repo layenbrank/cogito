@@ -26,8 +26,8 @@ function RecentExceptions(props: RecentExceptionsProps) {
 
   return (
     <section
-      className="rounded-lg border border-border/80 bg-[var(--backend-surface)]"
-      style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+      className="rounded-lg border border-border/80 bg-card"
+      >
       <header className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
         <div className="flex items-center gap-1.5 text-xs font-medium">
           <Icon
@@ -42,12 +42,12 @@ function RecentExceptions(props: RecentExceptionsProps) {
         <div className="flex gap-3 text-[11px]">
           <Link
             to="/exceptions"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             异常台
           </Link>
           <Link
             to="/logs"
-            className="text-[var(--backend-accent)] hover:underline">
+            className="text-primary hover:underline">
             操作日志
           </Link>
         </div>
@@ -83,16 +83,16 @@ function RecentExceptions(props: RecentExceptionsProps) {
                       style={{
                         color:
                           row.level === 'fatal' || row.level === 'error'
-                            ? 'var(--backend-danger)'
+                            ? 'var(--destructive)'
                             : row.level === 'warning'
-                              ? 'var(--backend-warn)'
-                              : 'var(--backend-accent)',
+                              ? 'var(--warning)'
+                              : 'var(--primary)',
                         background:
                           row.level === 'fatal' || row.level === 'error'
-                            ? 'var(--backend-danger-soft)'
+                            ? 'color-mix(in oklab, var(--destructive) 12%, transparent)'
                             : row.level === 'warning'
-                              ? 'var(--backend-warn-soft)'
-                              : 'var(--backend-accent-soft)'
+                              ? 'color-mix(in oklab, var(--warning) 12%, transparent)'
+                              : 'color-mix(in oklab, var(--primary) 12%, transparent)'
                       }}>
                       {row.level === 'fatal'
                         ? '致命'

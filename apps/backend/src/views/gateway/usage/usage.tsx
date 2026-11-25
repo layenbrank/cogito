@@ -90,7 +90,7 @@ export default function UsageView() {
                 return (
                   <Link
                     to={`/tenants?focus=${row.tenantID}`}
-                    className="text-[var(--backend-accent)] hover:underline">
+                    className="text-primary hover:underline">
                     {row.tenantID}
                   </Link>
                 )
@@ -104,7 +104,7 @@ export default function UsageView() {
                 return (
                   <Link
                     to={`/users?focus=${row.userID}`}
-                    className="text-[var(--backend-accent)] hover:underline">
+                    className="text-primary hover:underline">
                     {row.userID}
                   </Link>
                 )
@@ -118,7 +118,7 @@ export default function UsageView() {
                 return (
                   <Link
                     to={`/gateway/models?focus=${row.modelID}`}
-                    className="text-[var(--backend-accent)] hover:underline">
+                    className="text-primary hover:underline">
                     {row.modelID}
                   </Link>
                 )
