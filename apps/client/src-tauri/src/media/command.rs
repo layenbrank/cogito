@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 const EXPORT_PROGRESS_EVENT: &str = "media:export-progress";
 const FILMSTRIP_FRAME_EVENT: &str = "media:filmstrip-frame";
@@ -65,7 +65,15 @@ fn is_usable_tool(path: &Path) -> bool {
             .unwrap_or(false)
 }
 
-fn find_tool_path(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
+/// 外部工具（ffmpeg / ffprobe / pandoc）的唯一查找入口：
+///
+/// 打包版在 `<安装目录>/binaries/`，开发时在 `apps/client/src-tauri/binaries/`（向上找祖先目录）。
+/// 缩略图服务的 FFmpeg 兜底也走这里 —— 以前它自己找 `resource_dir()/bin/`，
+/// 而打包后实际是 `binaries/`，于是视频 / HEIC 缩略图一律 422。
+pub(crate) fn find_tool_path<R: Runtime>(
+    app: &AppHandle<R>,
+    name: &str,
+) -> Result<PathBuf, String> {
     let exe_name = if cfg!(windows) {
         format!("{name}.exe")
     } else {

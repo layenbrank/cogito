@@ -67,7 +67,7 @@ fn collect_files(
 }
 
 /// 单个路径的元信息。前端只用 `size`（其余字段留给诊断）。
-#[tauri::command]
+#[tauri::command(rename = "media:stat")]
 pub async fn media_stat(path: String) -> Result<FileStat, String> {
     let meta = std::fs::metadata(&path).map_err(|error| format!("无法访问 {path}：{error}"))?;
     let modified_ms = meta
@@ -90,7 +90,7 @@ pub async fn media_stat(path: String) -> Result<FileStat, String> {
 /// 递归收集目录下的媒体文件（只回文件绝对路径；目录不返回）。
 ///
 /// `extensions` 为空表示不过滤。深度/数量上限与前端常量一致，避免一次导入把 UI 打爆。
-#[tauri::command]
+#[tauri::command(rename = "media:scanDir")]
 pub async fn media_scan_dir(
     dir: String,
     extensions: Option<Vec<String>>,
@@ -116,7 +116,7 @@ pub async fn media_scan_dir(
 /// 系统对话框：`mode` = `"files"` | `"folders"`，返回用户选中的绝对路径。
 ///
 /// 选完不做任何入库动作 —— 入库仍走 `asset:insert`（DB 写入只有一个入口）。
-#[tauri::command]
+#[tauri::command(rename = "media:pick")]
 pub async fn media_pick(
     app: AppHandle,
     mode: String,

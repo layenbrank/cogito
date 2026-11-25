@@ -29,14 +29,8 @@ const IS_HIDDEN_EXCLUDED = true
 /** Vault 仅会话解锁；关窗后需再 PIN */
 const IS_VAULT_SESSION_ONLY = true
 
-/** v1 不做回忆 / 人脸 / 云同步 / 自定义相簿 / 假隐藏 */
-const V1_OMITTED = [
-  'memories',
-  'faces',
-  'cloud-sync',
-  'custom-albums',
-  'soft-hide-albums-only'
-] as const
+/** v1 不做回忆 / 人脸 / 云同步 / 假隐藏；相簿已进 P3（见 docs/apps/client/gallery.md） */
+const V1_OMITTED = ['memories', 'faces', 'cloud-sync', 'soft-hide-albums-only'] as const
 
 const MEDIA_KINDS = ['image', 'video'] as const
 

@@ -2,3 +2,5 @@
 
 pub mod command;
 pub mod import;
+pub mod rename;
+pub mod thumb;

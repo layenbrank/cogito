@@ -1,6 +1,7 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { POST_ASSETS } from '@/apis/album'
+import { GET_MEDIA_PICK, GET_MEDIA_SCAN_DIR, GET_MEDIA_STAT } from '@/apis/media'
 import {
   IMAGE_EXTENSIONS,
   VIDEO_EXTENSIONS
@@ -60,7 +61,7 @@ async function insertMediaPath(path: string): Promise<string | undefined> {
   const probed = await probeCapturedAt(path, kind)
   let size: number | null = null
   try {
-    const info = await invoke<{ size: number | null }>(CHANNELS.MEDIA.STAT, { path })
+    const info = await GET_MEDIA_STAT(path)
     size = typeof info.size === 'number' ? info.size : null
   } catch (error) {
     console.warn('[gallery] stat size failed', path, error)
@@ -76,29 +77,27 @@ async function insertMediaPath(path: string): Promise<string | undefined> {
     meta.durationMs = await probeVideoDurationMs(src)
   }
 
-  const rows = await invoke<{ id: string }[]>(CHANNELS.ASSET.INSERT, {
-    params: {
-      filePath: path,
-      fileName,
-      mime,
-      kind,
-      hash: null,
-      sha: null,
-      size,
-      index: null,
-      extension,
-      metadata: stringifyMeta(meta),
-      status: null,
-      deviceID: null,
-      archivedAt: null,
-      tenantID: null
-    }
+  const rows = await POST_ASSETS<{ id: string }[]>({
+    filePath: path,
+    fileName,
+    mime,
+    kind,
+    hash: null,
+    sha: null,
+    size,
+    index: null,
+    extension,
+    metadata: stringifyMeta(meta),
+    status: null,
+    deviceID: null,
+    archivedAt: null,
+    tenantID: null
   })
   return rows[0]?.id
 }
 
 async function scanFolder(dir: string): Promise<string[]> {
-  return invoke<string[]>(CHANNELS.MEDIA.SCAN_DIR, {
+  return GET_MEDIA_SCAN_DIR({
     dir,
     extensions: MEDIA_EXTENSIONS,
     maxDepth: MAX_FOLDER_DEPTH,
@@ -115,16 +114,13 @@ async function importPaths(paths: string[]): Promise<string[]> {
 }
 
 async function pickAndImportFiles(): Promise<string[]> {
-  const paths = await invoke<string[]>(CHANNELS.MEDIA.PICK, {
-    mode: 'files',
-    extensions: MEDIA_EXTENSIONS
-  })
+  const paths = await GET_MEDIA_PICK('files', MEDIA_EXTENSIONS)
   if (paths.length === 0) return []
   return importPaths(paths)
 }
 
 async function pickAndImportFolders(): Promise<string[]> {
-  const dirs = await invoke<string[]>(CHANNELS.MEDIA.PICK, { mode: 'folders' })
+  const dirs = await GET_MEDIA_PICK('folders')
   if (dirs.length === 0) return []
 
   // 每个目录一次 Rust 扫描：深度/数量上限在 Rust 侧执行，前端不再递归读盘

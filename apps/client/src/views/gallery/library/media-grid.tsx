@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 
 import type { TimeScope } from '@/views/gallery/constraints'
 import { STREAM_SECTION_CHUNK } from '@/views/gallery/constraints'
+import { pickBucket, thumbUrl, type ThumbBucket } from '@/views/gallery/data/thumbnail'
 import { useStreamedCount } from '@/views/gallery/hooks/use-streamed-count'
 import { MediaCell } from '@/views/gallery/library/media-cell'
 import { findSectionMedias } from '@/views/gallery/library/time-buckets'
@@ -33,6 +34,7 @@ function SectionHeader(props: { label: string; count: number }) {
 function DaySection(props: {
   bucket: DayBucket
   columns: number
+  thumbBucket: ThumbBucket
   selecting: boolean
   selectedIds: Set<string>
   onOpen: (media: GalleryMedia) => void
@@ -61,6 +63,7 @@ function DaySection(props: {
               onToggleSelect={props.onToggleSelect}
               badge={props.findBadge?.(media)}
               isKept={props.isKept?.(media)}
+              bucket={props.thumbBucket}
             />
           )
         })}
@@ -72,6 +75,7 @@ function DaySection(props: {
 function MonthSection(props: {
   bucket: MonthBucket
   columns: number
+  thumbBucket: ThumbBucket
   selecting: boolean
   selectedIds: Set<string>
   onOpen: (media: GalleryMedia) => void
@@ -88,6 +92,7 @@ function MonthSection(props: {
             key={day.key}
             bucket={day}
             columns={props.columns}
+            thumbBucket={props.thumbBucket}
             selecting={props.selecting}
             selectedIds={props.selectedIds}
             onOpen={props.onOpen}
@@ -136,7 +141,7 @@ function YearSection(props: {
                 ) : (
                   <img
                     className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                    src={cover.src}
+                    src={thumbUrl(cover.asset, pickBucket(props.columns))}
                     alt=""
                     loading="lazy"
                   />
@@ -156,6 +161,7 @@ function YearSection(props: {
 
 function MediaGrid(props: MediaGridProps) {
   const sections = findSectionMedias(props.medias, props.scope)
+  const thumbBucket = pickBucket(props.columns)
   const resetKey = useMemo(
     function () {
       return `${props.scope}:${props.medias.length}:${props.medias[0]?.asset.id ?? ''}:${props.medias[props.medias.length - 1]?.asset.id ?? ''}`
@@ -194,6 +200,7 @@ function MediaGrid(props: MediaGridProps) {
               key={bucket.key}
               bucket={bucket}
               columns={props.columns}
+              thumbBucket={thumbBucket}
               selecting={props.selecting}
               selectedIds={props.selectedIds}
               onOpen={props.onOpen}
@@ -215,6 +222,7 @@ function MediaGrid(props: MediaGridProps) {
             key={bucket.key}
             bucket={bucket}
             columns={props.columns}
+            thumbBucket={thumbBucket}
             selecting={props.selecting}
             selectedIds={props.selectedIds}
             onOpen={props.onOpen}

@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { memo, type ReactNode } from 'react'
 
+import { useThumbnail, type ThumbBucket } from '@/views/gallery/data/thumbnail'
 import { useNearViewport } from '@/views/gallery/hooks/use-near-viewport'
 import { formatDuration, type GalleryMedia } from '@/views/gallery/model/media'
 
@@ -15,12 +16,15 @@ interface MediaCellProps {
   /** 额外角标（保存 / 将清理等）；与时长角标可并存 */
   badge?: ReactNode
   isKept?: boolean
+  /** 缩略图尺寸桶；由网格列数决定（见 data/thumbnail.ts） */
+  bucket?: ThumbBucket
 }
 
 function MediaCellComponent(props: MediaCellProps) {
   const duration = formatDuration(props.media.meta.durationMs)
   const isVideo = props.media.kind === 'video'
   const { ref, isNear } = useNearViewport<HTMLButtonElement>()
+  const thumbnail = useThumbnail(props.media, props.bucket ?? 384)
 
   function handleClick() {
     if (props.selecting && props.onToggleSelect) {
@@ -61,10 +65,11 @@ function MediaCellComponent(props: MediaCellProps) {
         ) : (
           <img
             className="size-full object-cover transition-transform duration-200 ease-out group-hover:scale-[1.03]"
-            src={props.media.src}
+            src={thumbnail.src}
             alt=""
             loading="lazy"
             decoding="async"
+            onError={thumbnail.onError}
           />
         )
       ) : (
