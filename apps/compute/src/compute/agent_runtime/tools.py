@@ -421,6 +421,7 @@ async def _knowledge_search(ctx: ToolContext, arguments: Mapping[str, Any]) -> s
                 query=query,
                 top_k=top_k,
                 batch_size=ctx.settings.embed_batch_size,
+                query_prefix=ctx.settings.embed_query_prefix,
             )
     except DatabaseUnavailableError as exc:
         raise errors.dependency_unavailable(str(exc)) from exc
@@ -480,6 +481,7 @@ async def _memory_recall(ctx: ToolContext, arguments: Mapping[str, Any]) -> str:
                 query=query,
                 top_k=top_k,
                 batch_size=ctx.settings.embed_batch_size,
+                query_prefix=ctx.settings.embed_query_prefix,
             )
     except DatabaseUnavailableError as exc:
         raise errors.dependency_unavailable(str(exc)) from exc

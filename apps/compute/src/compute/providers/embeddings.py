@@ -88,6 +88,18 @@ def _vector(raw: object) -> list[float]:
     return vector
 
 
+def prefix_query(query: str, prefix: str) -> str:
+    """查询侧指令前缀。空白前缀原样返回；文档嵌入不要走这里。
+
+    前缀以空格或换行结尾时直接拼接，这样 `Query: ` 和问句之间不会多出一个换行。
+    """
+    if not prefix.strip():
+        return query
+    if prefix.endswith((" ", "\n")):
+        return f"{prefix}{query}"
+    return f"{prefix}\n{query}"
+
+
 def _malformed(reason: str) -> errors.ApiError:
     return errors.dependency_unavailable(f"嵌入响应形状不合法：{reason}")
 

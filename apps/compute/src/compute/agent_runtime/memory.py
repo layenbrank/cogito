@@ -124,6 +124,7 @@ async def recall(
     query: str,
     top_k: int,
     batch_size: int,
+    query_prefix: str = "",
 ) -> list[Memory]:
     """把 `query` 嵌成向量，再在**本租户**的记忆里取最相近的 `top_k` 条。
 
@@ -131,7 +132,11 @@ async def recall(
     两种维度」的历史数据——那种数据会让 `<=>` 直接报维度不匹配。
     """
     batch = await embeddings.embed_texts(
-        cogito, tenant_id=tenant_id, model=model, texts=[query], batch_size=batch_size
+        cogito,
+        tenant_id=tenant_id,
+        model=model,
+        texts=[embeddings.prefix_query(query, query_prefix)],
+        batch_size=batch_size,
     )
     if not batch.vectors:  # pragma: no cover - 空输入在上面就被调用方拦住了
         return []

@@ -93,6 +93,7 @@ async def find(
     top_k: int,
     batch_size: int,
     asset_ids: Sequence[UUID] | None = None,
+    query_prefix: str = "",
 ) -> list[Hit]:
     """把 `query` 嵌成向量，再在 `tenant_id` 的索引里取最相近的 `top_k` 块。
 
@@ -106,7 +107,11 @@ async def find(
         return []
 
     batch = await embeddings.embed_texts(
-        cogito, tenant_id=tenant_id, model=model, texts=[query], batch_size=batch_size
+        cogito,
+        tenant_id=tenant_id,
+        model=model,
+        texts=[embeddings.prefix_query(query, query_prefix)],
+        batch_size=batch_size,
     )
     if not batch.vectors:  # pragma: no cover - 空输入在上面就被调用方拦住了
         return []
@@ -154,6 +159,7 @@ async def search(request: Request, body: SearchRequest) -> JSONResponse:
                 top_k=body.top_k,
                 batch_size=settings.embed_batch_size,
                 asset_ids=body.asset_ids,
+                query_prefix=settings.embed_query_prefix,
             )
     except DatabaseUnavailableError as exc:
         raise errors.dependency_unavailable(str(exc)) from exc
