@@ -5,6 +5,7 @@ pub mod bridge;
 pub mod browser;
 pub mod diagnostics;
 pub mod file_index;
+pub mod gallery;
 pub mod knowledge;
 pub mod reminder;
 pub mod search;

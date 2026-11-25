@@ -29,6 +29,9 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // 单文件 0001 已打标记后追加的表不会再跑；dict seed 全是 IF NOT EXISTS / OR IGNORE，启动兜底补齐。
     // 开发期改列名走 `migrate:fresh`，这里不再改写已有列名。
     ensure_dict(db).await?;
+    // `knowledge_base` → `knowledge_space`、`baseID` → `spaceID` 是改名而非新增：
+    // 基线不会重跑，这里做一次数据保留式 ALTER，跑过即跳过。
+    ensure_knowledge(db).await?;
     // `agent_plan` / `agent_goal` 同样是 0001 之后追加的表：老库已打过 0001 标记，
     // 不加这层兜底就永远查不到这两张表（`no such table`）。
     ensure_agent_plan(db).await?;
@@ -48,6 +51,116 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // 壁纸磁贴写在已发布的 0001 里。老库不会重跑基线，这里按种子标记补一次。
     // 标记留下之后，用户删掉这块磁贴不会在下次启动被插回来。
     ensure_wallpaper_tile(db).await?;
+    // 图库的五张表（策展侧表 + 相簿归属 + 关键词 + 智能相簿 + 根目录）：
+    // 与基线共用 `gallery_schema::statements()` 这一份 DDL，老库靠 IF NOT EXISTS 补建。
+    ensure_gallery(db).await?;
+    Ok(())
+}
+
+/// 表 / 列改名跟进：老库把 `knowledge_base` 改成 `knowledge_space`，`baseID` 改成 `spaceID`。
+///
+/// 只在「新名不存在、旧名存在」时 `ALTER`，跑过一次就不会再动；新库由 0001 基线直接建成新名。
+async fn ensure_knowledge(db: &Connection) -> Result<(), DbErr> {
+    for (from, to) in crate::migrations::knowledge_schema::table_renames() {
+        if table_exists(db, to).await? || !table_exists(db, from).await? {
+            continue;
+        }
+        db.execute_unprepared(&format!("ALTER TABLE {from} RENAME TO {to}"))
+            .await?;
+        info!("数据库表改名: {} → {}", from, to);
+    }
+    for (table, from, to) in crate::migrations::knowledge_schema::column_renames() {
+        if !table_exists(db, table).await? || column_exists(db, table, to).await? {
+            continue;
+        }
+        if !column_exists(db, table, from).await? {
+            continue;
+        }
+        db.execute_unprepared(&format!(
+            "ALTER TABLE {table} RENAME COLUMN \"{from}\" TO \"{to}\""
+        ))
+        .await?;
+        info!("数据库列改名: {}.{} → {}", table, from, to);
+    }
+    for (old_index, table, new_index, columns) in
+        crate::migrations::knowledge_schema::index_renames()
+    {
+        if !index_exists(db, old_index).await? || index_exists(db, new_index).await? {
+            continue;
+        }
+        db.execute_unprepared(&format!("DROP INDEX IF EXISTS {old_index}"))
+            .await?;
+        db.execute_unprepared(&format!(
+            "CREATE INDEX IF NOT EXISTS {new_index} ON {table} ({columns})"
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
+/// 表是否存在（`sqlite_master`）。
+async fn table_exists(db: &Connection, table: &str) -> Result<bool, DbErr> {
+    let found = db
+        .query_one(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!("SELECT count(*) AS v FROM sqlite_master WHERE type = 'table' AND name = '{table}'"),
+        ))
+        .await?;
+    Ok(found
+        .and_then(|row| row.try_get::<i64>("", "v").ok())
+        .unwrap_or(0)
+        > 0)
+}
+
+/// 索引是否存在（`sqlite_master`）。
+async fn index_exists(db: &Connection, index: &str) -> Result<bool, DbErr> {
+    let found = db
+        .query_one(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!("SELECT count(*) AS v FROM sqlite_master WHERE type = 'index' AND name = '{index}'"),
+        ))
+        .await?;
+    Ok(found
+        .and_then(|row| row.try_get::<i64>("", "v").ok())
+        .unwrap_or(0)
+        > 0)
+}
+
+/// 列是否存在（`pragma_table_info`）。
+async fn column_exists(db: &Connection, table: &str, column: &str) -> Result<bool, DbErr> {
+    let found = db
+        .query_one(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!("SELECT count(*) AS v FROM pragma_table_info('{table}') WHERE name = '{column}'"),
+        ))
+        .await?;
+    Ok(found
+        .and_then(|row| row.try_get::<i64>("", "v").ok())
+        .unwrap_or(0)
+        > 0)
+}
+
+/// 补建图库表（已存在则跳过；语句全部幂等），并给老库补上后加的列。
+async fn ensure_gallery(db: &Connection) -> Result<(), DbErr> {
+    for statement in crate::migrations::gallery_schema::statements() {
+        db.execute_unprepared(statement).await?;
+    }
+    for (column, alter) in crate::migrations::gallery_schema::column_patches() {
+        let found = db
+            .query_one(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('galleryAsset') WHERE name = '{column}'"
+                ),
+            ))
+            .await?;
+        let count = found
+            .and_then(|row| row.try_get::<i64>("", "v").ok())
+            .unwrap_or(0);
+        if count == 0 {
+            db.execute_unprepared(alter).await?;
+        }
+    }
     Ok(())
 }
 
@@ -226,8 +339,9 @@ mod tests {
         AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
         AutomationRunEntity, BookmarkEntity, CalendarEntity, CountdownEntity, DictItemEntity,
         DictTenantItemEntity, DictTypeEntity, DictTypeItemEntity, DirectiveDraftEntity,
-        KnowledgeBaseEntity, KnowledgeDocEntity, KnowledgeIndexStateEntity, MagneticTileEntity,
-        MirrorEntity, OverlayEntity, ReminderEntity, SignboardAutomationEntity,
+        GalleryAlbumAssetEntity, GalleryAssetEntity, GalleryKeywordEntity, GalleryRootEntity,
+        GallerySmartAlbumEntity, KnowledgeSpaceEntity, KnowledgeDocEntity, KnowledgeIndexStateEntity,
+        MagneticTileEntity, MirrorEntity, OverlayEntity, ReminderEntity, SignboardAutomationEntity,
         SignboardCheckEntity, SignboardColumnEntity, SignboardEntity, SignboardEntryAssetEntity,
         SignboardEntryEntity, SignboardTagEntity, SignboardTaggedEntity,
     };
@@ -632,7 +746,7 @@ mod tests {
     async fn knowledge_tables_and_fts_work() {
         let db = fresh().await;
         for table in [
-            "knowledge_base",
+            "knowledge_space",
             "knowledge_doc",
             "knowledge_index_state",
             "automation",
@@ -651,8 +765,8 @@ mod tests {
 
         // 团队（tenant）场景与自动化身份/失败态所需的列：缺了会在 Phase 5/7 再改一次迁移
         for (table, column) in [
-            ("knowledge_base", "scope"),
-            ("knowledge_base", "tenantID"),
+            ("knowledge_space", "scope"),
+            ("knowledge_space", "tenantID"),
             ("knowledge_doc", "revision"),
             ("knowledge_doc", "error"),
             ("automation", "runAsKind"),
@@ -687,8 +801,8 @@ mod tests {
         }
 
         for statement in [
-            "INSERT INTO knowledge_base (id,name,slug,\"rootPath\",\"createdAt\",\"updatedAt\") VALUES ('b1','默认','default','/tmp/kb',1,1)",
-            "INSERT INTO knowledge_doc (id,\"baseID\",title,\"relPath\",hash,content,\"createdAt\",\"updatedAt\") VALUES ('d1','b1','知识库设计','a.md','h1','这是知识库正文内容',1,1)",
+            "INSERT INTO knowledge_space (id,name,slug,\"rootPath\",\"createdAt\",\"updatedAt\") VALUES ('b1','默认','default','/tmp/kb',1,1)",
+            "INSERT INTO knowledge_doc (id,\"spaceID\",title,\"relPath\",hash,content,\"createdAt\",\"updatedAt\") VALUES ('d1','b1','知识库设计','a.md','h1','这是知识库正文内容',1,1)",
         ] {
             db.execute(Statement::from_string(
                 DatabaseBackend::Sqlite,
@@ -717,6 +831,56 @@ mod tests {
         )
         .await;
         assert_eq!(after, 0);
+    }
+
+    /// 老库改名：`knowledge_base` / `baseID` 由启动兜底就地改成 `knowledge_space` / `spaceID`，
+    /// 已有行必须保留；再跑一次不报错（幂等）。
+    #[tokio::test]
+    async fn knowledge_rename_patch_keeps_rows() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory sqlite");
+        let db: Connection = std::sync::Arc::new(db);
+        for statement in [
+            "CREATE TABLE knowledge_base (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL, \"rootPath\" TEXT NOT NULL)",
+            "CREATE TABLE knowledge_doc (id TEXT PRIMARY KEY NOT NULL, \"baseID\" TEXT NOT NULL, title TEXT NOT NULL)",
+            "CREATE TABLE knowledge_index_state (id TEXT PRIMARY KEY NOT NULL, \"baseID\" TEXT NOT NULL)",
+            "CREATE TABLE automation (id TEXT PRIMARY KEY NOT NULL, \"knowledgeBaseID\" TEXT)",
+            "INSERT INTO knowledge_base (id,name,slug,\"rootPath\") VALUES ('b1','默认','default','/tmp/kb')",
+            "INSERT INTO knowledge_doc (id,\"baseID\",title) VALUES ('d1','b1','设计')",
+        ] {
+            db.execute_unprepared(statement)
+                .await
+                .expect("prepare old schema");
+        }
+
+        ensure_knowledge(&db).await.expect("rename should succeed");
+
+        let old_table = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM sqlite_master WHERE type='table' AND name='knowledge_base'",
+        )
+        .await;
+        assert_eq!(old_table, 0, "旧表应已改名");
+        let space_column = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM pragma_table_info('knowledge_doc') WHERE name = 'spaceID'",
+        )
+        .await;
+        assert_eq!(space_column, 1, "knowledge_doc 应改出 spaceID");
+        let rows = scalar_i64(&db, "SELECT count(*) AS v FROM knowledge_doc")
+            .await;
+        assert_eq!(rows, 1, "改名不该丢行");
+        let automation_column = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM pragma_table_info('automation') WHERE name = 'knowledgeSpaceID'",
+        )
+        .await;
+        assert_eq!(automation_column, 1, "automation 应改出 knowledgeSpaceID");
+
+        ensure_knowledge(&db)
+            .await
+            .expect("rename should be idempotent");
     }
 
     /// 老库补列：`CREATE TABLE IF NOT EXISTS` 不改既有表结构，只能走 pragma + ALTER。
@@ -867,7 +1031,21 @@ mod tests {
             ("dict_type_item", entity_columns::<DictTypeItemEntity>()),
             ("dict_tenant_item", entity_columns::<DictTenantItemEntity>()),
             ("directive_draft", entity_columns::<DirectiveDraftEntity>()),
-            ("knowledge_base", entity_columns::<KnowledgeBaseEntity>()),
+            (
+                "galleryAsset",
+                entity_columns::<GalleryAssetEntity>(),
+            ),
+            (
+                "galleryAlbumAsset",
+                entity_columns::<GalleryAlbumAssetEntity>(),
+            ),
+            ("galleryKeyword", entity_columns::<GalleryKeywordEntity>()),
+            (
+                "gallerySmartAlbum",
+                entity_columns::<GallerySmartAlbumEntity>(),
+            ),
+            ("galleryRoot", entity_columns::<GalleryRootEntity>()),
+            ("knowledge_space", entity_columns::<KnowledgeSpaceEntity>()),
             ("knowledge_doc", entity_columns::<KnowledgeDocEntity>()),
             (
                 "knowledge_index_state",

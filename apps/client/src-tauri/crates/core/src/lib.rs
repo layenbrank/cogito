@@ -9,6 +9,7 @@ pub mod countdown;
 pub mod dict;
 pub mod directive_draft;
 pub mod exception;
+pub mod gallery;
 pub mod knowledge;
 pub mod magnetic_tile;
 pub mod mirror;

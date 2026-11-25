@@ -15,7 +15,12 @@ pub mod entity {
     pub mod dict_type;
     pub mod dict_type_item;
     pub mod directive_draft;
-    pub mod knowledge_base;
+    pub mod gallery_album_asset;
+    pub mod gallery_asset;
+    pub mod gallery_keyword;
+    pub mod gallery_root;
+    pub mod gallery_smart_album;
+    pub mod knowledge_space;
     pub mod knowledge_doc;
     pub mod knowledge_index_state;
     pub mod magnetic_tile;
@@ -76,7 +81,12 @@ pub mod entity {
     pub use dict_type::Entity as DictTypeEntity;
     pub use dict_type_item::Entity as DictTypeItemEntity;
     pub use directive_draft::Entity as DirectiveDraftEntity;
-    pub use knowledge_base::Entity as KnowledgeBaseEntity;
+    pub use gallery_album_asset::Entity as GalleryAlbumAssetEntity;
+    pub use gallery_asset::Entity as GalleryAssetEntity;
+    pub use gallery_keyword::Entity as GalleryKeywordEntity;
+    pub use gallery_root::Entity as GalleryRootEntity;
+    pub use gallery_smart_album::Entity as GallerySmartAlbumEntity;
+    pub use knowledge_space::Entity as KnowledgeSpaceEntity;
     pub use knowledge_doc::Entity as KnowledgeDocEntity;
     pub use knowledge_index_state::Entity as KnowledgeIndexStateEntity;
     pub use magnetic_tile::Entity as MagneticTileEntity;

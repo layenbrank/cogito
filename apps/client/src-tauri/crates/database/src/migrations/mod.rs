@@ -5,6 +5,8 @@ pub mod automation_schema;
 pub mod builtin_seed;
 pub mod composer_queue_schema;
 pub mod dict_seed;
+pub mod gallery_schema;
+pub mod knowledge_schema;
 pub mod migrations_0001;
 pub mod navigation_seed;
 pub mod run_cost_schema;

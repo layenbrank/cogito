@@ -22,6 +22,8 @@ tracing           = { workspace = true }
 # 运行时代码用 `tokio::sync::Mutex` 串行化「读最大值 → 插入」的 index 分配
 # （磁贴服务；`std::sync::Mutex` 的 guard 不是 Send，跨 await 就编译不过）
 tokio             = { workspace = true }
+# 图库检索：文件名全拼 / 首字母索引（`gugong` → 故宫），入库时算一次写 `searchText`
+pinyin            = "0.10"
 
 [dev-dependencies]
 # 单测跑 async runtime（用的就是上面的 tokio）

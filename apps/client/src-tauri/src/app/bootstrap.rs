@@ -26,7 +26,12 @@ pub struct Bootstrap;
 impl Bootstrap {
     #[cfg_attr(mobile, tauri::mobile_entry_point)]
     pub fn run() {
-        let builder = plugins::register_plugins(tauri::Builder::default());
+        // 缩略图协议：`thumb://<id>/<bucket>/<version>-<fit>.jpg`。
+        // 图库要「几万张图不卡」，把原图塞进 `<img>` 做不到 —— 见 media/thumb.rs。
+        let builder = plugins::register_plugins(tauri::Builder::default())
+            .register_asynchronous_uri_scheme_protocol("thumb", |ctx, request, responder| {
+                crate::media::thumb::serve(ctx, request, responder);
+            });
 
         builder
             .setup(move |app| {
@@ -108,6 +113,25 @@ impl Bootstrap {
                 app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
                 app.manage(CaptureHandshake::default());
+                // 缩略图缓存（纯派生物，删了会自动重建）：启动时先按容量上限裁一次
+                let thumb_root = app
+                    .path()
+                    .app_cache_dir()
+                    .map(|dir| dir.join("thumbs"))
+                    .unwrap_or_else(|_| std::env::temp_dir().join("cogito-thumbs"));
+                if let Err(error) = std::fs::create_dir_all(&thumb_root) {
+                    tracing::warn!("缩略图缓存目录创建失败：{error}");
+                }
+                app.manage(crate::media::thumb::ThumbService::new(thumb_root.clone()));
+                tauri::async_runtime::spawn_blocking(move || {
+                    let freed = crate::media::thumb::prune(
+                        &thumb_root,
+                        crate::media::thumb::CACHE_MAX_BYTES,
+                    );
+                    if freed > 0 {
+                        tracing::info!(freed, "缩略图缓存：按 LRU 清理");
+                    }
+                });
                 // 全盘文件名索引（Everything 式）：独立 SQLite 库；空库时启动 30s 后自己扫一遇
                 match app.path().app_local_data_dir() {
                     Ok(dir) => {

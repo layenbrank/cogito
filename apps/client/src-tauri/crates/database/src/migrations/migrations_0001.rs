@@ -1167,7 +1167,7 @@ impl MigrationTrait for Migration {
             // 看板进度与列角色
             // ── Knowledge（知识库）──
             // scope=user 属个人；scope=tenant 为团队共享（用 \"tenantID\" 圈定租户）
-            "CREATE TABLE IF NOT EXISTS knowledge_base (\
+            "CREATE TABLE IF NOT EXISTS knowledge_space (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  name TEXT NOT NULL, \
                  slug TEXT NOT NULL, \
@@ -1183,11 +1183,11 @@ impl MigrationTrait for Migration {
                  \"archivedAt\" INTEGER NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_base_slug ON knowledge_base (slug)",
-            "CREATE INDEX IF NOT EXISTS idx_knowledge_base_scope ON knowledge_base (scope, \"tenantID\")",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_space_slug ON knowledge_space (slug)",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_space_scope ON knowledge_space (scope, \"tenantID\")",
             "CREATE TABLE IF NOT EXISTS knowledge_doc (\
                  id TEXT PRIMARY KEY NOT NULL, \
-                 \"baseID\" TEXT NOT NULL, \
+                 \"spaceID\" TEXT NOT NULL, \
                  title TEXT NOT NULL, \
                  \"relPath\" TEXT NOT NULL, \
                  hash TEXT NOT NULL, \
@@ -1204,10 +1204,10 @@ impl MigrationTrait for Migration {
                  \"archivedAt\" INTEGER NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL, \
-                 CONSTRAINT fk_knowledge_doc_base FOREIGN KEY (\"baseID\") \
-                     REFERENCES knowledge_base (id) ON DELETE CASCADE ON UPDATE CASCADE)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_doc_base_path ON knowledge_doc (\"baseID\", \"relPath\")",
-            "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_base_updated ON knowledge_doc (\"baseID\", \"updatedAt\")",
+                 CONSTRAINT fk_knowledge_doc_space FOREIGN KEY (\"spaceID\") \
+                     REFERENCES knowledge_space (id) ON DELETE CASCADE ON UPDATE CASCADE)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_doc_space_path ON knowledge_doc (\"spaceID\", \"relPath\")",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_space_updated ON knowledge_doc (\"spaceID\", \"updatedAt\")",
             "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_status ON knowledge_doc (status)",
             // FTS5 外部内容表：正文由 knowledge_doc.content 镜像，触发器保持同步
             "CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_doc_fts USING fts5(\
@@ -1226,7 +1226,7 @@ impl MigrationTrait for Migration {
              END",
             "CREATE TABLE IF NOT EXISTS knowledge_index_state (\
                  \"docID\" TEXT PRIMARY KEY NOT NULL, \
-                 \"baseID\" TEXT NOT NULL, \
+                 \"spaceID\" TEXT NOT NULL, \
                  \"tenantID\" TEXT NULL, \
                  \"localIndexedAt\" INTEGER NULL, \
                  \"cloudStatus\" TEXT NOT NULL DEFAULT '007', \
@@ -1246,7 +1246,7 @@ impl MigrationTrait for Migration {
                  id TEXT PRIMARY KEY NOT NULL, \
                  name TEXT NOT NULL, \
                  prompt TEXT NOT NULL, \
-                 \"knowledgeBaseID\" TEXT NULL, \
+                 \"knowledgeSpaceID\" TEXT NULL, \
                  \"workspaceID\" TEXT NULL, \
                  \"workspacePath\" TEXT NULL, \
                  \"sessionMode\" TEXT NOT NULL DEFAULT 'new', \
@@ -1328,6 +1328,11 @@ impl MigrationTrait for Migration {
             db.execute_unprepared(statement).await?;
         }
 
+        // 图库（gallery）：与 `ensure_gallery()` 同一份 DDL —— 新库走基线，老库走启动兜底
+        for statement in super::gallery_schema::statements() {
+            db.execute_unprepared(statement).await?;
+        }
+
         for statement in super::dict_seed::statements() {
             db.execute_unprepared(&statement).await?;
         }
@@ -1339,6 +1344,11 @@ impl MigrationTrait for Migration {
         let db = manager.get_connection();
         // 本文件新增的表：先删依赖方，再走原有的删表顺序（索引/触发器随表一起消失）
         for table in [
+            "galleryKeyword",
+            "galleryAlbumAsset",
+            "galleryAsset",
+            "gallerySmartAlbum",
+            "galleryRoot",
             "knowledge_doc_fts",
             "agent_goal",
             "agent_plan",
@@ -1349,7 +1359,7 @@ impl MigrationTrait for Migration {
             "automation",
             "knowledge_index_state",
             "knowledge_doc",
-            "knowledge_base",
+            "knowledge_space",
             "dict_tenant_item",
             "dict_type_item",
             "dict_item",
