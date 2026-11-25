@@ -24,9 +24,40 @@ interface PartCost {
 }
 
 const partCostCache = new WeakMap<object, PartCost>()
+/**
+ * 工具参数 / 结果的对象长度缓存。
+ *
+ * `part` 本身在每次快照里都是新对象（适配器重新构造 parts），按 part 身份缓存永远不会
+ * 命中；但 `args` / `result` 的对象引用是稳定的。几 MB 的结果每 200ms 做一次
+ * `JSON.stringify` 是纯粹的 GC 压力 —— 按这两者的身份缓存长度才有效。
+ */
+const argsLengthCache = new WeakMap<object, number>()
+const resultLengthCache = new WeakMap<object, number>()
 
 function textLength(value: unknown): number {
   return typeof value === 'string' ? value.length : 0
+}
+
+/** 量一个「可能是对象」的值序列化后的字符数；对象按身份缓存 */
+function measureSerializedLength(
+  value: unknown,
+  cache: WeakMap<object, number>,
+  fallback: string
+): number {
+  if (value === undefined || value === null) return fallback.length
+  if (typeof value === 'string') return value.length
+  if (typeof value !== 'object') return JSON.stringify(value)?.length ?? 0
+  const cached = cache.get(value)
+  if (cached !== undefined) return cached
+  let length: number
+  try {
+    length = JSON.stringify(value).length
+  } catch (error) {
+    console.warn('[agent] 上下文估算：结果无法序列化，按空值计', error)
+    length = fallback.length
+  }
+  cache.set(value, length)
+  return length
 }
 
 function measurePart(part: ThreadMessage['content'][number]): PartCost {
@@ -40,16 +71,14 @@ function measurePart(part: ThreadMessage['content'][number]): PartCost {
     cost = { history: textLength(part.text), tool: 0, attachment: 0 }
   } else if (part.type === 'tool-call') {
     // 与旧实现 `\`${toolName}\n${args}\n${result}\`` 的字符数等价，只是分开量、不拼字符串
-    const args = part.argsText ?? JSON.stringify(part.args ?? {})
-    const result =
-      part.result === undefined
-        ? ''
-        : typeof part.result === 'string'
-          ? part.result
-          : JSON.stringify(part.result)
+    const argsLength =
+      part.argsText !== undefined
+        ? part.argsText.length
+        : measureSerializedLength(part.args, argsLengthCache, '{}')
+    const resultLength = measureSerializedLength(part.result, resultLengthCache, '')
     cost = {
       history: 0,
-      tool: part.toolName.length + 1 + args.length + 1 + result.length,
+      tool: part.toolName.length + 1 + argsLength + 1 + resultLength,
       attachment: 0
     }
   } else if (part.type === 'image' || part.type === 'file' || part.type === 'audio') {

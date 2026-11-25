@@ -4,7 +4,7 @@
  * 首屏用同步 parse；有结果后异步走 Rust normalize（失败仍保留同步结果）。
  */
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 
 import {
   parseToolCard,
@@ -14,19 +14,44 @@ import {
 import { ApprovalBar } from '@/views/agent/chat/components/tool-card-approval-bar'
 import { ToolCardShellBody } from '@/views/agent/chat/components/tool-card-body'
 
+/** 异步归一化结果：连同一份入参身份一起存，props 一变就自然失效 */
+interface RefinedParse {
+  toolName: string
+  args: unknown
+  result: unknown
+  parsed: ParsedToolCard
+}
+
 function AgentToolCardInner(props: ToolCallMessagePartProps) {
-  const [parsed, updateParsed] = useState<ParsedToolCard>(function () {
-    return parseToolCard(props.toolName, props.args, props.result)
-  })
+  // 同步解析只在入参变化时跑**一次**：以前 useState 初始化算一遍、effect 里又算一遍，
+  // read / shell 这类几百 KB 的结果等于白交双倍主线程时间。
+  const syncParsed = useMemo(
+    function () {
+      return parseToolCard(props.toolName, props.args, props.result)
+    },
+    [props.toolName, props.args, props.result]
+  )
+  const [refined, setRefined] = useState<RefinedParse | null>(null)
+  const parsed =
+    refined !== null &&
+    refined.toolName === props.toolName &&
+    refined.args === props.args &&
+    refined.result === props.result
+      ? refined.parsed
+      : syncParsed
 
   useEffect(
     function () {
-      const sync = parseToolCard(props.toolName, props.args, props.result)
-      updateParsed(sync)
       let cancelled = false
       void parseToolCardAsync(props.toolName, props.args, props.result)
         .then(function (next) {
-          if (!cancelled) updateParsed(next)
+          if (cancelled) return
+          setRefined({
+            toolName: props.toolName,
+            args: props.args,
+            result: props.result,
+            parsed: next
+          })
         })
         .catch(function (error: unknown) {
           console.warn('[agent] parseToolCardAsync 失败，保留同步结果:', error)

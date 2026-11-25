@@ -113,24 +113,14 @@ describe('normalizeToolOutput', function () {
   })
 
   it('结果还没到（undefined）时不打 IPC，也不刷 warn', async function () {
-    Reflect.set(window, '__TAURI_INTERNALS__', {})
-    try {
-      expect(await normalizeToolOutput(undefined)).toBe('')
-      expect(invokeMock).not.toHaveBeenCalled()
-    } finally {
-      Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
-    }
+    expect(await normalizeToolOutput(undefined)).toBe('')
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('有结果时走 Rust 命令并取 text', async function () {
-    Reflect.set(window, '__TAURI_INTERNALS__', {})
-    try {
-      expect(await normalizeToolOutput('a\nb')).toBe('from-rust')
-      expect(invokeMock).toHaveBeenCalledWith('agentTool:normalizeOutput', {
-        params: { value: 'a\nb' }
-      })
-    } finally {
-      Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
-    }
+    expect(await normalizeToolOutput('a\nb')).toBe('from-rust')
+    expect(invokeMock).toHaveBeenCalledWith('agentTool:normalizeOutput', {
+      params: { value: 'a\nb' }
+    })
   })
 })
