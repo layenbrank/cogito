@@ -168,7 +168,7 @@ async fn bind_and_serve(app: AppHandle, storage: Storage) {
         .route("/health", get(clip_health))
         .route("/clip", post(clip_handler).options(clip_options))
         .route("/api/v1/health", get(api_health))
-        .route("/api/v1/bases", get(api_bases))
+        .route("/api/v1/bases", get(api_spaces))
         .route("/api/v1/search", post(api_search).get(api_search_get))
         // 浏览器扩展用的 agent 代理：令牌不出 Rust 进程（见 `bridge/agent.rs`）
         .merge(super::agent::router())
@@ -365,7 +365,7 @@ async fn api_health(State(state): State<WikiHttpState>, headers: HeaderMap) -> R
     )
 }
 
-async fn api_bases(State(state): State<WikiHttpState>, headers: HeaderMap) -> Response {
+async fn api_spaces(State(state): State<WikiHttpState>, headers: HeaderMap) -> Response {
     if !authorize(&state, &headers) {
         return with_cors(
             (
@@ -375,7 +375,7 @@ async fn api_bases(State(state): State<WikiHttpState>, headers: HeaderMap) -> Re
                 .into_response(),
         );
     }
-    match Service::toListBases(state.storage.connection()).await {
+    match Service::toListSpaces(state.storage.connection()).await {
         Ok(bases) => with_cors(Json(bases).into_response()),
         Err(error) => with_cors(
             (
@@ -391,7 +391,9 @@ async fn api_bases(State(state): State<WikiHttpState>, headers: HeaderMap) -> Re
 #[serde(rename_all = "camelCase")]
 struct SearchBody {
     query: String,
-    base_id: Option<String>,
+    /// 线格式沿用 `baseId`（浏览器剪藏插件已按此发布），内部标识符叫 `space_id`。
+    #[serde(rename = "baseId")]
+    space_id: Option<String>,
     top_k: Option<u32>,
 }
 
@@ -399,7 +401,7 @@ struct SearchBody {
 struct SearchQuery {
     q: Option<String>,
     #[serde(rename = "baseId")]
-    base_id: Option<String>,
+    space_id: Option<String>,
     #[serde(rename = "topK")]
     top_k: Option<u32>,
 }
@@ -409,7 +411,7 @@ async fn api_search(
     headers: HeaderMap,
     Json(body): Json<SearchBody>,
 ) -> Response {
-    run_search(state, headers, body.query, body.base_id, body.top_k).await
+    run_search(state, headers, body.query, body.space_id, body.top_k).await
 }
 
 async fn api_search_get(
@@ -421,7 +423,7 @@ async fn api_search_get(
         state,
         headers,
         query.q.unwrap_or_default(),
-        query.base_id,
+        query.space_id,
         query.top_k,
     )
     .await
@@ -431,7 +433,7 @@ async fn run_search(
     state: WikiHttpState,
     headers: HeaderMap,
     query: String,
-    base_id: Option<String>,
+    space_id: Option<String>,
     top_k: Option<u32>,
 ) -> Response {
     if !authorize(&state, &headers) {
@@ -447,7 +449,7 @@ async fn run_search(
     match Service::toSearch(
         state.storage.connection(),
         &query,
-        base_id.as_deref(),
+        space_id.as_deref(),
         limit,
     )
     .await
