@@ -20,7 +20,7 @@ const SNIPPET_RADIUS: usize = 40;
 #[serde(rename_all = "camelCase")]
 pub struct Hit {
     pub doc_id: String,
-    pub base_id: String,
+    pub space_id: String,
     pub title: String,
     pub rel_path: String,
     pub snippet: String,
@@ -76,7 +76,7 @@ pub fn make_snippet(content: &str, query: &str) -> String {
 pub async fn search(
     db: &DatabaseConnection,
     query: &str,
-    base_id: Option<&str>,
+    space_id: Option<&str>,
     top_k: usize,
 ) -> Result<Vec<Hit>, Exception> {
     let cleaned = sanitize(query);
@@ -84,24 +84,24 @@ pub async fn search(
         return Ok(Vec::new());
     }
     if cleaned.chars().count() >= TRIGRAM_MIN_CHARS {
-        let hits = search_fts(db, &cleaned, base_id, top_k).await?;
+        let hits = search_fts(db, &cleaned, space_id, top_k).await?;
         if !hits.is_empty() {
             return Ok(hits);
         }
     }
-    search_like(db, &cleaned, base_id, top_k).await
+    search_like(db, &cleaned, space_id, top_k).await
 }
 
 async fn search_fts(
     db: &DatabaseConnection,
     query: &str,
-    base_id: Option<&str>,
+    space_id: Option<&str>,
     top_k: usize,
 ) -> Result<Vec<Hit>, Exception> {
     // 包成短语：否则 FTS5 会把 `AND` / 引号当语法
     let phrase = format!("\"{}\"", query.replace('"', "\"\""));
     let mut sql = String::from(
-        "SELECT d.id AS id, d.\"baseID\" AS baseId, d.title AS title, d.\"relPath\" AS relPath, \
+        "SELECT d.id AS id, d.\"spaceID\" AS spaceId, d.title AS title, d.\"relPath\" AS relPath, \
          snippet(knowledge_doc_fts, -1, '', '', '…', 16) AS snippet, \
          bm25(knowledge_doc_fts) AS score \
          FROM knowledge_doc_fts \
@@ -109,9 +109,9 @@ async fn search_fts(
          WHERE knowledge_doc_fts MATCH ? AND d.\"archivedAt\" IS NULL",
     );
     let mut values = vec![Value::from(phrase)];
-    if let Some(base_id) = base_id {
-        sql.push_str(" AND d.\"baseID\" = ?");
-        values.push(Value::from(base_id.to_string()));
+    if let Some(space_id) = space_id {
+        sql.push_str(" AND d.\"spaceID\" = ?");
+        values.push(Value::from(space_id.to_string()));
     }
     sql.push_str(" ORDER BY score ASC LIMIT ?");
     values.push(Value::from(top_k as i64));
@@ -128,7 +128,7 @@ async fn search_fts(
     for row in rows {
         hits.push(Hit {
             doc_id: row.try_get("", "id")?,
-            base_id: row.try_get("", "baseId")?,
+            space_id: row.try_get("", "spaceId")?,
             title: row.try_get("", "title")?,
             rel_path: row.try_get("", "relPath")?,
             snippet: row.try_get("", "snippet").unwrap_or_default(),
@@ -142,7 +142,7 @@ async fn search_fts(
 async fn search_like(
     db: &DatabaseConnection,
     query: &str,
-    base_id: Option<&str>,
+    space_id: Option<&str>,
     top_k: usize,
 ) -> Result<Vec<Hit>, Exception> {
     let pattern = format!(
@@ -153,13 +153,13 @@ async fn search_like(
             .replace('_', "\\_")
     );
     let mut sql = String::from(
-        "SELECT id, \"baseID\" AS baseId, title, \"relPath\" AS relPath, content \
+        "SELECT id, \"spaceID\" AS spaceId, title, \"relPath\" AS relPath, content \
          FROM knowledge_doc WHERE \"archivedAt\" IS NULL",
     );
     let mut values: Vec<Value> = Vec::new();
-    if let Some(base_id) = base_id {
-        sql.push_str(" AND \"baseID\" = ?");
-        values.push(Value::from(base_id.to_string()));
+    if let Some(space_id) = space_id {
+        sql.push_str(" AND \"spaceID\" = ?");
+        values.push(Value::from(space_id.to_string()));
     }
     sql.push_str(" AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')");
     values.push(Value::from(pattern.clone()));
@@ -180,7 +180,7 @@ async fn search_like(
         let content: String = row.try_get("", "content").unwrap_or_default();
         hits.push(Hit {
             doc_id: row.try_get("", "id")?,
-            base_id: row.try_get("", "baseId")?,
+            space_id: row.try_get("", "spaceId")?,
             title: row.try_get("", "title")?,
             rel_path: row.try_get("", "relPath")?,
             snippet: make_snippet(&content, query),

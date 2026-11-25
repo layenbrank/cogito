@@ -56,8 +56,8 @@ pub mod knowledge_cloud_status {
     pub const FAILED: &str = "011";
 }
 
-pub mod knowledge_base_scope {
-    pub const TYPE: &str = "knowledge_base_scope";
+pub mod knowledge_space_scope {
+    pub const TYPE: &str = "knowledge_space_scope";
     pub const USER: &str = "012";
     pub const TENANT: &str = "013";
 }

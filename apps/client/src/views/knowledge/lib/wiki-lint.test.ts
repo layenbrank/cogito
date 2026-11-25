@@ -32,4 +32,47 @@ describe('lintWikiPages', function () {
       return issue.kind === 'missing-index'
     })).toBe(true)
   })
+
+  it('报告规范问题：缺 type / type 与目录不符 / 未进 index', function () {
+    const pages = [
+      {
+        relative: 'wiki/index.md',
+        title: 'Index',
+        content: '# Index\n\n- [[Alpha]]\n'
+      },
+      {
+        relative: 'wiki/concepts/alpha.md',
+        title: 'Alpha',
+        content: '---\ntype: concept\ntitle: Alpha\n---\n\n正文 [[Index]]'
+      },
+      {
+        relative: 'wiki/beta.md',
+        title: 'Beta',
+        content: '---\ntype: concept\ntitle: Beta\n---\n\n正文 [[Alpha]]'
+      },
+      {
+        relative: 'wiki/gamma.md',
+        title: 'Gamma',
+        content: '没有 frontmatter，[[Alpha]]'
+      }
+    ]
+    const issues = lintWikiPages(pages)
+    const kindsOf = function (page: string) {
+      return issues
+        .filter(function (issue) {
+          return issue.page === page
+        })
+        .map(function (issue) {
+          return issue.kind
+        })
+    }
+
+    expect(kindsOf('wiki/concepts/alpha.md')).not.toContain('missing-type')
+    expect(kindsOf('wiki/concepts/alpha.md')).not.toContain('type-dir-mismatch')
+    expect(kindsOf('wiki/concepts/alpha.md')).not.toContain('not-in-index')
+
+    expect(kindsOf('wiki/beta.md')).toContain('type-dir-mismatch')
+    expect(kindsOf('wiki/beta.md')).toContain('not-in-index')
+    expect(kindsOf('wiki/gamma.md')).toContain('missing-type')
+  })
 })

@@ -4,7 +4,7 @@
  */
 import { size, watch, type UnwatchFn, type WatchEvent } from '@tauri-apps/plugin-fs'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useFileSyncStore } from '@/views/knowledge/lib/file-sync-store.ts'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
@@ -21,7 +21,7 @@ import {
 } from '@/views/knowledge/lib/source-watch-config.ts'
 
 interface WatchTarget {
-  baseId: string
+  spaceId: string
   rootPath: string
   isActive: boolean
 }
@@ -71,7 +71,7 @@ async function watchOneSourcesDir(target: WatchTarget): Promise<UnwatchFn | null
           const relative = toRelative(watchRoot, path)
 
           if (removed) {
-            discardPendingForSources(target.baseId, [relative])
+            discardPendingForSources(target.spaceId, [relative])
             if (target.isActive) {
               useFileSyncStore.getState().pushTask({
                 kind: 'delete',
@@ -89,7 +89,7 @@ async function watchOneSourcesDir(target: WatchTarget): Promise<UnwatchFn | null
                     status: 'succeeded'
                   })
                   useKnowledgeStore.getState().toBumpTree()
-                  void useKnowledgeBaseStore.getState().rescan()
+                  void useSpacesStore.getState().rescan()
                 }
               })
               .catch(function (error) {
@@ -136,7 +136,7 @@ async function watchOneSourcesDir(target: WatchTarget): Promise<UnwatchFn | null
               useIngestQueueStore.getState().enqueue(relative)
             } else {
               enqueuePendingIngest({
-                baseId: target.baseId,
+                spaceId: target.spaceId,
                 rootPath: watchRoot,
                 path: relative
               })
@@ -153,30 +153,30 @@ async function watchOneSourcesDir(target: WatchTarget): Promise<UnwatchFn | null
 }
 
 async function watchSourcesDir(rootPath: string): Promise<UnwatchFn | null> {
-  const activeId = useKnowledgeBaseStore.getState().activeBaseID
+  const activeId = useSpacesStore.getState().activeSpaceID
   return watchOneSourcesDir({
-    baseId: activeId ?? 'active',
+    spaceId: activeId ?? 'active',
     rootPath,
     isActive: true
   })
 }
 
-async function watchKnowledgeBases(input: {
-  bases: { id: string; rootPath: string }[]
-  activeBaseId: string | null
+async function watchKnowledgeSpaces(input: {
+  spaces: { id: string; rootPath: string }[]
+  activeSpaceId: string | null
   watchAllBases: boolean
 }): Promise<() => void> {
   const config = readSourceWatchConfig()
   if (!config.enabled) return function () {}
 
   const targets: WatchTarget[] = []
-  for (const base of input.bases) {
-    if (!base.rootPath) continue
-    const isActive = base.id === input.activeBaseId
+  for (const space of input.spaces) {
+    if (!space.rootPath) continue
+    const isActive = space.id === input.activeSpaceId
     if (!isActive && !input.watchAllBases) continue
     targets.push({
-      baseId: base.id,
-      rootPath: base.rootPath,
+      spaceId: space.id,
+      rootPath: space.rootPath,
       isActive
     })
   }
@@ -203,4 +203,4 @@ async function watchKnowledgeBases(input: {
   }
 }
 
-export { watchKnowledgeBases, watchSourcesDir }
+export { watchKnowledgeSpaces, watchSourcesDir }

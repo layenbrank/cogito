@@ -1,44 +1,19 @@
 ---
 name: knowledge-wiki
-description: Cogito 知识库（LLM Wiki）工作流：场景模板、purpose/schema、ACP 两阶段 ingest、检索模式与 .agent 产物。在用户整理 Wiki、摄入资料、或按忠实原文回答时使用。
+description: Cogito 知识库（LLM Wiki）工作流入口。权威内容在 `.agents/skills/knowledge-wiki/SKILL.md`；这里只保留指针，避免两份规范漂移。
 ---
 
-# 知识库 Wiki Skill
+# 知识库 Wiki Skill（指针）
 
-## 库说明书
+权威版本：**[`.agents/skills/knowledge-wiki/SKILL.md`](../../.agents/skills/knowledge-wiki/SKILL.md)**
 
-- `purpose.md`：为什么存在、关键问题、范围
-- `schema.md`：页面类型、命名、交叉引用规则
-- `wiki/overview.md`：全局概要（**应用维护**，禁止模型 FILE 生成）
-- 同样禁止改写 `wiki/index.md`、`wiki/log.md`
+> 为什么不再维护副本：type 表、frontmatter 必填项、staging 发布语义都随代码演进，
+> 两份文本必然漂移。Cursor 只扫 `.cursor/skills`，所以这个目录保留一个指针；
+> **改规范请只改 `.agents/` 那一份。**
 
-开场先 `cogito_knowledge_read_wiki` 读上述文件（若上下文未注入）。
+速查（详细规则见上面链接）：
 
-## 工具
-
-| 工具 | 用途 |
-|------|------|
-| `cogito_knowledge_search` | FTS 检索 |
-| `cogito_knowledge_graph_search` | `[[wikilink]]` 邻居 |
-| `cogito_knowledge_read_doc` / `read_wiki` | 读正文 |
-| `cogito_knowledge_write_doc` | 直接写 wiki |
-| `cogito_knowledge_ingest` | **入队** ACP 两阶段（返回 `queued`） |
-| `cogito_knowledge_workspace_write` | 写 `<base>/.agent/` 草稿 |
-| `cogito_knowledge_lint` | 断链 / 孤儿页 |
-
-## 检索模式
-
-- **standard**：FTS
-- **smart**：先 overview，再 FTS / graph
-- **faithful**：优先 `raw/sources` 与带 `sources[]` 的页；结论必须引用路径
-
-## Ingest
-
-1. 资料落在 `raw/sources/`
-2. `cogito_knowledge_ingest({ path, baseId? })` → queued
-3. 前端 Activity 跑分析→生成 FILE 块→写 wiki→维护 index/log/overview
-
-## 建库
-
-- 不要依赖「默认知识库」
-- 新建时选场景模板（研究/阅读/个人成长/商业/通用），或「导入示例库」
+- 一页一概念；`type` 决定落点（entity/concept/source/query/comparison/synthesis/note + 模板类型）
+- 正文从 `##` 起；`[[页面标题]]` 互链；禁写 `wiki/index.md` / `log.md` / `overview.md`
+- `cogito_knowledge_write_doc` **只写待发布区**，用户在「知识库 → 待发布」确认后才归档
+- 同名 + 同 type = 更新那一页；标题改了就是新页，先问用户

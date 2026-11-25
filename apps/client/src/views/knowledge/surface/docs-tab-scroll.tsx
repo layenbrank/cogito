@@ -1,12 +1,23 @@
+import { memo } from 'react'
+
 import { Button } from '@cogito/design/components/button'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 
+import type { KnowledgeDocSummary, KnowledgeHit } from '@/apis/knowledge'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
-import type { useDocsTab } from '@/views/knowledge/surface/use-docs-tab.ts'
 
-type DocsTabState = ReturnType<typeof useDocsTab>
+/**
+ * 文档列表：只接收列表相关的原始值/数组，配合 memo。
+ * 搜索框敲字（`query` 变化）不该重建整个列表。
+ */
+interface DocsTabScrollProps {
+  docs: KnowledgeDocSummary[]
+  hits: KnowledgeHit[]
+  isLoading: boolean
+  openDoc: (relative: string) => void
+}
 
-function DocsTabScroll(props: DocsTabState) {
+const DocsTabScroll = memo(function DocsTabScroll(props: DocsTabScrollProps) {
   return (
     <ScrollArea className="min-h-0 flex-1">
       {props.hits.length > 0 ? (
@@ -20,12 +31,12 @@ function DocsTabScroll(props: DocsTabState) {
                 <Button
                   variant="ghost"
                   type="button"
-                  className="hover:bg-muted/70 h-auto w-full flex-col items-stretch justify-start rounded-lg px-2 py-1.5 text-left whitespace-normal transition-colors"
+                  className="hover:bg-muted/70 h-auto w-full flex-col items-stretch justify-start rounded-lg px-2.5 py-2 text-left whitespace-normal transition-colors"
                   onClick={function () {
                     void props.openDoc(hit.relPath)
                   }}>
-                  <span className="min-w-0 truncate text-xs font-medium">{hit.title}</span>
-                  <span className="text-muted-foreground mt-0.5 min-w-0 truncate text-[11px]">
+                  <span className="min-w-0 truncate text-[13px] font-medium">{hit.title}</span>
+                  <span className="text-muted-foreground mt-0.5 min-w-0 truncate text-xs">
                     {hit.snippet}
                   </span>
                 </Button>
@@ -42,7 +53,7 @@ function DocsTabScroll(props: DocsTabState) {
         <div className="text-muted-foreground space-y-1 px-1.5 py-3 text-xs">
           <p className="text-foreground font-medium">暂无文档</p>
           <p className="text-[12px] leading-relaxed">
-            可在「来源」放入资料后 ingest，或点上方「生成」让助手直接写 wiki 页。
+            点上方「新建文档」直接开写；也可以让助手起草，或把 Markdown 拖进空间目录。
           </p>
         </div>
       ) : null}
@@ -53,12 +64,12 @@ function DocsTabScroll(props: DocsTabState) {
               <Button
                 variant="ghost"
                 type="button"
-                className="hover:bg-muted/70 h-auto w-full flex-col items-stretch justify-start rounded-lg px-2 py-1.5 text-left whitespace-normal transition-colors"
+                className="hover:bg-muted/70 h-auto w-full flex-col items-stretch justify-start rounded-lg px-2.5 py-2 text-left whitespace-normal transition-colors"
                 onClick={function () {
                   void props.openDoc(doc.relPath)
                 }}>
-                <span className="min-w-0 truncate text-xs font-medium">{doc.title}</span>
-                <span className="text-muted-foreground mt-0.5 min-w-0 truncate text-[11px]">
+                <span className="min-w-0 truncate text-[13px] font-medium">{doc.title}</span>
+                <span className="text-muted-foreground mt-0.5 min-w-0 truncate text-xs">
                   {doc.relPath} · {doc.wordCount} 字 · {formatTime(doc.updatedAt)}
                 </span>
               </Button>
@@ -68,6 +79,6 @@ function DocsTabScroll(props: DocsTabState) {
       </ul>
     </ScrollArea>
   )
-}
+})
 
 export { DocsTabScroll }

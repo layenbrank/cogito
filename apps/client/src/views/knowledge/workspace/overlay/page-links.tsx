@@ -6,7 +6,7 @@ import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
   findPageLinks,
@@ -33,16 +33,16 @@ async function fetchPageLinkBuckets(query: PageLinksQuery): Promise<PageLinkBuck
 }
 
 function PageLinks() {
-  const docs = useKnowledgeBaseStore(function (state) {
+  const docs = useSpacesStore(function (state) {
     return state.docs
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
-  const rescan = useKnowledgeBaseStore(function (state) {
+  const rescan = useSpacesStore(function (state) {
     return state.rescan
   })
   const activePath = useKnowledgeStore(function (state) {
@@ -54,20 +54,20 @@ function PageLinks() {
   const [links, setLinks] = useState<PageLinkBuckets | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const base = bases.find(function (item) {
-    return item.id === activeBaseID
+  const space = spaces.find(function (item) {
+    return item.id === activeSpaceID
   })
   const relPath =
     activeDoc?.relPath ||
-    (activePath && base?.rootPath
-      ? activePath.replace(/\\/g, '/').replace(base.rootPath.replace(/\\/g, '/') + '/', '')
+    (activePath && space?.rootPath
+      ? activePath.replace(/\\/g, '/').replace(space.rootPath.replace(/\\/g, '/') + '/', '')
       : null)
 
   useEffect(
     function () {
       let alive = true
       void fetchPageLinkBuckets({
-        rootPath: base?.rootPath,
+        rootPath: space?.rootPath,
         relPath,
         docs
       })
@@ -81,14 +81,14 @@ function PageLinks() {
         alive = false
       }
     },
-    [base?.rootPath, relPath, docs]
+    [space?.rootPath, relPath, docs]
   )
 
   async function refresh() {
     try {
       setLinks(
         await fetchPageLinkBuckets({
-          rootPath: base?.rootPath,
+          rootPath: space?.rootPath,
           relPath,
           docs
         })
@@ -99,19 +99,19 @@ function PageLinks() {
   }
 
   async function createMissing(title: string, withAcp: boolean) {
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
+    const space = spaces.find(function (item) {
+      return item.id === activeSpaceID
     })
-    if (!base?.rootPath) return
+    if (!space?.rootPath) return
     setBusy(true)
     try {
       const relative = await insertMissingWikiPage({
-        rootPath: base.rootPath,
+        rootPath: space.rootPath,
         title,
         draftWithAcp: withAcp
       })
       void rescan()
-      openEditorPath(joinPath(base.rootPath, relative))
+      openEditorPath(joinPath(space.rootPath, relative))
       toast.success(withAcp ? '已 ACP 起草并打开' : '已创建 stub')
       await refresh()
     } catch (error) {
@@ -134,7 +134,7 @@ function PageLinks() {
         <Button
           size="sm"
           variant="ghost"
-          className="h-6 text-[11px]"
+          className="h-8 px-2 text-xs"
           onClick={function () {
             void refresh()
           }}>
@@ -176,7 +176,7 @@ function PageLinks() {
                   <div className="mt-1 flex gap-1">
                     <Button
                       size="sm"
-                      className="h-6 px-1.5 text-[11px]"
+                      className="h-8 px-2 text-xs"
                       disabled={busy}
                       onClick={function () {
                         void createMissing(title, false)
@@ -186,7 +186,7 @@ function PageLinks() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-1.5 text-[11px]"
+                      className="h-8 px-2 text-xs"
                       disabled={busy}
                       onClick={function () {
                         void createMissing(title, true)

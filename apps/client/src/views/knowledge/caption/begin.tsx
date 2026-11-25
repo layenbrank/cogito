@@ -26,7 +26,8 @@ const RETURN_LABEL: Record<NonNullable<PreviewReturnTab>, string> = {
   search: '检索',
   graph: '图谱',
   lint: 'Lint',
-  review: '审阅'
+  review: '审阅',
+  staging: '待发布'
 }
 
 function KnowledgeCaptionBegin() {
@@ -54,7 +55,8 @@ function KnowledgeCaptionBegin() {
     search: '检索',
     graph: '图谱',
     lint: 'Lint',
-    review: '审阅'
+    review: '审阅',
+    staging: '待发布'
   }
   const toolTitle = toolTitles[railTab]
 
@@ -75,10 +77,10 @@ function KnowledgeCaptionBegin() {
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               data-region="false"
               aria-label={t('OPEN')}
-              className="relative z-10 size-7 shrink-0 rounded-md border-0 text-muted-foreground shadow-none"
+              className="text-muted-foreground relative z-10 size-8 shrink-0 rounded-lg border-0 shadow-none"
             />
           }>
           <Icon
@@ -169,11 +171,11 @@ function KnowledgeCaptionBegin() {
           variant="ghost"
           size="sm"
           data-region="false"
-          className="relative z-10 h-7 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
+          className="text-muted-foreground relative z-10 h-8 shrink-0 gap-1.5 px-2 text-xs"
           onClick={toReturnFromPreview}>
           <Icon
             icon="lucide:arrow-left"
-            className="size-3.5"
+            className="size-4"
           />
           返回{returnLabel}
         </Button>
@@ -185,8 +187,7 @@ function KnowledgeCaptionBegin() {
             className={cn(
               'max-w-full truncate text-center text-sm font-medium',
               !toolTitle && isDirty && 'text-amber-700 dark:text-amber-400'
-            )}
-            title={toolTitle ? title : (activePath ?? title)}>
+            )}            title={toolTitle ? title : (activePath ?? title)}>
             {!toolTitle && isDirty ? `• ${title}` : title}
           </span>
         </span>

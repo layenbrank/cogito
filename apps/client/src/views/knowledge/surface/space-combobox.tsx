@@ -11,37 +11,37 @@ import {
 } from '@cogito/design/components/combobox'
 import { useMemo } from 'react'
 
-import type { KnowledgeBase } from '@/shared/ipc/specs/knowledge'
-import { findKnowledgeBaseLabel } from '@/views/knowledge/lib/base-label.ts'
+import type { KnowledgeSpace } from '@/shared/ipc/specs/knowledge'
+import { findKnowledgeSpaceLabel } from '@/views/knowledge/lib/space-label.ts'
 
-interface BaseOption {
+interface SpaceOption {
   value: string
   label: string
 }
 
-interface BaseComboboxProps {
-  bases: Array<Pick<KnowledgeBase, 'id' | 'name' | 'slug'>>
+interface SpaceComboboxProps {
+  spaces: Array<Pick<KnowledgeSpace, 'id' | 'name' | 'slug'>>
   value: string | null
-  onValueChange: (baseID: string) => void
+  onValueChange: (spaceID: string) => void
   className?: string
   placeholder?: string
   'aria-label'?: string
 }
 
-function BaseCombobox(props: BaseComboboxProps) {
-  const placeholder = props.placeholder ?? '选择知识库'
+function SpaceCombobox(props: SpaceComboboxProps) {
+  const placeholder = props.placeholder ?? '选择空间'
   const ariaLabel = props['aria-label'] ?? placeholder
 
   const options = useMemo(
     function () {
-      return props.bases.map(function (base): BaseOption {
+      return props.spaces.map(function (space): SpaceOption {
         return {
-          value: base.id,
-          label: findKnowledgeBaseLabel(base)
+          value: space.id,
+          label: findKnowledgeSpaceLabel(space)
         }
       })
     },
-    [props.bases]
+    [props.spaces]
   )
 
   const selected = useMemo(
@@ -77,9 +77,9 @@ function BaseCombobox(props: BaseComboboxProps) {
       <ComboboxContent
         size="sm"
         align="start">
-        <ComboboxEmpty>无匹配知识库</ComboboxEmpty>
+        <ComboboxEmpty>无匹配空间</ComboboxEmpty>
         <ComboboxList>
-          {function (item: BaseOption) {
+          {function (item: SpaceOption) {
             return (
               <ComboboxItem
                 key={item.value}
@@ -94,5 +94,5 @@ function BaseCombobox(props: BaseComboboxProps) {
   )
 }
 
-export { BaseCombobox }
-export type { BaseComboboxProps }
+export { SpaceCombobox }
+export type { SpaceComboboxProps }

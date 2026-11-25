@@ -4,7 +4,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 
 let unlisten: UnlistenFn | null = null
@@ -12,20 +12,20 @@ let unlisten: UnlistenFn | null = null
 async function bootstrapIngestEnqueueBridge(): Promise<void> {
   if (unlisten) return
   useIngestQueueStore.getState().bootstrap()
-  unlisten = await listen<{ path?: string; baseId?: string }>(
+  unlisten = await listen<{ path?: string; spaceId?: string }>(
     'knowledge://enqueue-ingest',
     function (event) {
       const path = event.payload?.path?.trim()
       if (!path) return
-      const baseId = event.payload?.baseId
-      const state = useKnowledgeBaseStore.getState()
+      const spaceId = event.payload?.spaceId
+      const state = useSpacesStore.getState()
       const enqueue = function () {
         const id = useIngestQueueStore.getState().enqueue(path)
         if (id) toast.message(`已入队 ingest：${path}`)
       }
-      if (baseId && state.activeBaseID !== baseId) {
-        void state.selectBase(baseId).then(enqueue).catch(function (error) {
-          console.warn('[ingest-enqueue-bridge] selectBase failed:', error)
+      if (spaceId && state.activeSpaceID !== spaceId) {
+        void state.selectSpace(spaceId).then(enqueue).catch(function (error) {
+          console.warn('[ingest-enqueue-bridge] selectSpace failed:', error)
           enqueue()
         })
         return

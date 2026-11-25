@@ -8,10 +8,10 @@ import { Input } from '@cogito/design/components/input'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { Textarea } from '@cogito/design/components/textarea'
 import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { readAnyTxtConfig } from '@/views/knowledge/lib/anytxt-config.ts'
@@ -80,14 +80,16 @@ function ResearchPanel(props: { embedded?: boolean } = {}) {
   const enqueue = useIngestQueueStore(function (state) {
     return state.enqueue
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
   const [topic, setTopic] = useState('')
   const [queryText, setQueryText] = useState('')
+  const topicID = useId()
+  const queryID = useId()
   const [drafts, setDrafts] = useState<ResearchDraft[]>(function () {
     return readDrafts()
   })
@@ -115,18 +117,18 @@ function ResearchPanel(props: { embedded?: boolean } = {}) {
   }
 
   async function enqueueDraft(draft: ResearchDraft) {
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
+    const space = spaces.find(function (item) {
+      return item.id === activeSpaceID
     })
-    if (!base?.rootPath) {
-      toast.error('无活动知识库')
+    if (!space?.rootPath) {
+      toast.error('无活动空间')
       return
     }
     setBusyId(draft.id)
     const searchConfig = readWebSearchConfig()
     try {
       const dirRel = `raw/sources/research/${draft.id}`
-      const dirAbs = joinPath(base.rootPath, dirRel)
+      const dirAbs = joinPath(space.rootPath, dirRel)
       if (!(await exists(dirAbs))) {
         await mkdir(dirAbs, { recursive: true })
       }
@@ -186,7 +188,7 @@ type: research-query
 
 ${hitsBlock}
 `
-        await writeTextFile(joinPath(base.rootPath, fileRel), body)
+        await writeTextFile(joinPath(space.rootPath, fileRel), body)
         if (searchConfig.autoIngest) {
           enqueue(fileRel)
         }
@@ -237,8 +239,13 @@ ${hitsBlock}
 
       <div className="border-border flex shrink-0 flex-col gap-2 border-b px-2.5 py-2.5">
         <div className="flex flex-col gap-1.5">
-          <label className="text-muted-foreground text-xs font-medium">研究主题</label>
+          <label
+            htmlFor={topicID}
+            className="text-muted-foreground text-xs font-medium">
+            研究主题
+          </label>
           <Input
+            id={topicID}
             className="h-8 text-xs"
             placeholder="例如：LanceDB 向量检索"
             value={topic}
@@ -248,8 +255,13 @@ ${hitsBlock}
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-muted-foreground text-xs font-medium">搜索查询（每行一条）</label>
+          <label
+            htmlFor={queryID}
+            className="text-muted-foreground text-xs font-medium">
+            搜索查询（每行一条）
+          </label>
           <Textarea
+            id={queryID}
             className="min-h-16 text-xs"
             placeholder={'LanceDB overview\nLanceDB vs sqlite-vec'}
             value={queryText}

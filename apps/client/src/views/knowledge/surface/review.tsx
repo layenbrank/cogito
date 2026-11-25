@@ -7,7 +7,7 @@ import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import {
   patchReviewItem,
@@ -42,11 +42,11 @@ const STATUS_LABEL: Record<ReviewItem['status'], string> = {
 }
 
 function ReviewTab() {
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
   const [items, setItems] = useState<ReviewItem[]>(function () {
     return readReviewItems()
@@ -72,15 +72,15 @@ function ReviewTab() {
   }
 
   async function openOrCreatePage(item: ReviewItem) {
-    const base = bases.find(function (entry) {
-      return entry.id === activeBaseID
+    const space = spaces.find(function (entry) {
+      return entry.id === activeSpaceID
     })
-    if (!base?.rootPath) {
-      toast.error('无活动知识库')
+    if (!space?.rootPath) {
+      toast.error('无活动空间')
       return
     }
     if (item.wikiPath) {
-      const absolute = joinPath(base.rootPath, item.wikiPath)
+      const absolute = joinPath(space.rootPath, item.wikiPath)
       if (await exists(absolute)) {
         openEditorPath(absolute)
         return
@@ -92,8 +92,8 @@ function ReviewTab() {
         .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')
         .slice(0, 40) || `review-${Date.now()}`
     const relative = `wiki/${slug}.md`
-    const absolute = joinPath(base.rootPath, relative)
-    const parent = joinPath(base.rootPath, 'wiki')
+    const absolute = joinPath(space.rootPath, relative)
+    const parent = joinPath(space.rootPath, 'wiki')
     if (!(await exists(parent))) await mkdir(parent, { recursive: true })
     const body = `---\ntitle: ${JSON.stringify(item.title)}\ntype: concept\n---\n\n# ${item.title}\n\n> 由 Review 创建\n\n${item.prompt}\n`
     await writeTextFile(absolute, body)
@@ -113,11 +113,11 @@ function ReviewTab() {
   }
 
   async function autoFixPending() {
-    const base = bases.find(function (entry) {
-      return entry.id === activeBaseID
+    const space = spaces.find(function (entry) {
+      return entry.id === activeSpaceID
     })
-    if (!base?.rootPath) {
-      toast.error('无活动知识库')
+    if (!space?.rootPath) {
+      toast.error('无活动空间')
       return
     }
     let fixed = 0

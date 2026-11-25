@@ -1,45 +1,14 @@
 /**
- * 维护：重建 index、标题去重扫描、wikilink enrich。
+ * 维护：标题去重扫描、wikilink enrich。
+ *
+ * 重建 `wiki/index.md` 不在这里：格式只有 Rust `knowledge::wiki_index` 一份实现，
+ * 走 `POST_KNOWLEDGE_REBUILD_INDEX`。
  */
-import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 import { enrichWikilinks } from '@/views/knowledge/lib/enrich-wikilinks.ts'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { pushReviewItem } from '@/views/knowledge/lib/review-store.ts'
-
-interface RebuildIndexInput {
-  rootPath: string
-  pages: { relative: string; title: string }[]
-}
-
-async function rebuildWikiIndex(input: RebuildIndexInput): Promise<void> {
-  const path = joinPath(input.rootPath, 'wiki/index.md')
-  const parent = joinPath(input.rootPath, 'wiki')
-  if (!(await exists(parent))) await mkdir(parent, { recursive: true })
-
-  let header =
-    '---\ntitle: Index\ntype: index\n---\n\n# Index\n\n内容目录（维护工具重建）。\n\n## Pages\n\n'
-  if (await exists(path)) {
-    try {
-      const existing = await readTextFile(path)
-      const before = existing.split(/## Pages/)[0]
-      header = `${before.trimEnd()}\n\n## Pages\n\n`
-    } catch (error) {
-      console.warn('[maintenance] read index failed', error)
-    }
-  }
-
-  const bullets = input.pages
-    .filter(function (page) {
-      return !/wiki[/\\](index|log|overview)\.md$/i.test(page.relative)
-    })
-    .map(function (page) {
-      return `- [[${page.title}]] (\`${page.relative.replace(/\\/g, '/')}\`)`
-    })
-    .join('\n')
-
-  await writeTextFile(path, `${header}${bullets}\n`)
-}
 
 const HISTORY_KEY = 'knowledge.file-history'
 
@@ -148,7 +117,6 @@ export {
   enrichWikiWikilinks,
   findDuplicateTitleGroups,
   pushFileHistory,
-  readFileHistory,
-  rebuildWikiIndex
+  readFileHistory
 }
-export type { DuplicateTitleGroup, FileHistoryEntry, RebuildIndexInput }
+export type { DuplicateTitleGroup, FileHistoryEntry }

@@ -44,12 +44,12 @@ function NavigationPanel(props: NavigationPanelProps) {
           <div className="relative min-w-0 flex-1">
             <Icon
               icon="lucide:search"
-              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2"
             />
             <Input
               value={fileQuery}
               placeholder={t('SEARCH')}
-              className="border-border/70 bg-muted/40 h-7 rounded-md pl-7 text-xs"
+              className="border-border/70 bg-muted/40 h-8 rounded-md pl-8 text-[13px]"
               onChange={function (event) {
                 toSetFileQuery(event.target.value)
               }}
@@ -62,7 +62,7 @@ function NavigationPanel(props: NavigationPanelProps) {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-7 shrink-0 rounded-md"
+                  className="size-8 shrink-0 rounded-md"
                   aria-label={t('NEW_FILE')}
                   onClick={function () {
                     void props.mutations.onCreateAtRoot()
@@ -71,7 +71,7 @@ function NavigationPanel(props: NavigationPanelProps) {
               }>
               <Icon
                 icon="lucide:file-plus-2"
-                className="size-3.5"
+                className="size-4"
               />
             </TooltipTrigger>
             <TooltipContent side="bottom">{t('NEW_FILE')}</TooltipContent>

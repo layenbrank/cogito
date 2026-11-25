@@ -24,7 +24,7 @@ function KnowledgeWorkspaceView(props: KnowledgeWorkspaceState) {
       {props.isFocusMode ? <FocusExit onExit={props.exitFocusMode} /> : null}
 
       {isShellVisible && props.isSessionReady && props.hasOpened ? (
-        <Overlay.Utility
+        <Overlay.DocumentHeader
           onToggleFind={function () {
             props.setFindPreferReplace(false)
             props.toggleFindOpen()

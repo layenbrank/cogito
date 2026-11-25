@@ -1,7 +1,7 @@
 import { cn } from 'cn'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { isSamePath } from '@/views/knowledge/lib/path.ts'
 import { t } from '@/views/knowledge/locale.ts'
@@ -12,14 +12,14 @@ import {
 
 function findWorkspaceLabel(input: {
   rootDir: string | null
-  bases: ReturnType<typeof useKnowledgeBaseStore.getState>['bases']
-  activeBaseID: string | null
+  spaces: ReturnType<typeof useSpacesStore.getState>['spaces']
+  activeSpaceID: string | null
 }): string {
-  const activeBase = input.bases.find(function (base) {
-    return base.id === input.activeBaseID
+  const activeSpace = input.spaces.find(function (space) {
+    return space.id === input.activeSpaceID
   })
-  if (input.rootDir && activeBase && isSamePath(input.rootDir, activeBase.rootPath)) {
-    return activeBase.name
+  if (input.rootDir && activeSpace && isSamePath(input.rootDir, activeSpace.rootPath)) {
+    return activeSpace.name
   }
   if (input.rootDir) {
     return input.rootDir.split(/[\\/]/).filter(Boolean).pop() ?? t('WORKSPACE')
@@ -53,16 +53,16 @@ function Summary() {
   const isDocLoading = useKnowledgeStore(function (state) {
     return state.isLoading
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
 
   if (isFocusMode) return null
 
-  const workspaceLabel = findWorkspaceLabel({ rootDir, bases, activeBaseID })
+  const workspaceLabel = findWorkspaceLabel({ rootDir, spaces, activeSpaceID })
   const fileLabel = activePath?.split(/[/\\]/).pop() ?? t('UNTITLED')
   const isBootstrapping = !isSessionReady || isDocLoading
 

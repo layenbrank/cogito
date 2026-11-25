@@ -1,6 +1,7 @@
 import TurndownService from 'turndown'
 
 import { joinFrontMatter } from '@/views/knowledge/lib/front-matter.ts'
+import { toWikiLinkMarkdown } from '@/views/knowledge/lib/wiki-link.ts'
 
 function makeTurndown(): TurndownService {
   const service = new TurndownService({
@@ -9,6 +10,46 @@ function makeTurndown(): TurndownService {
     bulletListMarker: '-',
     emDelimiter: '*',
     strongDelimiter: '**'
+  })
+
+  // wikilink 必须排在默认 `a` 规则之前：否则会被写成 `[文本]()`，双括号直接丢掉
+  service.addRule('wikilink', {
+    filter(node) {
+      return node.nodeName === 'A' && node.getAttribute('data-wikilink') !== null
+    },
+    replacement(_content, node) {
+      const element = node
+      const title = (
+        element.getAttribute('data-wikilink-title') ||
+        element.textContent ||
+        ''
+      ).trim()
+      if (!title) return element.textContent ?? ''
+      const alias = (element.getAttribute('data-wikilink-alias') || '').trim() || null
+      const text = (element.textContent ?? '').trim()
+      return toWikiLinkMarkdown(title, alias ?? (text && text !== title ? text : null))
+    }
+  })
+
+  // callout：还原成 `> [!type] 标题` + 每行加 `>` 的引用块
+  service.addRule('callout', {
+    filter(node) {
+      return node.nodeName === 'DIV' && node.getAttribute('data-callout') !== null
+    },
+    replacement(content, node) {
+      const element = node
+      const type = element.getAttribute('data-callout') || 'note'
+      const title = (element.getAttribute('data-callout-title') || '').trim()
+      const header = title ? `> [!${type}] ${title}` : `> [!${type}]`
+      const body = content.replace(/^\n+/, '').replace(/\n+$/, '')
+      const quoted = body
+        .split('\n')
+        .map(function (line) {
+          return line.trim() ? `> ${line}` : '>'
+        })
+        .join('\n')
+      return `\n\n${header}\n>\n${quoted}\n\n`
+    }
   })
 
   service.addRule('taskListItem', {

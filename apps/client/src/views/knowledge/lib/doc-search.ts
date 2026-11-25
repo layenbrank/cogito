@@ -1,7 +1,7 @@
 /**
  * 知识库检索：本地 FTS 默认；可选向量命中 + RRF 混合排序。
  */
-import { GET_KNOWLEDGE_SEARCH, type KnowledgeHit } from '@/lib/knowledge-ipc'
+import { GET_KNOWLEDGE_SEARCH, type KnowledgeHit } from '@/apis/knowledge'
 import { readEmbeddingConfig } from '@/views/knowledge/lib/embedding-config.ts'
 import { reciprocalRankFusion } from '@/views/knowledge/lib/search-hybrid.ts'
 import { searchVectors, type VectorHit } from '@/views/knowledge/lib/vector-store.ts'
@@ -9,7 +9,7 @@ import { searchVectors, type VectorHit } from '@/views/knowledge/lib/vector-stor
 const RESULT_LIMIT = 20
 
 interface SearchOptions {
-  baseId?: string
+  spaceId?: string
   topK?: number
   /** 是否尝试向量召回（仍受 embedding 开关约束） */
   includeVector?: boolean
@@ -24,7 +24,7 @@ interface HybridSearchResult {
 function mergeWithRrf(
   ftsHits: KnowledgeHit[],
   vectorHits: VectorHit[],
-  baseId: string | undefined,
+  spaceId: string | undefined,
   topK: number
 ): KnowledgeHit[] {
   const fused = reciprocalRankFusion([
@@ -52,7 +52,7 @@ function mergeWithRrf(
     }
     byId.set(vector.docId, {
       docId: vector.docId,
-      baseId: baseId ?? '',
+      spaceId: spaceId ?? '',
       title: vector.snippet.slice(0, 48) || vector.docId,
       relPath: vector.docId,
       snippet: vector.snippet,
@@ -88,7 +88,7 @@ async function searchKnowledgeHybrid(
 ): Promise<HybridSearchResult> {
   const topK = options.topK ?? RESULT_LIMIT
   const channels = ['fts']
-  const ftsHits = await GET_KNOWLEDGE_SEARCH(query, options.baseId, topK)
+  const ftsHits = await GET_KNOWLEDGE_SEARCH(query, options.spaceId, topK)
 
   let vectorHits: VectorHit[] = []
   const embedding = readEmbeddingConfig()
@@ -99,7 +99,7 @@ async function searchKnowledgeHybrid(
 
   const hits =
     vectorHits.length > 0
-      ? mergeWithRrf(ftsHits, vectorHits, options.baseId, topK)
+      ? mergeWithRrf(ftsHits, vectorHits, options.spaceId, topK)
       : ftsHits
 
   return {

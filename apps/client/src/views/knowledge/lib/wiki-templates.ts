@@ -14,6 +14,7 @@ const BASE_SCHEMA_TYPES = `| entity | wiki/entities/ | 命名实体（人、工�
 | query | wiki/queries/ | 正在追踪的开放问题 |
 | comparison | wiki/comparisons/ | 相关实体的对照分析 |
 | synthesis | wiki/synthesis/ | 跨来源综合与结论 |
+| note | wiki/notes/ | 普通笔记（未特定类型时的默认） |
 | overview | wiki/ | 全局概要（每个库一份，应用维护） |`
 
 const BASE_NAMING = `- 文件名：\`kebab-case.md\`（可用中文短横线，如 \`本地优先.md\`）
@@ -22,11 +23,11 @@ const BASE_NAMING = `- 文件名：\`kebab-case.md\`（可用中文短横线，�
 - 资料：\`作者-年份-slug.md\`（如 \`wei-2022-cot.md\`）
 - 问题：把问句压成 slug（如 \`规模是否提升推理.md\`）`
 
-const BASE_FRONTMATTER = `所有页面必须包含 YAML frontmatter：
+const BASE_FRONTMATTER = `所有页面必须包含 YAML frontmatter（落点目录由 \`type\` 决定，不要手写目录）：
 
 \`\`\`yaml
 ---
-type: entity | concept | source | query | comparison | synthesis | overview
+type: entity | concept | source | query | comparison | synthesis | note | overview
 title: 可读标题
 tags: []
 related: []
@@ -69,7 +70,7 @@ const BASE_CONTRADICTION = `当来源互相矛盾时：
 const researchTemplate: WikiTemplate = {
   id: 'research',
   name: '研究深挖',
-  description: '假设追踪与方法论笔记的深度研究知识库',
+  description: '假设追踪与方法论笔记的深度研究空间',
   icon: 'lucide:flask-conical',
   extraDirs: ['wiki/methodology', 'wiki/findings', 'wiki/thesis'],
   schema: `# Wiki 结构 — 研究深挖

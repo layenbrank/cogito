@@ -13,11 +13,11 @@ vi.mock('@tauri-apps/api/core', function () {
   return { invoke }
 })
 
-vi.mock('@/stores/knowledge-base', function () {
+vi.mock('@/stores/spaces', function () {
   return {
-    useKnowledgeBaseStore: {
+    useSpacesStore: {
       getState: function () {
-        return { bases: [], activeBaseID: null }
+        return { spaces: [], activeSpaceID: null }
       }
     }
   }

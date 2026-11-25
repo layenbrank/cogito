@@ -1,6 +1,6 @@
 /**
  * 知识库壳状态：主区页签 + 右栏（大纲 | AI | 深度研究）。
- * Research 是右栏 aside tab，不再单独占一列容器。
+ * 右栏是 Splitter 的第三列；Research 也是右栏里的一个 tab。
  */
 import { create } from 'zustand'
 
@@ -14,6 +14,7 @@ type RailTabCanonical =
   | 'graph'
   | 'lint'
   | 'review'
+  | 'staging'
   | 'settings'
 
 /** 旧页签名：读入时映射到 canonical */
@@ -21,7 +22,6 @@ type RailTabLegacy =
   | 'browse'
   | 'docs'
   | 'tasks'
-  | 'staging'
   | 'research'
   | 'activity'
 
@@ -55,6 +55,9 @@ interface SurfaceState {
   toToggleAside: (tab: AsideTab) => void
   toOpenAside: (tab: AsideTab) => void
   toCloseAside: () => void
+  /** 新建空间弹窗（名称 + 模板卡片），任何入口都走这一个 */
+  isNewSpaceOpen: boolean
+  toSetNewSpaceOpen: (open: boolean) => void
 }
 
 function normalizeRailTab(tab: RailTab): RailTabCanonical {
@@ -63,8 +66,6 @@ function normalizeRailTab(tab: RailTab): RailTabCanonical {
       return 'sources'
     case 'docs':
       return 'wiki'
-    case 'staging':
-      return 'review'
     case 'tasks':
     case 'research':
     case 'activity':
@@ -102,6 +103,11 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
     tab: 'wiki',
     asideTab: 'outline',
     previewReturnTab: null,
+    isNewSpaceOpen: false,
+
+    toSetNewSpaceOpen: function (open) {
+      set({ isNewSpaceOpen: open })
+    },
 
     toSetTab: function (tab) {
       const next = normalizeRailTab(tab)

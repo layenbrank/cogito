@@ -64,10 +64,10 @@ interface ImportFolderResult {
 }
 
 function findExtension(path: string): string {
-  const base = findFileName(path)
-  const idx = base.lastIndexOf('.')
+  const space = findFileName(path)
+  const idx = space.lastIndexOf('.')
   if (idx < 0) return ''
-  return base.slice(idx + 1).toLowerCase()
+  return space.slice(idx + 1).toLowerCase()
 }
 
 function isIngestableSourcePath(path: string): boolean {

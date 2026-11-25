@@ -16,13 +16,20 @@
  * 失败不再抛出给调用方：搜索返回 `[]`（上层自动降级到 FTS），
  * 写入返回 `false` 并记一条可上报的 warn。
  */
-import { invoke } from '@tauri-apps/api/core'
+import {
+  DELETE_VECTOR_ALL,
+  DELETE_VECTOR,
+  GET_VECTOR_COUNT,
+  POST_VECTOR_SEARCH,
+  POST_VECTOR_UPSERT
+} from '@/apis/vector'
 
 import {
+  prefixEmbeddingQuery,
   readEmbeddingConfig,
   type EmbeddingConfig
 } from '@/views/knowledge/lib/embedding-config.ts'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 
 const INDEX_KEY = 'knowledge.vector.index'
 /** 查询 embedding 的超时：超过就降级到 FTS（用户等 8s 还能接受） */
@@ -31,8 +38,8 @@ const SEARCH_TIMEOUT_MS = 8_000
 const UPSERT_TIMEOUT_MS = 15_000
 /** IPC 侧超时：Rust 内部是 10s，这里留 2s 余量兜底 */
 const IPC_TIMEOUT_MS = 12_000
-/** 探测端点用的超时：只发 1 个 token，短超时才能快速给反馈 */
-const PROBE_TIMEOUT_MS = 6_000
+/** 探测端点用的超时：1.2GB 模型首次加载可能要几十秒 */
+const PROBE_TIMEOUT_MS = 60_000
 /** 单条写入的重试次数（含首次） */
 const UPSERT_ATTEMPTS = 2
 /** 失败退避（毫秒） */
@@ -95,11 +102,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 function findActiveRootPath(): string | null {
-  const state = useKnowledgeBaseStore.getState()
-  const base = state.bases.find(function (item) {
-    return item.id === state.activeBaseID
+  const state = useSpacesStore.getState()
+  const space = state.spaces.find(function (item) {
+    return item.id === state.activeSpaceID
   })
-  return base?.rootPath ?? null
+  return space?.rootPath ?? null
 }
 
 function readIndex(): VectorIndex {
@@ -202,12 +209,16 @@ async function searchVectors(query: string, topK = 8): Promise<VectorHit[]> {
   if (!config.enabled) return []
   if (!query.trim()) return []
   try {
-    const queryVec = await fetchEmbedding(query, config, SEARCH_TIMEOUT_MS)
+    const queryVec = await fetchEmbedding(
+      prefixEmbeddingQuery(query, config.queryPrefix),
+      config,
+      SEARCH_TIMEOUT_MS
+    )
     if (config.store === 'lancedb') {
       const root = findActiveRootPath()
       if (!root) return []
       const rows = await withTimeout(
-        invoke<{ pageId: string; score: number }[]>('vector_search', {
+        POST_VECTOR_SEARCH<{ pageId: string; score: number }[]>({
           projectPath: root,
           queryEmbedding: queryVec,
           topK
@@ -256,7 +267,7 @@ async function upsertPageEmbedding(input: {
       const root = findActiveRootPath()
       if (!root) return false
       await withTimeout(
-        invoke('vector_upsert', {
+        POST_VECTOR_UPSERT({
           projectPath: root,
           pageId: input.docId.replace(/\\/g, '/'),
           embedding
@@ -342,7 +353,7 @@ async function removePageEmbedding(docId: string): Promise<void> {
     if (!root) return
     try {
       await withTimeout(
-        invoke('vector_delete', {
+        DELETE_VECTOR({
           projectPath: root,
           pageId: docId.replace(/\\/g, '/')
         }),
@@ -367,7 +378,7 @@ async function countVectors(): Promise<number> {
     if (!root) return 0
     try {
       return await withTimeout(
-        invoke<number>('vector_count', { projectPath: root }),
+        GET_VECTOR_COUNT({ projectPath: root }),
         IPC_TIMEOUT_MS,
         '统计向量'
       )
@@ -390,7 +401,7 @@ async function clearVectorIndex(): Promise<void> {
     const root = findActiveRootPath()
     if (!root) return
     await withTimeout(
-      invoke('vector_clear', { projectPath: root }),
+      DELETE_VECTOR_ALL({ projectPath: root }),
       IPC_TIMEOUT_MS,
       '清空向量索引'
     )

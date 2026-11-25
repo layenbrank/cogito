@@ -1,10 +1,10 @@
-$size-y: 28px;
+$size-y: 32px;
 
 .summary {
   &.root {
     width: 100%;
     height: $size-y;
-    padding-inline: 8px;
+    padding-inline: 12px;
     font-size: 12px;
     line-height: 16px;
     display: flex;

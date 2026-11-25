@@ -7,6 +7,16 @@
  */
 const STORAGE_KEY = 'knowledge.embedding.config'
 
+/** 本机 llama-server（Qwen3-Embedding-0.6B），不是 Ollama 的 :11434。 */
+const QWEN3_EMBED_ENDPOINT = 'http://127.0.0.1:11435/v1'
+const QWEN3_EMBED_MODEL = 'dengcao/Qwen3-Embedding-0.6B:F16'
+/**
+ * 只加在查询上，文档原文不加。
+ * 见 Qwen3-Embedding 的 query instruction。
+ */
+const QWEN3_QUERY_PREFIX =
+  'Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: '
+
 type EmbeddingStore = 'lancedb' | 'json'
 
 /** 一次端点探测的结果（设置页展示 + 上报用）。 */
@@ -35,6 +45,11 @@ interface EmbeddingConfig {
   probeBeforeEnable: boolean
   /** 最近一次探测结果 */
   lastProbe: EmbeddingProbe | null
+  /**
+   * 只拼在查询文本前。空字符串表示查询与文档用同一段原文。
+   * 末尾空格或换行会原样保留，方便 `Query: ` 这种前缀。
+   */
+  queryPrefix: string
 }
 
 const EMBEDDING_DEFAULTS: EmbeddingConfig = {
@@ -50,7 +65,8 @@ const EMBEDDING_DEFAULTS: EmbeddingConfig = {
   batchSize: 16,
   embedOnIngest: true,
   probeBeforeEnable: true,
-  lastProbe: null
+  lastProbe: null,
+  queryPrefix: ''
 }
 
 function parseProbe(raw: unknown): EmbeddingProbe | null {
@@ -78,6 +94,7 @@ function readEmbeddingConfig(): EmbeddingConfig {
       embedOnIngest: parsed.embedOnIngest !== false,
       probeBeforeEnable: parsed.probeBeforeEnable !== false,
       lastProbe: parseProbe(parsed.lastProbe),
+      queryPrefix: typeof parsed.queryPrefix === 'string' ? parsed.queryPrefix : '',
       maxChunkChars: Math.max(200, Number(parsed.maxChunkChars) || EMBEDDING_DEFAULTS.maxChunkChars),
       overlapChunkChars: Math.max(
         0,
@@ -119,6 +136,25 @@ type EmbeddingTogglePlan =
   | { kind: 'enable' }
   | { kind: 'probe' }
 
+/** 填本机 Qwen3 Embedding，不打开开关。启用仍要先探测。 */
+function qwen3EmbeddingPreset(): Pick<EmbeddingConfig, 'endpoint' | 'model' | 'queryPrefix'> {
+  return {
+    endpoint: QWEN3_EMBED_ENDPOINT,
+    model: QWEN3_EMBED_MODEL,
+    queryPrefix: QWEN3_QUERY_PREFIX
+  }
+}
+
+/**
+ * 查询侧前缀。空白前缀原样返回。
+ * 前缀以空格或换行结尾时直接拼接，避免把 `Query: ` 和问句拆开。
+ */
+function prefixEmbeddingQuery(query: string, prefix: string): string {
+  if (!prefix.trim()) return query
+  if (prefix.endsWith(' ') || prefix.endsWith('\n')) return prefix + query
+  return `${prefix}\n${query}`
+}
+
 function planEmbeddingToggle(input: {
   checked: boolean
   endpoint: string
@@ -143,10 +179,15 @@ function embeddingProbeSuccessPatch(dim: number, at: number): Partial<EmbeddingC
 
 export {
   EMBEDDING_DEFAULTS,
+  QWEN3_EMBED_ENDPOINT,
+  QWEN3_EMBED_MODEL,
+  QWEN3_QUERY_PREFIX,
   embeddingProbeFailurePatch,
   embeddingProbeSuccessPatch,
   patchEmbeddingConfig,
   planEmbeddingToggle,
+  prefixEmbeddingQuery,
+  qwen3EmbeddingPreset,
   readEmbeddingConfig,
   writeEmbeddingConfig
 }

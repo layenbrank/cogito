@@ -2,6 +2,8 @@
 //!
 //! 这些函数不碰 IO，方便直接单测（它们决定了文件名、去重与检索质量）。
 
+use super::front_matter::Document;
+
 /// 正文指纹：长度 + FNV-1a 64。
 ///
 /// 只用于本地判断「文件是否被外部改过」，不参与跨端比较，也不做密码学用途。
@@ -47,10 +49,23 @@ pub fn slugify(name: &str, max_chars: usize) -> String {
     }
 }
 
-/// 标题：优先一级标题，其次首个非空行，最后回退文件名。
+/// 标题：frontmatter `title` > 一级标题 > 首个非空行 > 文件名。
+///
+/// wiki 页的标题写在 frontmatter 里；不先读它就会把分隔符 `---` 当成标题，
+/// slug 跟着变成 `untitled`（这正是 agent 产物落库后「找不到页」的历史原因）。
 #[must_use]
 pub fn find_title(content: &str, fallback: &str) -> String {
-    for line in content.lines() {
+    let document = Document::parse(content);
+    if let Some(title) = document
+        .front_matter
+        .as_ref()
+        .and_then(|front| front.scalar("title"))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return title.chars().take(120).collect();
+    }
+    for line in document.body.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -98,6 +113,19 @@ mod tests {
         assert_eq!(find_title("# 标题\n正文", "file"), "标题");
         assert_eq!(find_title("\n\n第一行\n第二行", "file"), "第一行");
         assert_eq!(find_title("   \n\t", "file"), "file");
+    }
+
+    #[test]
+    fn title_prefers_front_matter() {
+        let content = "---\ntype: concept\ntitle: 本地优先\n---\n\n# 别的一级标题\n正文";
+        assert_eq!(find_title(content, "file"), "本地优先");
+    }
+
+    #[test]
+    fn title_ignores_front_matter_separator() {
+        // 回归：以前会把 `---` 当标题 → slug 变 untitled
+        let content = "---\ntype: note\n---\n\n正文";
+        assert_eq!(find_title(content, "file"), "正文");
     }
 
     #[test]

@@ -1,111 +1,78 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
 
 import { useDockStore } from '@/features/agent/dock'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { useKnowledgeStore } from '@/stores/knowledge'
-import { isPathInsideRoot, isSamePath, joinPath } from '@/views/knowledge/lib/path.ts'
-import { WIKI_TEMPLATE_GENERAL } from '@/views/knowledge/lib/wiki-templates.ts'
-import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
+import { useSpacesStore } from '@/stores/spaces'
+import { openSpaceDoc } from '@/views/knowledge/lib/open-space-doc.ts'
 
 function useDocsTab() {
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
-  const docs = useKnowledgeBaseStore(function (state) {
+  const docs = useSpacesStore(function (state) {
     return state.docs
   })
-  const hits = useKnowledgeBaseStore(function (state) {
+  const hits = useSpacesStore(function (state) {
     return state.hits
   })
-  const query = useKnowledgeBaseStore(function (state) {
+  const query = useSpacesStore(function (state) {
     return state.query
   })
-  const isLoading = useKnowledgeBaseStore(function (state) {
+  const isLoading = useSpacesStore(function (state) {
     return state.isLoading
   })
-  const error = useKnowledgeBaseStore(function (state) {
+  const error = useSpacesStore(function (state) {
     return state.error
   })
-  const selectBase = useKnowledgeBaseStore(function (state) {
-    return state.selectBase
-  })
-  const writeQuery = useKnowledgeBaseStore(function (state) {
+  const writeQuery = useSpacesStore(function (state) {
     return state.writeQuery
   })
-  const runSearch = useKnowledgeBaseStore(function (state) {
+  const selectSpace = useSpacesStore(function (state) {
+    return state.selectSpace
+  })
+  const runSearch = useSpacesStore(function (state) {
     return state.runSearch
   })
-  const clearSearch = useKnowledgeBaseStore(function (state) {
+  const clearSearch = useSpacesStore(function (state) {
     return state.clearSearch
   })
-  const insert = useKnowledgeBaseStore(function (state) {
-    return state.insert
-  })
-  const importExample = useKnowledgeBaseStore(function (state) {
-    return state.importExample
-  })
-  const rescan = useKnowledgeBaseStore(function (state) {
+  const rescan = useSpacesStore(function (state) {
     return state.rescan
   })
-  const exportBundle = useKnowledgeBaseStore(function (state) {
+  const exportBundle = useSpacesStore(function (state) {
     return state.exportBundle
   })
 
-  const [newName, setNewName] = useState('')
-  const [templateId, setTemplateId] = useState(WIKI_TEMPLATE_GENERAL)
-  const [isCreating, toSetCreating] = useState(false)
-
-  async function insertWithTemplate(name: string): Promise<boolean> {
-    return insert(name, templateId)
-  }
-
-  const activeBase = bases.find(function (base) {
-    return base.id === activeBaseID
+  const activeSpace = spaces.find(function (space) {
+    return space.id === activeSpaceID
   })
 
-  function openDoc(relative: string) {
-    if (!activeBase) return
-    const absolute = joinPath(activeBase.rootPath, relative)
-    const workspace = useKnowledgeStore.getState()
-    const isInsideWorkspace =
-      Boolean(workspace.rootDir) && isPathInsideRoot(workspace.rootDir!, absolute)
-    if (!isInsideWorkspace && !isSamePath(workspace.rootDir, activeBase.rootPath)) {
-      workspace.toSetRootDir(activeBase.rootPath, { persist: true })
-      workspace.toBumpTree()
-    }
-    openEditorPath(absolute)
-  }
+  /** 引用保持稳定：列表用 memo 包裹，回调一变就白 memo 了 */
+  const openDoc = useCallback(function (relative: string) {
+    openSpaceDoc(relative)
+  }, [])
 
-  function openNewDocDock() {
+  const openNewDocDock = useCallback(function () {
     useDockStore.getState().toOpen('new-doc')
-  }
+  }, [])
 
   return {
-    bases,
-    activeBaseID,
+    spaces,
+    activeSpaceID,
     docs,
     hits,
     query,
     isLoading,
     error,
-    selectBase,
+    selectSpace,
     writeQuery,
     runSearch,
     clearSearch,
-    insert: insertWithTemplate,
-    importExample,
     rescan,
     exportBundle,
-    newName,
-    setNewName,
-    templateId,
-    setTemplateId,
-    isCreating,
-    toSetCreating,
-    activeBase,
+    activeSpace,
     openDoc,
     openNewDocDock
   }

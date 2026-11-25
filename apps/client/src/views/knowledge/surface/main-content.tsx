@@ -3,7 +3,7 @@
  * 显隐勿同时写 flex + hidden（Tailwind 同属性后写覆盖，编辑器会盖住设置）。
  */
 import { cn } from 'cn'
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 
 import { Fallback } from '@/components/fallback/index.ts'
 import { GraphTab } from '@/views/knowledge/surface/graph.tsx'
@@ -12,6 +12,7 @@ import { ReviewTab } from '@/views/knowledge/surface/review.tsx'
 import { SearchTab } from '@/views/knowledge/surface/search.tsx'
 import { SettingsTab } from '@/views/knowledge/surface/settings.tsx'
 import { SourcesMain } from '@/views/knowledge/surface/sources-main.tsx'
+import { StagingTab } from '@/views/knowledge/surface/staging.tsx'
 import { findLayoutVisibility } from '@/views/knowledge/surface/layout-visibility.ts'
 import type { RailTabCanonical } from '@/views/knowledge/surface/store.ts'
 import { TOOL_SHELL } from '@/views/knowledge/surface/tool-surface.tsx'
@@ -21,11 +22,15 @@ interface KnowledgeMainContentProps {
   tab: RailTabCanonical
 }
 
-function ToolShell(props: { children: ReactNode }) {
-  return <div className={TOOL_SHELL}>{props.children}</div>
-}
-
-function MainPane(props: { isActive: boolean; children: ReactNode; className?: string }) {
+/**
+ * 工具页只在激活时挂载：隐藏着也跑 effect（建目录 / 全量 refresh / 读盘）是纯浪费；
+ * 编辑器例外——它有未保存草稿与 undo 栈，必须常驻。
+ */
+function MainPane(props: {
+  isActive: boolean
+  children: ReactNode
+  className?: string
+}) {
   return (
     <div
       className={cn(
@@ -34,12 +39,14 @@ function MainPane(props: { isActive: boolean; children: ReactNode; className?: s
         props.className
       )}
       aria-hidden={!props.isActive}>
-      {props.children}
+      {props.isActive ? props.children : null}
     </div>
   )
 }
 
-function KnowledgeMainContent(props: KnowledgeMainContentProps) {
+const KnowledgeMainContent = memo(function KnowledgeMainContent(
+  props: KnowledgeMainContentProps
+) {
   const visibility = findLayoutVisibility(props.tab)
 
   return (
@@ -55,27 +62,33 @@ function KnowledgeMainContent(props: KnowledgeMainContentProps) {
       </MainPane>
 
       <MainPane isActive={props.tab === 'search'}>
-        <ToolShell>
+        <div className={TOOL_SHELL}>
           <SearchTab />
-        </ToolShell>
+        </div>
       </MainPane>
 
       <MainPane isActive={props.tab === 'graph'}>
-        <ToolShell>
+        <div className={TOOL_SHELL}>
           <GraphTab />
-        </ToolShell>
+        </div>
       </MainPane>
 
       <MainPane isActive={props.tab === 'lint'}>
-        <ToolShell>
+        <div className={TOOL_SHELL}>
           <LintTab />
-        </ToolShell>
+        </div>
+      </MainPane>
+
+      <MainPane isActive={props.tab === 'staging'}>
+        <div className={TOOL_SHELL}>
+          <StagingTab />
+        </div>
       </MainPane>
 
       <MainPane isActive={props.tab === 'review'}>
-        <ToolShell>
+        <div className={TOOL_SHELL}>
           <ReviewTab />
-        </ToolShell>
+        </div>
       </MainPane>
 
       <div
@@ -94,6 +107,6 @@ function KnowledgeMainContent(props: KnowledgeMainContentProps) {
       </div>
     </div>
   )
-}
+})
 
 export { KnowledgeMainContent }

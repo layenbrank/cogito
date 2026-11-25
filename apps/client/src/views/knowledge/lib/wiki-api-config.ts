@@ -1,7 +1,7 @@
 /**
  * 本机 Wiki HTTP / Clip 面配置（端口固定 19828）。
  */
-import { invoke } from '@tauri-apps/api/core'
+import { POST_WIKI_HTTP_CONFIG } from '@/apis/vector'
 
 const STORAGE_KEY = 'knowledge.wiki-api.config'
 
@@ -65,7 +65,7 @@ function writeWikiApiConfig(config: WikiApiConfig): void {
 
 async function syncWikiHttpRuntime(config: WikiApiConfig): Promise<void> {
   try {
-    await invoke('wiki_http_configure', {
+    await POST_WIKI_HTTP_CONFIG({
       patch: {
         enabled: config.enabled,
         allowUnauthenticated: config.allowUnauthenticated,

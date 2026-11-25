@@ -59,12 +59,6 @@ function buildGenerationPrompt(input: {
   overview: string
   analysis: string
 }): string {
-  const slugHint = input.relative
-    .split(/[/\\]/)
-    .pop()
-    ?.replace(/\.[^.]+$/, '')
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')
-    .slice(0, 40)
   return [
     `你是知识库 wiki 页生成器。输出语言：${input.language}。`,
     '只输出一个或多个 FILE 块，禁止解释性前后文。',
@@ -82,8 +76,8 @@ function buildGenerationPrompt(input: {
     '',
     '规则：',
     '- 路径必须在 wiki/ 下；禁止生成 wiki/index.md、wiki/log.md、wiki/overview.md。',
-    '- frontmatter 必填 type 与 sources。',
-    `- 建议路径 wiki/${slugHint || 'page'}.md（可按类型微调）。`,
+    '- frontmatter 必填 type 与 sources；type 取 entity/concept/source/query/comparison/synthesis/note（或 schema.md 里声明的类型）。',
+    `- 路径按 type 落目录（见 schema.md 的类型表），如 wiki/concepts/<slug>.md；不确定就用 wiki/notes/<slug>.md。`,
     '- 不要调用工具。',
     '',
     '## purpose.md',

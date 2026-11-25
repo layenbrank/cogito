@@ -2,7 +2,7 @@
  * raw/sources 自动监听配置（对齐 llm_wiki Source Watch schema / 默认值）。
  */
 const STORAGE_KEY = 'knowledge.source-watch.config'
-const ALL_BASES_STORAGE_KEY = 'knowledge.source-watch.all-bases'
+const ALL_SPACES_STORAGE_KEY = 'knowledge.source-watch.all-bases'
 
 const MAX_USER_CONCURRENCY = 64
 const MIN_USER_CONCURRENCY = 1
@@ -289,9 +289,9 @@ function patchSourceWatchConfig(patch: Partial<SourceWatchConfig>): SourceWatchC
   return next
 }
 
-function readWatchAllBases(): boolean {
+function readWatchAllSpaces(): boolean {
   try {
-    const raw = localStorage.getItem(ALL_BASES_STORAGE_KEY)
+    const raw = localStorage.getItem(ALL_SPACES_STORAGE_KEY)
     if (raw === null) return false
     return raw === '1' || raw === 'true'
   } catch (error) {
@@ -302,7 +302,7 @@ function readWatchAllBases(): boolean {
 
 function writeWatchAllBases(enabled: boolean): void {
   try {
-    localStorage.setItem(ALL_BASES_STORAGE_KEY, enabled ? '1' : '0')
+    localStorage.setItem(ALL_SPACES_STORAGE_KEY, enabled ? '1' : '0')
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('knowledge:source-watch-changed'))
     }
@@ -377,7 +377,7 @@ function pathMatchesWatch(path: string, config: SourceWatchConfig): boolean {
 }
 
 export {
-  ALL_BASES_STORAGE_KEY,
+  ALL_SPACES_STORAGE_KEY,
   MAX_USER_CONCURRENCY,
   MIN_USER_CONCURRENCY,
   SOURCE_WATCH_DEFAULTS,
@@ -388,7 +388,7 @@ export {
   pathMatchesWatch,
   patchSourceWatchConfig,
   readSourceWatchConfig,
-  readWatchAllBases,
+  readWatchAllSpaces,
   writeSourceWatchConfig,
   writeWatchAllBases
 }

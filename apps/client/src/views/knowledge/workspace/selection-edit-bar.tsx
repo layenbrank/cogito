@@ -54,7 +54,7 @@ function SelectionEditBar(props: SelectionEditBarProps) {
     <div className="border-border bg-background/90 flex flex-col gap-1.5 border-b px-2.5 py-1.5">
       <div className="flex items-center gap-1.5">
         <Input
-          className="h-8 flex-1 text-xs"
+          className="h-9 flex-1 text-[13px]"
           placeholder="划词指令（Ask / Edit）"
           value={instruction}
           onChange={function (event) {
@@ -64,7 +64,7 @@ function SelectionEditBar(props: SelectionEditBarProps) {
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 text-xs font-medium"
+          className="h-9 text-[13px] font-medium"
           disabled={busy}
           onClick={function () {
             void run('ask')
@@ -74,7 +74,7 @@ function SelectionEditBar(props: SelectionEditBarProps) {
         <Button
           size="sm"
           variant="secondary"
-          className="h-8 text-xs font-medium"
+          className="h-9 text-[13px] font-medium"
           disabled={busy}
           onClick={function () {
             void run('edit')

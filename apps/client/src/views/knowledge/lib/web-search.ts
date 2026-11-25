@@ -18,8 +18,8 @@ async function runWebSearch(query: string): Promise<WebSearchHit[]> {
   if (!q) return []
 
   if (config.provider === 'firecrawl') {
-    const base = (config.endpoint || 'https://api.firecrawl.dev').replace(/\/$/, '')
-    const response = await fetch(`${base}/v2/search`, {
+    const space = (config.endpoint || 'https://api.firecrawl.dev').replace(/\/$/, '')
+    const response = await fetch(`${space}/v2/search`, {
       method: 'POST',
       headers: {
         accept: 'application/json',

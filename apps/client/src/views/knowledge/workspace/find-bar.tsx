@@ -80,7 +80,7 @@ function FindNavButtons(props: {
               type="button"
               size="icon"
               variant="ghost"
-              className="size-6 rounded"
+              className="size-8 rounded-md"
               aria-label="上一个"
               onClick={function () {
                 props.onStep(-1)
@@ -89,7 +89,7 @@ function FindNavButtons(props: {
           }>
           <Icon
             icon="lucide:arrow-up"
-            className="size-3.5"
+            className="size-4"
           />
         </TooltipTrigger>
         <TooltipContent side="bottom">上一个</TooltipContent>
@@ -102,7 +102,7 @@ function FindNavButtons(props: {
               type="button"
               size="icon"
               variant="ghost"
-              className="size-6 rounded"
+              className="size-8 rounded-md"
               aria-label="下一个"
               onClick={function () {
                 props.onStep(1)
@@ -111,7 +111,7 @@ function FindNavButtons(props: {
           }>
           <Icon
             icon="lucide:arrow-down"
-            className="size-3.5"
+            className="size-4"
           />
         </TooltipTrigger>
         <TooltipContent side="bottom">下一个</TooltipContent>
@@ -124,14 +124,14 @@ function FindNavButtons(props: {
               type="button"
               size="icon"
               variant="ghost"
-              className="size-6 rounded"
+              className="size-8 rounded-md"
               aria-label="关闭"
               onClick={props.onClose}
             />
           }>
           <Icon
             icon="lucide:x"
-            className="size-3.5"
+            className="size-4"
           />
         </TooltipTrigger>
         <TooltipContent side="bottom">关闭（Esc）</TooltipContent>

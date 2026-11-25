@@ -286,7 +286,23 @@ const MD_LOCALE = {
   EDITOR_TABLE_ALIGN_BOTTOM: '底部对齐',
   EDITOR_TABLE_CELLS_OPTION: '表格单元格选项',
   EDITOR_TABLE_SELECT_SIZE: '选择 {rows}×{cols} 表格',
-  EDITOR_TABLE_RESIZE: '调整表格大小（{corner}）'
+  EDITOR_TABLE_RESIZE: '调整表格大小（{corner}）',
+
+  // —— 空间（文档容器，界面不叫「知识库」）——
+  SPACE: '空间',
+  SPACE_NEW: '新建空间',
+  SPACE_SWITCH: '切换空间',
+  SPACE_SETTINGS: '空间设置',
+  SPACE_IMPORT_SAMPLE: '导入示例空间',
+  SPACE_EMPTY: '还没有空间',
+  SPACE_NONE: '无活动空间',
+  SPACE_SELECT: '选择空间',
+  SPACE_NO_MATCH: '无匹配空间',
+  SPACE_TEMPLATE: '场景模板',
+  SPACE_NAME_PLACEHOLDER: '空间名称，例如：产品研究、读书笔记',
+  SPACE_CREATE: '创建',
+  DOC_NEW: '新建文档',
+  DOC_SEARCH: '搜索文档'
 } as const
 
 type MdLocaleKey = keyof typeof MD_LOCALE

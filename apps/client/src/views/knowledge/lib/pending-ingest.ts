@@ -5,7 +5,7 @@
 const STORAGE_KEY = 'knowledge.source-watch.pending-ingest'
 
 interface PendingIngestEntry {
-  baseId: string
+  spaceId: string
   rootPath: string
   paths: string[]
 }
@@ -21,7 +21,7 @@ function readAll(): PendingIngestEntry[] {
       if (!item || typeof item !== 'object') return false
       const row = item as Record<string, unknown>
       return (
-        typeof row.baseId === 'string' &&
+        typeof row.spaceId === 'string' &&
         typeof row.rootPath === 'string' &&
         Array.isArray(row.paths)
       )
@@ -42,7 +42,7 @@ function writeAll(entries: PendingIngestEntry[]): void {
 }
 
 function enqueuePendingIngest(input: {
-  baseId: string
+  spaceId: string
   rootPath: string
   path: string
 }): void {
@@ -50,10 +50,10 @@ function enqueuePendingIngest(input: {
   if (!trimmed) return
   const entries = readAll()
   let entry = entries.find(function (item) {
-    return item.baseId === input.baseId
+    return item.spaceId === input.spaceId
   })
   if (!entry) {
-    entry = { baseId: input.baseId, rootPath: input.rootPath, paths: [] }
+    entry = { spaceId: input.spaceId, rootPath: input.rootPath, paths: [] }
     entries.push(entry)
   }
   entry.rootPath = input.rootPath
@@ -63,7 +63,7 @@ function enqueuePendingIngest(input: {
   writeAll(entries)
 }
 
-function discardPendingForSources(baseId: string, paths: string[]): void {
+function discardPendingForSources(spaceId: string, paths: string[]): void {
   const needles = new Set(
     paths.map(function (path) {
       return path.replace(/\\/g, '/')
@@ -71,7 +71,7 @@ function discardPendingForSources(baseId: string, paths: string[]): void {
   )
   const entries = readAll()
     .map(function (entry) {
-      if (entry.baseId !== baseId) return entry
+      if (entry.spaceId !== spaceId) return entry
       return {
         ...entry,
         paths: entry.paths.filter(function (path) {
@@ -85,15 +85,15 @@ function discardPendingForSources(baseId: string, paths: string[]): void {
   writeAll(entries)
 }
 
-function takePendingForBase(baseId: string): PendingIngestEntry | null {
+function takePendingForSpace(spaceId: string): PendingIngestEntry | null {
   const entries = readAll()
   const entry = entries.find(function (item) {
-    return item.baseId === baseId
+    return item.spaceId === spaceId
   })
   if (!entry) return null
   writeAll(
     entries.filter(function (item) {
-      return item.baseId !== baseId
+      return item.spaceId !== spaceId
     })
   )
   return entry
@@ -102,6 +102,6 @@ function takePendingForBase(baseId: string): PendingIngestEntry | null {
 export {
   discardPendingForSources,
   enqueuePendingIngest,
-  takePendingForBase
+  takePendingForSpace
 }
 export type { PendingIngestEntry }

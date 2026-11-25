@@ -1,47 +1,38 @@
 /**
- * 对齐 llm_wiki 可见性 + cogito 右栏（大纲 | AI | 深度研究 同一 Splitter 列）：
- * - 设置：全宽主区，左内容栏收起
- * - 深度研究页签：非设置/专注下可与工具主区并存
- * - 大纲 / AI：仅 Wiki 主区时展开右栏
- */
-import type { AsideTab, RailTabCanonical } from '@/views/knowledge/surface/store.ts'
+ * 主区 / 侧栏可见性。
+ *
+ * 编辑器优先之后不再有「rail-only」形态：设置也是主区里的一个普通页，左侧文档树照常在。
+ */import type { AsideTab, RailTabCanonical } from '@/views/knowledge/surface/store.ts'
 
 type RightPaneMode = 'hidden' | 'aside'
 
-/** 主区独占、收起左内容栏（与 llm_wiki settings 同级） */
-function isRailOnlyView(tab: RailTabCanonical): boolean {
-  return tab === 'settings'
-}
-
-/** 主区展示工具页（非 TipTap）；左栏仍显示 Knowledge|Files */
+/** 主区展示工具页（非 TipTap） */
 function isToolMainView(tab: RailTabCanonical): boolean {
   return (
     tab === 'sources' ||
     tab === 'search' ||
     tab === 'graph' ||
     tab === 'lint' ||
-    tab === 'review'
+    tab === 'review' ||
+    tab === 'staging'
   )
 }
 
 function findLayoutVisibility(tab: RailTabCanonical): {
-  isRailOnly: boolean
   showLeftContent: boolean
   showEditor: boolean
   showToolMain: boolean
 } {
-  const isRailOnly = isRailOnlyView(tab)
-  const showToolMain = isToolMainView(tab) || isRailOnly
   return {
-    isRailOnly,
-    showLeftContent: !isRailOnly,
+    showLeftContent: true,
     showEditor: tab === 'wiki',
-    showToolMain
+    showToolMain: isToolMainView(tab) || tab === 'settings'
   }
 }
 
 /**
- * 右栏是否展开：研究可与工具主区并存；大纲/AI 仅 Wiki。
+ * 右栏（大纲 / AI / 研究）是否展开：它是 Splitter 的第三列（可拖、可折叠），
+ * 研究可与工具主区并存，大纲 / AI 仅 Wiki。
  */
 function findRightPaneMode(input: {
   tab: RailTabCanonical
@@ -56,10 +47,6 @@ function findRightPaneMode(input: {
   return 'hidden'
 }
 
-export {
-  findLayoutVisibility,
-  findRightPaneMode,
-  isRailOnlyView,
-  isToolMainView
-}
+export { findLayoutVisibility, findRightPaneMode, isToolMainView }
 export type { RightPaneMode }
+

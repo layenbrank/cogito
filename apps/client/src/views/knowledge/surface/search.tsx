@@ -14,7 +14,7 @@ import {
   findImageHitsFromMarkdown,
   type ImageHit
 } from '@/views/knowledge/lib/search-hybrid.ts'
-import { BaseCombobox } from '@/views/knowledge/surface/base-combobox.tsx'
+import { SpaceCombobox } from '@/views/knowledge/surface/space-combobox.tsx'
 import { useDocsTab } from '@/views/knowledge/surface/use-docs-tab.ts'
 import {
   ToolEmpty,
@@ -29,7 +29,7 @@ function SearchTab() {
 
   useEffect(
     function () {
-      if (!state.query.trim() || !state.activeBase) {
+      if (!state.query.trim() || !state.activeSpace) {
         setImageHits([])
         return
       }
@@ -39,7 +39,7 @@ function SearchTab() {
         for (const doc of state.docs.slice(0, 80)) {
           if (!/\.md$/i.test(doc.relPath)) continue
           try {
-            const content = await readTextFile(joinPath(state.activeBase!.rootPath, doc.relPath))
+            const content = await readTextFile(joinPath(state.activeSpace!.rootPath, doc.relPath))
             pages.push({ relPath: doc.relPath, content })
           } catch (error) {
             console.warn('[search] image scan skip', doc.relPath, error)
@@ -52,7 +52,7 @@ function SearchTab() {
         cancelled = true
       }
     },
-    [state.query, state.activeBase, state.docs, state.hits.length]
+    [state.query, state.activeSpace, state.docs, state.hits.length]
   )
 
   return (
@@ -78,12 +78,12 @@ function SearchTab() {
           ) : undefined
         }
         actions={
-          <BaseCombobox
-            bases={state.bases}
-            value={state.activeBaseID ?? null}
+          <SpaceCombobox
+            spaces={state.spaces}
+            value={state.activeSpaceID ?? null}
             className="w-44 shrink-0"
-            onValueChange={function (baseID) {
-              void state.selectBase(baseID)
+            onValueChange={function (spaceID) {
+              void state.selectSpace(spaceID)
             }}
           />
         }

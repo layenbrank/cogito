@@ -13,10 +13,10 @@ pub struct Model {
     #[sea_orm(primary_key, column_name = "docID")]
     #[serde(rename = "docID")]
     pub doc_id: String,
-    /// JSON 键保持 `baseID`。
-    #[sea_orm(column_name = "baseID")]
-    #[serde(rename = "baseID")]
-    pub base_id: String,
+    /// JSON 键保持 `spaceID`。
+    #[sea_orm(column_name = "spaceID")]
+    #[serde(rename = "spaceID")]
+    pub space_id: String,
     /// JSON 键保持 `tenantID`。
     #[sea_orm(column_name = "tenantID")]
     #[serde(rename = "tenantID")]

@@ -1,7 +1,8 @@
 /**
- * 左面板 · 文档页：库切换 / 检索 / 文档列表 / 库级动作。
+ * 侧栏 · 文档页：搜索 / 新建文档 / 文档列表 / 空间级动作。
  *
- * 这里只列「库里的文档」；磁盘上的文件夹树仍在编辑器侧栏（那里能新建/重命名/删除）。
+ * 空间切换在 `SpaceSwitcher`（侧栏顶行）；这里只列「这个空间里的文档」，
+ * 磁盘文件夹树在「文件」视图（同一条侧栏的另一个 tab）。
  */
 import { DocsTabScroll } from '@/views/knowledge/surface/docs-tab-scroll.tsx'
 import { DocsTabToolbar } from '@/views/knowledge/surface/docs-tab-toolbar.tsx'
@@ -13,7 +14,12 @@ function DocsTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <DocsTabToolbar {...state} />
-      <DocsTabScroll {...state} />
+      <DocsTabScroll
+        docs={state.docs}
+        hits={state.hits}
+        isLoading={state.isLoading}
+        openDoc={state.openDoc}
+      />
     </div>
   )
 }

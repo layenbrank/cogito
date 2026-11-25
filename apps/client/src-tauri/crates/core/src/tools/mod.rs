@@ -145,7 +145,7 @@ mod tests {
         assert!(names.contains(&workspace::READ));
         assert!(names.contains(&workspace::WRITE));
         assert!(names.contains(&workspace::PATCH));
-        assert!(names.contains(&knowledge::LIST_BASES));
+        assert!(names.contains(&knowledge::LIST_SPACES));
         assert!(names.contains(&knowledge::LIST_DOCS));
         assert!(names.contains(&knowledge::READ_DOC));
         assert!(names.contains(&knowledge::READ_WIKI));

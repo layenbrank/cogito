@@ -16,6 +16,8 @@ import {
   embeddingProbeSuccessPatch,
   patchEmbeddingConfig,
   planEmbeddingToggle,
+  prefixEmbeddingQuery,
+  qwen3EmbeddingPreset,
   readEmbeddingConfig
 } from '@/views/knowledge/lib/embedding-config.ts'
 
@@ -50,6 +52,23 @@ describe('planEmbeddingToggle', function () {
     expect(
       planEmbeddingToggle({ checked: true, endpoint: 'http://x/v1', probeBeforeEnable: false })
     ).toEqual({ kind: 'enable' })
+  })
+})
+
+describe('Qwen3 预设', function () {
+  it('只填端点、模型和查询前缀，不把开关打开', function () {
+    const preset = qwen3EmbeddingPreset()
+    expect(preset.endpoint).toBe('http://127.0.0.1:11435/v1')
+    expect(preset.model).toContain('Qwen3-Embedding-0.6B')
+    expect(preset.queryPrefix.endsWith('Query: ')).toBe(true)
+    expect(preset).not.toHaveProperty('enabled')
+  })
+
+  it('查询前缀拼在问句前，空白前缀保持原文', function () {
+    const prefix = qwen3EmbeddingPreset().queryPrefix
+    expect(prefixEmbeddingQuery('退款规则', prefix)).toBe(`${prefix}退款规则`)
+    expect(prefixEmbeddingQuery('退款规则', '   ')).toBe('退款规则')
+    expect(prefixEmbeddingQuery('退款规则', 'Note')).toBe('Note\n退款规则')
   })
 })
 

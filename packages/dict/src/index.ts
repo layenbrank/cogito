@@ -9,7 +9,7 @@ const DICT_TYPE = {
   KNOWLEDGE_DOC_STATUS: 'knowledge_doc_status',
   KNOWLEDGE_DOC_SOURCE: 'knowledge_doc_source',
   KNOWLEDGE_CLOUD_STATUS: 'knowledge_cloud_status',
-  KNOWLEDGE_BASE_SCOPE: 'knowledge_base_scope',
+  KNOWLEDGE_SPACE_SCOPE: 'knowledge_space_scope',
   AUTOMATION_RUN_STATUS: 'automation_run_status',
   AUTOMATION_TRIGGER_KIND: 'automation_trigger_kind',
   AUTOMATION_OWNER: 'automation_owner',
@@ -144,8 +144,8 @@ const DICT_REMAP: ReadonlyArray<{ typeCode: string; old: string; new: string }> 
   { typeCode: 'knowledge_cloud_status', old: '003', new: '009' },
   { typeCode: 'knowledge_cloud_status', old: '004', new: '010' },
   { typeCode: 'knowledge_cloud_status', old: '005', new: '011' },
-  { typeCode: 'knowledge_base_scope', old: '001', new: '012' },
-  { typeCode: 'knowledge_base_scope', old: '002', new: '013' },
+  { typeCode: 'knowledge_space_scope', old: '001', new: '012' },
+  { typeCode: 'knowledge_space_scope', old: '002', new: '013' },
   { typeCode: 'automation_run_status', old: '001', new: '014' },
   { typeCode: 'automation_run_status', old: '002', new: '015' },
   { typeCode: 'automation_run_status', old: '003', new: '016' },
@@ -189,7 +189,7 @@ const DICT_CLAIMS: Record<string, readonly DictClaim[]> = {
     { value: '010', isDefault: false },
     { value: '011', isDefault: false }
   ],
-  knowledge_base_scope: [
+  knowledge_space_scope: [
     { value: '012', isDefault: true },
     { value: '013', isDefault: false }
   ],
@@ -236,7 +236,7 @@ const DICT_TYPES: ReadonlyArray<{
   { code: 'knowledge_doc_status', name: '文档状态', description: '知识库文档发布状态' },
   { code: 'knowledge_doc_source', name: '文档来源', description: '知识库文档写入来源' },
   { code: 'knowledge_cloud_status', name: '云端索引状态', description: '本地云端索引同步状态' },
-  { code: 'knowledge_base_scope', name: '知识库范围', description: '个人或租户共享' },
+  { code: 'knowledge_space_scope', name: '空间范围', description: '个人或租户共享' },
   { code: 'automation_run_status', name: '自动化运行状态', description: '定时任务单次运行状态' },
   { code: 'automation_trigger_kind', name: '自动化触发方式', description: '准点 / 手动 / 补跑' },
   { code: 'automation_owner', name: '自动化执行方', description: '本机 / goose / 云端' },

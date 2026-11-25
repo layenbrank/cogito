@@ -2,18 +2,11 @@
  * PDF 管道：sidecar-md / 内置 extract（轻量占位） / MinerU HTTP。
  * extractImages 会传给 Rust；有图片路径时供 ingest caption。
  */
-import { invoke } from '@tauri-apps/api/core'
+import { POST_KNOWLEDGE_PDF } from '@/apis/knowledge'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 
-import { CHANNELS } from '@/shared/ipc/channels.ts'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { readPdfPipelineConfig } from '@/views/knowledge/lib/pdf-pipeline-config.ts'
-
-interface PdfExtractResult {
-  markdown: string
-  pageCount: number
-  imagePaths?: string[]
-}
 
 interface PdfPipelineOutput {
   markdown: string
@@ -58,8 +51,7 @@ async function extractViaBuiltin(input: {
   extractImages: boolean
 }): Promise<PdfPipelineOutput> {
   const mediaDir = joinPath(input.rootPath, 'wiki/media')
-  const extracted = await invoke<PdfExtractResult>(CHANNELS.KNOWLEDGE.EXTRACT_PDF, {
-    path: input.absolute,
+  const extracted = await POST_KNOWLEDGE_PDF(input.absolute, {
     mediaDir,
     extractImages: input.extractImages
   })

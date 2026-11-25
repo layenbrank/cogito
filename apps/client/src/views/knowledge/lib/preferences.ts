@@ -7,6 +7,7 @@ import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 interface KnowledgePreferences {
   isSidebarOpen: boolean
   isOutlineOpen: boolean
+  knowledgeLayoutVersion: number
   viewMode: KnowledgeViewMode
   fontSize: number
   contentMaxWidth: number
@@ -21,7 +22,8 @@ interface KnowledgePreferences {
 /** isSidebarOpen = 左栏；isOutlineOpen = 右栏（大纲|AI 共用） */
 const PREFERENCES: KnowledgePreferences = {
   isSidebarOpen: true,
-  isOutlineOpen: true,
+  isOutlineOpen: false,
+  knowledgeLayoutVersion: 2,
   viewMode: 'live',
   fontSize: 16,
   contentMaxWidth: 760,

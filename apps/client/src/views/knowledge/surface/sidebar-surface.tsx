@@ -1,6 +1,6 @@
 /**
- * 左内容栏：文档 | 文件 + 底部活动条。
- * 避免 Button 默认 focus ring 撑破分段控件；文件树区域必须吃满剩余高度。
+ * 左栏（唯一一条侧栏）：顶部空间切换 + 文档/文件 + 底部活动条。
+ * 不再有 48px 图标 rail——知识库工具都收进标题栏菜单。
  */
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
@@ -9,13 +9,15 @@ import { useState } from 'react'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { ActivityCompact } from '@/views/knowledge/surface/activity-compact.tsx'
 import { DocsTab } from '@/views/knowledge/surface/docs.tsx'
+import {
+  SpaceSwitcher,
+  type SidebarMode
+} from '@/views/knowledge/surface/space-switcher.tsx'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
 
-type SidebarMode = 'knowledge' | 'files'
-
-function SidebarPanel() {
-  const [mode, setMode] = useState<SidebarMode>('knowledge')
+function SidebarSurface() {
+  const [mode, setMode] = useState<SidebarMode>('docs')
   const ingestPending = useIngestQueueStore(function (state) {
     return state.items.filter(function (item) {
       return item.status === 'pending' || item.status === 'running' || item.status === 'blocked'
@@ -27,46 +29,13 @@ function SidebarPanel() {
 
   return (
     <div className="bg-card flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div
-        role="tablist"
-        aria-label="侧栏视图"
-        className="bg-muted/55 m-2.5 grid shrink-0 grid-cols-2 gap-0.5 rounded-lg p-0.5">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'knowledge'}
-          className={cn(
-            'h-7 rounded-md text-xs font-medium transition-colors outline-none',
-            'focus-visible:ring-1 focus-visible:ring-ring/40',
-            mode === 'knowledge'
-              ? 'bg-background text-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-          onClick={function () {
-            setMode('knowledge')
-          }}>
-          文档
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'files'}
-          className={cn(
-            'h-7 rounded-md text-xs font-medium transition-colors outline-none',
-            'focus-visible:ring-1 focus-visible:ring-ring/40',
-            mode === 'files'
-              ? 'bg-background text-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-          onClick={function () {
-            setMode('files')
-          }}>
-          文件
-        </button>
-      </div>
+      <SpaceSwitcher
+        mode={mode}
+        onModeChange={setMode}
+      />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {mode === 'knowledge' ? (
+        {mode === 'docs' ? (
           <div className="flex min-h-0 flex-1 flex-col px-2 pb-1">
             <DocsTab />
           </div>
@@ -118,4 +87,4 @@ function SidebarPanel() {
   )
 }
 
-export { SidebarPanel }
+export { SidebarSurface }

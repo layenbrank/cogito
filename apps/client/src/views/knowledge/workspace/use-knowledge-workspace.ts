@@ -9,9 +9,11 @@ import {
   findNativeClipboardImage,
   uploadMarkdownImage
 } from '@/views/knowledge/lib/image-upload.ts'
+import { normalizeCopiedText, toCopiedHtml } from '@/views/knowledge/lib/copy-text.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { findOutlineFromEditor } from '@/views/knowledge/lib/outline.ts'
-import { openPath, saveDocument, syncDerived } from '@/views/knowledge/lib/session.ts'
+import { openPath, saveDocument } from '@/views/knowledge/lib/session.ts'
+import { findDocStats } from '@/views/knowledge/lib/stats.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import { rememberEditorBridge } from '@/views/knowledge/workspace/editor-context.ts'
 import { findMarkdownExtensions } from '@/views/knowledge/workspace/extensions.ts'
@@ -21,6 +23,14 @@ import {
   type PendingAction
 } from '@/views/knowledge/workspace/use-knowledge-document-effects.ts'
 import { useKnowledgeFileActions } from '@/views/knowledge/workspace/use-knowledge-file-actions.ts'
+import {
+  isExternalHref,
+  openExternalLink,
+  openWikiLink
+} from '@/views/knowledge/workspace/link-navigation.ts'
+
+/** 字数 / 行数统计的节流窗口：扫全篇 Markdown 不贵到要防抖，但没必要逐键 */
+const STATS_DELAY_MS = 200
 
 function useKnowledgeWorkspace() {
   const composerRef = useRef<Editor | null>(null)
@@ -29,6 +39,8 @@ function useKnowledgeWorkspace() {
   const pendingActionRef = useRef<PendingAction>(null)
   const syncingRef = useRef(false)
   const lastSavedRef = useRef('')
+  /** 统计要扫全篇 Markdown，节流到 200ms；换文档 / 卸载时丢弃未落地的统计 */
+  const statsTimerRef = useRef<number | null>(null)
 
   const isSessionReady = useKnowledgeStore(function (state) {
     return state.isSessionReady
@@ -140,6 +152,37 @@ function useKnowledgeWorkspace() {
             isTypewriter && 'min-h-[70vh]'
           )
         },
+        handleDOMEvents: {
+          click(_view, event) {
+            const target = event.target
+            if (!(target instanceof HTMLElement)) return false
+            const anchor = target.closest('a')
+            if (!(anchor instanceof HTMLAnchorElement)) return false
+            if (anchor.hasAttribute('data-wikilink')) {
+              event.preventDefault()
+              openWikiLink(anchor.getAttribute('data-wikilink-title') ?? '')
+              return true
+            }
+            const href = anchor.getAttribute('href') ?? ''
+            // 图片是 `img`，走到这里的都是文本链接：外链交给系统浏览器，其余（相对路径/锚点）不接管
+            if (!isExternalHref(href)) return false
+            event.preventDefault()
+            void openExternalLink(href)
+            return true
+          },
+          copy(view, event) {
+            if (!(event instanceof ClipboardEvent)) return false
+            const { from, to, empty } = view.state.selection
+            if (empty) return false
+            const data = event.clipboardData
+            if (!data) return false
+            const text = normalizeCopiedText(view.state.doc.textBetween(from, to, '\n', '\n'))
+            data.setData('text/plain', text)
+            data.setData('text/html', toCopiedHtml(text))
+            event.preventDefault()
+            return true
+          }
+        },
         handlePaste(_view, event) {
           const images = findClipboardImages(event.clipboardData)
           if (images.length > 0) return insertPastedImages(images)
@@ -165,15 +208,36 @@ function useKnowledgeWorkspace() {
       onUpdate(props) {
         if (syncingRef.current) return
         const nextHtml = props.editor.getHTML()
-        useKnowledgeStore.getState().toUpdateHtml(nextHtml)
         const matter = useKnowledgeStore.getState().frontMatter
         const md = serializeHtmlToMarkdown(nextHtml, matter)
-        useKnowledgeStore.getState().toUpdateMarkdown(md)
-        syncDerived(md)
-        useKnowledgeStore.getState().toUpdateOutline(findOutlineFromEditor(props.editor))
+        // 一次 setter 落地：逐个动作写会把标题 / 大纲 / 底栏各重渲染 4~5 轮
+        useKnowledgeStore.getState().toCommitEdit({
+          html: nextHtml,
+          markdown: md,
+          outline: findOutlineFromEditor(props.editor)
+        })
+        // 统计要扫全篇 Markdown：节流到 200ms，别每敲一个字都跑一遍
+        if (statsTimerRef.current !== null) window.clearTimeout(statsTimerRef.current)
+        statsTimerRef.current = window.setTimeout(function () {
+          statsTimerRef.current = null
+          useKnowledgeStore.getState().toUpdateStats(findDocStats(md))
+        }, STATS_DELAY_MS)
       }
     },
     [isTypographyEnabled]
+  )
+
+  // 换文档 / 卸载时丢掉还没落地的统计，避免把上一篇的字数写到新文档上
+  useEffect(
+    function () {
+      return function () {
+        if (statsTimerRef.current !== null) {
+          window.clearTimeout(statsTimerRef.current)
+          statsTimerRef.current = null
+        }
+      }
+    },
+    [activePath]
   )
 
   useKnowledgeDocumentEffects({

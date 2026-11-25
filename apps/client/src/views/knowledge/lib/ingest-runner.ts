@@ -4,6 +4,8 @@
 import { exists, mkdir, readFile, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 import { readEmbeddingConfig } from '@/views/knowledge/lib/embedding-config.ts'
+import { useSpacesStore } from '@/stores/spaces'
+import { isSamePath } from '@/views/knowledge/lib/path.ts'
 import {
   digestSha256,
   findCacheBySha,
@@ -22,11 +24,21 @@ import { extractPdfMarkdown } from '@/views/knowledge/lib/pdf-pipeline.ts'
 import { pushReviewItem } from '@/views/knowledge/lib/review-store.ts'
 import { readSourceWatchConfig } from '@/views/knowledge/lib/source-watch-config.ts'
 import { upsertPageEmbeddings } from '@/views/knowledge/lib/vector-store.ts'
-import { buildTypedWikiPath } from '@/views/knowledge/lib/wiki-type-dirs.ts'
+import { buildTypedWikiPath, findWikiTypeInContent, toTypedWikiRelative } from '@/views/knowledge/lib/wiki-type-dirs.ts'
 
 interface IngestRunInput {
   rootPath: string
   path: string
+}
+
+/** 按库目录反查 spaceID：ingest 可能跑在非活动库上（watchAllBases） */
+function findBaseIdByRoot(rootPath: string): string | null {
+  const state = useSpacesStore.getState()
+  return (
+    state.spaces.find(function (space) {
+      return isSamePath(space.rootPath, rootPath)
+    })?.id ?? null
+  )
 }
 
 interface IngestRunResult {
@@ -56,8 +68,8 @@ function slugify(title: string): string {
 }
 
 function fileStem(path: string): string {
-  const base = path.split(/[/\\]/).pop() ?? path
-  return base.replace(/\.[^.]+$/, '')
+  const space = path.split(/[/\\]/).pop() ?? path
+  return space.replace(/\.[^.]+$/, '')
 }
 
 function parseTitleFromBody(body: string, fallback: string): string {
@@ -128,7 +140,8 @@ async function writeWikiBlock(
   block: ParsedFileBlock,
   sourceRelative: string
 ): Promise<{ title: string; wikiRelative: string }> {
-  const wikiRelative = block.path.replace(/\\/g, '/')
+  // FILE 块常写 wiki/<标题>.md：按 frontmatter type 重定向到 wiki/<type>/
+  const wikiRelative = toTypedWikiRelative(block.path, findWikiTypeInContent(block.content))
   const wikiAbsolute = joinPath(root, wikiRelative)
   const slash = wikiRelative.lastIndexOf('/')
   if (slash > 0) {
@@ -248,7 +261,7 @@ ${markdown.slice(0, 12_000)}
     processedAt: Date.now()
   })
 
-  await maintainAfterPages(input.rootPath, written)
+  await maintainAfterPages(input.rootPath, written, findBaseIdByRoot(input.rootPath))
 
   const embedding = readEmbeddingConfig()
   if (embedding.enabled && embedding.embedOnIngest) {

@@ -5,15 +5,7 @@ import { writeTextFile, mkdir, exists } from '@tauri-apps/plugin-fs'
 
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { findParentDir, joinPath } from '@/views/knowledge/lib/path.ts'
-
-function slugifyTitle(title: string): string {
-  const cleaned = title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-  return cleaned.slice(0, 48) || `note-${Date.now()}`
-}
+import { buildTypedWikiPath } from '@/views/knowledge/lib/wiki-type-dirs.ts'
 
 async function saveMarkdownToWiki(input: {
   rootPath: string
@@ -21,7 +13,8 @@ async function saveMarkdownToWiki(input: {
   markdown: string
   enqueueIngest?: boolean
 }): Promise<string> {
-  const relative = `wiki/${slugifyTitle(input.title)}.md`
+  // 落点跟 type 走（默认 note → wiki/notes/），与 agent 写入一致
+  const relative = buildTypedWikiPath('note', input.title)
   const absolute = joinPath(input.rootPath, relative)
   const parent = findParentDir(absolute)
   if (parent && !(await exists(parent))) {
@@ -37,4 +30,4 @@ async function saveMarkdownToWiki(input: {
   return absolute
 }
 
-export { saveMarkdownToWiki, slugifyTitle }
+export { saveMarkdownToWiki }

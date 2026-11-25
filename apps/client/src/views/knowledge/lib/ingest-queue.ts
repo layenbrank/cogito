@@ -4,7 +4,7 @@
  */
 import { create } from 'zustand'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { isAcpIngestReady } from '@/views/knowledge/lib/ingest-acp-analyzer.ts'
 import { hasRegisteredIngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
 import { runIngest } from '@/views/knowledge/lib/ingest-runner.ts'
@@ -84,11 +84,11 @@ function patchItem(
 }
 
 function findActiveRootPath(): string | null {
-  const state = useKnowledgeBaseStore.getState()
-  const base = state.bases.find(function (item) {
-    return item.id === state.activeBaseID
+  const state = useSpacesStore.getState()
+  const space = state.spaces.find(function (item) {
+    return item.id === state.activeSpaceID
   })
-  return base?.rootPath ?? null
+  return space?.rootPath ?? null
 }
 
 function countRunning(items: IngestQueueItem[]): number {
@@ -250,7 +250,7 @@ const useIngestQueueStore = create<IngestQueueState>(function (set, get) {
         set(function (state) {
           const items = patchItem(state.items, next.id, {
             status: 'failed',
-            error: '无活动知识库'
+            error: '无活动空间'
           })
           writeQueueToStorage(items)
           return { items }

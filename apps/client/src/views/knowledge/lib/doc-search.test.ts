@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge-ipc', function () {
+vi.mock('@/apis/knowledge', function () {
   return {
     GET_KNOWLEDGE_SEARCH: vi.fn(async function () {
       return [
         {
           docId: 'a',
-          baseId: 'b1',
+          spaceId: 'b1',
           title: 'Alpha',
           relPath: 'wiki/a.md',
           snippet: 'fts',
@@ -44,7 +44,7 @@ describe('searchKnowledgeHybrid', function () {
 
   it('merges fts and vector hits by docId', async function () {
     const { searchKnowledgeHybrid } = await import('@/views/knowledge/lib/doc-search.ts')
-    const result = await searchKnowledgeHybrid('q', { baseId: 'b1', topK: 10 })
+    const result = await searchKnowledgeHybrid('q', { spaceId: 'b1', topK: 10 })
     expect(result.channels).toContain('fts')
     expect(result.channels).toContain('vector')
     expect(result.hits.some(function (hit) {

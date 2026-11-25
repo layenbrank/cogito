@@ -50,16 +50,16 @@ async function exportHtmlDocument(params: {
   activePath: string | null
   html: string
 }): Promise<boolean> {
-  const base = params.activePath
+  const space = params.activePath
     ? findFileName(params.activePath).replace(/\.mdx?$/i, '')
     : 'untitled'
   const target = await save({
-    defaultPath: `${base}.html`,
+    defaultPath: `${space}.html`,
     filters: [{ name: 'HTML', extensions: ['html'] }]
   })
   if (!target) return false
   try {
-    await writeTextFile(target, buildPrintableHtml(base, params.html))
+    await writeTextFile(target, buildPrintableHtml(space, params.html))
     toast.success(t('EXPORT_HTML'))
     return true
   } catch (error) {

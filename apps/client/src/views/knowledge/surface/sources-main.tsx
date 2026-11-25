@@ -16,7 +16,7 @@ import { copyFile, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { findFileName, joinPath } from '@/views/knowledge/lib/path.ts'
@@ -36,13 +36,13 @@ import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
 
 function SourcesMain() {
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
-  const rescan = useKnowledgeBaseStore(function (state) {
+  const rescan = useSpacesStore(function (state) {
     return state.rescan
   })
   const toBumpTree = useKnowledgeStore(function (state) {
@@ -59,10 +59,10 @@ function SourcesMain() {
   const [urlText, setUrlText] = useState('')
   const [skipReport, setSkipReport] = useState<string[]>([])
 
-  const activeBase = bases.find(function (base) {
-    return base.id === activeBaseID
+  const activeSpace = spaces.find(function (space) {
+    return space.id === activeSpaceID
   })
-  const rootPath = activeBase?.rootPath ?? null
+  const rootPath = activeSpace?.rootPath ?? null
   const sourcesRoot = rootPath ? joinPath(rootPath, WIKI_DIR_RAW_SOURCES) : null
 
   const statusHint = useMemo(
@@ -99,7 +99,7 @@ function SourcesMain() {
 
   async function importFiles() {
     if (!sourcesRoot || !rootPath) {
-      toast.error('无活动知识库')
+      toast.error('无活动空间')
       return
     }
     setImporting(true)
@@ -146,7 +146,7 @@ function SourcesMain() {
 
   async function importFolder() {
     if (!rootPath) {
-      toast.error('无活动知识库')
+      toast.error('无活动空间')
       return
     }
     setImporting(true)
@@ -180,7 +180,7 @@ function SourcesMain() {
 
   async function importUrls() {
     if (!rootPath) {
-      toast.error('无活动知识库')
+      toast.error('无活动空间')
       return
     }
     setImporting(true)
@@ -229,8 +229,8 @@ function SourcesMain() {
       <div className="px-5 py-4">
         <ToolEmpty
           icon="lucide:folder-input"
-          title="尚未选择知识库"
-          description="先在顶栏选择或创建一个知识库，再管理 raw/sources。"
+          title="尚未选择空间"
+          description="先在左上角选择或创建一个空间，再管理 raw/sources。"
         />
       </div>
     )

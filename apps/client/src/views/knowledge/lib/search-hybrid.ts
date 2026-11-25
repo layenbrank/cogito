@@ -1,7 +1,7 @@
 /**
  * 检索混合排序：FTS hits + 向量 + 简单 RRF；附带图片命中。
  */
-import type { KnowledgeHit } from '@/lib/knowledge-ipc'
+import type { KnowledgeHit } from '@/apis/knowledge'
 import { searchVectors } from '@/views/knowledge/lib/vector-store.ts'
 
 interface ImageHit {

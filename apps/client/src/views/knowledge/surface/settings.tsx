@@ -22,23 +22,23 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import styles from '@/views/knowledge/surface/settings.module.scss'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import {
   embeddingProbeFailurePatch,
   embeddingProbeSuccessPatch,
   patchEmbeddingConfig,
   planEmbeddingToggle,
+  qwen3EmbeddingPreset,
   readEmbeddingConfig,
   type EmbeddingConfig
 } from '@/views/knowledge/lib/embedding-config.ts'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
+import type { MigrationReport } from '@/apis/knowledge'
 import {
   enqueueDuplicateReviews,
   enrichWikiWikilinks,
   findDuplicateTitleGroups,
-  pushFileHistory,
-  readFileHistory,
-  rebuildWikiIndex
+  readFileHistory
 } from '@/views/knowledge/lib/project-maintenance.ts'
 import {
   patchMultimodalConfig,
@@ -66,7 +66,7 @@ import {
   SOURCE_WATCH_FILE_TYPE_GROUPS,
   patchSourceWatchConfig,
   readSourceWatchConfig,
-  readWatchAllBases,
+  readWatchAllSpaces,
   writeWatchAllBases,
   type SourceWatchConfig
 } from '@/views/knowledge/lib/source-watch-config.ts'
@@ -100,7 +100,7 @@ import {
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
 /**
- * 设置页下拉的选项：Base UI 的 `Select.Value` 默认渲染裸 value，只有给 Root 传 `items`
+ * 设置页下拉的选项：Space UI 的 `Select.Value` 默认渲染裸 value，只有给 Root 传 `items`
  * 触发器才显示 label（否则会露出 `lancedb` / `zh-CN` 这类内部值）。
  * items 与 SelectItem 共用同一份数组，避免文案漂移。
  */
@@ -228,7 +228,7 @@ function SettingsTab() {
   const [multimodal, setMultimodal] = useState<MultimodalConfig>(() => readMultimodalConfig())
   const [watchConfig, setWatchConfig] = useState<SourceWatchConfig>(() => readSourceWatchConfig())
   const [watchAllBases, setWatchAllBases] = useState(function () {
-    return readWatchAllBases()
+    return readWatchAllSpaces()
   })
   const [searchConfig, setSearchConfig] = useState<WebSearchConfig>(() => readWebSearchConfig())
   const [anytxtConfig, setAnytxtConfig] = useState<AnyTxtConfig>(() => readAnyTxtConfig())
@@ -261,7 +261,7 @@ function SettingsTab() {
     setEmbedding(readEmbeddingConfig())
     setMultimodal(readMultimodalConfig())
     setWatchConfig(watch)
-    setWatchAllBases(readWatchAllBases())
+    setWatchAllBases(readWatchAllSpaces())
     setExcludeDirsText(watch.excludeDirs.join(', '))
     setExcludeExtensionsText(watch.excludeExtensions.join(', '))
     setExcludeGlobsText(watch.excludeGlobs.join(', '))
@@ -297,21 +297,28 @@ function SettingsTab() {
     [section]
   )
 
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
-  const rescan = useKnowledgeBaseStore(function (state) {
+  const rescan = useSpacesStore(function (state) {
     return state.rescan
   })
-  const exportBundle = useKnowledgeBaseStore(function (state) {
+  const exportBundle = useSpacesStore(function (state) {
     return state.exportBundle
   })
-  const docs = useKnowledgeBaseStore(function (state) {
+  const rebuildIndex = useSpacesStore(function (state) {
+    return state.rebuildIndex
+  })
+  const migrateLayout = useSpacesStore(function (state) {
+    return state.migrateLayout
+  })
+  const docs = useSpacesStore(function (state) {
     return state.docs
   })
+  const [migration, setMigration] = useState<MigrationReport | null>(null)
   const [probingEmbedding, setProbingEmbedding] = useState(false)
 
   const probeHint = embedding.lastProbe
@@ -389,8 +396,8 @@ function SettingsTab() {
     }
   }
 
-  const activeBase = bases.find(function (base) {
-    return base.id === activeBaseID
+  const activeSpace = spaces.find(function (space) {
+    return space.id === activeSpaceID
   })
 
   const ingestItems = useIngestQueueStore(function (state) {
@@ -410,8 +417,8 @@ function SettingsTab() {
   }
 
   function openSchemaFile(relative: string) {
-    if (!activeBase?.rootPath) return
-    openEditorPath(joinPath(activeBase.rootPath, relative))
+    if (!activeSpace?.rootPath) return
+    openEditorPath(joinPath(activeSpace.rootPath, relative))
   }
 
   function selectSection(next: SettingsSectionId) {
@@ -480,7 +487,7 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
                   onClick={function () {
                     openSchemaFile('purpose.md')
                   }}>
@@ -490,7 +497,7 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
                   onClick={function () {
                     openSchemaFile('schema.md')
                   }}>
@@ -592,12 +599,32 @@ function SettingsTab() {
                   }}
                 />
               </Row>
+              <Row
+                label="本机模型"
+                hint="填 127.0.0.1:11435，不打开开关。经隧道时把端点改成 https://<域名>/embed/v1，并填写 API Key。">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={probingEmbedding}
+                  onClick={function () {
+                    setEmbedding(
+                      patchEmbeddingConfig({
+                        ...qwen3EmbeddingPreset(),
+                        enabled: false,
+                        lastProbe: null
+                      })
+                    )
+                  }}>
+                  使用本机 Qwen3 Embedding
+                </Button>
+              </Row>
               <Row label="端点">
                 <Input
                   value={embedding.endpoint}
                   disabled={probingEmbedding}
                   className="h-8 w-56 text-xs"
-                  placeholder="https://…/v1"
+                  placeholder="http://127.0.0.1:11435/v1"
                   onChange={function (event) {
                     setEmbedding(patchEmbeddingConfig({ endpoint: event.target.value }))
                   }}
@@ -621,6 +648,18 @@ function SettingsTab() {
                   className="h-8 w-56 text-xs"
                   onChange={function (event) {
                     setEmbedding(patchEmbeddingConfig({ model: event.target.value }))
+                  }}
+                />
+              </Row>
+              <Row
+                label="查询前缀"
+                hint="只加在检索问句上，写入索引的原文不加。留空则问句也嵌原文。">
+                <Input
+                  value={embedding.queryPrefix}
+                  disabled={probingEmbedding}
+                  className="h-8 w-72 text-xs"
+                  onChange={function (event) {
+                    setEmbedding(patchEmbeddingConfig({ queryPrefix: event.target.value }))
                   }}
                 />
               </Row>
@@ -860,7 +899,7 @@ function SettingsTab() {
                 </Row>
                 <Row
                   label="监控所有最近项目"
-                  hint="持续监听已启用监控的知识库；后台变更写入对应库队列，打开该库后再执行。">
+                  hint="持续监听已启用监控的空间；后台变更写入对应队列，打开该空间后再执行。">
                   <Switch
                     checked={watchAllBases}
                     onCheckedChange={function (checked) {
@@ -1151,10 +1190,10 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-7 text-xs"
-                  disabled={!scheduled.enabled || !activeBase}
+                  disabled={!scheduled.enabled || !activeSpace}
                   onClick={function () {
-                    if (!activeBase) return
-                    void runScheduledImportOnce(activeBase.rootPath)
+                    if (!activeSpace) return
+                    void runScheduledImportOnce(activeSpace.rootPath)
                       .then(function (count) {
                         toast.success(`已导入 ${count} 个文件`)
                       })
@@ -1428,13 +1467,13 @@ function SettingsTab() {
             <SettingsPanel>
               <SectionTitle
                 title="维护"
-                description="重建索引、导出、清空 ingest 队列。Wiki 写入直接入库，无待发布门禁。"
+                description="重建索引、归位存量文档、导出、清空 ingest 队列。agent 写入先进待发布区，由你在「待发布」确认后归档。"
               />
-              {activeBase ? (
+              {activeSpace ? (
                 <p
                   className={styles.pathChip}
-                  title={activeBase.rootPath}>
-                  {activeBase.rootPath}
+                  title={activeSpace.rootPath}>
+                  {activeSpace.rootPath}
                 </p>
               ) : null}
               <div className={styles.actions}>
@@ -1442,7 +1481,7 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
                   onClick={function () {
                     void rescan()
                   }}>
@@ -1452,18 +1491,9 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
                   onClick={function () {
-                    if (!activeBase) return
-                    void rebuildWikiIndex({
-                      rootPath: activeBase.rootPath,
-                      pages: docs.map(function (doc) {
-                        return { relative: doc.relPath, title: doc.title }
-                      })
-                    }).then(function () {
-                      pushFileHistory('wiki/index.md', 'rebuild')
-                      void rescan()
-                    })
+                    void rebuildIndex()
                   }}>
                   重建 wiki/index.md
                 </Button>
@@ -1471,7 +1501,23 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
+                  onClick={function () {
+                    void migrateLayout(true).then(function (report) {
+                      if (!report) return
+                      setMigration(report)
+                      if (report.moves.length === 0) {
+                        toast.success('没有需要归位的页面')
+                      }
+                    })
+                  }}>
+                  检查存量文档
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 text-xs"
+                  disabled={!activeSpace}
                   onClick={function () {
                     void exportBundle()
                   }}>
@@ -1488,7 +1534,7 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
                   onClick={function () {
                     const groups = findDuplicateTitleGroups(
                       docs.map(function (doc) {
@@ -1508,11 +1554,11 @@ function SettingsTab() {
                   size="sm"
                   variant="secondary"
                   className="h-8 text-xs"
-                  disabled={!activeBase}
+                  disabled={!activeSpace}
                   onClick={function () {
-                    if (!activeBase) return
+                    if (!activeSpace) return
                     void enrichWikiWikilinks({
-                      rootPath: activeBase.rootPath,
+                      rootPath: activeSpace.rootPath,
                       pages: docs.map(function (doc) {
                         return { relative: doc.relPath, title: doc.title }
                       })
@@ -1531,6 +1577,60 @@ function SettingsTab() {
                   Enrich wikilinks
                 </Button>
               </div>
+              {migration ? (
+                <div className={styles.metaBox}>
+                  <p className={styles.metaTitle}>
+                    计划归位 {migration.moves.length} 页
+                    {migration.skipped.length > 0
+                      ? `，跳过 ${migration.skipped.length}`
+                      : ''}
+                  </p>
+                  <ul
+                    className={clsx(
+                      styles.metaList,
+                      'max-h-40 overflow-y-auto overscroll-y-contain'
+                    )}>
+                    {migration.moves.slice(0, 20).map(function (move) {
+                      return (
+                        <li key={move.from}>
+                          {move.from} → {move.to}
+                          <span className="opacity-60">（{move.pageType}）</span>
+                        </li>
+                      )
+                    })}
+                    {migration.skipped.slice(0, 5).map(function (item) {
+                      return (
+                        <li key={item.path}>
+                          {item.path}：{item.reason}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  <div className={styles.actions}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 text-xs"
+                      disabled={migration.moves.length === 0}
+                      onClick={function () {
+                        void migrateLayout(false).then(function () {
+                          setMigration(null)
+                        })
+                      }}>
+                      执行归位
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={function () {
+                        setMigration(null)
+                      }}>
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <div className={styles.metaBox}>
                 <p className={styles.metaTitle}>
                   文件历史（最近 {readFileHistory().length}）

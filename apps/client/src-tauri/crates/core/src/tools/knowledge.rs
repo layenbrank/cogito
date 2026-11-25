@@ -1,7 +1,9 @@
-//! `cogito_knowledge_*`：知识库读取与 wiki 写入。
+//! `cogito_knowledge_*`：空间读取与 wiki 写入。
 //!
-//! 读：bases / docs / 单篇正文 / 检索（FTS5 trigram + 短词回退）/ 图谱邻居。
-//! 写：`write_doc` 立即发布；`ingest` 入队前端 ACP 两阶段管线；`.agent/` 产物写。
+//! 读：spaces / docs / 单篇正文 / 检索（FTS5 trigram + 短词回退）/ 图谱邻居。
+//! 写：`write_doc` 只写**待发布区**（staging，`wiki::normalize` 规范化）；
+//! `ingest` 入队前端 ACP 两阶段管线；`.agent/` 产物写。
+//! 发布是**用户动作**（待发布区确认），工具面不提供发布工具。
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 
@@ -9,10 +11,10 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde_json::{Value, json};
 
 use super::{Effect, ToolSpec, describe};
-use crate::knowledge::{PublishMode, Service};
+use crate::knowledge::Service;
 use cogito_database::entity::knowledge_doc as doc_schema;
 
-pub const LIST_BASES: &str = "cogito_knowledge_list_bases";
+pub const LIST_SPACES: &str = "cogito_knowledge_list_spaces";
 pub const LIST_DOCS: &str = "cogito_knowledge_list_docs";
 pub const READ_DOC: &str = "cogito_knowledge_read_doc";
 pub const READ_WIKI: &str = "cogito_knowledge_read_wiki";
@@ -34,7 +36,7 @@ const AGENT_DIR: &str = ".agent";
 
 #[must_use]
 pub fn owns(name: &str) -> bool {
-    name == LIST_BASES
+    name == LIST_SPACES
         || name == LIST_DOCS
         || name == READ_DOC
         || name == READ_WIKI
@@ -49,7 +51,7 @@ pub fn owns(name: &str) -> bool {
 #[must_use]
 pub fn specs() -> Vec<ToolSpec> {
     vec![
-        list_bases_spec(),
+        list_spaces_spec(),
         list_docs_spec(),
         read_doc_spec(),
         read_wiki_spec(),
@@ -62,10 +64,10 @@ pub fn specs() -> Vec<ToolSpec> {
     ]
 }
 
-fn list_bases_spec() -> ToolSpec {
+fn list_spaces_spec() -> ToolSpec {
     describe(
-        LIST_BASES,
-        "列出本机知识库（base）及其文档数。撰写/整理文档前先用它确认目标库。",
+        LIST_SPACES,
+        "列出本机空间（space）及其文档数。撰写/整理文档前先用它确认目标库。",
         Effect::Read,
         json!({
             "type": "object",
@@ -78,12 +80,12 @@ fn list_bases_spec() -> ToolSpec {
 fn list_docs_spec() -> ToolSpec {
     describe(
         LIST_DOCS,
-        "列出知识库文档（不含正文）。写新文档前用它做去重：同主题已有文档优先续写而不是新开一篇。",
+        "列出空间文档（不含正文）。写新文档前用它做去重：同主题已有文档优先续写而不是新开一篇。",
         Effect::Read,
         json!({
             "type": "object",
             "properties": {
-                "baseId": { "type": "string", "description": "只列该知识库；省略则列全部" }
+                "spaceId": { "type": "string", "description": "只列该空间；省略则列全部" }
             },
             "additionalProperties": false
         }),
@@ -93,13 +95,13 @@ fn list_docs_spec() -> ToolSpec {
 fn read_doc_spec() -> ToolSpec {
     describe(
         READ_DOC,
-        "按 docID 或「baseId + title」读取一篇文档的正文（默认最多 8000 字符）。",
+        "按 docID 或「spaceId + title」读取一篇文档的正文（默认最多 8000 字符）。",
         Effect::Read,
         json!({
             "type": "object",
             "properties": {
                 "id": { "type": "string", "description": "文档 id（优先）" },
-                "baseId": { "type": "string", "description": "配合 title 定位" },
+                "spaceId": { "type": "string", "description": "配合 title 定位" },
                 "title": { "type": "string", "description": "文档标题（精确匹配）" },
                 "maxChars": { "type": "integer", "description": "返回上限，默认 8000，最大 20000" }
             },
@@ -118,7 +120,7 @@ fn read_wiki_spec() -> ToolSpec {
             "properties": {
                 "path": { "type": "string", "description": "相对路径，如 wiki/index.md" },
                 "title": { "type": "string", "description": "页面标题（精确匹配）" },
-                "baseId": { "type": "string", "description": "配合 title/path 定位" },
+                "spaceId": { "type": "string", "description": "配合 title/path 定位" },
                 "maxChars": { "type": "integer", "description": "返回上限，默认 8000，最大 20000" }
             },
             "additionalProperties": false
@@ -129,13 +131,13 @@ fn read_wiki_spec() -> ToolSpec {
 fn search_spec() -> ToolSpec {
     describe(
         SEARCH,
-        "在本地知识库中检索（默认 FTS；返回 channels 元数据）。命中后再用 cogito_knowledge_read_doc / cogito_knowledge_read_wiki。",
+        "在本地空间中检索（默认 FTS；返回 channels 元数据）。命中后再用 cogito_knowledge_read_doc / cogito_knowledge_read_wiki。",
         Effect::Read,
         json!({
             "type": "object",
             "properties": {
                 "query": { "type": "string", "description": "查询词；1–2 个字会走模糊匹配" },
-                "baseId": { "type": "string", "description": "限定知识库；省略则全库检索" },
+                "spaceId": { "type": "string", "description": "限定空间；省略则全库检索" },
                 "topK": { "type": "integer", "description": "返回条数，默认 5，最大 20" }
             },
             "required": ["query"],
@@ -147,12 +149,12 @@ fn search_spec() -> ToolSpec {
 fn lint_spec() -> ToolSpec {
     describe(
         LINT,
-        "对知识库文档做结构 lint：扫描 [[wikilink]]，报告断链与孤儿页。",
+        "对空间做结构 lint：断链、孤儿页，以及规范项（缺 type、type 与目录不符、未进 index）。",
         Effect::Read,
         json!({
             "type": "object",
             "properties": {
-                "baseId": { "type": "string", "description": "限定知识库；省略则仅有一个库时用它" }
+                "spaceId": { "type": "string", "description": "限定空间；省略则仅有一个库时用它" }
             },
             "additionalProperties": false
         }),
@@ -168,7 +170,7 @@ fn ingest_spec() -> ToolSpec {
             "type": "object",
             "properties": {
                 "path": { "type": "string", "description": "相对库根的源路径，如 raw/sources/foo.md" },
-                "baseId": { "type": "string", "description": "目标知识库；省略则仅有一个库时用它" }
+                "spaceId": { "type": "string", "description": "目标空间；省略则仅有一个库时用它" }
             },
             "required": ["path"],
             "additionalProperties": false
@@ -179,14 +181,20 @@ fn ingest_spec() -> ToolSpec {
 fn write_doc_spec() -> ToolSpec {
     describe(
         WRITE_DOC,
-        "把一篇 Markdown 写入知识库 wiki（直接入库，覆盖同名 slug）。优先写 wiki 百科页，不要声称「仅草稿」。",
+        "把一章内容写入空间的待发布区（staging），不直接发布；用户确认后由客户端按 type 归位到 wiki/<type>/ 并维护 index。frontmatter 由管线补齐，你只需提供 type/title/正文。",
         Effect::Write,
         json!({
             "type": "object",
             "properties": {
-                "name": { "type": "string", "description": "文档名（用作文件名与标题回退）" },
-                "content": { "type": "string", "description": "Markdown 正文" },
-                "baseId": { "type": "string", "description": "目标知识库；省略则仅有一个库时用它" },
+                "name": { "type": "string", "description": "页面名（标题回退，也用做 staging 文件名）" },
+                "type": {
+                    "type": "string",
+                    "enum": ["entity", "concept", "source", "query", "comparison", "synthesis", "note"],
+                    "description": "页面类型，决定发布目录 wiki/<type>/；不确定就用 note"
+                },
+                "title": { "type": "string", "description": "页面标题；省略时取正文一级标题或 name" },
+                "content": { "type": "string", "description": "Markdown 正文：从 ## 起写，不要重复一级标题，不要写 index/log/overview" },
+                "spaceId": { "type": "string", "description": "目标空间；省略则仅有一个库时用它" },
                 "sessionId": { "type": "string", "description": "内部会话标识" }
             },
             "required": ["name", "content"],
@@ -204,7 +212,7 @@ fn graph_search_spec() -> ToolSpec {
             "type": "object",
             "properties": {
                 "query": { "type": "string", "description": "页面 slug、标题或 wiki 相对路径" },
-                "baseId": { "type": "string", "description": "限定知识库" },
+                "spaceId": { "type": "string", "description": "限定空间" },
                 "topK": { "type": "integer", "description": "邻居条数上限，默认 10，最大 30" }
             },
             "required": ["query"],
@@ -216,7 +224,7 @@ fn graph_search_spec() -> ToolSpec {
 fn workspace_write_spec() -> ToolSpec {
     describe(
         WORKSPACE_WRITE,
-        "把生成物写入知识库根下的 .agent/（HTML/脚本/草稿）。确认后再用 cogito_knowledge_write_doc 进 wiki。",
+        "把生成物写入空间根下的 .agent/（HTML/脚本/草稿）。确认后再用 cogito_knowledge_write_doc 进 wiki。",
         Effect::Write,
         json!({
             "type": "object",
@@ -224,7 +232,7 @@ fn workspace_write_spec() -> ToolSpec {
                 "path": { "type": "string", "description": "相对 .agent/ 的路径，如 draft/notes.md" },
                 "content": { "type": "string", "description": "文件正文" },
                 "append": { "type": "boolean", "description": "true 时追加；默认覆盖" },
-                "baseId": { "type": "string", "description": "目标知识库" }
+                "spaceId": { "type": "string", "description": "目标空间" }
             },
             "required": ["path", "content"],
             "additionalProperties": false
@@ -234,7 +242,7 @@ fn workspace_write_spec() -> ToolSpec {
 
 pub async fn call(db: &DatabaseConnection, name: &str, arguments: &Value) -> Result<Value, String> {
     match name {
-        LIST_BASES => list_bases(db).await,
+        LIST_SPACES => list_spaces(db).await,
         LIST_DOCS => list_docs(db, arguments).await,
         READ_DOC => read_doc(db, arguments).await,
         READ_WIKI => read_wiki(db, arguments).await,
@@ -248,8 +256,8 @@ pub async fn call(db: &DatabaseConnection, name: &str, arguments: &Value) -> Res
     }
 }
 
-async fn list_bases(db: &DatabaseConnection) -> Result<Value, String> {
-    let bases = Service::toListBases(db)
+async fn list_spaces(db: &DatabaseConnection) -> Result<Value, String> {
+    let spaces = Service::toListSpaces(db)
         .await
         .map_err(|error| error.to_string())?;
     let docs = doc_schema::Entity::find()
@@ -258,26 +266,26 @@ async fn list_bases(db: &DatabaseConnection) -> Result<Value, String> {
         .await
         .map_err(|error| error.to_string())?;
 
-    let items: Vec<Value> = bases
+    let items: Vec<Value> = spaces
         .into_iter()
-        .map(|base| {
-            let doc_count = docs.iter().filter(|doc| doc.base_id == base.id).count();
+        .map(|space| {
+            let doc_count = docs.iter().filter(|doc| doc.space_id == space.id).count();
             json!({
-                "id": base.id,
-                "name": base.name,
-                "slug": base.slug,
-                "scope": base.scope,
-                "rootPath": base.root_path,
+                "id": space.id,
+                "name": space.name,
+                "slug": space.slug,
+                "scope": space.scope,
+                "rootPath": space.root_path,
                 "docCount": doc_count,
             })
         })
         .collect();
-    Ok(json!({ "bases": items }))
+    Ok(json!({ "spaces": items }))
 }
 
 async fn list_docs(db: &DatabaseConnection, arguments: &Value) -> Result<Value, String> {
-    let base_id = arguments.get("baseId").and_then(Value::as_str);
-    let docs = Service::toListDocs(db, base_id)
+    let space_id = arguments.get("spaceId").and_then(Value::as_str);
+    let docs = Service::toListDocs(db, space_id)
         .await
         .map_err(|error| error.to_string())?;
     let items: Vec<Value> = docs
@@ -285,7 +293,7 @@ async fn list_docs(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
         .map(|doc| {
             json!({
                 "id": doc.id,
-                "baseId": doc.base_id,
+                "spaceId": doc.space_id,
                 "title": doc.title,
                 "relPath": doc.rel_path,
                 "wordCount": doc.word_count,
@@ -315,12 +323,12 @@ async fn read_doc(db: &DatabaseConnection, arguments: &Value) -> Result<Value, S
                 .get("title")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "需要 id 或 title".to_string())?;
-            let base_id =
-                resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
-            Service::toFindDocByTitle(db, &base_id, title)
+            let space_id =
+                resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
+            Service::toFindDocByTitle(db, &space_id, title)
                 .await
                 .map_err(|error| error.to_string())?
-                .ok_or_else(|| format!("该知识库里没有标题为「{title}」的文档"))?
+                .ok_or_else(|| format!("该空间里没有标题为「{title}」的文档"))?
         }
     };
 
@@ -337,7 +345,7 @@ async fn read_doc(db: &DatabaseConnection, arguments: &Value) -> Result<Value, S
 
     Ok(json!({
         "id": doc.id,
-        "baseId": doc.base_id,
+        "spaceId": doc.space_id,
         "title": doc.title,
         "relPath": doc.rel_path,
         "wordCount": doc.word_count,
@@ -361,7 +369,7 @@ async fn search(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Str
     let hits = Service::toSearch(
         db,
         query,
-        arguments.get("baseId").and_then(Value::as_str),
+        arguments.get("spaceId").and_then(Value::as_str),
         top_k,
     )
     .await
@@ -383,8 +391,8 @@ async fn read_wiki(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
         .clamp(1, HARD_MAX_CHARS);
 
     if let Some(path) = arguments.get("path").and_then(Value::as_str) {
-        let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
-        let docs = Service::toListDocs(db, Some(&base_id))
+        let space_id = resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
+        let docs = Service::toListDocs(db, Some(&space_id))
             .await
             .map_err(|error| error.to_string())?;
         let needle = path.replace('\\', "/");
@@ -416,8 +424,8 @@ async fn read_wiki(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
 }
 
 async fn lint(db: &DatabaseConnection, arguments: &Value) -> Result<Value, String> {
-    let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
-    let docs = Service::toListDocs(db, Some(&base_id))
+    let space_id = resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
+    let docs = Service::toListDocs(db, Some(&space_id))
         .await
         .map_err(|error| error.to_string())?;
 
@@ -461,6 +469,49 @@ async fn lint(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Strin
         }
     }
 
+    // 规范检查：type 是否合法、目录是否与 type 一致、是否已进 index
+    let index_content = pages
+        .iter()
+        .find(|(rel, _, _)| rel.replace('\\', "/").ends_with("wiki/index.md"))
+        .map(|(_, _, content)| content.clone())
+        .unwrap_or_default();
+    for (rel, title, content) in &pages {
+        let normalized = rel.replace('\\', "/");
+        if !normalized.starts_with("wiki/") || crate::knowledge::is_aggregate_path(&normalized) {
+            continue;
+        }
+        let (page_type, _) = crate::knowledge::to_read_meta(content);
+        match page_type
+            .as_deref()
+            .and_then(crate::knowledge::find_wiki_type)
+        {
+            None => issues.push(json!({
+                "kind": "missing-type",
+                "page": rel,
+                "detail": format!(
+                    "缺少合法 type（内置 15 种，见 knowledge:wikiContract），当前：{}",
+                    page_type.unwrap_or_default()
+                ),
+            })),
+            Some(kind) => {
+                if !normalized.starts_with(&format!("{}/", kind.dir)) {
+                    issues.push(json!({
+                        "kind": "type-dir-mismatch",
+                        "page": rel,
+                        "detail": format!("type={} 应落在 {}/", kind.name, kind.dir),
+                    }));
+                }
+            }
+        }
+        if !index_content.contains(&format!("[[{title}]]")) {
+            issues.push(json!({
+                "kind": "not-in-index",
+                "page": rel,
+                "detail": "未出现在 wiki/index.md（可在设置 → 维护里重建索引）",
+            }));
+        }
+    }
+
     Ok(json!({ "issueCount": issues.len(), "issues": issues }))
 }
 
@@ -475,16 +526,16 @@ async fn ingest(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Str
     if normalized.contains("..") || Path::new(&normalized).is_absolute() {
         return Err("path 必须是相对库根的安全路径".to_string());
     }
-    let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
-    let bases = Service::toListBases(db)
+    let space_id = resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
+    let spaces = Service::toListSpaces(db)
         .await
         .map_err(|error| error.to_string())?;
-    let base = bases
+    let space = spaces
         .into_iter()
-        .find(|item| item.id == base_id)
-        .ok_or_else(|| format!("知识库不存在：{base_id}"))?;
+        .find(|item| item.id == space_id)
+        .ok_or_else(|| format!("空间不存在：{space_id}"))?;
 
-    let absolute = PathBuf::from(&base.root_path).join(&normalized);
+    let absolute = PathBuf::from(&space.root_path).join(&normalized);
     if !absolute.is_file() {
         return Err(format!("源文件不存在：{}", absolute.display()));
     }
@@ -492,10 +543,10 @@ async fn ingest(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Str
     Ok(json!({
         "queued": true,
         "status": "queued",
-        "baseId": base_id,
+        "spaceId": space_id,
         "path": normalized,
-        "rootPath": base.root_path,
-        "hint": "已请求加入 ingest 队列；打开知识库 Activity 可查看进度",
+        "rootPath": space.root_path,
+        "hint": "已请求加入 ingest 队列；打开空间 Activity 可查看进度",
     }))
 }
 
@@ -524,8 +575,8 @@ async fn graph_search(db: &DatabaseConnection, arguments: &Value) -> Result<Valu
         .map(|n| n as usize)
         .unwrap_or(10)
         .clamp(1, 30);
-    let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
-    let docs = Service::toListDocs(db, Some(&base_id))
+    let space_id = resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
+    let docs = Service::toListDocs(db, Some(&space_id))
         .await
         .map_err(|error| error.to_string())?;
 
@@ -669,17 +720,17 @@ async fn workspace_write(db: &DatabaseConnection, arguments: &Value) -> Result<V
         .get("append")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
-    let bases = Service::toListBases(db)
+    let space_id = resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
+    let spaces = Service::toListSpaces(db)
         .await
         .map_err(|error| error.to_string())?;
-    let base = bases
+    let space = spaces
         .into_iter()
-        .find(|item| item.id == base_id)
-        .ok_or_else(|| format!("知识库不存在：{base_id}"))?;
+        .find(|item| item.id == space_id)
+        .ok_or_else(|| format!("空间不存在：{space_id}"))?;
 
     let relative = sanitize_agent_relative(path)?;
-    let absolute = PathBuf::from(&base.root_path)
+    let absolute = PathBuf::from(&space.root_path)
         .join(AGENT_DIR)
         .join(&relative);
     if let Some(parent) = absolute.parent() {
@@ -702,7 +753,7 @@ async fn workspace_write(db: &DatabaseConnection, arguments: &Value) -> Result<V
         relative.to_string_lossy().replace('\\', "/")
     );
     Ok(json!({
-        "baseId": base_id,
+        "spaceId": space_id,
         "relPath": rel,
         "absolutePath": absolute.to_string_lossy(),
         "append": append,
@@ -729,24 +780,28 @@ async fn write_doc(db: &DatabaseConnection, arguments: &Value) -> Result<Value, 
             "内容过长（> {HARD_MAX_WRITE_CHARS} 字符）：请分章生成，或先写大纲再逐章追加"
         ));
     }
-    let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
+    let page_type = arguments.get("type").and_then(Value::as_str);
+    let title = arguments.get("title").and_then(Value::as_str);
+    let space_id = resolve_space_id(db, arguments.get("spaceId").and_then(Value::as_str)).await?;
     let session = arguments
         .get("sessionId")
         .and_then(Value::as_str)
         .unwrap_or("agent");
 
-    let staged = Service::toWriteStaging(db, &base_id, session, name, content)
-        .await
-        .map_err(|error| error.to_string())?;
-    let published = publish(db, &base_id, &staged.path, PublishMode::Replace).await?;
+    let staged = Service::toWriteStaging(
+        db, &space_id, session, name, content, page_type, title,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     Ok(json!({
-        "baseId": published.base_id,
-        "docId": published.id,
-        "title": published.title,
-        "relPath": published.rel_path,
-        "slug": staged.slug,
-        "status": "published",
-        "layer": "wiki",
+        "spaceId": staged.space_id,
+        "stagingPath": staged.path,
+        "title": staged.title,
+        "type": staged.page_type,
+        "relPath": staged.rel_path,
+        "status": "staged",
+        "layer": "staging",
+        "hint": "已写入待发布区；请在「空间 → 待发布」确认后发布，不要告诉用户已入库",
     }))
 }
 
@@ -777,30 +832,30 @@ fn parse_wikilinks(content: &str) -> Vec<String> {
     out
 }
 
-/// baseId 缺省时：仅有一个库则用它，否则要求显式传入（不再回落 slug=`default`）。
-async fn resolve_base_id(db: &DatabaseConnection, base_id: Option<&str>) -> Result<String, String> {
-    if let Some(base_id) = base_id.map(str::trim).filter(|value| !value.is_empty()) {
-        return Ok(base_id.to_string());
+/// spaceId 缺省时：仅有一个库则用它，否则要求显式传入（不再回落 slug=`default`）。
+async fn resolve_space_id(db: &DatabaseConnection, space_id: Option<&str>) -> Result<String, String> {
+    if let Some(space_id) = space_id.map(str::trim).filter(|value| !value.is_empty()) {
+        return Ok(space_id.to_string());
     }
-    let bases = Service::toListBases(db)
+    let spaces = Service::toListSpaces(db)
         .await
         .map_err(|error| error.to_string())?;
-    match bases.as_slice() {
+    match spaces.as_slice() {
         [only] => Ok(only.id.clone()),
-        [] => Err("还没有知识库，请先新建或导入示例库".to_string()),
-        _ => Err("存在多个知识库，请显式传入 baseId".to_string()),
+        [] => Err("还没有空间，请先新建或导入示例库".to_string()),
+        _ => Err("存在多个空间，请显式传入 spaceId".to_string()),
     }
 }
 
-/// 供 UI 侧复用的发布入口（写正式目录 + 落库）。工具面**不**暴露它。
+/// 供 UI 侧复用的发布入口（写正式目录 + 落库 + 维护索引）。工具面**不**暴露它。
 pub async fn publish(
     db: &DatabaseConnection,
-    base_id: &str,
+    space_id: &str,
     staging_path: &str,
-    mode: PublishMode,
+    mode: crate::knowledge::PublishMode,
 ) -> Result<doc_schema::Model, String> {
     use crate::dict::knowledge_doc_source;
-    Service::toPublish(db, base_id, staging_path, mode, knowledge_doc_source::AGENT)
+    Service::toPublish(db, space_id, staging_path, mode, knowledge_doc_source::AGENT)
         .await
         .map_err(|error| error.to_string())
 }
@@ -815,7 +870,7 @@ mod tests {
 
     use super::*;
 
-    /// 每个用例一套「内存库 + 独立知识库目录 + 默认库」。
+    /// 每个用例一套「内存库 + 独立空间目录 + 默认库」。
     async fn setup(tag: &str) -> (Arc<DatabaseConnection>, PathBuf) {
         let root = std::env::temp_dir().join(format!(
             "cogito-tools-knowledge-{tag}-{}",
@@ -829,62 +884,75 @@ mod tests {
         cogito_database::migration::run(&conn)
             .await
             .expect("迁移应成功");
-        Service::toEnsureDefaultBase(conn.as_ref(), &root)
+        Service::toEnsureDefaultSpace(conn.as_ref(), &root)
             .await
             .expect("默认库");
         (conn, root)
     }
 
     #[tokio::test]
-    async fn list_bases_exposes_default_with_doc_count() {
-        let (conn, _root) = setup("bases").await;
+    async fn list_spaces_exposes_default_with_doc_count() {
+        let (conn, _root) = setup("spaces").await;
         let db = conn.as_ref();
-        let value = call(db, LIST_BASES, &json!({})).await.expect("列库");
-        let bases = value.get("bases").and_then(Value::as_array).expect("bases");
-        assert_eq!(bases.len(), 1);
-        assert_eq!(bases[0]["slug"], "default");
-        assert_eq!(bases[0]["docCount"], 0);
+        let value = call(db, LIST_SPACES, &json!({})).await.expect("列库");
+        let spaces = value.get("spaces").and_then(Value::as_array).expect("spaces");
+        assert_eq!(spaces.len(), 1);
+        assert_eq!(spaces[0]["slug"], "default");
+        assert_eq!(spaces[0]["docCount"], 0);
     }
 
     #[tokio::test]
-    async fn write_doc_publishes_into_wiki() {
-        let (conn, _root) = setup("publish-direct").await;
+    async fn write_doc_stages_without_publishing() {
+        let (conn, _root) = setup("stage-only").await;
         let db = conn.as_ref();
         let value = call(
             db,
             WRITE_DOC,
             &json!({
                 "name": "周报模板",
+                "type": "concept",
                 "content": "# 周报模板\n\n## 本周完成\n",
                 "sessionId": "s-1",
             }),
         )
         .await
-        .expect("写 wiki");
+        .expect("写待发布区");
 
-        assert_eq!(value["status"], "published");
+        assert_eq!(value["status"], "staged");
+        assert_eq!(value["type"], "concept");
         assert_eq!(value["title"], "周报模板");
+        assert_eq!(value["relPath"], "wiki/concepts/周报模板.md");
+        let staged_path = value["stagingPath"].as_str().expect("stagingPath");
+        assert!(std::path::Path::new(staged_path).is_file());
+        // 落库 0 条：发布是用户动作
         let listed = call(db, LIST_DOCS, &json!({})).await.expect("列文档");
-        assert_eq!(listed["docs"].as_array().expect("docs").len(), 1);
+        assert_eq!(listed["docs"].as_array().expect("docs").len(), 0);
     }
 
     #[tokio::test]
-    async fn search_and_read_after_write() {
+    async fn search_and_read_after_publish() {
         let (conn, _root) = setup("publish").await;
         let db = conn.as_ref();
-        let base_id = Service::toListBases(db).await.expect("列库")[0].id.clone();
+        let space_id = Service::toListSpaces(db).await.expect("列库")[0].id.clone();
         let written = call(
             db,
             WRITE_DOC,
             &json!({
                 "name": "发布契约",
-                "content": "# 发布契约\n\n知识库正文以文件为准，数据库只存快照。",
-                "baseId": base_id,
+                "type": "note",
+                "content": "# 发布契约\n\n空间正文以文件为准，数据库只存快照。",
+                "spaceId": space_id,
             }),
         )
         .await
-        .expect("写 wiki");
-        assert_eq!(written["status"], "published");
+        .expect("写待发布区");
+        assert_eq!(written["status"], "staged");
+
+        let staged_path = written["stagingPath"].as_str().expect("stagingPath");
+        let published = publish(db, &space_id, staged_path, crate::knowledge::PublishMode::Replace)
+            .await
+            .expect("发布");
+        assert_eq!(published.rel_path, "wiki/notes/发布契约.md");
 
         let hits = call(db, SEARCH, &json!({ "query": "发布契约" }))
             .await
@@ -909,16 +977,24 @@ mod tests {
     async fn short_query_still_hits_via_like() {
         let (conn, _root) = setup("short").await;
         let db = conn.as_ref();
-        let base_id = Service::toListBases(db).await.expect("列库")[0].id.clone();
-        call(
+        let space_id = Service::toListSpaces(db).await.expect("列库")[0].id.clone();
+        let written = call(
             db,
             WRITE_DOC,
-            &json!({ "name": "会议纪要", "content": "# 会议纪要\n\n讨论了知识库方案。", "baseId": base_id }),
+            &json!({ "name": "会议纪要", "content": "# 会议纪要\n\n讨论了空间方案。", "spaceId": space_id }),
         )
         .await
-        .expect("写 wiki");
+        .expect("写待发布区");
+        publish(
+            db,
+            &space_id,
+            written["stagingPath"].as_str().expect("stagingPath"),
+            crate::knowledge::PublishMode::Replace,
+        )
+        .await
+        .expect("发布");
 
-        let hits = call(db, SEARCH, &json!({ "query": "知识" }))
+        let hits = call(db, SEARCH, &json!({ "query": "空间" }))
             .await
             .expect("短词检索");
         assert_eq!(hits["mode"], "like");

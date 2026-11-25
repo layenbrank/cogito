@@ -1,5 +1,5 @@
 /**
- * 知识库右侧栏：大纲 | AI | 深度研究（同一 Splitter 列内 tabs）。
+ * 空间右侧栏：大纲 | AI | 深度研究（同一 Splitter 列内 tabs）。
  * 非活动面板用 inert + 切走前 blur，避免 aria-hidden 盖住仍聚焦的 Composer。
  */
 import { Icon } from '@iconify/react/offline'
@@ -12,8 +12,7 @@ import {
   SelectValue
 } from '@cogito/design/components/select'
 import { clsx } from 'clsx'
-import { useEffect, useRef, useState } from 'react'
-
+import { useEffect, useRef, useState, memo } from 'react'
 import { AgentDock, useDockStore } from '@/features/agent/dock'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
@@ -42,7 +41,7 @@ function blurFocusedInside(host: HTMLElement | null) {
   active.blur()
 }
 
-function KnowledgeAside() {
+const KnowledgeAside = memo(function KnowledgeAside() {
   const isOpen = useKnowledgeStore(function (state) {
     return state.isOutlineOpen
   })
@@ -148,7 +147,7 @@ function KnowledgeAside() {
                 role="tab"
                 aria-selected={isActive}
                 className={clsx(
-                  'h-7 flex-1 gap-1 px-1.5 text-[11px] font-medium transition-colors',
+                  'h-9 flex-1 gap-1.5 px-2 text-xs font-medium transition-colors',
                   isActive
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -158,7 +157,7 @@ function KnowledgeAside() {
                 }}>
                 <Icon
                   icon={item.icon}
-                  className="size-3.5"
+                  className="size-4"
                 />
                 {item.label}
               </Button>
@@ -169,7 +168,7 @@ function KnowledgeAside() {
           type="button"
           size="sm"
           variant="ghost"
-          className="text-muted-foreground hover:text-foreground h-7 shrink-0 px-1.5"
+          className="text-muted-foreground hover:text-foreground h-9 shrink-0 px-2"
           title="收起侧栏"
           onClick={closeAside}>
           <Icon
@@ -188,15 +187,18 @@ function KnowledgeAside() {
           )}
           aria-hidden={asideTab !== 'outline'}
           inert={asideTab !== 'outline' ? true : undefined}>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-[1.2]">
-              <Outline onJump={jumpEditorPos} />
+          {/* 非激活页签不挂载：PageLinks 会全库读盘，藏着也跑是纯浪费 */}
+          {asideTab === 'outline' ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-[1.2]">
+                <Outline onJump={jumpEditorPos} />
+              </div>
+              <div className="border-border min-h-0 flex-1 border-t">
+                <p className="text-muted-foreground px-3 py-1.5 text-xs font-medium">Page Links</p>
+                <PageLinks />
+              </div>
             </div>
-            <div className="min-h-0 flex-1 border-t border-border">
-              <p className="text-muted-foreground px-3 py-1.5 text-xs font-medium">Page Links</p>
-              <PageLinks />
-            </div>
-          </div>
+          ) : null}
         </div>
         <div
           ref={assistantRef}
@@ -249,11 +251,11 @@ function KnowledgeAside() {
           )}
           aria-hidden={asideTab !== 'research'}
           inert={asideTab !== 'research' ? true : undefined}>
-          <ResearchPanel embedded />
+          {asideTab === 'research' ? <ResearchPanel embedded /> : null}
         </div>
       </div>
     </aside>
   )
-}
+})
 
 export { KnowledgeAside }

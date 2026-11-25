@@ -1,14 +1,14 @@
 .toolbar {
-  height: 36px;
-  min-height: 36px;
+  height: 40px;
+  min-height: 40px;
 }
 
 .toolbarTrack {
   display: flex;
   height: 100%;
   align-items: center;
-  gap: 2px;
-  padding-inline: 6px;
+  gap: 4px;
+  padding-inline: 10px;
 
   :global {
     .tiptap-button {
@@ -31,17 +31,21 @@
     overflow: hidden scroll;
     /* 正文近实色，保证长文对比度；壳层再透 Mica */
     background: color-mix(in oklab, var(--background) 93%, transparent);
-    padding-inline: 48px 24px;
-    padding-block: 16px 48px;
+    padding-inline: 64px 32px;
+    padding-block: 24px 64px;
 
     :global {
       .tiptap.ProseMirror {
         width: 100%;
-        min-height: 60vh;
+        min-height: 70vh;
         outline: none;
 
         > * + * {
-          margin-top: 0.65em;
+          margin-top: 0.7em;
+        }
+
+        p {
+          line-height: 1.75;
         }
 
         h1,

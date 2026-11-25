@@ -1,14 +1,14 @@
 /**
  * 知识库磁贴的 dock 绑定：把「当前文档 + 选区」变成一键动作。
  *
- * 全部动作都读**实时**上下文（编辑器桥 + store），所以 scope 按 activeBase 重绑。
+ * 全部动作都读**实时**上下文（编辑器桥 + store），所以 scope 按 activeSpace 重绑。
  * 优化类动作走对话模型（ACP）。
  */
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { useDockStore, type DockScope } from '@/features/agent/dock'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import {
   fetchWikiProjectContext,
   formatWikiContextBlock
@@ -27,11 +27,11 @@ const SYSTEM_BASE = `你是 cogito 知识库里写作助手，与「知识库」
 - 好答案也可整理后让用户点「存回 wiki」；跨文档先检索再答并标明引用。`
 
 function findBaseName(): string {
-  const state = useKnowledgeBaseStore.getState()
-  const base = state.bases.find(function (item) {
-    return item.id === state.activeBaseID
+  const state = useSpacesStore.getState()
+  const space = state.spaces.find(function (item) {
+    return item.id === state.activeSpaceID
   })
-  return base?.name ?? '当前知识库'
+  return space?.name ?? '当前知识库'
 }
 
 /** 把正文按字符窗截断：整篇塞进一轮上下文没有意义 */
@@ -132,14 +132,14 @@ function useKnowledgeDockScope(): void {
   const toUnbind = useDockStore(function (state) {
     return state.toUnbind
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
-  const rootPath = useKnowledgeBaseStore(function (state) {
-    const base = state.bases.find(function (item) {
-      return item.id === state.activeBaseID
+  const rootPath = useSpacesStore(function (state) {
+    const space = state.spaces.find(function (item) {
+      return item.id === state.activeSpaceID
     })
-    return base?.rootPath ?? null
+    return space?.rootPath ?? null
   })
 
   useEffect(
@@ -153,21 +153,21 @@ function useKnowledgeDockScope(): void {
           if (cancelled || token !== revision) return
           const scope: DockScope = {
             key: 'knowledge',
-            title: '知识库助手',
+            title: '空间助手',
             hint: '结果先留在对话里，点「应用到文档」才写入正文',
             systemText: `${SYSTEM_BASE}\n\n${formatWikiContextBlock(project)}`,
             toWrite: function (text) {
-              const state = useKnowledgeBaseStore.getState()
-              const base = state.bases.find(function (item) {
-                return item.id === state.activeBaseID
+              const state = useSpacesStore.getState()
+              const space = state.spaces.find(function (item) {
+                return item.id === state.activeSpaceID
               })
               const looksLikeWikiPage =
                 text.trimStart().startsWith('---') && /(?:^|\n)type:\s*\w+/m.test(text)
-              if (looksLikeWikiPage && base?.rootPath) {
+              if (looksLikeWikiPage && space?.rootPath) {
                 const titleMatch = text.match(/(?:^|\n)title:\s*["']?([^"'\n]+)/)
                 const title = titleMatch?.[1]?.trim() || 'untitled'
                 void saveMarkdownToWiki({
-                  rootPath: base.rootPath,
+                  rootPath: space.rootPath,
                   title,
                   markdown: text,
                   enqueueIngest: false
@@ -207,7 +207,7 @@ function useKnowledgeDockScope(): void {
         toUnbind('knowledge')
       }
     },
-    [toBind, toUnbind, activeBaseID, rootPath]
+    [toBind, toUnbind, activeSpaceID, rootPath]
   )
 }
 

@@ -8,7 +8,7 @@ import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import {
   filterLintIssues,
   fixBrokenLinkStubs,
@@ -35,20 +35,23 @@ const KIND_LABEL: Record<string, string> = {
   orphan: '孤儿页',
   'missing-index': '缺索引',
   'duplicate-title': '重复标题',
-  'thin-page': '过短'
+  'thin-page': '过短',
+  'missing-type': '缺类型',
+  'type-dir-mismatch': '目录不符',
+  'not-in-index': '未进索引'
 }
 
 function LintTab() {
-  const docs = useKnowledgeBaseStore(function (state) {
+  const docs = useSpacesStore(function (state) {
     return state.docs
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
-  const rescan = useKnowledgeBaseStore(function (state) {
+  const rescan = useSpacesStore(function (state) {
     return state.rescan
   })
   const [issues, setIssues] = useState<LintIssue[]>([])
@@ -60,11 +63,11 @@ function LintTab() {
   })
 
   async function runLint() {
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
+    const space = spaces.find(function (item) {
+      return item.id === activeSpaceID
     })
-    if (!base?.rootPath) {
-      setError('无活动知识库')
+    if (!space?.rootPath) {
+      setError('无活动空间')
       return
     }
     setRunning(true)
@@ -72,9 +75,9 @@ function LintTab() {
     try {
       const pages: WikiPage[] = []
       for (const doc of docs) {
-        if (!/\.md$/i.test(doc.relPath)) continue
+        if (!/\.(md|markdown)$/i.test(doc.relPath)) continue
         try {
-          const content = await readTextFile(joinPath(base.rootPath, doc.relPath))
+          const content = await readTextFile(joinPath(space.rootPath, doc.relPath))
           pages.push({
             relative: doc.relPath,
             title: doc.title,
@@ -98,16 +101,16 @@ function LintTab() {
   }
 
   async function fixStubs() {
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
+    const space = spaces.find(function (item) {
+      return item.id === activeSpaceID
     })
-    if (!base?.rootPath) {
-      toast.error('无活动知识库')
+    if (!space?.rootPath) {
+      toast.error('无活动空间')
       return
     }
     try {
       const created = await fixBrokenLinkStubs({
-        rootPath: base.rootPath,
+        rootPath: space.rootPath,
         issues
       })
       toast.success(`已创建 ${created} 个 stub 页`)
@@ -187,7 +190,7 @@ function LintTab() {
             description={
               hasRun
                 ? '结构与语义检查通过。可在改动 wiki 后再跑一次。'
-                : '点击「运行 Lint」扫描当前知识库页面。'
+                : '点击「运行 Lint」扫描当前空间页面。'
             }
           />
         ) : (

@@ -11,12 +11,12 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    /// JSON 键保持 `baseID`。
-    #[sea_orm(column_name = "baseID")]
-    #[serde(rename = "baseID")]
-    pub base_id: String,
+    /// JSON 键保持 `spaceID`。
+    #[sea_orm(column_name = "spaceID")]
+    #[serde(rename = "spaceID")]
+    pub space_id: String,
     pub title: String,
-    /// 相对 base `root_path` 的路径（`a/b.md`）
+    /// 相对 space `root_path` 的路径（`a/b.md`）
     #[sea_orm(column_name = "relPath")]
     pub rel_path: String,
     /// 正文指纹（长度 + FNV-1a），跨端不通用，只做本地「文件是否变过」判断

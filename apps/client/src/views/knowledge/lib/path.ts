@@ -68,10 +68,10 @@ function isWindowsAbsolute(path: string): boolean {
  * 拼接绝对路径。Windows 盘符路径用 `\`，避免 `C:\\foo/bar` 混用斜杠。
  * 比较路径请继续用 `normalizeSeparators`。
  */
-function joinPath(base: string, relative: string): string {
-  const useWin = isWindowsAbsolute(base)
+function joinPath(space: string, relative: string): string {
+  const useWin = isWindowsAbsolute(space)
   const sep = useWin ? '\\' : '/'
-  const baseNorm = base.replace(/[\\/]+$/, '')
+  const baseNorm = space.replace(/[\\/]+$/, '')
   const relNorm = relative.replace(/^[\\/]+/, '').replace(/[\\/]+/g, sep)
   if (!relNorm) return useWin ? baseNorm.replace(/\//g, '\\') : normalizeSeparators(baseNorm)
   const baseNative = useWin ? baseNorm.replace(/\//g, '\\') : normalizeSeparators(baseNorm)

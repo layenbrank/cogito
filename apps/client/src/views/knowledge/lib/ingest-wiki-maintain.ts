@@ -1,15 +1,16 @@
 /**
- * Ingest 写盘副作用：log / overview / index + 触发知识库 rescan。
- * 聚合页由应用维护，禁止模型生成。
+ * Ingest 写盘副作用：log / overview + 触发 rescan 与 Rust 侧 index 重建。
+ *
+ * 聚合页由应用维护，禁止模型生成。index 的格式只有 Rust `knowledge::wiki_index`
+ * 一份实现：这里不再拼条目，写完页面后重建整份 index。
  */
 import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { POST_KNOWLEDGE_REBUILD_INDEX } from '@/apis/knowledge'
+import { useSpacesStore } from '@/stores/spaces'
 import { findParentDir, joinPath } from '@/views/knowledge/lib/path.ts'
 
-const INDEX_SEED =
-  '---\ntitle: Index\ntype: index\n---\n\n# Index\n\n内容目录。ingest 后由助手维护。\n\n## Pages\n\n'
 const LOG_SEED = '---\ntitle: Log\ntype: log\n---\n\n# Log\n\n## 操作记录\n\n'
 const OVERVIEW_SEED =
   '---\ntitle: Overview\ntype: overview\n---\n\n# Overview\n\n全局概要，随 ingest 更新。\n\n## 最近摄入\n\n'
@@ -49,47 +50,44 @@ async function touchOverview(root: string, title: string): Promise<void> {
   await writeTextFile(path, `${existing.trimEnd()}\n- ${stamp} [[${title}]]\n`)
 }
 
-async function upsertIndexEntry(
-  root: string,
-  title: string,
-  wikiRelative: string
-): Promise<void> {
-  const path = joinPath(root, 'wiki/index.md')
-  let existing = await readOrSeed(path, INDEX_SEED)
-  if (!/## Pages/.test(existing)) {
-    existing = `${existing.trimEnd()}\n\n## Pages\n\n`
-  }
-  const bullet = `- [[${title}]] (\`${wikiRelative.replace(/\\/g, '/')}\`)`
-  if (existing.includes(`[[${title}]]`)) return
-  await writeTextFile(path, `${existing.trimEnd()}\n${bullet}\n`)
-}
-
 /** 写盘成功后刷新 FTS；失败只告警不回滚 */
 async function rescanAfterIngest(): Promise<void> {
   try {
-    await useKnowledgeBaseStore.getState().rescan()
+    await useSpacesStore.getState().rescan()
   } catch (error) {
     console.error('[ingest] rescan after write failed', error)
     toast.warning('Wiki 已写入，但索引刷新失败，可在设置中手动重新扫描')
   }
 }
 
+/** 先回灌再让 Rust 整份重建 index（顺序不能反：重建读的是库内文档） */
+async function rebuildIndexAfterIngest(spaceId: string | null | undefined): Promise<void> {
+  if (!spaceId) return
+  try {
+    await POST_KNOWLEDGE_REBUILD_INDEX(spaceId)
+  } catch (error) {
+    console.error('[ingest] rebuild index failed', error)
+    toast.warning('Wiki 已写入，但 wiki/index.md 重建失败，可在设置 → 维护中重试')
+  }
+}
+
 async function maintainAfterPages(
   root: string,
-  pages: { title: string; wikiRelative: string; sourceRelative: string }[]
+  pages: { title: string; wikiRelative: string; sourceRelative: string }[],
+  spaceId?: string | null
 ): Promise<void> {
   for (const page of pages) {
     await appendIngestLog(root, `ingest [[${page.title}]] ← \`${page.sourceRelative}\``)
     await touchOverview(root, page.title)
-    await upsertIndexEntry(root, page.title, page.wikiRelative)
   }
   await rescanAfterIngest()
+  await rebuildIndexAfterIngest(spaceId)
 }
 
 export {
   appendIngestLog,
   maintainAfterPages,
+  rebuildIndexAfterIngest,
   rescanAfterIngest,
-  touchOverview,
-  upsertIndexEntry
+  touchOverview
 }

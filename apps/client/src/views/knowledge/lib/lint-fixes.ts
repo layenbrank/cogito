@@ -70,7 +70,7 @@ async function fixBrokenLinkStubs(input: {
       .toLowerCase()
       .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')
       .slice(0, 48)
-    const relative = `wiki/${slug || `stub-${Date.now()}`}.md`
+    const relative = `wiki/concepts/${slug || `stub-${Date.now()}`}.md`
     const absolute = joinPath(input.rootPath, relative)
     if (await exists(absolute)) continue
     const body = `---\ntitle: ${JSON.stringify(title)}\ntype: concept\n---\n\n# ${title}\n\n> stub：由 Lint 一键修复创建\n`

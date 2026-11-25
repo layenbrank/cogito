@@ -10,13 +10,13 @@ interface DemoWikiFile {
   content: string
 }
 
-const DEMO_WIKI_NAME = '示例知识库'
+const DEMO_WIKI_NAME = '示例空间'
 const DEMO_WIKI_SLUG = 'demo-wiki'
 
 const DEMO_WIKI_FILES: readonly DemoWikiFile[] = [
   {
     relative: 'purpose.md',
-    content: `# 项目意图 — 示例知识库
+    content: `# 项目意图 — 示例空间
 
 ## 目标
 
@@ -131,7 +131,7 @@ type: log
 
 ## 操作记录
 
-- 导入示例知识库：写入示例 purpose/schema 与示例页
+- 导入示例空间：写入示例 purpose/schema 与示例页
 `
   },
   {

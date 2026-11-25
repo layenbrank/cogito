@@ -6,7 +6,7 @@ import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 import {
@@ -157,6 +157,10 @@ function GraphCanvas(props: {
       }}
       onPointerUp={function () {
         dragRef.current = null
+      }}
+      onPointerCancel={function () {
+        // 指针被系统/滚动夺走时也要收尾，否则拖拽态会卡住
+        dragRef.current = null
       }}>
       <svg
         width={size.width}
@@ -229,14 +233,14 @@ function GraphCanvas(props: {
 }
 
 function GraphTab() {
-  const docs = useKnowledgeBaseStore(function (state) {
+  const docs = useSpacesStore(function (state) {
     return state.docs
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
   const [graph, setGraph] = useState<WikiGraph | null>(null)
   const [busy, setBusy] = useState(false)
@@ -263,11 +267,11 @@ function GraphTab() {
   )
 
   async function rebuild() {
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
+    const space = spaces.find(function (item) {
+      return item.id === activeSpaceID
     })
-    if (!base?.rootPath) {
-      setError('无活动知识库')
+    if (!space?.rootPath) {
+      setError('无活动空间')
       return
     }
     setBusy(true)
@@ -277,7 +281,7 @@ function GraphTab() {
       for (const doc of docs) {
         if (!/\.md$/i.test(doc.relPath)) continue
         try {
-          const content = await readTextFile(joinPath(base.rootPath, doc.relPath))
+          const content = await readTextFile(joinPath(space.rootPath, doc.relPath))
           pages.push({
             relative: doc.relPath,
             title: doc.title,
@@ -314,11 +318,11 @@ function GraphTab() {
 
   function openPreviewInWiki() {
     if (!preview) return
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
+    const space = spaces.find(function (item) {
+      return item.id === activeSpaceID
     })
-    if (!base?.rootPath) return
-    openEditorPath(joinPath(base.rootPath, preview.relative))
+    if (!space?.rootPath) return
+    openEditorPath(joinPath(space.rootPath, preview.relative))
   }
 
   return (

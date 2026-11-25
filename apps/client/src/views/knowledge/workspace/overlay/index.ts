@@ -1,4 +1,4 @@
-import Utility from '@/views/knowledge/workspace/overlay/utility.tsx'
+import { DocumentHeader } from '@/views/knowledge/workspace/overlay/document-header.tsx'
 import Section from '@/views/knowledge/workspace/overlay/section.tsx'
 import Navigation from '@/views/knowledge/workspace/overlay/navigation.tsx'
 import Outline from '@/views/knowledge/workspace/overlay/outline.tsx'
@@ -8,7 +8,7 @@ import Outline from '@/views/knowledge/workspace/overlay/outline.tsx'
  * 窗口壳只放标题 / 应用菜单 / 状态栏，勿把这里的工具塞进 Caption。
  */
 const Overlay = {
-  Utility,
+  DocumentHeader,
   Section,
   Navigation,
   Outline

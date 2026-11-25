@@ -1,7 +1,7 @@
 /**
  * Markdown 工作区 · 左侧文件导航：搜索/新建工具条 + 文件树 + 右键新建/重命名/删除。
  */
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { findFileName, isSamePath } from '@/views/knowledge/lib/path.ts'
 import { t } from '@/views/knowledge/locale.ts'
@@ -35,19 +35,19 @@ function Navigation(props: NavigationProps) {
   const fileQuery = useKnowledgeStore(function (state) {
     return state.fileQuery
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
-  const activeBaseID = useKnowledgeBaseStore(function (state) {
-    return state.activeBaseID
+  const activeSpaceID = useSpacesStore(function (state) {
+    return state.activeSpaceID
   })
 
-  const activeBase = bases.find(function (base) {
-    return base.id === activeBaseID
+  const activeSpace = spaces.find(function (space) {
+    return space.id === activeSpaceID
   })
   const rootTitle =
-    rootDir && activeBase && isSamePath(rootDir, activeBase.rootPath)
-      ? activeBase.name
+    rootDir && activeSpace && isSamePath(rootDir, activeSpace.rootPath)
+      ? activeSpace.name
       : rootDir
         ? findFileName(rootDir) || t('WORKSPACE')
         : t('WORKSPACE')

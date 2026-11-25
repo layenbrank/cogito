@@ -36,8 +36,8 @@ function hasRegisteredIngestAnalyzer(): boolean {
 }
 
 function fileStem(path: string): string {
-  const base = path.split(/[/\\]/).pop() ?? path
-  return base.replace(/\.[^.]+$/, '')
+  const space = path.split(/[/\\]/).pop() ?? path
+  return space.replace(/\.[^.]+$/, '')
 }
 
 function analyzeDeterministic(

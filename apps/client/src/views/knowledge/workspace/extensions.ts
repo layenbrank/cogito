@@ -27,10 +27,12 @@ import { all, createLowlight } from 'lowlight'
 import { toast } from 'sonner'
 
 import { IMAGE_MAX_SIZE, uploadMarkdownImage } from '@/views/knowledge/lib/image-upload.ts'
+import { Callout } from '@/views/knowledge/workspace/callout-extension.ts'
 import { MathBlock, MathInline } from '@/views/knowledge/workspace/math-extension.ts'
 import { MermaidBlock } from '@/views/knowledge/workspace/mermaid-extension.ts'
 import { SearchHighlight } from '@/views/knowledge/workspace/search-highlight-extension.ts'
 import { Wikilink } from '@/views/knowledge/workspace/wikilink-extension.ts'
+import { WikilinkSuggest } from '@/views/knowledge/workspace/wikilink-suggest.tsx'
 import { t } from '@/views/knowledge/locale.ts'
 
 const lowlight = createLowlight(all)
@@ -60,6 +62,7 @@ function findMarkdownExtensions(options: {
       defaultProtocol: 'https'
     }),
     Wikilink,
+    WikilinkSuggest,
     Placeholder.configure({
       placeholder: t('PLACEHOLDER')
     }),
@@ -92,6 +95,7 @@ function findMarkdownExtensions(options: {
     MathBlock,
     MathInline,
     MermaidBlock,
+    Callout,
     SearchHighlight
   ]
 

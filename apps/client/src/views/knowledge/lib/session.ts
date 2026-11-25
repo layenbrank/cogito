@@ -2,9 +2,9 @@ import { openPath as openExternal } from '@tauri-apps/plugin-opener'
 import { exists } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
-import { GET_KNOWLEDGE_BASES, GET_KNOWLEDGE_DOC_REF, PUT_KNOWLEDGE_DOC } from '@/lib/knowledge-ipc'
+import { GET_KNOWLEDGE_SPACES, GET_KNOWLEDGE_DOC_REF, PUT_KNOWLEDGE_DOC } from '@/apis/knowledge'
 import { useDictStore } from '@/stores/dict'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
   findDefaultRoot,
@@ -41,11 +41,11 @@ async function ensureRootDir(): Promise<string> {
 
 async function findActiveBaseRoot(): Promise<string> {
   try {
-    const bases = await GET_KNOWLEDGE_BASES()
-    const active = bases.find(function (base) {
-      return base.id === useKnowledgeBaseStore.getState().activeBaseID
+    const spaces = await GET_KNOWLEDGE_SPACES()
+    const active = spaces.find(function (space) {
+      return space.id === useSpacesStore.getState().activeSpaceID
     })
-    const picked = active ?? bases[0]
+    const picked = active ?? spaces[0]
     if (picked?.rootPath) return picked.rootPath
   } catch (error) {
     console.warn('[knowledge] 读取知识库目录失败，回落到默认目录:', error)
@@ -305,7 +305,7 @@ async function saveDocument(options?: {
       useKnowledgeStore.getState().toSetActiveDoc({
         matched: true,
         docId: outcome.doc?.id ?? null,
-        baseId: outcome.doc?.baseId ?? null,
+        spaceId: outcome.doc?.spaceId ?? null,
         relPath: outcome.doc?.relPath ?? null,
         hash: outcome.hash ?? null,
         revision: outcome.revision ?? null

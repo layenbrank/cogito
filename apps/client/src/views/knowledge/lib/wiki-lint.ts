@@ -1,6 +1,9 @@
 /**
- * Wiki 结构 lint：扫描 [[wikilink]]，报告断链 / 孤儿页。
+ * Wiki 结构 lint：断链 / 孤儿页 / 聚合页缺失，以及规范项（缺 type、type 与目录不符、未进 index）。
  */
+import { parseFrontMatter } from '@/views/knowledge/lib/front-matter.ts'
+import { TYPE_DIR, findWikiDirForType } from '@/views/knowledge/lib/wiki-type-dirs.ts'
+
 const WIKILINK_RE = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g
 
 interface WikiPage {
@@ -15,6 +18,9 @@ type LintIssueKind =
   | 'missing-index'
   | 'duplicate-title'
   | 'thin-page'
+  | 'missing-type'
+  | 'type-dir-mismatch'
+  | 'not-in-index'
 
 interface LintIssue {
   id: string
@@ -84,6 +90,48 @@ function lintWikiPages(pages: WikiPage[]): LintIssue[] {
       page: 'wiki/index.md',
       detail: '缺少 index.md'
     })
+  }
+
+  // 规范项：内容页必须有合法 type、落到对应目录、并出现在 index 里
+  const indexPage = pages.find(function (page) {
+    return /wiki[/\\]index\.md$/i.test(page.relative) || page.title.trim().toLowerCase() === 'index'
+  })
+  const indexContent = indexPage?.content ?? ''
+  for (const page of pages) {
+    const relative = page.relative.replace(/\\/g, '/')
+    if (!relative.startsWith('wiki/')) continue
+    if (/^wiki\/(index|log|overview)\.md$/i.test(relative)) continue
+
+    const { frontMatter } = parseFrontMatter(page.content)
+    const typeMatch = frontMatter?.match(/^type:\s*(\S+)/m)
+    const type = typeMatch?.[1]?.trim().toLowerCase()
+    if (!type || !(type in TYPE_DIR)) {
+      issues.push({
+        id: `type:${page.relative}`,
+        kind: 'missing-type',
+        page: page.relative,
+        detail: `缺少合法 type（当前：${type || '空'}）`
+      })
+    } else {
+      const dir = findWikiDirForType(type)
+      if (dir !== 'wiki' && !relative.startsWith(`${dir}/`)) {
+        issues.push({
+          id: `typedir:${page.relative}`,
+          kind: 'type-dir-mismatch',
+          page: page.relative,
+          detail: `type=${type} 应落在 ${dir}/`
+        })
+      }
+    }
+
+    if (indexContent && !indexContent.includes(`[[${page.title}]]`)) {
+      issues.push({
+        id: `index:${page.relative}`,
+        kind: 'not-in-index',
+        page: page.relative,
+        detail: '未出现在 wiki/index.md（可在设置 → 维护里重建索引）'
+      })
+    }
   }
 
   return issues
