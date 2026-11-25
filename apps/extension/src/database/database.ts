@@ -40,6 +40,11 @@ interface AgentThreadRow {
    * `settled` / `error`，新一轮会被当场判成结束（client 上也踩过同一个坑）。
    */
   lastSeq: number
+  /**
+   * `lastSeq` 所属的 agentd 进程。agentd 重启后 `seq` 从 0 重来，带着它订阅可以让服务端
+   * 直接判定要不要 reset，而不是靠客户端猜「这次的数字变小了」。旧行没这个字段 = null。
+   */
+  lastEpoch?: string | null
   /** agentd 里的会话 id（首轮跑完才拿得到；压缩上下文等操作需要它） */
   acpSessionID: string | null
   createdAt: number
