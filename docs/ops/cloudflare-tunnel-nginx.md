@@ -657,6 +657,12 @@ server {
     proxy_pass http://cogito_api;
   }
 
+  # 嵌入专用。带尾斜杠：/embed/v1/embeddings -> 127.0.0.1:11435/v1/embeddings
+  location /embed/ {
+    include    D:/Applications/Nginx/conf/nginxconfig.io/proxy.conf;
+    proxy_pass http://127.0.0.1:11435/;
+  }
+
   # SPA 路由回退
   location / {
     try_files $uri $uri/ /index.html;
@@ -677,6 +683,25 @@ VITE_INTELLIGENCE=/intelligence
 > `/intelligence` 在开发环境对应 `http://localhost:11434/api`（Ollama）；
 > 目前代码里只有类型声明、没有调用方，所以指到 3000 无害。真启用 AI 能力时改成
 > `proxy_pass http://127.0.0.1:11434/api/;`（**注意尾斜杠**，把 `/intelligence/x` 重写成 `/api/x`）。
+> 不要把嵌入指到这里：Ollama `0.34` 把 `dengcao/Qwen3-Embedding-0.6B:F16` 标成 completion，
+> `POST :11434/v1/embeddings` 与 `/api/embed` 都是 501。
+
+### 4.4.1 本机 Qwen3 Embedding
+
+聊天继续走 `ollama.exe serve`（`127.0.0.1:11434`）。嵌入另起 Ollama 自带的 `llama-server.exe`，只听本机 `11435`：
+
+| 项 | 值 |
+| --- | --- |
+| 程序 | `%LOCALAPPDATA%\Programs\Ollama\lib\ollama\llama-server.exe` |
+| 权重 | `ollama show dengcao/Qwen3-Embedding-0.6B:F16 --modelfile` 里的 `FROM` blob |
+| 监听 | `--host 127.0.0.1 --port 11435` |
+| 参数 | `--embedding --pooling last --embd-normalize 2 --ctx-size 2048` |
+| 别名 | `--alias dengcao/Qwen3-Embedding-0.6B:F16`（网关模型名必须与它一致） |
+| 密钥 | `--api-key-file %LOCALAPPDATA%\cogito\embed-api-key`（一行，不入库） |
+
+公网只暴露嵌入路径：`location /embed/` 反代到 `http://127.0.0.1:11435/`（见上一节）。调用方把基址写成 `https://<域名>/embed/v1`，请求 `POST /embeddings`，头 `Authorization: Bearer <密钥>`。源站不带密钥时 llama-server 回 401。`:11434` 不挂到隧道上。
+
+client 知识库预设填 `http://127.0.0.1:11435/v1`。service 与模型在同一台机器时，网关 `baseUrl` 用同一个本机地址；service 在别处时用隧道地址。日后 `ollama show` 的 Capabilities 里出现 `embedding`，可以把上游改回 `:11434/v1`，路径仍是 OpenAI `/v1/embeddings`。
 
 ### 4.5 兜底站点 `conf/sites-available/00-default.conf`
 
