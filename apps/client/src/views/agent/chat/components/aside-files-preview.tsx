@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { bumpWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import type { AsidePreviewKind } from '@/views/agent/chat/components/aside-files-preview-kind.ts'
 import { useAsideFilesEditor } from '@/views/agent/chat/components/use-aside-files-editor'
 import {
@@ -141,8 +142,10 @@ function AsideTextPreview(props: {
 }) {
   const savePathRef = useRef(props.absolutePath)
   const isReadonlyRef = useRef(props.isReadonly)
-  savePathRef.current = props.absolutePath
-  isReadonlyRef.current = props.isReadonly
+  useIsomorphicLayoutEffect(function () {
+    savePathRef.current = props.absolutePath
+    isReadonlyRef.current = props.isReadonly
+  })
   const [saveStatus, updateSaveStatus] = useState<SaveStatus>('idle')
 
   const editorApiRef = useRef<{
@@ -204,12 +207,14 @@ function AsideTextPreview(props: {
       void save()
     }
   })
-  editorApiRef.current = {
-    findValue: editor.findValue,
-    findSavedValue: editor.findSavedValue,
-    markSaved: editor.markSaved,
-    formatDocument: editor.formatDocument
-  }
+  useIsomorphicLayoutEffect(function () {
+    editorApiRef.current = {
+      findValue: editor.findValue,
+      findSavedValue: editor.findSavedValue,
+      markSaved: editor.markSaved,
+      formatDocument: editor.formatDocument
+    }
+  })
 
   useEffect(
     function () {

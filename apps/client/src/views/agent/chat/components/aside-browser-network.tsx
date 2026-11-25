@@ -19,7 +19,8 @@ import {
   type InterceptRule,
   type InterceptStatus,
   type NetworkEntry
-} from '@/features/browser/api'
+} from '@/apis/browser'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 
 interface AsideBrowserNetworkProps {
   label: string
@@ -75,8 +76,10 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
   /** 拦截实测计数：paused > 0 才说明 requestPaused 真的来了 */
   const [status, updateStatus] = useState<InterceptStatus | null>(null)
   /** 过滤输入要不要传给后端：交给后端能拿到完整列表再筛，前端只负责展示 */
-  const filterRef = useRef('')
-  filterRef.current = filter
+  const filterRef = useRef(filter)
+  useIsomorphicLayoutEffect(function () {
+    filterRef.current = filter
+  })
 
   const refresh = useCallback(
     function () {
@@ -162,6 +165,7 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
             if (event.key === 'Enter') refresh()
           }}
           placeholder="按 URL 过滤，回车应用"
+          aria-label="按 URL 过滤"
           spellCheck={false}
           className="placeholder:text-muted-foreground/70 bg-muted/40 focus:bg-muted/60 min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-hidden transition-colors"
         />

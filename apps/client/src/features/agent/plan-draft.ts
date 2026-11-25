@@ -12,6 +12,8 @@
  */
 import type { ThreadMessage } from '@assistant-ui/react'
 
+import { readModeSnapshot } from '@/features/agent/mode'
+
 interface PlanDraft {
   /** 计划标题：文档第一个 H1；没有则为空串 */
   title: string
@@ -307,5 +309,67 @@ function findPlanDraft(messages: readonly ThreadMessage[]): PlanDraft | null {
   return parsePlanText(body)
 }
 
-export { findLastAssistantText, findPlanDraft, isPlanDocument, parsePlanText }
+/**
+ * 计划模式下「够长就算计划」的字数下限。
+ *
+ * 计划模式的语义是「这一轮产出的就是计划」，所以不该再要求模型严格按模板写骨架；
+ * 但也不能把一句「这个文件是做什么的」当成可执行计划，用长度挡住短问答。
+ */
+const PLAN_MODE_FALLBACK_MIN_CHARS = 200
+
+/**
+ * 产出最后一条助手回复的那一轮用的是哪个模式。
+ *
+ * 读的是**用户消息上的模式快照**（发送那一刻写进去的），而不是"现在选中的模式"：
+ * 随手聊完再把档位切到「计划」，旧回答不该被当成计划；而真正的计划轮即便用户已切到
+ * 执行档，也该继续当成计划（执行入口就在计划页签里）。老数据没有快照 → 不猜。
+ */
+function findTurnMode(messages: readonly ThreadMessage[]): string | null {
+  let assistantIndex = messages.length - 1
+  while (assistantIndex >= 0 && messages[assistantIndex].role !== 'assistant') {
+    assistantIndex -= 1
+  }
+  if (assistantIndex < 0) return null
+  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'user') continue
+    // 快照落在 `metadata.custom`（`stampUserModeSnapshot` 写的就是那一层）；
+    // 同时兼容已经拍平到 `metadata` 上的旧形状，免得再造一个读不到的情况。
+    const custom = message.metadata?.custom as Readonly<Record<string, unknown>> | undefined
+    return (
+      readModeSnapshot(custom)?.mode ?? readModeSnapshot(message.metadata)?.mode ?? null
+    )
+  }
+  return null
+}
+
+/**
+ * 右栏「计划」页签该显示的草稿（归档记录优先，由调用方先判）。
+ *
+ * 非计划轮只认 `isPlanDocument`（H1 / 计划类章节 + 步骤），随便一句回答不该占据计划页签。
+ * 计划轮则放宽：这一轮的产出**就是**计划，没按模板写（只给「## 方案」+ 散文步骤）也应当
+ * 能「开始执行」。
+ *
+ * 两个门的顺序很重要：兜底只在「这一轮是计划轮」时生效 —— 用消息快照判，不用当前档位。
+ */
+function findPanelDraft(messages: readonly ThreadMessage[]): PlanDraft | null {
+  const text = findLastAssistantText(messages)
+  if (!text) return null
+  const parsed = parsePlanText(text)
+  if (parsed && isPlanDocument(text)) return parsed
+  if (findTurnMode(messages) !== 'plan') return null
+  if (text.length < PLAN_MODE_FALLBACK_MIN_CHARS) return null
+  if (parsed) return parsed
+  const lines = text.split('\n')
+  return { title: findTitle(lines), overview: findOverview(lines), steps: [], body: text }
+}
+
+export {
+  findLastAssistantText,
+  findPanelDraft,
+  findPlanDraft,
+  findTurnMode,
+  isPlanDocument,
+  parsePlanText
+}
 export type { PlanDraft }

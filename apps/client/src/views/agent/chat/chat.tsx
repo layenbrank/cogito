@@ -51,6 +51,7 @@ import { startNewThread } from '@/views/agent/chat/components/new-thread'
 import { AutomationSessionPicker } from '@/views/agent/chat/components/automation-session-picker'
 import { useWindowMinimized } from '@/features/window/use-window-minimized'
 import {
+  clampSplitterLayout,
   findDefaultLayout,
   findPreferredLayout,
   findSplitterLayout,
@@ -83,7 +84,7 @@ import { PlanFileSync } from '@/views/agent/chat/components/plan-file-sync'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
 import { PromptLibraryManager } from '@/views/agent/chat/components/prompt-library-manager'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
-import { AgentFileChangeTree } from '@/views/agent/chat/components/file-change-tree'
+import { AgentRunSummary } from '@/views/agent/chat/components/agent-run-summary'
 import { MessageTimingStats } from '@/views/agent/chat/components/message-timing'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
@@ -228,7 +229,12 @@ function AgentChatLayout() {
   /** 唯一写回 Splitter 的入口：永远是 applied，不是「偏好展开比例」 */
   const commitAppliedLayout = useCallback(
     function (open: SplitterOpen) {
-      const applied = resolveSplitterLayout(open, preferredLayoutRef.current)
+      // 偏好里存的是比例，min/max 得按**当前**容器宽度换算：直接回放比例会把侧栏压到
+      // SESSION_MIN 以下（标题挤成 0 宽、行内按钮重叠），setLayout 自己不管 min。
+      const applied = clampSplitterLayout(
+        resolveSplitterLayout(open, preferredLayoutRef.current),
+        bodyRef.current?.getBoundingClientRect().width ?? 0
+      )
       appliedLayoutRef.current = applied
       try {
         // Splitter.setLayout 内部同值会短路
@@ -265,7 +271,7 @@ function AgentChatLayout() {
             ToolFallback: AgentToolCard,
             ReasoningGroup: AgentProcessGroup,
             ProcessFooter: MessageTimingStats,
-            RunSummary: AgentFileChangeTree,
+            RunSummary: AgentRunSummary,
             ComposerStart: ComposerActions,
             ComposerAttach: null,
             ComposerEnd: ComposerEnd,
@@ -500,7 +506,10 @@ function AgentChatLayout() {
       if (width > 0) {
         const preferred = findPreferredLayout(layoutSeed.stored, findDefaultLayout(width))
         preferredLayoutRef.current = preferred
-        appliedLayoutRef.current = resolveSplitterLayout(openRef.current, preferred)
+        appliedLayoutRef.current = clampSplitterLayout(
+          resolveSplitterLayout(openRef.current, preferred),
+          width
+        )
       }
       commitAppliedLayout(openRef.current)
       updateBootstrapping(false)

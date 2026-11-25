@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createLanguageModel } from '@/lib/monaco-language.ts'
 import { importMonaco } from '@/lib/monaco-loader.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
-import type { DiffResult } from '@/lib/workspace-git'
+import type { DiffResult } from '@/apis/workspace-git'
 import { useCodeStore } from '@/stores/code'
 import { findLanguageId } from '@/views/code/lib/language.ts'
 

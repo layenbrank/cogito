@@ -16,8 +16,8 @@ pub struct Model {
     /// 交给智能体的一句话（到期时按它起一次会话）
     pub prompt: String,
     /// 关联知识库；为空表示与具体库无关
-    #[sea_orm(column_name = "knowledgeBaseID")]
-    pub knowledge_base_id: Option<String>,
+    #[sea_orm(column_name = "knowledgeSpaceID")]
+    pub knowledge_space_id: Option<String>,
     /// 执行时的工作区（`agent_workspace` 的 id）；为空 = 家目录
     #[sea_orm(column_name = "workspaceID")]
     pub workspace_id: Option<String>,

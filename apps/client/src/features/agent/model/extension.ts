@@ -105,12 +105,22 @@ function findExtensionKey(entry: ExtensionEntry): string {
   return entry.configKey?.trim() || findExtensionName(entry.extension)
 }
 
-/** 一句话描述：MCP 显示端点（stdio 显示命令行），内置 / 平台显示类型 */
+/**
+ * 一句话描述：MCP 显示端点（stdio 显示命令行）；内置 / 平台优先用 goose 给的 `description`。
+ *
+ * 这里曾经对 `type !== 'mcp'` 直接返回类型标签（「平台」/「内置」），而卡片同一行左侧
+ * 已经有一个同文 `Badge` —— 结果每张平台卡下面都只是把「平台」重复一遍，goose 在
+ * `config.yaml` 里明明给了 `description`（"Search past conversations and load session
+ * summaries…" 这类）却永远不显示。只有真的没有描述时才退回一句说明，且不退回标签。
+ */
 function describeExtension(extension: GooseExtension): string {
-  if (extension.type !== 'mcp') return EXTENSION_TYPE_LABELS[extension.type]
-  const server = extension.server
-  if (server.type === 'http') return server.url
-  return [server.command, ...server.args].join(' ')
+  if (extension.type === 'mcp') {
+    const server = extension.server
+    return server.type === 'http' ? server.url : [server.command, ...server.args].join(' ')
+  }
+  const description = extension.description?.trim()
+  if (description) return description
+  return extension.type === 'platform' ? '由 Goose 平台托管' : '随应用安装的内置扩展'
 }
 
 /** 展示名：MCP 用 `server.name`，内置 / 平台用 `display_name`（没给就退回扩展名） */

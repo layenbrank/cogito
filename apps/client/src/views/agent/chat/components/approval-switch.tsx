@@ -20,7 +20,6 @@ import {
   type ApprovalMode
 } from '@/features/agent/approval.ts'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
-import { readAgentModeFor } from '@/features/agent/mode'
 import { readScopeThread } from '@/features/agent/thread-scope'
 
 /** 输入区审批策略（Qoder 风格：图标 + 标题 + 说明 + 勾选） */
@@ -29,11 +28,10 @@ function ApprovalSwitch() {
   // 会话级状态：切会话后必须跟着刷新，否则显示的会是上一个会话的档位
   const mode = useSyncExternalStore(subscribeApproval, readApprovalMode, readApprovalMode)
   /**
-   * 显示的是**有效档**而不是原始偏好：计划模式强制只读，偏好是「询问」也不该那么写。
+   * 显示用户选的审批档。问答 / 计划能不能写由会话模式决定，不改这里的偏好。
    * 以前这里还拿 `store.activeSessionID` 去定位 ACP 会话 —— 那个指针只跟随启动时的
    * 列表首项，切会话后不更新，结果是「改 A 会话的档、推给 B 会话」。
    */
-  const isPlanMode = snap ? readAgentModeFor(snap) === 'plan' : false
   const effective = snap ? findEffectiveApprovalMode(snap) : mode
 
   const current = findApprovalPolicy(effective)
@@ -48,7 +46,6 @@ function ApprovalSwitch() {
     }
 
     try {
-      // 统一走「有效档」同步：计划模式下这里会把它改回只读
       await syncApprovalForThread(snap)
       toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」`)
     } catch (error) {
@@ -90,12 +87,9 @@ function ApprovalSwitch() {
         {APPROVAL_POLICIES.map(function (policy) {
           const isCurrent = policy.value === effective
           const isReadonly = policy.value === 'readonly'
-          // 计划模式强制只读：其它两档点了也会被 `findEffectiveApprovalMode` 改回去，直接禁掉并说明
-          const disabled = isPlanMode && policy.value !== 'readonly'
           return (
             <DropdownMenuItem
               key={policy.value}
-              disabled={disabled}
               className={`${styles.row} ${isReadonly ? styles.rowReadonly : ''}`}
               onClick={function () {
                 void writeMode(policy.value)
@@ -108,9 +102,7 @@ function ApprovalSwitch() {
                 <span className={`${styles.label} ${isReadonly ? styles.labelMuted : ''}`}>
                   {policy.label}
                 </span>
-                <span className={styles.hint}>{
-                  disabled ? '计划模式强制只读（切到执行/问答模式后可改）' : policy.hint
-                }</span>
+                <span className={styles.hint}>{policy.hint}</span>
               </span>
               {isCurrent ? (
                 <Icon

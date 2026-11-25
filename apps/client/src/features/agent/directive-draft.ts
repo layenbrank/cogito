@@ -8,13 +8,13 @@
  */
 import { toast } from 'sonner'
 
-import { PUT_DIRECTIVE_DRAFT_STATUS } from '@/lib/directive-draft-ipc'
-import { POST_SIDECAR_VALIDATE } from '@/lib/directive-ipc'
+import { PUT_DIRECTIVE_DRAFT_STATUS } from '@/apis/directive-draft'
+import { POST_SIDECAR_VALIDATE } from '@/apis/directive'
 import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import { DirectiveContentSchema, type DirectiveContent } from '@/shared/ipc/specs/sidecar'
 import { rememberPendingDefinition } from '@/stores/corex'
 import { useDirectiveDraftStore } from '@/stores/directive-draft'
-import type { DirectiveDraft } from '@/lib/directive-draft-ipc'
+import type { DirectiveDraft } from '@/apis/directive-draft'
 import { reportCaught } from '@/utils/exception-report'
 
 type DirectiveDraftParse =

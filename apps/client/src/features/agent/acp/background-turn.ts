@@ -21,7 +21,7 @@ import {
   DELETE_AGENT_TURN,
   GET_AGENT_TURNS_RUNNING,
   PUT_AGENT_TURN_RUNNING
-} from '@/features/agent/acp/agent-turn-ipc'
+} from '@/apis/agent-turn'
 
 type TurnListener = (event: ChatStreamEvent | null) => void
 
@@ -386,6 +386,14 @@ async function abortBackgroundTurn(threadID: string): Promise<void> {
       }
       existing.status = 'done'
       if (turns.get(key) === existing) turns.delete(key)
+      // 强行让位也要先把已有的输出落库：不落的话这一轮的回复就永远没了（F-018）
+      if (!existing.deliveredTerminal && existing.persister) {
+        try {
+          await existing.persister(existing)
+        } catch (error) {
+          console.warn('[acp/background-turn] 强行让位时补写历史失败:', error)
+        }
+      }
       clearPersistedRunning(key)
       void PUT_AGENT_TURN_FINISH(key).catch(function (error: unknown) {
         console.warn('[acp/background-turn] 强行让位时收尾失败:', error)
@@ -443,12 +451,15 @@ function spawnBackgroundPump(
         notifyTurn(turn, failed)
       }
     } finally {
-      // 终态已在 events 里：立刻标 done（hasRunning / 测试依赖）；Rust finish 仍等 append 排空
+      // 终态已在 events 里：立刻标 done（hasRunning / 测试依赖）
       turn.status = 'done'
-      clearPersistedRunning(turn.threadID)
       await drainPendingAppend(turn)
-      await PUT_AGENT_TURN_FINISH(turn.threadID)
-      notifyTurn(turn, null)
+      /**
+       * 顺序很重要：**先落历史，再清「还在跑」的标记**（F-018）。
+       *
+       * 反过来时，用户正好在这两步之间刷新：`load()` 看到「没有 running 标记」，
+       * 也就不去补写；而补写还没来得及发生 —— 回复永久丢失。
+       */
       if (!turn.deliveredTerminal && turn.persister) {
         try {
           await turn.persister(turn)
@@ -456,6 +467,9 @@ function spawnBackgroundPump(
           console.warn('[acp/background-turn] 补写历史失败:', error)
         }
       }
+      clearPersistedRunning(turn.threadID)
+      await PUT_AGENT_TURN_FINISH(turn.threadID)
+      notifyTurn(turn, null)
       // 先落历史再通知：续跑那一轮要能读到上一轮的消息
       await notifyTurnFinished(turn)
       forgetTurnLater(turn)

@@ -182,7 +182,10 @@ impl AgentdState {
 
     /// 令牌只生成一次：agentd 重启后前端不必重新取 endpoint 的 token 字段。
     fn ensure_token(&self) -> Result<String, String> {
-        let mut guard = self.token.lock().map_err(|e| format!("锁定 agentd token 失败: {e}"))?;
+        let mut guard = self
+            .token
+            .lock()
+            .map_err(|e| format!("锁定 agentd token 失败: {e}"))?;
         if let Some(token) = guard.as_ref() {
             return Ok(token.clone());
         }
@@ -522,10 +525,7 @@ fn build_command(
         .env("AGENTD_PORT", "0")
         .env("AGENTD_DB", db_path.to_string_lossy().into_owned())
         .env("AGENTD_GOOSE_PATH_ROOT", goose_root)
-        .env(
-            "AGENTD_VERSION",
-            app.package_info().version.to_string(),
-        )
+        .env("AGENTD_VERSION", app.package_info().version.to_string())
         .env(
             "AGENTD_ISOLATED",
             if crate::utils::instance::isolated() {
@@ -578,12 +578,8 @@ fn staged_binary_path(name: &str) -> Option<String> {
     let triple = tauri::utils::platform::target_triple().ok()?;
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("binaries")
-        .join(format!(
-            "{name}-{triple}{}",
-            std::env::consts::EXE_SUFFIX
-        ));
-    path.is_file()
-        .then(|| path.to_string_lossy().into_owned())
+        .join(format!("{name}-{triple}{}", std::env::consts::EXE_SUFFIX));
+    path.is_file().then(|| path.to_string_lossy().into_owned())
 }
 
 /// `<appLocalData>/agentd/agentd.db`（`instance` 隔离由 identifier 派生，dev 天然分开）。

@@ -16,7 +16,8 @@ import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { WorkspaceFiles, type DirEntry } from '@/lib/workspace-files.ts'
+import { WorkspaceFiles, type DirEntry } from '@/apis/workspace-files'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import { useWorkspaceFilePickerEntries } from '@/views/agent/chat/components/use-workspace-file-picker-entries.ts'
 import { PickerList } from '@/views/agent/chat/components/workspace-file-picker-list.tsx'
 import { FileTreeItem } from '@/views/workspace/overlay/file-tree-item.tsx'
@@ -86,14 +87,21 @@ function AsideFilesTree(props: AsideFilesTreeProps) {
    * onExpandChange，只要它们每帧新建，任何一次 setState 都会退化成整树重渲染。
    */
   const nodesRef = useRef(nodes)
-  nodesRef.current = nodes
   const expandedRef = useRef(expandedKeys)
-  expandedRef.current = expandedKeys
   const rootRef = useRef(props.rootPath)
-  rootRef.current = props.rootPath
+  useIsomorphicLayoutEffect(function () {
+    nodesRef.current = nodes
+    expandedRef.current = expandedKeys
+    rootRef.current = props.rootPath
+  })
   const rootSeenRef = useRef(props.rootPath)
   const onPickRef = useRef(props.onPick)
-  onPickRef.current = props.onPick
+  useIsomorphicLayoutEffect(
+    function () {
+      onPickRef.current = props.onPick
+    },
+    [props.onPick]
+  )
 
   const isSearching = query.trim().length > 0
   const search = useWorkspaceFilePickerEntries(

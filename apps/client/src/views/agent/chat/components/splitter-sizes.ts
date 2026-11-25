@@ -171,6 +171,59 @@ function findDefaultLayout(containerPx: number): SplitterLayout {
 }
 
 /**
+ * 按各栏的像素 min/max 夹一遍「展开比例」。
+ *
+ * 偏好里存的是**比例**、记的却是在某个窗口宽度下拖出来的宽度：换到更窄的窗口后按比例还原，
+ * 左栏会掉到 `SESSION_MIN` 以下（220 的栏只剩一百多 px）—— 工作区标题被挤成 0 宽、行尾按钮
+ * 被裁掉、空态文案挤成三字一行，看起来就是文字和图标叠在一起。`Splitter.setLayout` 只认比例、
+ * 不认 min，所以每次把 applied 写回去之前先在这里夹一次。
+ *
+ * 折叠栏（0）与专注态（中栏 0）保持原样；窄到三栏 min 都装不下时，退让顺序与
+ * `findDefaultLayout` 一致：先保中栏 `WORKBENCH_MIN`，两侧按比例退到各自 min。
+ */
+function clampSplitterLayout(layout: SplitterLayout, containerPx: number): SplitterLayout {
+  const usable = containerPx - HANDLE_TOTAL_PX
+  if (!(usable > 0)) return layout
+
+  const sessionPct = layout[SESSION_ID] ?? 0
+  const mainPct = layout[MAIN_ID] ?? 0
+  const planPct = layout[PLAN_ID] ?? 0
+  const isSessionOpen = sessionPct > COLLAPSED_PCT
+  const isPlanOpen = planPct > COLLAPSED_PCT
+  // 专注工作区（中栏 0）与全折叠：比例由开合状态决定，不夹
+  if (!isSessionOpen && !isPlanOpen) return layout
+  if (!(mainPct > COLLAPSED_PCT)) return layout
+
+  const toPx = function (pct: number) {
+    return (pct / 100) * containerPx
+  }
+  let session = isSessionOpen ? clampSize(toPx(sessionPct), SESSION_MIN, SESSION_MAX) : 0
+  let plan = isPlanOpen ? clampSize(toPx(planPct), PLAN_MIN, PLAN_MAX) : 0
+  let main = Math.max(0, usable - session - plan)
+
+  if (main < WORKBENCH_MIN && session + plan > 0) {
+    const minSides = (isSessionOpen ? SESSION_MIN : 0) + (isPlanOpen ? PLAN_MIN : 0)
+    const budget = Math.max(minSides, usable - WORKBENCH_MIN)
+    const sides = session + plan
+    if (sides > budget) {
+      const scale = budget / sides
+      session = isSessionOpen ? Math.max(SESSION_MIN, session * scale) : 0
+      plan = isPlanOpen ? Math.max(PLAN_MIN, plan * scale) : 0
+      main = Math.max(0, usable - session - plan)
+    }
+  }
+
+  const total = session + main + plan
+  if (!(total > 0)) return layout
+
+  return {
+    [SESSION_ID]: (session / total) * 100,
+    [MAIN_ID]: (main / total) * 100,
+    [PLAN_ID]: (plan / total) * 100
+  }
+}
+
+/**
  * 把存档比例与开合偏好合成首屏 layout。
  * 避免「先按三栏全开画一帧，再用 expand/collapse 过渡」的闪烁。
  */
@@ -287,6 +340,7 @@ function writeSplitterOpen(open: SplitterOpen): void {
 }
 
 export {
+  clampSplitterLayout,
   COLLAPSED_PCT,
   FALLBACK_LAYOUT,
   findDefaultLayout,

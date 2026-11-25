@@ -28,7 +28,7 @@ struct DuePayload {
     automationId: String,
     name: String,
     prompt: String,
-    knowledgeBaseId: Option<String>,
+    knowledgeSpaceId: Option<String>,
     /// 执行工作区（`agent_workspace` id）；为空 = 家目录
     workspaceId: Option<String>,
     /// 工作区下具体目录（绝对路径）；为空 = 跟随工作区默认目录
@@ -57,7 +57,7 @@ impl DuePayload {
             automationId: due.automation.id.clone(),
             name: due.automation.name.clone(),
             prompt: due.automation.prompt.clone(),
-            knowledgeBaseId: due.automation.knowledge_base_id.clone(),
+            knowledgeSpaceId: due.automation.knowledge_space_id.clone(),
             workspaceId: due.automation.workspace_id.clone(),
             workspacePath: due.automation.workspace_path.clone(),
             sessionMode: due.automation.session_mode.clone(),

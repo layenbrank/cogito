@@ -38,8 +38,12 @@ import {
   findGoalSignal,
   parseGoalProgress,
   readGoalRun,
+  renewGoalTurn,
   setGoalProgress
 } from '@/features/agent/goal-run'
+
+/** 租约续期间隔：TTL 是 10 分钟，30 秒续一次（与前台 `port/model` 同一口径） */
+const GOAL_LEASE_RENEW_MS = 30_000
 
 /** 跑一轮需要的会话上下文；由 model port 在每次运行时登记 */
 interface GoalTurnContext {
@@ -130,7 +134,19 @@ async function appendUserMessage(threadID: string, text: string): Promise<void> 
 /** 在后台起一轮目标推进（不经过 composer，不需要 UI 订阅） */
 function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContext): void {
   // 新一轮的租约在这里建（与 `port/model` 同一口径）：只有真正开跑的一方才持有推进权
-  beginGoalTurn(threadID)
+  const leaseRunID = beginGoalTurn(threadID)
+  /**
+   * 租约 TTL 只有 10 分钟，而长任务经常跑更久：不续租的话任何一次 `hydrate()` 都会把
+   * 记录打成 `interrupted`，推进链断在半路（F-016）。
+   */
+  let leaseTimer: number | null = null
+  if (leaseRunID) {
+    leaseTimer = window.setInterval(function () {
+      if (renewGoalTurn(threadID, leaseRunID)) return
+      if (leaseTimer !== null) window.clearInterval(leaseTimer)
+      leaseTimer = null
+    }, GOAL_LEASE_RENEW_MS)
+  }
   void (async function () {
     // 与前台 port.run 同槽：若仍有旧泵（极少见竞态），先停再开，避免 start 冲突
     if (hasRunningBackgroundTurn(threadID)) {
@@ -162,6 +178,9 @@ function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContex
           workspaceID: context.workspaceID,
           providerID: context.providerID,
           modelID: context.modelID,
+          // 上面拼的是目标模式的约束，goose 会话档与审批策略也必须是目标模式，
+          // 否则用户把会话切到计划档后，续跑会被自己的计划档拒写（F-013）
+          agentMode: 'goal',
           signal
         })) {
           if (item.kind === 'update') {
@@ -212,6 +231,9 @@ function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContex
     // 回合结束事件可推进，只能等下次启动的崩溃自愈 —— 用户看到的是「推进中」但永远不动。
     console.warn('[agent/goal-continue] 启动后台轮次失败，目标转为暂停:', threadID, error)
     finishGoalRun(threadID, 'paused')
+  }).finally(function () {
+    if (leaseTimer !== null) window.clearInterval(leaseTimer)
+    leaseTimer = null
   })
 }
 

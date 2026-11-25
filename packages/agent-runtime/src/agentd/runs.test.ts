@@ -11,15 +11,58 @@ import { describe, expect, it } from 'vitest'
 import { createRunCursor, parseRunFrame } from './runs'
 
 describe('parseRunFrame', function () {
-  it('sync 帧带出权威游标', function () {
-    expect(parseRunFrame({ event: 'sync', data: { lastSeq: 7 } })).toEqual({
+  it('sync 帧带出权威游标与 epoch/gap', function () {
+    expect(
+      parseRunFrame({
+        event: 'sync',
+        data: {
+          epoch: 'E1',
+          lastSeq: 7,
+          minSeq: 3,
+          truncated: true,
+          reset: false,
+          approvals: [{ requestId: 'r1' }],
+          elicitations: [{ requestId: 'e1' }]
+        }
+      })
+    ).toEqual({
       kind: 'sync',
-      lastSeq: 7
+      lastSeq: 7,
+      epoch: 'E1',
+      minSeq: 3,
+      truncated: true,
+      reset: false,
+      approvals: [{ requestId: 'r1' }],
+      elicitations: [{ requestId: 'e1' }]
     })
   })
 
-  it('sync 帧缺字段时给 null，而不是猜一个数', function () {
-    expect(parseRunFrame({ event: 'sync', data: {} })).toEqual({ kind: 'sync', lastSeq: null })
+  it('sync 帧缺字段时给安全默认值，而不是猜一个数', function () {
+    expect(parseRunFrame({ event: 'sync', data: {} })).toEqual({
+      kind: 'sync',
+      lastSeq: null,
+      epoch: null,
+      minSeq: null,
+      truncated: false,
+      reset: false,
+      approvals: [],
+      elicitations: []
+    })
+  })
+
+  it('approval_settled / elicitation_settled 是独立帧', function () {
+    expect(
+      parseRunFrame({
+        event: 'run',
+        data: { seq: 9, kind: 'approval_settled', payload: { optionId: 'allow_once' } }
+      })
+    ).toMatchObject({ kind: 'approval_settled', seq: 9 })
+    expect(
+      parseRunFrame({
+        event: 'run',
+        data: { seq: 10, kind: 'elicitation_settled', payload: { decision: { action: 'cancel' } } }
+      })
+    ).toMatchObject({ kind: 'elicitation_settled', seq: 10 })
   })
 
   it('update 帧带出 seq 与 SessionUpdate', function () {
@@ -31,6 +74,17 @@ describe('parseRunFrame', function () {
     if (frame.kind !== 'update') return
     expect(frame.seq).toBe(3)
     expect(frame.update).toEqual({ sessionUpdate: 'plan', entries: [] })
+  })
+
+  it('replay 帧与 update 分开：补历史的文案是覆盖语义，不能混进增量', function () {
+    const frame = parseRunFrame({
+      event: 'run',
+      data: { seq: 7, kind: 'replay', payload: { sessionUpdate: 'agent_message_chunk', text: 'x' } }
+    })
+    expect(frame.kind).toBe('replay')
+    if (frame.kind !== 'replay') return
+    expect(frame.seq).toBe(7)
+    expect(frame.update).toEqual({ sessionUpdate: 'agent_message_chunk', text: 'x' })
   })
 
   it('approval / elicitation / status 各自带出 payload', function () {

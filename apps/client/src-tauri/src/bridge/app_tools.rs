@@ -272,8 +272,13 @@ async fn act(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
 
 async fn screenshot(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
     let label = resolve_label(app, arguments)?;
-    // 给模型看：JPEG 体积只有 PNG 的几分之一，判断样式/布局够用
-    agent::screenshot(app, &label, Some("jpeg")).await
+    // 给模型看：JPEG 体积只有 PNG 的几分之一，判断样式/布局够用。
+    // fullPage 默认关：整页长图既贵，又有 Chromium 在底部重复顶部的问题。
+    let full_page = arguments
+        .get("fullPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    agent::screenshot(app, &label, Some("jpeg"), full_page).await
 }
 
 fn network_list(app: &AppHandle, arguments: &Value) -> Result<Value, String> {

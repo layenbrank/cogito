@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react'
 
 import { resolveRunMode } from '@/features/agent/mode'
 import { findLastAssistantText, isPlanDocument, parsePlanText } from '@/features/agent/plan-draft'
+import { isPlanExecuteIntent } from '@/features/agent/plan-execute'
 import { bumpRevision, digestPlan, readPlan, savePlan } from '@/features/agent/plan-store'
 
 import { useSessionThreadID } from './use-session-thread-id'
@@ -30,7 +31,23 @@ function PlanRecorder() {
     // **只录计划模式那一轮**：以前只看正文形状，普通回答里带个 H1 + 两条编号
     // （「1. 先跑 lint 2. 再跑单测」）就被当成计划塞进右栏，页签一直挂着不是计划的计划。
     if (resolveRunMode(state.thread.messages) !== 'plan') return ''
-    return findLastAssistantText(state.thread.messages) ?? ''
+    const messages = state.thread.messages
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message.role !== 'user') continue
+      const text = message.content
+        .filter(function (part) {
+          return part.type === 'text'
+        })
+        .map(function (part) {
+          return part.type === 'text' ? part.text : ''
+        })
+        .join('\n')
+      // 「开始执行」那一轮的回复是实施说明，不能覆盖计划档案
+      if (isPlanExecuteIntent(text)) return ''
+      break
+    }
+    return findLastAssistantText(messages) ?? ''
   })
   /** 已处理过的「线程 + 正文」：同一段正文不重复写库 */
   const handled = useRef<string | null>(null)

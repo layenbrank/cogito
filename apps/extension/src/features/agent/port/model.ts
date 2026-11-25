@@ -35,11 +35,17 @@ import {
 } from '@cogito/agent-runtime/acp'
 import {
   createApprovalLedger,
+  createElicitationRegistry,
   postApproval,
   postElicitation
 } from '@cogito/agent-runtime/agentd/approvals'
-import { AGENTD_ROUTES, createRunCursor, parseRunFrame } from '@cogito/agent-runtime/agentd/runs'
-import { readSse } from '@cogito/agent-runtime/agentd/sse'
+import { AGENTD_ROUTES } from '@cogito/agent-runtime/agentd/runs'
+import type {
+  AgentdApprovalTicket,
+  AgentdElicitationPayload
+} from '@cogito/agent-runtime/agentd/runs'
+import { runTurn } from '@cogito/agent-runtime/agentd/turn'
+import type { TurnCursor, TurnItem } from '@cogito/agent-runtime/agentd/turn'
 import { decideApproval, findGooseMode } from '@cogito/agent-runtime/policy'
 import type {
   ChatElicitationResponse,
@@ -52,11 +58,8 @@ import type {
 } from '@cogito/chat/ports'
 
 import { database } from '@/database/database.ts'
-import { agentdTransport, callBridge, callBridgeJson } from '@/features/bridge/client-bridge.ts'
+import { agentdTransport, callBridgeJson } from '@/features/bridge/client-bridge.ts'
 import { findPref } from '@/features/platform/prefs.ts'
-
-/** 一轮的兜底上限：真跑一小时也该有 settled，这里只防「事件流永久不闭嘴」 */
-const RUN_IDLE_TIMEOUT_MS = 60 * 60_000
 
 interface AgentRunHost {
   threadID: string
@@ -65,18 +68,13 @@ interface AgentRunHost {
 /** 正在跑的那一轮（本地侧只需要「能取消」与「能往流里塞事件」） */
 interface LiveRun {
   controller: AbortController
-  inject: (event: ChatStreamEvent) => void
-}
-
-/** 本地注入队列：审批结论走它跟 SSE 帧抢同一个消费循环 */
-interface InjectQueue {
-  push: (event: ChatStreamEvent) => void
-  take: () => Promise<ChatStreamEvent>
+  inject: (item: TurnItem) => void
 }
 
 /** 审批票据（与 client 共用同一份账本实现） */
-const approvalLedger = createApprovalLedger()/** 追问票据：`elicitationId → 发起它的会话`（回执只有 elicitationId，要靠它定位线程） */
-const pendingElicitations = new Map<string, { threadID: string; requestId: string }>()
+const approvalLedger = createApprovalLedger()
+/** 追问票据：回执只有 elicitationId，要靠它定位线程（与审批账本同生命周期） */
+const pendingElicitations = createElicitationRegistry()
 /** 活跃轮：审批回执要注入**票据所属**那一轮，而不是「当前」那一轮 */
 const liveRuns = new Map<string, LiveRun>()
 
@@ -101,33 +99,6 @@ function findRunPrompt(messages: readonly ChatRunMessage[]): string {
   return ''
 }
 
-/**
- * 可注入的单消费者队列：审批结论与 SSE 事件要进同一条流。
- *
- * 没有它，「点了审批没反应」是必然：审批卡的 `requires-action` 只有等到 `tool-result`
- * 才会消失，而工具可能跑几分钟。
- */
-function makeInjectQueue(): InjectQueue {
-  const events: ChatStreamEvent[] = []
-  let wake: (() => void) | null = null
-  return {
-    push(event: ChatStreamEvent) {
-      events.push(event)
-      const resume = wake
-      wake = null
-      resume?.()
-    },
-    take() {
-      if (events.length > 0) return Promise.resolve(events.shift() as ChatStreamEvent)
-      return new Promise<ChatStreamEvent>(function (resolve) {
-        wake = function () {
-          resolve(events.shift() as ChatStreamEvent)
-        }
-      })
-    }
-  }
-}
-
 /** 让 agentd 停掉这个线程上正在跑的那一轮（幂等：没有活跃轮时 agentd 回 200） */
 function requestThreadCancel(threadID: string): void {
   void agentdTransport
@@ -141,9 +112,13 @@ function requestThreadCancel(threadID: string): void {
 async function persistCursor(
   threadID: string,
   lastSeq: number,
-  acpSessionID: string | null
+  acpSessionID: string | null,
+  lastEpoch: string | null
 ): Promise<void> {
-  const patch: { lastSeq: number; acpSessionID?: string } = { lastSeq }
+  const patch: { lastSeq: number; lastEpoch: string | null; acpSessionID?: string } = {
+    lastSeq,
+    lastEpoch
+  }
   if (acpSessionID) patch.acpSessionID = acpSessionID
   await database.agentThread.update(threadID, patch)
 }
@@ -162,12 +137,39 @@ async function findAcpSessionID(threadID: string): Promise<string | null> {
   }
 }
 
+/** 协议层的追问票据 → UI 事件（能不能渲染已经由状态机的谓词判过） */
+function toElicitationEvent(request: AgentdElicitationPayload['elicitation']): ChatStreamEvent {
+  const parsed = parseAcpElicitationRequest({
+    mode: 'form',
+    sessionId: request.sessionId,
+    requestedSchema: request.requestedSchema
+  } as CreateElicitationRequest)
+  if (!parsed) throw new Error('追问表单无法渲染，已拒绝')
+  return {
+    kind: 'elicitation-request',
+    elicitationId: request.requestId,
+    schema: parsed.schema,
+    ...(parsed.prompt ? { prompt: parsed.prompt } : {})
+  }
+}
+
 function buildBridgeModelPort(): ChatModelPort {
   async function* run(
     input: ChatRunInput & ChatTarget,
     signal: AbortSignal
   ): AsyncGenerator<ChatStreamEvent> {
-    const host = findHost(input)
+    // 首帧之前**不抛错**：抛出去时适配器只拿到一个失败的 Promise，界面会永远转圈（F-011）。
+    let host: AgentRunHost
+    try {
+      host = findHost(input)
+    } catch (error) {
+      yield {
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+        usage: {}
+      }
+      return
+    }
     const prompt = findRunPrompt(input.messages)
     if (!prompt) {
       yield { kind: 'finish', finishReason: 'end_turn', usage: {} }
@@ -175,17 +177,26 @@ function buildBridgeModelPort(): ChatModelPort {
     }
 
     const thread = await database.agentThread.get(host.threadID)
-    if (!thread) throw new Error(`会话不存在：${host.threadID}`)
-    const after = thread.lastSeq
+    if (!thread) {
+      yield { kind: 'error', message: `会话不存在：${host.threadID}`, usage: {} }
+      return
+    }
 
-    // 幂等建线程：`thread_id` 就是本地会话 id，agentd 重启后仍能对上 checkpoint
-    await callBridgeJson<unknown>(AGENTD_ROUTES.threads, {
-      method: 'POST',
-      body: JSON.stringify({ thread_id: host.threadID })
-    })
+    /**
+     * 本轮的审批档：开跑时取一次。
+     *
+     * 扩展没有计划/问答/目标档（那是桌面端的产品形态），所以 goose 会话档与审批判定
+     * 本来就同源；但判定原来每次重新读偏好 —— 用户运行中改了审批档，就会出现
+     * 「goose 按旧档、我们按新档」的分裂（与 F-013 同一类问题）。固定为一次取值。
+     */
+    const approvalMode = findPref('agent').approvalMode
 
     const controller = new AbortController()
-    const queue = makeInjectQueue()
+    /**
+     * 状态机的注入出口：审批回执要能立刻插进这一轮的事件流（否则卡片要等到
+     * `tool-result` 才离开 requires-action，而工具可能跑几分钟）。
+     */
+    const injectRef: { current: ((item: TurnItem) => void) | null } = { current: null }
     /**
      * 外部取消（用户点「停止」）要**同时**做两件事：让 agentd 停，再断本地 SSE。
      * 只断本地 SSE 的话，UI 显示「已停止」而工具还在跑 —— 它可能在写文件。
@@ -197,191 +208,142 @@ function buildBridgeModelPort(): ChatModelPort {
     if (signal.aborted) onAbort()
     else signal.addEventListener('abort', onAbort, { once: true })
 
-    liveRuns.set(host.threadID, { controller, inject: queue.push })
+    liveRuns.set(host.threadID, {
+      controller,
+      inject: function (item: TurnItem) {
+        injectRef.current?.(item)
+      }
+    })
 
-    const cursor = createRunCursor(after)
-    let isSettled = false
     /**
      * 最新拿到的 agentd 会话 id。
      *
-     * 不能直接用最上面读到的 `thread.acpSessionID` 去写 finally：首轮它是 null（不写，还好），
-     * 但从第二轮起它是**上一轮的旧值** —— settled 分支刚把新值落库，finally 会拿旧值把它盖回去。
+     * 不能直接用最上面读到的 `thread.acpSessionID` 去落库：首轮它是 null（不写，还好），
+     * 但从第二轮起它是**上一轮的旧值** —— 结案时刚把新值落库，收尾会拿旧值把它盖回去。
      */
     let acpSessionID = thread.acpSessionID
 
+    /** 收尾时把游标与会话 id 落库：刷新后再订阅才不会重放旧 `settled` */
+    async function persist(cursor: TurnCursor): Promise<void> {
+      const latest = (await findAcpSessionID(host.threadID)) ?? acpSessionID
+      if (latest) acpSessionID = latest
+      await persistCursor(host.threadID, cursor.lastSeq, latest, cursor.epoch)
+    }
+
+    const context = {
+      /** 有 messageId 就按它分段，没有就整轮一段 */
+      blockID: function (messageId: string | null | undefined, kind: 'text' | 'reasoning') {
+        return messageId ? `${kind}:${messageId}` : `${kind}:run`
+      }
+    }
+
     try {
-      // ① 先订阅
-      const eventsResponse = await callBridge(AGENTD_ROUTES.events(host.threadID, after), {
-        signal: controller.signal
-      })
-      if (!eventsResponse.ok) {
-        throw new Error(`订阅会话事件失败：${eventsResponse.status}`)
-      }
-
-      // ② 再提交这一轮
-      const mode = findGooseMode(findPref('agent').approvalMode)
-      const runResponse = await callBridge(AGENTD_ROUTES.runs(host.threadID), {
-        method: 'POST',
-        body: JSON.stringify({ input: { prompt, mode } }),
-        signal: controller.signal
-      })
-      if (!runResponse.ok) {
-        const detail = await runResponse.text().catch(function () {
-          return ''
-        })
-        throw new Error(`发起运行失败：${runResponse.status}${detail ? `：${detail}` : ''}`)
-      }
-
-      const context = {
-        /** 有 messageId 就按它分段，没有就整轮一段 */
-        blockID: function (messageId: string | null | undefined, kind: 'text' | 'reasoning') {
-          return messageId ? `${kind}:${messageId}` : `${kind}:run`
+      for await (const item of runTurn(
+        {
+          threadID: host.threadID,
+          prompt,
+          mode: findGooseMode(approvalMode)
+        },
+        {
+          threadID: host.threadID,
+          after: thread.lastSeq,
+          epoch: thread.lastEpoch ?? null,
+          gates: {
+            transport: agentdTransport,
+            ledger: approvalLedger,
+            elicitations: pendingElicitations,
+            policy: function (toolName, options) {
+              // 扩展没有计划模式与目标推进：两者都是桌面端的产品形态
+              return decideApproval({
+                toolName,
+                approvalMode,
+                planning: false,
+                goalActive: false,
+                options
+              })
+            },
+            onSettleError: function (channel, requestId) {
+              console.warn(`[agent/port] ${channel} 回执投递失败:`, requestId)
+            }
+          },
+          signal: controller.signal,
+          injectRef,
+          canRenderElicitation: function (request) {
+            // 我们只有 form 模式的渲染面：其余模式状态机会代发 decline
+            return (
+              parseAcpElicitationRequest({
+                mode: 'form',
+                sessionId: request.sessionId,
+                requestedSchema: request.requestedSchema
+              } as CreateElicitationRequest) !== null
+            )
+          },
+          onCursor: function (cursor) {
+            // 失败 / 中止也要把游标落库：否则下次订阅会把这一轮的事件整段重放
+            void persist(cursor).catch(function (error: unknown) {
+              console.warn('[agent/port] 游标落库失败:', error)
+            })
+          },
+          // 幂等建线程：`thread_id` 就是本地会话 id，agentd 重启后仍能对上 checkpoint
+          ensureThread: async function () {
+            await callBridgeJson<unknown>(AGENTD_ROUTES.threads, {
+              method: 'POST',
+              body: JSON.stringify({ thread_id: host.threadID })
+            })
+          }
         }
-      }
-      const frames = readSse(eventsResponse, controller.signal)
-      const deadline = Date.now() + RUN_IDLE_TIMEOUT_MS
-
-      while (!isSettled && Date.now() < deadline) {
-        // 两个来源抢同一个循环：SSE 帧 与 本地注入（审批结论）
-        const raced = await Promise.race([
-          frames.next().then(function (result) {
-            return { type: 'frame' as const, result }
-          }),
-          queue.take().then(function (event) {
-            return { type: 'inject' as const, event }
-          })
-        ])
-
-        if (raced.type === 'inject') {
-          yield raced.event
-          continue
-        }
-        if (raced.result.done) break
-
-        const decoded = parseRunFrame(raced.result.value)
-        if (decoded.kind === 'sync') {
-          if (decoded.lastSeq !== null) cursor.reset(decoded.lastSeq)
-          continue
-        }
-        if (decoded.kind === 'ignored') continue
-        if (decoded.seq !== null && !cursor.accept(decoded.seq)) continue
-
-        if (decoded.kind === 'update') {
-          const event = parseAcpStreamEvent(decoded.update, context)
+      )) {
+        if (item.kind === 'update') {
+          const event = parseAcpStreamEvent(item.update, context)
           if (event) yield event
           continue
         }
-
-        if (decoded.kind === 'approval') {
-          const ticket = decoded.payload.approval
-          const toolCall = ticket.toolCall as { name?: string; title?: string; toolCallId: string }
-          const toolName = toolCall.name?.trim() || toolCall.title?.trim() || ''
-          const outcome = decideApproval({
-            toolName,
-            approvalMode: findPref('agent').approvalMode,
-            // 扩展没有计划模式与目标推进：两者都是桌面端的产品形态
-            planning: false,
-            goalActive: false,
-            options: ticket.options
-          })
-          if (outcome.kind === 'cancel') {
-            // 规则要拦但拿不到合适选项：宁可按取消结案，也不能让用户把它放行
-            void postApproval(agentdTransport, host.threadID, ticket.requestId, null)
-            approvalLedger.markSettled(toolCall.toolCallId, false)
-            continue
-          }
-          if (outcome.kind !== 'ask') {
-            // 规则替用户拍板：立刻回执，且**不推给 UI**（推了会闪一下审批卡）
-            void postApproval(agentdTransport, host.threadID, ticket.requestId, outcome.optionId)
-            approvalLedger.markSettled(toolCall.toolCallId, outcome.kind === 'allow')
-            continue
-          }
-          approvalLedger.remember(toolCall.toolCallId, {
-            threadID: host.threadID,
-            requestId: ticket.requestId,
-            options: ticket.options.map(function (option) {
-              return option.optionId
-            })
-          })
-          const params = {
+        if (item.kind === 'replay') {
+          // 补历史（另一个客户端触发的 `/replay` 也会广播到这条流）：正文是完整文本，
+          // 必须走覆盖语义，否则与已渲染部分重叠
+          const event = parseAcpStreamEvent(item.update, { ...context, replace: true })
+          if (event) yield event
+          continue
+        }
+        if (item.kind === 'approval') {
+          const ticket: AgentdApprovalTicket = item.ticket
+          const event = parseAcpApprovalRequest({
             sessionId: ticket.sessionId,
             toolCall: ticket.toolCall,
             options: ticket.options
-          } as unknown as RequestPermissionRequest
-          yield parseAcpApprovalRequest(params)
+          } as unknown as RequestPermissionRequest)
+          if (event) yield event
           continue
         }
-
-        if (decoded.kind === 'elicitation') {
-          const request = decoded.payload.elicitation
-          const parsed = parseAcpElicitationRequest({
-            mode: 'form',
-            sessionId: request.sessionId,
-            requestedSchema: request.requestedSchema
-          } as CreateElicitationRequest)
-          if (!parsed) {
-            // 我们只有 form 模式的渲染面：其余模式直接 decline，别让 goose 干等
-            void postElicitation(agentdTransport, host.threadID, request.requestId, {
-              action: 'decline'
-            })
-            continue
-          }
-          pendingElicitations.set(request.requestId, {
-            threadID: host.threadID,
-            requestId: request.requestId
-          })
+        if (item.kind === 'approval_settled') {
           yield {
-            kind: 'elicitation-request',
-            elicitationId: request.requestId,
-            schema: parsed.schema,
-            ...(parsed.prompt ? { prompt: parsed.prompt } : {})
+            kind: 'tool-approval-settled',
+            toolCallId: item.toolCallId,
+            approved: item.approved
           }
           continue
         }
-
-        if (decoded.kind === 'status') {
-          const payload = decoded.payload
-          if (payload.phase !== 'settled') continue
-          isSettled = true
-          const message = typeof payload.message === 'string' ? payload.message : ''
-          if (payload.status === 'error' && !/abort/i.test(message)) {
-            throw new Error(message || '这一轮以错误结束')
-          }
-          if (controller.signal.aborted) {
-            yield { kind: 'aborted', usage: {} }
-            return
-          }
-          const latest = (await findAcpSessionID(host.threadID)) ?? acpSessionID
-          acpSessionID = latest
-          await persistCursor(host.threadID, cursor.read(), latest)
-          yield { kind: 'finish', finishReason: 'end_turn', usage: {} }
-          return
+        if (item.kind === 'elicitation') {
+          yield toElicitationEvent(item.request)
+          continue
         }
-      }
-
-      if (!isSettled) {
-        // 事件流自己断了（客户端退出 / 网络抖动）：如实报错，别假装说完
-        throw new Error('会话事件流意外结束，这一轮没有收到结束信号')
+        yield item.stopReason === 'cancelled'
+          ? { kind: 'aborted', usage: {} }
+          : { kind: 'finish', finishReason: 'end_turn', usage: {} }
+        return
       }
     } catch (error) {
       if (controller.signal.aborted) {
         yield { kind: 'aborted', usage: {} }
         return
       }
+      // 消息已经在状态机里带过归因（模型/网关、工具、授权、连接），两端说法一致
       throw error instanceof Error ? error : new Error(String(error))
     } finally {
       // 正常结束的回合不摘监听的话，之后 signal 被 abort 会再发一次 cancel，可能误杀别人那一轮
       signal.removeEventListener('abort', onAbort)
       liveRuns.delete(host.threadID)
       controller.abort()
-      if (cursor.read() > after) {
-        // 失败 / 中止也要把游标落库：否则下次订阅会把这一轮的事件整段重放
-        await persistCursor(host.threadID, cursor.read(), acpSessionID).catch(function (
-          error: unknown
-        ) {
-          console.warn('[agent/port] 游标落库失败:', error)
-        })
-      }
     }
   }
 
@@ -405,7 +367,7 @@ function buildBridgeModelPort(): ChatModelPort {
       if (!taken) return false
       // 立刻把「已拍板」推回事件流：否则卡片要等到 `tool-result` 才离开 requires-action
       liveRuns.get(taken.ticket.threadID)?.inject({
-        kind: 'tool-approval-settled',
+        kind: 'approval_settled',
         toolCallId: input.toolCallId,
         approved: taken.approved
       })
@@ -423,9 +385,9 @@ function buildBridgeModelPort(): ChatModelPort {
     },
 
     respondToElicitation(input: ChatElicitationResponse): boolean {
-      const ticket = pendingElicitations.get(input.elicitationId)
+      const ticket = pendingElicitations.findTicket(input.elicitationId)
       if (!ticket) return false
-      pendingElicitations.delete(input.elicitationId)
+      pendingElicitations.forget(input.elicitationId)
       const decision: CreateElicitationResponse = parseAcpElicitationResponse(input)
       void postElicitation(agentdTransport, ticket.threadID, ticket.requestId, decision)
       return true

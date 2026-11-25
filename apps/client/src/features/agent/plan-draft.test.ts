@@ -1,7 +1,7 @@
 import type { ThreadMessage } from '@assistant-ui/react'
 import { describe, expect, it } from 'vitest'
 
-import { findPlanDraft, isPlanDocument, parsePlanText } from '@/features/agent/plan-draft'
+import { findPanelDraft, findPlanDraft, isPlanDocument, parsePlanText } from '@/features/agent/plan-draft'
 
 /** 只需要 role + text part，其余字段与判定无关 */
 function assistant(text: string): ThreadMessage {
@@ -107,5 +107,58 @@ describe('计划文档判定（recorder 用）', function () {
   it('只有一处「步骤」也算（模型没写 H1 时）', function () {
     const body = ['## 实施步骤', '1. 甲', '2. 乙'].join('\n')
     expect(isPlanDocument(body)).toBe(true)
+  })
+})
+
+describe('右栏画布兜底（findPanelDraft）', function () {
+  /** 没按模板写、但确实是一份方案的回复（> 200 字） */
+  const loosePlan = [
+    '## 方案：终端卡默认折叠',
+    '',
+    '终端输出默认折叠成一行摘要，点开才展开。折叠状态存在消息 part 里，不写回数据库。',
+    '工具卡头部显示命令与耗时，展开后保留原来的滚动行为与 ANSI 清洗逻辑。',
+    '正在运行的命令继续在右栏详情页列出，停止按钮只在该命令仍在跑时出现。',
+    '这次改动只动渲染层，agentd 的事件协议与审批链路保持不变，避免与后台回合冲突。',
+    '风险是折叠后用户看不到报错，所以失败的命令自动展开，并在头部标红。'
+  ].join('\n')
+
+  /** 带「发送那一刻模式快照」的用户消息（真实链路里由 `stampUserModeSnapshot` 写入） */
+  function userInMode(text: string, mode: 'plan' | 'agent' | 'ask' | 'goal'): ThreadMessage {
+    return {
+      role: 'user',
+      content: [{ type: 'text', text }],
+      metadata: { custom: { modeSnapshot: { mode, at: 1 } } }
+    } as unknown as ThreadMessage
+  }
+
+  it('计划轮没命中骨架的长方案也算可执行草稿（否则右栏没有「开始执行」）', function () {
+    expect(isPlanDocument(loosePlan)).toBe(false)
+    const draft = findPanelDraft([userInMode('出个方案', 'plan'), assistant(loosePlan)])
+    expect(draft?.body).toBe(loosePlan)
+    expect(draft?.overview.length).toBeGreaterThan(0)
+  })
+
+  it('随手聊完再切到计划模式，旧回答不算计划（判定认该轮快照，不认当前档位）', function () {
+    expect(findPanelDraft([userInMode('随便聊聊', 'agent'), assistant(loosePlan)])).toBeNull()
+  })
+
+  it('计划轮里的短问答也不当计划（用长度挡住）', function () {
+    const short = '这个文件负责\n\n把正文解析成计划草稿，没有列表时返回 null。'
+    expect(findPanelDraft([userInMode('这是什么', 'plan'), assistant(short)])).toBeNull()
+  })
+
+  it('命中骨架时按骨架抽 steps（与轮次模式无关）', function () {
+    const body = ['# 计划标题', '', '## 实施步骤', '1. 第一步', '2. 第二步'].join('\n')
+    expect(findPanelDraft([userInMode('出个计划', 'plan'), assistant(body)])?.steps).toEqual([
+      '第一步',
+      '第二步'
+    ])
+    expect(findPanelDraft([userInMode('顺手写个计划', 'agent'), assistant(body)])?.steps).toHaveLength(
+      2
+    )
+  })
+
+  it('没有模式快照的老数据：不猜，只认骨架', function () {
+    expect(findPanelDraft([user('随便聊聊'), assistant(loosePlan)])).toBeNull()
   })
 })

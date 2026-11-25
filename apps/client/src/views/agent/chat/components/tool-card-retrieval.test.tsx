@@ -51,7 +51,7 @@ const FTS = {
   hits: [
     {
       docId: 'd1',
-      baseId: 'b1',
+      spaceId: 'b1',
       title: '发布契约',
       relPath: 'wiki/publish.md',
       snippet: '发布前先跑 pnpm check，确认契约生成物没有漂移。',
@@ -60,7 +60,7 @@ const FTS = {
     },
     {
       docId: 'd2',
-      baseId: 'b1',
+      spaceId: 'b1',
       title: '会议纪要',
       relPath: 'wiki/meeting.md',
       snippet: '讨论了知识库发布流程。',

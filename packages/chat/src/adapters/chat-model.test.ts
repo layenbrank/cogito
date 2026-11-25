@@ -81,6 +81,71 @@ function findToolPart(result: ChatModelRunResult | undefined) {
   }) as { status?: unknown; approval?: { resolution?: string } } | undefined
 }
 
+/** 取最后一份快照里的正文 part 文本（按顺序拼） */
+function readTexts(result: ChatModelRunResult | undefined): string[] {
+  return (result?.content ?? [])
+    .filter(function (part) {
+      return part.type === 'text'
+    })
+    .map(function (part) {
+      return (part as { text: string }).text
+    })
+}
+
+describe('mapChatStreamToRunResults 覆盖式文本（补历史）', function () {
+  it('replace 事件改写同一 blockID 的正文，而不是接着追加（否则重放会让正文翻倍）', async function () {
+    const stream = events([
+      { kind: 'text', blockID: 'm1', text: '前半' },
+      { kind: 'text', blockID: 'm1', text: '后半' },
+      // goose `session/load` 重放给的是这条消息的**完整**文本
+      { kind: 'text', blockID: 'm1', text: '前半后半（补全）', replace: true },
+      { kind: 'finish', finishReason: 'end_turn', usage: {} }
+    ])
+
+    let last: ChatModelRunResult | undefined
+    for await (const result of mapChatStreamToRunResults(stream)) {
+      last = result
+    }
+
+    expect(readTexts(last)).toEqual(['前半后半（补全）'])
+  })
+
+  it('被工具拆成两块的同一消息：覆盖时归并到第一块，其余清空（不重复渲染）', async function () {
+    const stream = events([
+      { kind: 'text', blockID: 'm1', text: '动手前' },
+      { kind: 'tool-call', toolCallId: 't1', toolName: 'read', input: {} },
+      { kind: 'text', blockID: 'm1', text: '动手后' },
+      { kind: 'text', blockID: 'm1', text: '动手前动手后', replace: true },
+      { kind: 'finish', finishReason: 'end_turn', usage: {} }
+    ])
+
+    let last: ChatModelRunResult | undefined
+    for await (const result of mapChatStreamToRunResults(stream)) {
+      last = result
+    }
+
+    expect(readTexts(last)).toEqual(['动手前动手后'])
+  })
+
+  it('replace 到达时还没有该块：按新块写入（补历史先于实时内容的情形）', async function () {
+    const stream = events([
+      { kind: 'reasoning', blockID: 'r1', text: '想完了', replace: true },
+      { kind: 'finish', finishReason: 'end_turn', usage: {} }
+    ])
+
+    let last: ChatModelRunResult | undefined
+    for await (const result of mapChatStreamToRunResults(stream)) {
+      last = result
+    }
+
+    const reasoning = (last?.content ?? []).filter(function (part) {
+      return part.type === 'reasoning'
+    })
+    expect(reasoning).toHaveLength(1)
+    expect((reasoning[0] as { text: string }).text).toBe('想完了')
+  })
+})
+
 describe('mapChatStreamToRunResults 收口未完成的工具', function () {
   it('用户停止时，还没回结果的工具标成 cancelled（不是永远 running）', async function () {
     const stream = events([

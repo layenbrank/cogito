@@ -25,7 +25,18 @@ interface AgentdTransportOptions {
   findEndpoint: () => Promise<AgentdEndpoint>
   /** fetch 实现：默认用全局 `fetch`；扩展侧可换成带重试的包装 */
   fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+  /**
+   * 本客户端实例的身份，随每个请求以 `x-cogito-client` 发出。
+   *
+   * 同 thread 多客户端时 agentd 靠它区分「自己旧的一轮」与「别人的一轮」：
+   * 前者可以 supersede，后者必须显式接管（`takeover: true`），否则只能 409。
+   * 不传时 agentd 退化为旧行为（允许抢占）。
+   */
+  clientId?: string
 }
+
+/** 客户端身份头的名字：agentd 与两个宿主共用这一个常量 */
+const AGENTD_CLIENT_HEADER = 'x-cogito-client'
 
 interface AgentdTransport {
   /** 解析并缓存地址；已缓存时直接返回（宿主有时只要地址本身，不要请求） */
@@ -42,6 +53,7 @@ interface AgentdTransport {
 
 function createAgentdTransport(options: AgentdTransportOptions): AgentdTransport {
   const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis)
+  const clientId = options.clientId?.trim() ?? ''
   let cached: AgentdEndpoint | null = null
 
   function forget(): void {
@@ -69,6 +81,7 @@ function createAgentdTransport(options: AgentdTransportOptions): AgentdTransport
     const endpoint = await findEndpoint()
     const headers = new Headers(init?.headers)
     headers.set('authorization', `Bearer ${endpoint.token}`)
+    if (clientId) headers.set(AGENTD_CLIENT_HEADER, clientId)
     if (init?.body !== undefined && !headers.has('content-type')) {
       headers.set('content-type', 'application/json')
     }
@@ -104,5 +117,5 @@ function createAgentdTransport(options: AgentdTransportOptions): AgentdTransport
   return { call, callJson, findCachedEndpoint, findEndpoint, forget, invokeGoose }
 }
 
-export { createAgentdTransport }
+export { AGENTD_CLIENT_HEADER, createAgentdTransport }
 export type { AgentdEndpoint, AgentdTransport, AgentdTransportOptions }

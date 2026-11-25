@@ -15,12 +15,19 @@
  * `revision > executedRevision` 就是「计划已更新、上次跑的是旧版」（见 `isPlanStale`）；
  * 一个会话只允许一行（表上有 `sessionID` 唯一索引）。
  */
-import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useSyncExternalStore } from 'react'
 
+import {
+  DELETE_AGENT_GOALS,
+  DELETE_AGENT_PLANS,
+  GET_AGENT_GOALS,
+  GET_AGENT_PLANS,
+  POST_AGENT_GOAL,
+  POST_AGENT_PLAN
+} from '@/apis/agent-plan'
 import type { PlanDraft } from '@/features/agent/plan-draft'
 import { isDraftSessionKey } from '@/features/agent/port/session-key'
-import { CHANNELS } from '@/shared/ipc/channels'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 import { reportCaught } from '@/utils/exception-report'
 
 export type PlanStatus = 'draft' | 'running' | 'done' | 'interrupted' | 'superseded'
@@ -161,12 +168,9 @@ function subscribePlanStore(listener: () => void): () => void {
   }
 }
 
-/** 桌面壳外（浏览器预览 / 单测）没有 IPC：只维护 cache，不落库 */
+/** 没有命令通道（单测 / 嵌套壳）时只维护 cache，不落库 */
 function canPersist(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__)
-  )
+  return canUseTauriIpc()
 }
 
 function parseSteps(raw: string): string[] {
@@ -296,14 +300,14 @@ async function persistPlan(threadID: string, op: 'write' | 'remove'): Promise<vo
   if (!canPersist()) return
   try {
     if (op === 'remove') {
-      await invoke<string[]>(CHANNELS.AGENT_PLAN.TO_REMOVE, { params: [threadID] })
+      await DELETE_AGENT_PLANS([threadID])
       persistedPlans.delete(threadID)
       return
     }
     const record = plans.get(threadID)
     if (!record) return
-    await invoke<string[]>(CHANNELS.AGENT_PLAN.TO_WRITE, {
-      params: { ...record, steps: JSON.stringify(record.steps) }
+    await POST_AGENT_PLAN({
+      ...record, steps: JSON.stringify(record.steps)
     })
     persistedPlans.set(threadID, record)
   } catch (error) {
@@ -316,13 +320,13 @@ async function persistGoal(threadID: string, op: 'write' | 'remove'): Promise<vo
   if (!canPersist()) return
   try {
     if (op === 'remove') {
-      await invoke<string[]>(CHANNELS.AGENT_GOAL.TO_REMOVE, { params: [threadID] })
+      await DELETE_AGENT_GOALS([threadID])
       persistedGoals.delete(threadID)
       return
     }
     const record = goals.get(threadID)
     if (!record) return
-    await invoke<string[]>(CHANNELS.AGENT_GOAL.TO_WRITE, { params: record })
+    await POST_AGENT_GOAL(record)
     persistedGoals.set(threadID, record)
   } catch (error) {
     reportCaught('agent-plan-store.persistGoal', error)
@@ -366,10 +370,10 @@ async function pruneDraftRows(
     })
     .filter(isDraftSessionKey)
   if (planKeys.length > 0) {
-    await invoke<string[]>(CHANNELS.AGENT_PLAN.TO_REMOVE, { params: planKeys })
+    await DELETE_AGENT_PLANS(planKeys)
   }
   if (goalKeys.length > 0) {
-    await invoke<string[]>(CHANNELS.AGENT_GOAL.TO_REMOVE, { params: goalKeys })
+    await DELETE_AGENT_GOALS(goalKeys)
   }
 }
 
@@ -392,8 +396,8 @@ async function hydrate(threadIDs?: readonly string[]): Promise<void> {
       })
   try {
     const [planRows, goalRows] = await Promise.all([
-      invoke<PlanRow[]>(CHANNELS.AGENT_PLAN.TO_READ, { params: planParams }),
-      invoke<GoalRow[]>(CHANNELS.AGENT_GOAL.TO_READ, { params: goalParams })
+      GET_AGENT_PLANS<PlanRow[]>(planParams),
+      GET_AGENT_GOALS<GoalRow[]>(goalParams)
     ])
     const livePlans = planRows.filter(function (row) {
       return !isDraftSessionKey(row.sessionID)

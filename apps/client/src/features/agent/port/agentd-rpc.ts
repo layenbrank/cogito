@@ -9,13 +9,15 @@
  */
 import { createAgentdTransport } from '@cogito/agent-runtime/agentd'
 import type { AgentdEndpoint } from '@cogito/agent-runtime/agentd'
-import { invoke } from '@tauri-apps/api/core'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import { GET_AGENTD_ENDPOINT } from '@/apis/agent-runtime'
 
 const transport = createAgentdTransport({
+  // 每个 WebView 会话一个身份：同 thread 多窗口时，agentd 靠它区分「我自己 旧的一轮」
+  // （可以 supersede）与「别人正在跑的一轮」（必须显式接管，否则 409）
+  clientId: crypto.randomUUID(),
   findEndpoint() {
-    return invoke<AgentdEndpoint>(CHANNELS.AGENTD.ENDPOINT)
+    return GET_AGENTD_ENDPOINT<AgentdEndpoint>()
   }
 })
 

@@ -26,7 +26,7 @@ import { toast } from 'sonner'
 import { chatModelPort } from '@/features/agent/port/instance'
 import { findHardDenyReplacement } from '@/features/agent/approval'
 import { findToolActivity } from '@/features/agent/tool-activity'
-import { isShellTool, isWriteTool, toAgentToolLabel } from '@/features/agent/tool-labels'
+import { isShellTool, toAgentToolLabel, usesWriteCard } from '@/features/agent/tool-labels'
 import { summarize } from '@/views/agent/chat/components/tool-card-format'
 import { toShellCommand } from '@/views/agent/chat/components/tool-output'
 
@@ -72,7 +72,7 @@ function findOptionLabel(option: ToolApprovalOption): string {
 /** 图标块：命令是终端、写文件是笔，其余用一个「要你点头」的盾牌 */
 function findApprovalIcon(toolName: string): string {
   if (isShellTool(toolName)) return 'lucide:terminal'
-  if (isWriteTool(toolName)) return 'lucide:pencil'
+  if (usesWriteCard(toolName)) return 'lucide:pencil'
   return 'lucide:shield-alert'
 }
 

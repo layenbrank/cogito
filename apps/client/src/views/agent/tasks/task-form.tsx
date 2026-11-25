@@ -40,7 +40,7 @@ import { DICT_TYPE } from '@/shared/ipc/specs/dict'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useAutomationStore } from '@/stores/automation'
 import { useDictStore } from '@/stores/dict'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useProviderStore } from '@/stores/provider'
 import {
   MODE_OPTIONS,
@@ -104,8 +104,8 @@ function TaskForm(props: TaskFormProps) {
   const folders = useAgentStore(function (state) {
     return state.workspaceFolders
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
   const save = useAutomationStore(function (state) {
     return state.save
@@ -231,7 +231,7 @@ function TaskForm(props: TaskFormProps) {
     draft.providerId && draft.modelId ? `${draft.providerId}::${draft.modelId}` : 'follow'
 
   /**
-   * 下拉的显示文案必须走 `items`：Base UI 的 `Select.Value` 默认渲染裸 value，
+   * 下拉的显示文案必须走 `items`：Space UI 的 `Select.Value` 默认渲染裸 value，
    * 不传 items 时触发器会露出 `client` / UUID 这类内部值（用户看到的就是这个 bug）。
    */
   const timezoneOptions = TIMEZONES.includes(draft.timezone)
@@ -289,8 +289,8 @@ function TaskForm(props: TaskFormProps) {
   }
   const knowledgeItems = [
     { value: 'none', label: '不关联知识库' },
-    ...bases.map(function (base) {
-      return { value: base.id, label: base.name }
+    ...spaces.map(function (space) {
+      return { value: space.id, label: space.name }
     })
   ]
 
@@ -304,12 +304,12 @@ function TaskForm(props: TaskFormProps) {
     workspaceItems.push({ value: draft.workspaceId, label: '原工作目录已不存在' })
   }
   if (
-    draft.knowledgeBaseId &&
-    !bases.some(function (base) {
-      return base.id === draft.knowledgeBaseId
+    draft.knowledgeSpaceId &&
+    !spaces.some(function (space) {
+      return space.id === draft.knowledgeSpaceId
     })
   ) {
-    knowledgeItems.push({ value: draft.knowledgeBaseId, label: '原知识库已不存在' })
+    knowledgeItems.push({ value: draft.knowledgeSpaceId, label: '原空间已不存在' })
   }
 
   function patch(next: Partial<TaskDraft>) {
@@ -878,11 +878,11 @@ function TaskForm(props: TaskFormProps) {
             <span className={styles.fieldLabel}>关联知识库</span>
             <Select
               items={knowledgeItems}
-              value={draft.knowledgeBaseId ?? 'none'}
+              value={draft.knowledgeSpaceId ?? 'none'}
               disabled={isCloud}
               onValueChange={function (value) {
                 if (typeof value !== 'string') return
-                patch({ knowledgeBaseId: value === 'none' ? null : value })
+                patch({ knowledgeSpaceId: value === 'none' ? null : value })
               }}>
               <SelectTrigger>
                 <SelectValue placeholder="不关联知识库" />

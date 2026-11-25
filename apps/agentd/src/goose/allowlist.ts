@@ -12,7 +12,12 @@
  * 两个方法**刻意排除**：
  * - `session/prompt` —— 必须走 `/threads/:id/runs`，否则绕过同线程单飞与事件流，
  *   两轮交错写同一个 checkpoint；
- * - `session/new` —— 有具名端点 `/goose/sessions`，session 的登记要跟 thread 绑定。
+ * - `session/new` —— 有具名端点 `/goose/sessions`，session 的登记要跟 thread 绑定；
+ * - `_goose/unstable/tools/permissions/set` —— 它会把 `never_allow` 改回 `always_allow`，
+ *   等于给公开 HTTP 面开了一个「撤销硬禁用」的入口。
+ *
+ * 最后一条是 **agentd 内部专用**：`graph.ts` 的 `ensureHardDeny` 直接调用 ACP client，
+ * 不经过 `/goose/invoke`。删除它时需要同步确认，不要让「设置页写工具权限」重新迁回透传面。
  *
  * 其余未列出的方法一律拒绝（fail-closed）：透传端点最怕变成万能代理。
  */
@@ -47,7 +52,6 @@ const ALLOWED_GOOSE_METHODS: readonly string[] = [
   // 系统提示与工具面
   '_goose/unstable/session/system-prompt/set',
   '_goose/unstable/tools/list',
-  '_goose/unstable/tools/permissions/set',
   // 诊断
   '_goose/unstable/diagnostics/get'
 ]

@@ -6,7 +6,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useEffect, useRef, useState } from 'react'
 
-import type { DiffHunk } from '@/lib/workspace-git'
+import type { DiffHunk } from '@/apis/workspace-git'
 
 function HunkBlock(props: {
   hunk: DiffHunk

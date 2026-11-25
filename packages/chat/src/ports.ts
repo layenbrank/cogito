@@ -161,8 +161,19 @@ interface ChatElicitationResponse {
  * `blockID` 用于把同一段文本（或同一段推理）的增量归组。
  */
 type ChatStreamEvent =
-  | { kind: 'text'; blockID: string; text: string }
-  | { kind: 'reasoning'; blockID: string; text: string }
+  | {
+      kind: 'text'
+      blockID: string
+      text: string
+      /**
+       * 覆盖语义：`text` 是这一块的**完整文本**，宿主应改写已有内容而不是接着追加。
+       *
+       * 只有「补历史」路径会给（goose `session/load` 重放的是每消息聚合文本）；
+       * 正常流式一律是增量。不区分的话，重放会让正文翻倍。
+       */
+      replace?: boolean
+    }
+  | { kind: 'reasoning'; blockID: string; text: string; replace?: boolean }
   | { kind: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
   | {
       kind: 'tool-approval-request'

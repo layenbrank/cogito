@@ -37,6 +37,9 @@ pub struct Model {
     /// 已消费到的事件序号（S9）：断线重连时告诉 goose 从哪续；0 = 从未连过。
     #[sea_orm(column_name = "lastSeq")]
     pub lastSeq: i64,
+    /// 事件流所属的 agentd 进程标识：重启后旧 seq 不可比较，客户端据此丢弃游标。
+    #[sea_orm(column_name = "lastEpoch")]
+    pub lastEpoch: Option<String>,
     /// 路由档位（S11 起用）：`local`（默认）/ `cloud`。
     #[sea_orm(column_name = "routeTier")]
     pub routeTier: String,
@@ -82,6 +85,9 @@ pub struct Write {
     pub acpCwd: Option<String>,
     #[serde(default)]
     pub lastSeq: i64,
+    /// 事件流 epoch（与 lastSeq 成对）；老前端不传也安全。
+    #[serde(default)]
+    pub lastEpoch: Option<String>,
     /// 不传就用 `local`（见 `write_one`），老前端不传也安全。
     #[serde(default)]
     pub routeTier: Option<String>,
@@ -111,6 +117,9 @@ pub struct Change {
     pub acpCwd: Option<Option<String>>,
     #[serde(default)]
     pub lastSeq: Option<i64>,
+    /// `Some(None)` = 显式清空 epoch；缺省 = 不动。
+    #[serde(default)]
+    pub lastEpoch: Option<Option<String>>,
     #[serde(default)]
     pub routeTier: Option<String>,
 }

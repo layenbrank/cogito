@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyRunFailure, toErrorExcerpt } from './error-kind'
 
-describe('classifyRunFailure', () => {
-  it('用户取消不算失败', () => {
+describe('classifyRunFailure', function () {
+  it('用户取消不算失败', function () {
     expect(classifyRunFailure('run aborted')).toBe('cancelled')
     expect(classifyRunFailure('用户已停止这一轮')).toBe('cancelled')
   })
 
-  it('连接 / 侧车问题', () => {
+  it('连接 / 侧车问题', function () {
     for (const message of [
       'Active session disposed',
       'Connection closed',
@@ -20,31 +20,31 @@ describe('classifyRunFailure', () => {
     }
   })
 
-  it('授权拒绝', () => {
+  it('授权拒绝', function () {
     expect(classifyRunFailure('tool is not allowed by policy (never_allow)')).toBe('permission')
     expect(classifyRunFailure('用户拒绝了这次工具调用')).toBe('permission')
   })
 
-  it('模型 / 网关错误优先于「tool」字样', () => {
+  it('模型 / 网关错误优先于「tool」字样', function () {
     expect(classifyRunFailure('provider 未配置')).toBe('provider')
     expect(classifyRunFailure('model claude-x not found')).toBe('provider')
     expect(classifyRunFailure('Upstream 429 rate limit exceeded')).toBe('provider')
     expect(classifyRunFailure('context length exceeded')).toBe('provider')
   })
 
-  it('工具层错误', () => {
+  it('工具层错误', function () {
     expect(classifyRunFailure('tool execution failed: ENOTDIR')).toBe('tool')
   })
 
-  it('认不出来就说不知道', () => {
+  it('认不出来就说不知道', function () {
     expect(classifyRunFailure('')).toBe('unknown')
     expect(classifyRunFailure(undefined)).toBe('unknown')
     expect(classifyRunFailure('某种本地化过的说法')).toBe('unknown')
   })
 })
 
-describe('toErrorExcerpt', () => {
-  it('压成一行并限制长度', () => {
+describe('toErrorExcerpt', function () {
+  it('压成一行并限制长度', function () {
     expect(toErrorExcerpt('第一行\n第二行')).toBe('第一行 第二行')
     const long = 'x'.repeat(600)
     const excerpt = toErrorExcerpt(long) ?? ''
@@ -52,7 +52,7 @@ describe('toErrorExcerpt', () => {
     expect(excerpt.endsWith('…')).toBe(true)
   })
 
-  it('空消息不产出空串', () => {
+  it('空消息不产出空串', function () {
     expect(toErrorExcerpt('   ')).toBeUndefined()
   })
 })

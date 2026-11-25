@@ -114,7 +114,7 @@ describe('findExtensionKey', function () {
 })
 
 describe('describeExtension', function () {
-  it('MCP 显示端点或命令行，内置 / 平台显示类型', function () {
+  it('MCP 显示端点或命令行，内置 / 平台显示 goose 给的描述', function () {
     expect(
       describeExtension({
         type: 'mcp',
@@ -129,8 +129,21 @@ describe('describeExtension', function () {
         description: null
       })
     ).toBe('corex-mcp --flag')
-    expect(describeExtension({ type: 'platform', name: 'summarize' })).toBe('平台')
-    expect(describeExtension({ type: 'builtin', name: 'developer' })).toBe('内置')
+    // 平台 / 内置的 `description` 是卡片正文的唯一来源：以前这里返回类型标签，
+    // 与同一行的 Badge 重复，真正的描述（goose config.yaml 里就有）永远不显示。
+    expect(
+      describeExtension({
+        type: 'platform',
+        name: 'chatrecall',
+        description: 'Search past conversations and load session summaries'
+      })
+    ).toBe('Search past conversations and load session summaries')
+    expect(
+      describeExtension({ type: 'builtin', name: 'developer', description: '  Write files  ' })
+    ).toBe('Write files')
+    // 没有描述时不退回类型标签（会和 Badge 重复），给一句说明
+    expect(describeExtension({ type: 'platform', name: 'summarize' })).toBe('由 Goose 平台托管')
+    expect(describeExtension({ type: 'builtin', name: 'developer' })).toBe('随应用安装的内置扩展')
   })
 })
 

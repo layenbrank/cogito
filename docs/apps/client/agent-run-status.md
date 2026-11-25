@@ -1,5 +1,12 @@
 # 回合尾注：这一轮是怎么结束的
 
+> **路径已变**：下文提到的 `features/agent/acp/session.ts` 已不存在；事件泵现在是
+> `@cogito/agent-runtime/agentd/turn`（`runTurn` / `pumpTurn`），client 的
+> `features/agent/port/session.ts` 只做适配与策略。未终态的结束已不再靠猜：状态机只会给出
+> `stop`（`end_turn` / `cancelled`）或带 `code` 的 `TurnFailure`
+> （`subscribe_failed` / `run_rejected` / `stream_closed` / `idle_timeout` / `run_failed`）。
+> 已知问题与已修项见 [agent-audit.md](./agent-audit.md)。
+
 正文末尾原先只有一种提示 —— 用户按停止时的「已停止生成」。正常跑完什么都不显示，
 于是三种完全不同的结局在界面上长得一模一样：
 

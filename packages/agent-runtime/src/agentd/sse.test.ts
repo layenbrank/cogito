@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { readSse } from './sse'
+import { toReadSSE } from './sse'
 
 function responseFrom(chunks: readonly string[]): Response {
   const encoder = new TextEncoder()
@@ -21,11 +21,11 @@ function responseFrom(chunks: readonly string[]): Response {
 
 async function collect(response: Response, signal: AbortSignal) {
   const frames: Array<{ event: string; data: Record<string, unknown> }> = []
-  for await (const frame of readSse(response, signal)) frames.push(frame)
+    for await (const frame of toReadSSE(response, signal)) frames.push(frame)
   return frames
 }
 
-describe('readSse', function () {
+describe('toReadSSE', function () {
   it('跨 chunk 边界能拼回整帧（帧边界是空行，不是换行）', async function () {
     const response = responseFrom([
       'event: run\ndata: {"seq":1,',
@@ -58,5 +58,32 @@ describe('readSse', function () {
     controller.abort()
     const frames = await collect(responseFrom(['event: run\ndata: {"seq":1}\n\n']), controller.signal)
     expect(frames).toEqual([])
+  })
+
+  it('`\r\n\r\n` 帧边界也认（代理改写换行后仍能切帧）', async function () {
+    const frames = await collect(
+      responseFrom(['event: run\r\ndata: {"seq":1}\r\n\r\nevent: run\r\ndata: {"seq":2}\r\n\r\n']),
+      new AbortController().signal
+    )
+    expect(frames).toEqual([
+      { event: 'run', data: { seq: 1 } },
+      { event: 'run', data: { seq: 2 } }
+    ])
+  })
+
+  it('多行 data 按规范拼接后解析（网关把 JSON 折行不会丢帧）', async function () {
+    const frames = await collect(
+      responseFrom(['event: run\ndata: {"seq":1,\ndata: "kind":"update"}\n\n']),
+      new AbortController().signal
+    )
+    expect(frames).toEqual([{ event: 'run', data: { seq: 1, kind: 'update' } }])
+  })
+
+  it('冒号后没有空格、以及注释/心跳行都能处理', async function () {
+    const frames = await collect(
+      responseFrom([': keep-alive\n\nevent:run\ndata:{"seq":3}\n\n']),
+      new AbortController().signal
+    )
+    expect(frames).toEqual([{ event: 'run', data: { seq: 3 } }])
   })
 })

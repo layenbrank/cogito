@@ -15,7 +15,7 @@
     "cogito_workspace_read",
     "cogito_workspace_write",
     "cogito_workspace_patch",
-    "cogito_knowledge_list_bases",
+    "cogito_knowledge_list_spaces",
     "cogito_knowledge_list_docs",
     "cogito_knowledge_read_doc",
     "cogito_knowledge_read_wiki",

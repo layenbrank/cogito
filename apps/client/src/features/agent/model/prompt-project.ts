@@ -12,7 +12,7 @@
  * 读文件走 `WorkspaceFiles.GET_WORKSPACE_FILE`（`workspaceFiles:readFile`，Rust 侧做根目录
  * containment 校验），**不引 plugin-fs** —— 门禁里 plugin-fs 的引用面只许缩小。
  */
-import { WorkspaceFiles } from '@/lib/workspace-files'
+import { WorkspaceFiles } from '@/apis/workspace-files'
 import { useAgentStore } from '@/stores/agent'
 
 import {

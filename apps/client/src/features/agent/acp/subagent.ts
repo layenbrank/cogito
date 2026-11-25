@@ -14,11 +14,11 @@
  * 失败一律回填 `ok: false` + 原因：宁可让父 agent 看到「子任务失败」，
  * 也不要让一个任务永远停在 `queued` 让父 agent 干等。
  */
-import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { v4 as UUIDV4 } from 'uuid'
 import { z } from 'zod'
 
+import { POST_AGENT_SUBAGENT_RESULT } from '@/apis/agent-runtime'
 import {
   ensureBackgroundTurn,
   followBackgroundTurn
@@ -29,11 +29,12 @@ import {
   runThreadPrompt
 } from '@/features/agent/port/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
+import { isWriteTool } from '@/features/agent/approval'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
 import { readGoalRun } from '@/features/agent/goal-run'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { buildSystemPrompt } from '@/features/agent/model/prompt-project'
-import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+import { EVENTS } from '@/shared/ipc/channels'
 import { useAgentStore } from '@/stores/agent'
 import { useProviderStore } from '@/stores/provider'
 
@@ -167,13 +168,14 @@ async function runSubagentTurn(input: {
         if (event) yield event
         continue
       }
-      // 子任务没人盯着：默认审批一律拒绝、追问一律取消 —— 这就是「不提权」的落点；
-      // 父会话处于目标推进时例外（上面 `isUnattended`）：那时无人值守是用户自己选的前提。
+      // 子任务没人盯卡片。只读工具放行；写工具仅在父会话无人值守时放行。
+      // 追问走 decline（经 `respondToElicitation` 的 cancel 映射），不取消整轮。
       if (item.kind === 'approval') {
         if (item.event.kind === 'tool-approval-request') {
+          const allow = isUnattended || !isWriteTool(item.event.toolName)
           respondToApproval({
             toolCallId: item.event.toolCallId,
-            approved: isUnattended
+            approved: allow
           })
         }
         continue
@@ -207,15 +209,13 @@ export const defaultPorts: SubagentPorts = {
   createSession: createSubagentSession,
   runTurn: runSubagentTurn,
   report: function (report) {
-    return invoke(CHANNELS.AGENT_SUBAGENT.RESULT, {
-      report: {
-        jobId: report.jobId,
-        ok: report.ok,
-        summary: report.summary,
-        error: report.error,
-        sessionId: report.sessionId,
-        cancelled: report.cancelled ?? false
-      }
+    return POST_AGENT_SUBAGENT_RESULT({
+      jobId: report.jobId,
+      ok: report.ok,
+      summary: report.summary,
+      error: report.error,
+      sessionId: report.sessionId,
+      cancelled: report.cancelled ?? false
     }).then(function () {
       return undefined
     })

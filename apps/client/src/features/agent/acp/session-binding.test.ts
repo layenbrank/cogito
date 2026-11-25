@@ -36,6 +36,7 @@ describe('会话 ↔ ACP 绑定（S9）', function () {
       acpSessionId: 'acp-1',
       cwd: 'C:\\repo',
       lastSeq: 7,
+      lastEpoch: null,
       routeTier: 'local'
     })
     // 带空白也要能命中（调用方的 id 常来自 UI，夹带空格）

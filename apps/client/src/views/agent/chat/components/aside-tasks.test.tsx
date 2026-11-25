@@ -41,8 +41,8 @@ const mock = vi.hoisted(function () {
     dict: {
       bootstrap: vi.fn(async function () {})
     },
-    base: {
-      bases: [] as unknown[],
+    space: {
+      spaces: [] as unknown[],
       refresh: vi.fn(async function () {})
     },
     provider: {
@@ -111,14 +111,14 @@ vi.mock('@/stores/dict', function () {
   return { useDictStore }
 })
 
-vi.mock('@/stores/knowledge-base', function () {
-  const useKnowledgeBaseStore = function (selector: (state: typeof mock.base) => unknown) {
-    return selector(mock.base)
+vi.mock('@/stores/spaces', function () {
+  const useSpacesStore = function (selector: (state: typeof mock.space) => unknown) {
+    return selector(mock.space)
   }
-  useKnowledgeBaseStore.getState = function () {
-    return mock.base
+  useSpacesStore.getState = function () {
+    return mock.space
   }
-  return { useKnowledgeBaseStore }
+  return { useSpacesStore }
 })
 
 vi.mock('@/views/agent/tasks/task-form', function () {
@@ -161,7 +161,7 @@ function makeTask(partial: Partial<Automation>): Automation {
     id: 'task-1',
     name: '每日整理',
     prompt: '把今天的知识库变更汇总成简报',
-    knowledgeBaseId: null,
+    knowledgeSpaceId: null,
     workspaceId: null,
     approval: 'readonly',
     providerId: null,
@@ -216,7 +216,7 @@ describe('AsideTasks', function () {
     expect(screen.getByRole('button', { name: /新建任务/ })).toBeInTheDocument()
     expect(mock.automation.refresh).toHaveBeenCalled()
     expect(mock.agent.toReadWorkspaces).toHaveBeenCalled()
-    expect(mock.base.refresh).toHaveBeenCalled()
+    expect(mock.space.refresh).toHaveBeenCalled()
     expect(mock.dict.bootstrap).toHaveBeenCalled()
   })
 

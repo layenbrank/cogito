@@ -29,6 +29,7 @@
 
 use std::sync::OnceLock;
 
+use axum::extract::DefaultBodyLimit;
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -37,7 +38,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::any,
 };
-use axum::extract::DefaultBodyLimit;
 use futures_util::stream;
 use serde_json::json;
 use tauri::Manager;
@@ -129,13 +129,19 @@ async fn handle(
     if uri.path() == format!("{PREFIX}/status") {
         return status_response(&state, &headers);
     }
-    if state.allow_lan_access.load(std::sync::atomic::Ordering::Relaxed) {
+    if state
+        .allow_lan_access
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
         return problem(
             StatusCode::FORBIDDEN,
             "agent 代理不允许在局域网可达时使用：请关闭「允许局域网访问」",
         );
     }
-    if !state.agent_enabled.load(std::sync::atomic::Ordering::Relaxed) {
+    if !state
+        .agent_enabled
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
         return problem(
             StatusCode::SERVICE_UNAVAILABLE,
             "agent 代理未启用：请到桌面端 设置 → 本机 API 打开开关",
@@ -157,10 +163,7 @@ async fn handle(
 
     let mut request = client()
         .request(method, &target)
-        .header(
-            header::AUTHORIZATION,
-            format!("Bearer {}", endpoint.token),
-        );
+        .header(header::AUTHORIZATION, format!("Bearer {}", endpoint.token));
     if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
         request = request.header(header::CONTENT_TYPE, content_type.clone());
     }

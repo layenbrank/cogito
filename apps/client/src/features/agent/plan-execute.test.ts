@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildPlanExecutePrompt, BODY_START } from '@/features/agent/plan-execute'
+import { buildPlanExecutePrompt, BODY_START, isPlanExecuteIntent } from '@/features/agent/plan-execute'
 
 const BODY = [
   '# 审阅升级',
@@ -15,6 +15,17 @@ const BODY = [
   '| --- | --- |',
   '| cargo test | 通过 |'
 ].join('\n')
+
+describe('离开计划只读', function () {
+  it('只认明确的开始执行，不把「继续」当成动手', function () {
+    expect(isPlanExecuteIntent('继续')).toBe(false)
+    expect(isPlanExecuteIntent('继续吧')).toBe(false)
+    expect(isPlanExecuteIntent('开始执行。')).toBe(true)
+    expect(isPlanExecuteIntent('按下面的计划开始执行')).toBe(true)
+    expect(isPlanExecuteIntent('继续完善风险章节')).toBe(false)
+    expect(isPlanExecuteIntent('先别执行，把方案写完')).toBe(false)
+  })
+})
 
 describe('按计划执行的提示词', function () {
   it('把计划正文全文发回去，而不是只发清单', function () {

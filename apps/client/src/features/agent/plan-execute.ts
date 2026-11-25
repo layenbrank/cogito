@@ -36,6 +36,21 @@ const EXECUTE_RULES = [
   '4. 「待确认」项按计划里的默认选择执行，不要停下来反问。'
 ]
 
+/**
+ * 用户是在要求离开只读、按计划动手。
+ *
+ * 只认开头那一句：正文里随便出现「执行」不算。计划模式下发来这类消息时，
+ * 本轮要先切到执行模式，否则写工具仍会被拒，模型写两行就停。
+ */
+function isPlanExecuteIntent(text: string): boolean {
+  const raw = text.trim().split('\n', 1)[0] ?? ''
+  const line = raw.trim().replace(/[。.!！?？\s]+$/g, '')
+  // 单独的「继续」多半是让模型把计划写完，不是开工。开工只认右栏按钮发出的句子和明确的「开始执行」。
+  return /^(?:请)?(?:马上|现在)?(?:开始执行|开始实现|继续执行|按下面的计划开始执行|按计划(?:开始)?(?:执行|实现|改)|按这个计划(?:执行|实现|改))$/.test(
+    line
+  )
+}
+
 function buildPlanExecutePrompt(input: PlanExecuteInput): string {
   const lines: string[] = ['按下面的计划开始执行。']
 
@@ -62,5 +77,5 @@ function buildPlanExecutePrompt(input: PlanExecuteInput): string {
   return lines.join('\n')
 }
 
-export { buildPlanExecutePrompt, BODY_END, BODY_START, EXECUTE_RULES }
+export { buildPlanExecutePrompt, BODY_END, BODY_START, EXECUTE_RULES, isPlanExecuteIntent }
 export type { PlanExecuteInput }

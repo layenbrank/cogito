@@ -49,7 +49,7 @@ import { DICT_TYPE } from '@/shared/ipc/specs/dict'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useAutomationStore } from '@/stores/automation'
 import { useDictStore } from '@/stores/dict'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useSpacesStore } from '@/stores/spaces'
 import { useProviderStore } from '@/stores/provider'
 import { AsideSection } from '@/views/agent/chat/components/aside-section'
 import { leaveNewThread } from '@/views/agent/chat/components/new-thread'
@@ -206,8 +206,8 @@ function AsideTasks() {
   const folders = useAgentStore(function (state) {
     return state.workspaceFolders
   })
-  const bases = useKnowledgeBaseStore(function (state) {
-    return state.bases
+  const spaces = useSpacesStore(function (state) {
+    return state.spaces
   })
 
   const [view, updateView] = useState<PanelView>({ kind: 'list' })
@@ -234,7 +234,7 @@ function AsideTasks() {
       void refresh()
       void useAgentStore.getState().toReadWorkspaces()
       void useAgentStore.getState().toReadWorkspaceFolders()
-      void useKnowledgeBaseStore.getState().refresh()
+      void useSpacesStore.getState().refresh()
       void toReadProviders()
       // 卡片上的执行方 / 状态 / 触发方式都是字典 value，先把三类拉进缓存
       void useDictStore
@@ -292,12 +292,12 @@ function AsideTasks() {
     return `${workspace?.title ?? workspaceID}${path ? ` · ${path}` : ''}`
   }
 
-  function findBaseLabel(baseID: string | null | undefined): string {
-    if (!baseID) return '不关联知识库'
-    const base = bases.find(function (item) {
-      return item.id === baseID
+  function findBaseLabel(spaceID: string | null | undefined): string {
+    if (!spaceID) return '不关联知识库'
+    const space = spaces.find(function (item) {
+      return item.id === spaceID
     })
-    return base?.name ?? '原知识库已不存在'
+    return space?.name ?? '原空间已不存在'
   }
 
   function openTask(id: string) {
@@ -793,7 +793,7 @@ function AsideTasks() {
                   <span className="font-mono text-[11px]">{task.planFilePath}</span>
                 </MetaRow>
               ) : null}
-              <MetaRow label="知识库">{findBaseLabel(task.knowledgeBaseId)}</MetaRow>
+              <MetaRow label="空间">{findBaseLabel(task.knowledgeSpaceId)}</MetaRow>
             </div>
             {latestSession ? (
               <Button

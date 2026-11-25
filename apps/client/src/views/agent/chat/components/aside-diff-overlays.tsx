@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 
-import type { DiffMeta } from '@/lib/workspace-git'
+import type { DiffMeta } from '@/apis/workspace-git'
 
 function AsideDiffOverlays(props: {
   isPending: boolean

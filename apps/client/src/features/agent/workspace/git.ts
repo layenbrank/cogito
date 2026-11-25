@@ -22,7 +22,7 @@ import {
   type GitState,
   type StatusEntry,
   type UpstreamResult
-} from '@/lib/workspace-git'
+} from '@/apis/workspace-git'
 
 interface WorkspaceGitSnapshot {
   rootPath: string | null
@@ -177,7 +177,7 @@ interface GitActionOutcome {
   message: string
 }
 
-function toMessage(cause: unknown, fallback: string): string {
+function toErrorMessage(cause: unknown, fallback: string): string {
   if (cause instanceof Error) return cause.message
   if (typeof cause === 'string' && cause.trim()) return cause
   return fallback
@@ -199,7 +199,7 @@ async function runGitAction(
     toast.success(result.summary || label + '成功')
     return { ok: true, message: result.summary || '' }
   } catch (cause) {
-    const message = toMessage(cause, label + '失败')
+    const message = toErrorMessage(cause, label + '失败')
     toast.error(message)
     return { ok: false, message }
   }

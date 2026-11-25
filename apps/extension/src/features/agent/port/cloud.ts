@@ -85,7 +85,7 @@ function toGatewayMessages(messages: readonly ChatRunMessage[]): Array<{ role: s
 }
 
 /** 读 OpenAI 风格的 SSE：`data: {...}` 与 `data: [DONE]` */
-async function* readGatewayStream(
+async function* toReadGatewayStream(
   response: Response,
   signal: AbortSignal
 ): AsyncGenerator<ChatStreamEvent> {
@@ -169,7 +169,7 @@ function buildCloudModelPort(): ChatModelPort {
       throw new Error(`网关返回 ${response.status}${detail ? `：${detail.slice(0, 300)}` : ''}`)
     }
 
-    yield* readGatewayStream(response, signal)
+    yield* toReadGatewayStream(response, signal)
     // 用户点「停止」时流是被 abort 掐断的：报 aborted，别报 finish（那等于说「我说完了」）
     if (signal.aborted) {
       yield { kind: 'aborted', usage: {} }

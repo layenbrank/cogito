@@ -177,11 +177,14 @@ function useSidebarBranches() {
       const previous = previousRunningRef.current
       previousRunningRef.current = runningThreadIDs
       if (previous.size === 0) return
+      const storedByID = new Map(
+        storedSessions.map(function (item) {
+          return [item.id, item]
+        })
+      )
       for (const id of previous) {
         if (runningThreadIDs.has(id) || id === activeSessionID) continue
-        const stored = storedSessions.find(function (item) {
-          return item.id === id
-        })
+        const stored = storedByID.get(id)
         if (!stored || stored.unread) continue
         markSessionUnread(id, true)
       }

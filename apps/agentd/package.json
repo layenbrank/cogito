@@ -16,7 +16,8 @@
     "test:unit": "vitest",
     "unit": "vitest run",
     "e2e": "node scripts/e2e.ts",
-    "probe": "node scripts/probe-run.ts"
+    "probe": "node scripts/probe-run.ts",
+    "migrate:fresh": "node --experimental-strip-types scripts/migrate-fresh.ts"
   },
   "dependencies": {
     "@cogito/agent-protocol": "workspace:*",

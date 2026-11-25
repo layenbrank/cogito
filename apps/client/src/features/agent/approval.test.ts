@@ -147,7 +147,9 @@ describe('审批档写入立即生效', function () {
 describe('工具效果回归（分词判定 + fail-closed）', function () {
   it('只读工具不再被动词里的短子串误判成写', function () {
     // 旧实现：`includes('get')` 会命中 target / budget / widget，`includes('action')` 同理
-    expect(classifyToolEffect('cogito_browser_open')).toBe('read')
+    // `browser_open` 是**副作用**（导航到任意页面），协议包已显式归为 write；只读的是 `browser_read`
+    expect(classifyToolEffect('cogito_browser_open')).toBe('write')
+    expect(classifyToolEffect('cogito_browser_read')).toBe('read')
     expect(classifyToolEffect('cogito_browser_wait')).toBe('read')
     expect(classifyToolEffect('cogito_browser_screenshot')).toBe('read')
     expect(classifyToolEffect('cogito_browser_network')).toBe('read')

@@ -1,11 +1,14 @@
 /**
- * 计划执行收尾：`status === running` 时监听本轮助手结束，写入 done / interrupted。
+ * 计划执行收尾：`status === 'running'` 时监听本轮助手结束，交给 `plan-execute-session` 结案。
  *
  * - 普通「开始执行」：一轮正常结束 → done；中止 → interrupted
  * - 「目标推进」：Goal 终态驱动计划（done/exhausted → done；paused → interrupted）
+ *
+ * 这里只做**观察**，不自己写档位：基线尾部与幂等都在状态机里（F-017）。组件卸载 / 重挂
+ * 不会让「这条尾巴已经结过案」的记忆丢失，订阅重放也不会重复写。
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 
 import {
   findLastAssistant,
@@ -13,14 +16,14 @@ import {
   readGoalRun,
   useGoalRun
 } from '@/features/agent/goal-run'
-import {
-  readGoal,
-  readPlan,
-  setPlanStatus,
-  subscribePlanStore
-} from '@/features/agent/plan-store'
+import { readGoal, readPlan, subscribePlanStore } from '@/features/agent/plan-store'
+import { finishPlanExecution } from '@/features/agent/plan-execute-session'
 import { useSessionThreadID } from './use-session-thread-id'
 
+/**
+ * 只订阅「最后一条助手消息」的收尾指纹。
+ * running 时为空（这一轮还没结束）；正文不进指纹（每 token 都变会让选择器重算）。
+ */
 function findPlanTailDigest(
   messages: Parameters<typeof findLastAssistant>[0],
   isRunning: boolean
@@ -58,20 +61,19 @@ function PlanRunFinish() {
   const tailDigest = useAuiState(function (state) {
     return findPlanTailDigest(state.thread.messages, state.thread.isRunning)
   })
-  const handled = useRef<string | null>(null)
 
-  // Goal 驱动的计划执行：跟 Goal 终态走
+  // Goal 驱动的计划执行：跟 Goal 终态走（不看消息尾部，故 `force`）
   useEffect(
     function () {
       if (!threadID || !plan || plan.status !== 'running') return
       if (!goalRecord) return
       if (goalRecord.status === 'running') return
       if (goalRecord.status === 'done' || goalRecord.status === 'exhausted') {
-        setPlanStatus(threadID, 'done')
+        finishPlanExecution(threadID, null, 'done', { force: true })
         return
       }
       if (goalRecord.status === 'paused') {
-        setPlanStatus(threadID, 'interrupted')
+        finishPlanExecution(threadID, null, 'interrupted', { force: true })
       }
     },
     [threadID, plan, goalRecord]
@@ -82,13 +84,12 @@ function PlanRunFinish() {
     function () {
       if (!threadID || !plan || plan.status !== 'running') return
       if (goal || readGoalRun(threadID)) return
-      if (!tailDigest || handled.current === tailDigest) return
-      handled.current = tailDigest
+      if (!tailDigest) return
 
-      const messages = aui.thread.getState().messages
-      const last = findLastAssistant(messages)
+      const last = findLastAssistant(aui.thread.getState().messages)
       if (!last) return
-      setPlanStatus(threadID, isAbortedRun(last) ? 'interrupted' : 'done')
+      // 状态机自己判「这条尾部是不是开始之后出现的」「是不是已经结过案」
+      finishPlanExecution(threadID, last.id, isAbortedRun(last) ? 'interrupted' : 'done')
     },
     [aui, threadID, plan, goal, tailDigest]
   )

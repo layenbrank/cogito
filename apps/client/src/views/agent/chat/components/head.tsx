@@ -3,6 +3,7 @@
  * 会话列表 / 工作区开合在窗口操作栏，避免两处按钮说法不一致。
  */
 import { useAuiState } from '@assistant-ui/react'
+import { AgentStatus } from '@cogito/design/assistant/agent-status'
 import { clsx } from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 
@@ -10,6 +11,44 @@ const VIEWPORT_SLOT = '[data-slot="aui_thread-viewport"]'
 const USER_MESSAGE_SLOT = '[data-user-message-id]'
 /** 气泡仍在视口上半区时淡化标题，避免与用户句叠成双份 */
 const TITLE_FADE_RATIO = 0.45
+
+/**
+ * 本轮跑了多久（`m:ss`）：`isActive` 为真时每秒 tick，转假就归零。
+ *
+ * 起始时刻存在 ref 里（不触发重渲染），只有格式化后的字符串进 state ——
+ * 切换会话后组件不卸载，但 `isActive` 会转假，下一次运行重新计时。
+ */
+function useRunElapsed(isActive: boolean): string | undefined {
+  const startedAtRef = useRef<number | null>(null)
+  const [elapsed, updateElapsed] = useState<string | undefined>(undefined)
+
+  useEffect(
+    function () {
+      if (!isActive) {
+        startedAtRef.current = null
+        updateElapsed(undefined)
+        return
+      }
+      startedAtRef.current = startedAtRef.current ?? Date.now()
+      function tick() {
+        const startedAt = startedAtRef.current
+        if (startedAt === null) return
+        const totalSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+        const minutes = Math.floor(totalSeconds / 60)
+        const seconds = String(totalSeconds % 60).padStart(2, '0')
+        updateElapsed(`${minutes}:${seconds}`)
+      }
+      tick()
+      const timer = window.setInterval(tick, 1000)
+      return function () {
+        window.clearInterval(timer)
+      }
+    },
+    [isActive]
+  )
+
+  return elapsed
+}
 
 function AgentHead() {
   const headRef = useRef<HTMLElement>(null)
@@ -19,6 +58,13 @@ function AgentHead() {
   const isRunning = useAuiState(function (state) {
     return state.thread.isRunning
   })
+  /** 正在等审批 / 补充信息：不是「跑」但也没结束，顶上必须能看出卡在哪 */
+  const isWaiting = useAuiState(function (state) {
+    const messages = state.thread.messages
+    const last = messages[messages.length - 1]
+    return last?.status?.type === 'requires-action'
+  })
+  const elapsed = useRunElapsed(isRunning || isWaiting)
   const title = useAuiState(function (state) {
     const item = state.threads.threadItems.find(function (entry) {
       return entry.id === state.threads.mainThreadId
@@ -115,8 +161,13 @@ function AgentHead() {
           )}>
           {displayTitle}
         </span>
-        {isRunning ? (
-          <span className="text-muted-foreground shrink-0 text-xs">生成中…</span>
+        {isRunning || isWaiting ? (
+          <AgentStatus
+            state={isWaiting ? 'waiting' : 'working'}
+            label={isWaiting ? '等待确认' : '生成中'}
+            elapsed={elapsed}
+            className="shrink-0"
+          />
         ) : null}
       </div>
     </header>

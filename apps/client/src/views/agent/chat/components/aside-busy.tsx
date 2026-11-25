@@ -18,7 +18,6 @@ import type { AgentSource } from '@/features/agent/sources'
 import { formatToolElapsed } from '@cogito/design/assistant/tool'
 import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
-import { invoke } from '@tauri-apps/api/core'
 import { clsx } from 'clsx'
 
 import { AsideSection } from './aside-section'
@@ -46,10 +45,10 @@ import {
   formatGooseUsage,
   subscribeGooseUsage
 } from '@/features/agent/acp/goose-usage'
-import { Terminal } from '@/lib/terminal'
+import { Terminal } from '@/apis/terminal'
 import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'
 import { useTerminalStore } from '@/stores/terminal'
-import { CHANNELS } from '@/shared/ipc/channels'
+import { WorkspaceGit } from '@/apis/workspace-git'
 import { useProviderStore } from '@/stores/provider'
 import { findStatusBadge, groupEntries } from '@/views/code/lib/git-status.ts'
 import { useStructuralThreadMessages } from '@/views/agent/chat/components/use-structural-messages.ts'
@@ -1088,7 +1087,7 @@ function AsideBusy(props: AsideBusyProps) {
     function () {
       if (!rootPath) return
       let cancelled = false
-      void invoke<ProbeR>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path: rootPath } })
+      void WorkspaceGit.GET_GIT_PROBE(rootPath)
         .then(function (result) {
           if (!cancelled) updateProbe(result)
         })

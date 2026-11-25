@@ -14,6 +14,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { createAgentServer } from './agent-server'
 import { createApprovalHub } from './approvals'
+import { openDb } from './db'
+import { createRunEventStore } from './event-store'
 import { BUFFER_LIMIT, createEventHub } from './events'
 import type { RunEvent } from './events'
 import { SERVICE_NAME, createApp } from './server'
@@ -167,6 +169,64 @@ describe('事件流缓冲', function () {
   })
 })
 
+describe('持久事件 replay', function () {
+  it('补发位置已被淘汰时报 truncated', function () {
+    const db = openDb(':memory:')
+    try {
+      const store = createRunEventStore(db)
+      const hub = createEventHub({ store, epoch: 'E' })
+      const base = { epoch: 'E', threadID: 't1', kind: 'update' as const }
+      store.insert({ ...base, seq: 1, createdAt: 1000 })
+      store.insert({ ...base, seq: 2, createdAt: 2000 })
+      store.insert({ ...base, seq: 3, createdAt: 3000 })
+      store.prune(3000)
+
+      const replay = hub.replay('t1', 1, 'E')
+      expect(replay.minSeq).toBe(3)
+      expect(replay.truncated).toBe(true)
+      expect(replay.events.map(function (event) { return event.seq })).toEqual([3])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('epoch 不匹配时要求 reset，不跨进程比较 seq', function () {
+    const hub = createEventHub({ epoch: 'NEW' })
+    hub.emit('t1', 'update', { n: 1 })
+    const replay = hub.replay('t1', 10, 'OLD')
+    expect(replay.reset).toBe(true)
+    expect(replay.events).toEqual([])
+  })
+
+  it('写库失败降级为内存，不阻断事件产生', function () {
+    const hub = createEventHub({
+      store: {
+        insert: function () {
+          throw new Error('disk full')
+        },
+        replay: function () {
+          return { events: [], minSeq: null }
+        },
+        minSeq: function () {
+          return null
+        },
+        clearThread: function () {},
+        clearAll: function () {},
+        prune: function () {
+          return 0
+        },
+        count: function () {
+          return 0
+        }
+      }
+    })
+    const event = hub.emit('t1', 'update', { n: 1 })
+    expect(event.seq).toBe(1)
+    expect(hub.durable()).toBe(false)
+    expect(hub.replay('t1', 0).events).toHaveLength(1)
+  })
+})
+
 describe('事件流 HTTP 面', function () {
   it('连上时先补发缓冲，再推实时事件', async function () {
     const hub = createEventHub()
@@ -186,6 +246,48 @@ describe('事件流 HTTP 面', function () {
     expect(text).toContain('agent_message_chunk')
     expect(text).toContain('settled')
     expect(text).toContain('event: sync')
+    expect(text).toContain('"epoch"')
+  })
+
+  it('非法 after 直接 400，不退化成全量补发', async function () {
+    const hub = createEventHub()
+    const base = await startServer(hub)
+    const threadID = await createThread(base)
+    hub.emit(threadID, 'update', { mark: 'x' })
+
+    const response = await fetch(`${base}/threads/${threadID}/events?after=abc`, {
+      headers: authHeaders()
+    })
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string }
+    expect(body.error).toBe('after_invalid')
+  })
+
+  it('sync 报 truncated / minSeq 当游标落在淘汰区', async function () {
+    const db = openDb(':memory:')
+    const store = createRunEventStore(db)
+    const hub = createEventHub({ store, epoch: 'E' })
+    const base = await startServer(hub)
+    const threadID = await createThread(base)
+    store.insert({ epoch: 'E', seq: 1, threadID, kind: 'update', createdAt: 1000 })
+    store.insert({ epoch: 'E', seq: 2, threadID, kind: 'update', createdAt: 2000 })
+    store.insert({ epoch: 'E', seq: 3, threadID, kind: 'update', createdAt: 3000 })
+    store.prune(3000)
+
+    const controller = new AbortController()
+    try {
+      const response = await fetch(
+        `${base}/threads/${threadID}/events?after=1&epoch=E`,
+        { headers: authHeaders(), signal: controller.signal }
+      )
+      expect(response.status).toBe(200)
+      const text = await readUntil(response, 'sync', controller)
+      expect(text).toContain('"truncated":true')
+      expect(text).toContain('"minSeq":3')
+    } finally {
+      controller.abort()
+      db.close()
+    }
   })
 
   it('带 after 游标时只补发更新的那些', async function () {

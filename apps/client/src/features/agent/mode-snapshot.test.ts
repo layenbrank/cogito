@@ -101,7 +101,8 @@ describe('消息级模式快照', function () {
     expect(stamped.orphanSource).toBe('background-turn')
   })
 
-  it('执行模式不追加任何约束', function () {
-    expect(appendModeGuidance('原文', 'agent')).toBe('原文')
+  it('执行模式要求写完计划后继续做，不要只出计划就停', function () {
+    expect(appendModeGuidance('原文', 'agent')).toContain('【执行模式】')
+    expect(appendModeGuidance('原文', 'agent')).toContain('不要只输出一份计划就结束')
   })
 })

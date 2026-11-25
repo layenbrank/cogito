@@ -125,6 +125,38 @@ describe('goose 图的会话复用', function () {
     ])
   })
 
+  it('cwd 变化时重开会话（否则工具继续在旧目录读写）', async function () {
+    const fake = buildFakeGoose([{ reply: 'first' }, { reply: 'second' }])
+    const graph = createGooseGraph({ supervisor: fake.supervisor, checkpointer: new MemorySaver() })
+    const config = { configurable: { thread_id: 'thread-cwd' } }
+
+    await graph.invoke({ prompt: 'first', cwd: '/w1' }, config)
+    await graph.invoke({ prompt: 'second', cwd: '/w2' }, config)
+
+    expect(fake.newSessions).toEqual(['session-1', 'session-2'])
+  })
+
+  it('新建与复用会话都会调用 onSession 登记', async function () {
+    const fake = buildFakeGoose([{ reply: 'a' }, { reply: 'b' }])
+    const seen: Array<{ threadID: string; sessionId: string }> = []
+    const graph = createGooseGraph({
+      supervisor: fake.supervisor,
+      checkpointer: new MemorySaver(),
+      onSession: function (threadID, sessionId) {
+        seen.push({ threadID, sessionId })
+      }
+    })
+    const config = { configurable: { thread_id: 'thread-on-session' } }
+
+    await graph.invoke({ prompt: 'a', cwd: '/w' }, config)
+    await graph.invoke({ prompt: 'b', cwd: '/w' }, config)
+
+    expect(seen).toEqual([
+      { threadID: 'thread-on-session', sessionId: 'session-1' },
+      { threadID: 'thread-on-session', sessionId: 'session-1' }
+    ])
+  })
+
   it('旧 session 失效时重开一次并把新 sessionId 写回', async function () {
     const fake = buildFakeGoose([
       { reply: '第一轮' },

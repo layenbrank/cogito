@@ -192,7 +192,12 @@ describe('审批 HTTP 面', function () {
     const base = await startServer(hub)
     const threadID = await createThread(base)
 
-    void hub.ask({ threadID, sessionId: 's1', toolCall: null, options: [] })
+    void hub.ask({
+      threadID,
+      sessionId: 's1',
+      toolCall: null,
+      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }]
+    })
 
     const list = await fetch(`${base}/threads/${threadID}/approvals`, { headers: authHeaders() })
     expect(list.status).toBe(200)
@@ -213,6 +218,34 @@ describe('审批 HTTP 面', function () {
       body: JSON.stringify({ optionId: 'allow' })
     })
     expect(again.status).toBe(404)
+  })
+
+  it('不在可选集合里的 optionId 被拒绝，且票据仍可回执', async function () {
+    const hub = createApprovalHub()
+    const base = await startServer(hub)
+    const threadID = await createThread(base)
+    void hub.ask({
+      threadID,
+      sessionId: 's1',
+      toolCall: null,
+      options: [{ optionId: 'allow_once', name: 'Allow', kind: 'allow_once' }]
+    })
+    const requestId = hub.pending(threadID)[0].requestId
+
+    const bad = await fetch(`${base}/threads/${threadID}/approvals/${requestId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ optionId: 'allow_always' })
+    })
+    expect(bad.status).toBe(400)
+    expect(hub.pending(threadID)).toHaveLength(1)
+
+    const ok = await fetch(`${base}/threads/${threadID}/approvals/${requestId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ optionId: 'allow_once' })
+    })
+    expect(ok.status).toBe(200)
   })
 
   it('事件流连上时先补发现状（请求可能早于订阅）', async function () {

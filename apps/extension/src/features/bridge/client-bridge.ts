@@ -163,6 +163,8 @@ async function findBridgeStatus(force = false): Promise<BridgeProbe | null> {
 
 /** 带令牌请求一次代理路径（`path` 是 `/threads/...` 这样的 agentd 路径） */
 const agentdTransport = createAgentdTransport({
+  // 扩展与桌面端共用同一身份头：agentd 据此判断「同 thread 的写者是不是自己」
+  clientId: `ext-${crypto.randomUUID()}`,
   async findEndpoint() {
     const outcome = await findBridge()
     if (!outcome.ok) throw new Error(outcome.reason)

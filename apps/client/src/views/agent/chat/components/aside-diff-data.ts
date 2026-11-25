@@ -6,7 +6,8 @@ import {
   type DiffMeta,
   type DiffResult,
   type DiffRevs
-} from '@/lib/workspace-git'
+} from '@/apis/workspace-git'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 
 const HUNK_PAGE = 40
 
@@ -35,7 +36,9 @@ function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs) {
    */
   const requestKey = `${rootPath}|${relative}|${oldOid ?? ''}|${newOid ?? ''}|${side_ ?? ''}`
   const requestKeyRef = useRef(requestKey)
-  requestKeyRef.current = requestKey
+  useIsomorphicLayoutEffect(function () {
+    requestKeyRef.current = requestKey
+  })
 
   useEffect(
     function () {

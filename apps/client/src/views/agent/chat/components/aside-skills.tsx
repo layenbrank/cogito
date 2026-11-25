@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { findOwningRoot, toAgentPath } from '@/features/agent/workspace/paths.ts'
-import { WorkspaceSkills, type WorkspaceSkill } from '@/lib/workspace-skills.ts'
+import { WorkspaceSkills, type WorkspaceSkill } from '@/apis/workspace-skills'
 import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
 
 type ComposerAui = ReturnType<typeof useAui>

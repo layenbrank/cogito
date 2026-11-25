@@ -21,8 +21,9 @@ import type {
   QueueItemState,
   ThreadUserMessagePart
 } from '@assistant-ui/react'
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef } from 'react'
+
+import { GET_AGENT_COMPOSER_QUEUE, PUT_AGENT_COMPOSER_QUEUE } from '@/apis/agent-runtime'
 
 const QUEUE_DEBOUNCE_MS = 300
 
@@ -82,19 +83,13 @@ function notify(): void {
   for (const listener of listeners) listener()
 }
 
-async function invokeCommand<T>(command: string, params: unknown): Promise<T> {
-  return invoke<T>(command, { params })
-}
-
 async function readComposerQueue(sessionID: string): Promise<ComposerQueueRow[]> {
-  const rows = await invokeCommand<ComposerQueueRow[]>('agentComposerQueue:toRead', {
-    sessionID
-  })
+  const rows = await GET_AGENT_COMPOSER_QUEUE<ComposerQueueRow[]>(sessionID)
   return Array.isArray(rows) ? rows : []
 }
 
 async function replaceComposerQueue(sessionID: string, items: ReplaceItem[]): Promise<void> {
-  await invokeCommand<string[]>('agentComposerQueue:toReplace', {
+  await PUT_AGENT_COMPOSER_QUEUE({
     sessionID,
     lane: null,
     items: items.map(function (item) {

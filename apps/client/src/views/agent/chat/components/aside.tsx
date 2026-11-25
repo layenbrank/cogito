@@ -25,6 +25,7 @@ import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-ta
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { useBrowserStore } from '@/features/browser/store'
 import { normalizeToolPath } from '@/features/agent/tool-paths'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import { COMMAND } from '@/keyboard/definitions/ids'
 import { useShortcut } from '@/keyboard/react'
 import {
@@ -52,13 +53,14 @@ import {
   bootstrapTerminalSessions,
   ensureTerminalTab
 } from '@/features/terminal/agent-tabs'
-import { Terminal } from '@/lib/terminal'
+import { Terminal } from '@/apis/terminal'
 import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal-run'
-import { findPlanDraft } from '@/features/agent/plan-draft'
-import { isPlanStale, readPlan, setPlanStatus } from '@/features/agent/plan-store'
+import { findPanelDraft } from '@/features/agent/plan-draft'
+import { isPlanStale, readPlan } from '@/features/agent/plan-store'
+import { beginPlanExecution } from '@/features/agent/plan-execute-session'
 import { buildPlanExecutePrompt } from '@/features/agent/plan-execute'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
-import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/agent/mode'
+import { commitThreadMode, readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
 import { isEmbeddedShell } from '@/features/window/shell-mode'
 import { useTerminalStore, type TerminalTab } from '@/stores/terminal'
 
@@ -183,10 +185,9 @@ function AgentAside(props: AsideProps) {
    * 首帧往往是 null，结果就是「去看输出」永远回一句「先添加工作区」。
    */
   const rootPathRef = useRef(rootPath)
-  rootPathRef.current = rootPath
-
-  /** 「开始执行」的重入锁：见 `startImplement` 的注释 */
-  const startingRef = useRef(false)
+  useIsomorphicLayoutEffect(function () {
+    rootPathRef.current = rootPath
+  })
 
   const agentMode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
   /**
@@ -201,34 +202,28 @@ function AgentAside(props: AsideProps) {
    * - `agent`：普通执行，按阶段顺序推进；
    * - `goal`：目标推进——记下预算后由 `GoalAutoAdvance` 在每轮结束时自动续跑。
    *
-   * 发的是**计划正文全文**。早期版本只把 `findPlanDraft().steps` 拼成清单发出去，
+   * 发的是**计划正文全文**。早期版本只把 `findPanelDraft().steps` 拼成清单发出去，
    * 而清单是从正文抽出来的摘要（一条只剩一行），模型据此只做了象征性实现，
    * 文件级细节与验证步骤全被丢掉 —— 这是「计划执行不完整」的根因。
+   *
+   * 状态机在 `plan-execute-session`（单飞 + 先发出去才置 running + 记基线尾部）：
+   * 重入保护不再靠组件里的 ref —— 组件卸载 / 多处入口都会让 ref 失效（F-017）。
    */
   async function startImplement(target: 'agent' | 'goal', budget?: number) {
-    /*
-     * 重入保护：从点击到 `send()` 之间串着 `await writeAgentMode` / `startGoalRun`，
-     * 窗口里再点一次就会发**两份**计划正文（第二份还会把预算吃掉一轮）。
-     * 状态变量是异步的，挡不住同一 tick 的两次点击，所以用 ref 首行短路。
-     */
-    if (startingRef.current) return
-    startingRef.current = true
-    try {
-      await runImplement(target, budget)
-    } finally {
-      startingRef.current = false
-    }
+    await runImplement(target, budget)
   }
 
-  /** 真正的执行体（重入保护在 `startImplement` 里） */
+  /** 真正的执行体（单飞与状态推进在 `beginPlanExecution` 里） */
   async function runImplement(target: 'agent' | 'goal', budget?: number) {
     // 新会话还没有落库 id：连「这一轮聊了什么」都没有，不能执行
     if (!threadID) {
       toast.error('先完成一轮对话再执行计划')
       return
     }
-    // 点击时再读：不把整份 messages 常驻在本组件订阅链上
-    const draft = findPlanDraft(aui.thread.getState().messages)
+    // 点击时再读：不把整份 messages 常驻在本组件订阅链上。
+    // 与右栏「计划」页签用同一个识别口径（按该轮的模式快照判，不看当前档位），
+    // 否则会出现「页签里明明有计划，点开始执行却提示没有计划」。
+    const draft = findPanelDraft(aui.thread.getState().messages)
     // 有档案就以档案为准（计划可能来自文件、也可能已经被改过），否则退回当轮草稿
     const record = readPlan(threadID)
     const body = record?.body ?? draft?.body ?? ''
@@ -259,30 +254,57 @@ function AgentAside(props: AsideProps) {
       revision: record?.revision
     })
 
-    // 先落模式再开跑：以前 `void writeAgentMode()` 与 send 并发，模式还没落盘就跑起来了
-    await writeAgentMode(target)
-    setPlanStatus(threadID, 'running')
+    // 基线尾部：开始之前最后一条助手消息。观察器只认**之后**出现的，否则会把计划正文
+    // 当成「这一轮已经跑完」，一点执行就立刻 done（F-017）。
+    const baselineTailID =
+      aui.thread.getState().messages.findLast?.(function (message) {
+        return message.role === 'assistant'
+      })?.id ?? null
 
-    if (target === 'goal') {
-      const rounds = budget ?? DEFAULT_BUDGET
-      const switched = startGoalRun(
-        threadID,
-        { summary: overview || steps.join('；') || '按计划推进', detail: body || overview },
-        rounds,
-        prompt
-      )
-      // 无人值守的前提：审批不能挡路。全部目标结束后会自动恢复原档位
-      if (switched) {
-        toast.info('已把审批切到「自动审批」—— 目标推进中途不停；全部结束后恢复原档位')
+    const rounds = budget ?? DEFAULT_BUDGET
+    const outcome = await beginPlanExecution({
+      threadID,
+      target,
+      baselineTailID,
+      prepare: async function () {
+        // 先落模式并等 goose 同步完：只改偏好的话，这一轮仍按计划档的只读发出去
+        await commitThreadMode(threadID, target)
+        if (target === 'goal') {
+          const switched = startGoalRun(
+            threadID,
+            { summary: overview || steps.join('；') || '按计划推进', detail: body || overview },
+            rounds,
+            prompt
+          )
+          // 无人值守的前提：审批不能挡路。全部目标结束后会自动恢复原档位
+          if (switched) {
+            toast.info('已把审批切到「自动审批」—— 目标推进中途不停；全部结束后恢复原档位')
+          }
+        } else {
+          // `null` / 空串在 stopGoalRun 里是 no-op（以前这里直接 TypeError）
+          stopGoalRun(threadID)
+        }
+      },
+      rollback: function () {
+        // 发送没成功：刚建的目标记录必须收掉，否则会留下「目标 running 但没有一轮在跑」
+        if (target === 'goal') stopGoalRun(threadID)
+      },
+      send: function () {
+        // 发**计划正文全文**（清单只是摘要，见 plan-execute.ts 的说明）
+        aui.composer.setText(prompt)
+        aui.composer.send()
+        // `send()` 在 `!canSend` 时静默无效：正文还在输入框里就是没发出去
+        return aui.composer.getState().text !== prompt
       }
-    } else {
-      // `null` / 空串在 stopGoalRun 里是 no-op（以前这里直接 TypeError）
-      stopGoalRun(threadID)
-    }
+    })
 
-    // 发**计划正文全文**（清单只是摘要，见 plan-execute.ts 的说明）
-    aui.composer.setText(prompt)
-    void aui.composer.send()
+    if (outcome.ok) return
+    if (outcome.reason === 'busy') {
+      toast.info('这份计划已经在执行中，不用重复点')
+      return
+    }
+    aui.composer.setText('')
+    toast.error('执行没能发出去（会话未就绪或正在提交），请稍后重试')
   }
 
   /**

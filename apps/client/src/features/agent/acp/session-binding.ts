@@ -14,15 +14,26 @@
  * - **缓存与库同形**：`recallBinding()` 返回的对象和 `bindSession()` 返回的一致，
  *   调用方不用关心数据是从库来的还是缓存来的。
  */
-import { invoke } from '@tauri-apps/api/core'
 import { z } from 'zod'
 
-import { CHANNELS } from '@/shared/ipc/channels'
+import {
+  DELETE_AGENT_SESSION_ACP_BINDING,
+  GET_AGENT_SESSION_ACP_BINDING,
+  GET_AGENT_SESSION_ACP_BINDINGS,
+  POST_AGENT_SESSION_ACP_BINDING
+} from '@/apis/agent-session'
 
 export const SessionBindingSchema = z.object({
   acpSessionId: z.string(),
   cwd: z.string(),
   lastSeq: z.number().int().nonnegative(),
+  // 旧行没有这一列：`nullish` 后统一成 null，调用方不用区分 undefined
+  lastEpoch: z
+    .string()
+    .nullish()
+    .transform(function (value) {
+      return value ?? null
+    }),
   routeTier: z.string()
 })
 
@@ -53,13 +64,14 @@ export function recallBinding(threadID: string): SessionBinding | null {
  */
 export async function GET_ACP_BINDINGS(): Promise<number> {
   try {
-    const raw = await invoke<unknown>(CHANNELS.AGENT_SESSION.LIST_ACP_BINDINGS)
+    const raw = await GET_AGENT_SESSION_ACP_BINDINGS()
     const rows = z.array(BoundSessionSchema).parse(raw ?? [])
     for (const row of rows) {
       cache.set(row.sessionId, {
         acpSessionId: row.acpSessionId,
         cwd: row.cwd,
         lastSeq: row.lastSeq,
+        lastEpoch: row.lastEpoch,
         routeTier: row.routeTier
       })
     }
@@ -74,6 +86,7 @@ export interface BindInput {
   acpSessionId: string
   cwd?: string
   lastSeq?: number
+  lastEpoch?: string | null
   routeTier?: string
 }
 
@@ -89,9 +102,7 @@ export async function POST_ACP_BINDING(
   const id = key(threadID)
   if (!id || !input.acpSessionId.trim()) return null
   try {
-    const raw = await invoke<unknown>(CHANNELS.AGENT_SESSION.BIND_ACP, {
-      params: { sessionId: id, ...input }
-    })
+    const raw = await POST_AGENT_SESSION_ACP_BINDING({ sessionId: id, ...input })
     const binding = SessionBindingSchema.parse(raw)
     cache.set(id, binding)
     return binding
@@ -108,9 +119,7 @@ export async function GET_ACP_BINDING(threadID: string): Promise<SessionBinding 
   const cached = cache.get(id)
   if (cached) return cached
   try {
-    const raw = await invoke<unknown>(CHANNELS.AGENT_SESSION.READ_ACP_BINDING, {
-      params: { sessionId: id }
-    })
+    const raw = await GET_AGENT_SESSION_ACP_BINDING(id)
     if (raw === null || raw === undefined) return null
     const binding = SessionBindingSchema.parse(raw)
     cache.set(id, binding)
@@ -134,9 +143,7 @@ export async function DELETE_ACP_BINDING(threadID: string): Promise<boolean> {
   if (!id) return false
   const hadCache = cache.delete(id)
   try {
-    const cleared = await invoke<unknown>(CHANNELS.AGENT_SESSION.UNBIND_ACP, {
-      params: { sessionId: id }
-    })
+    const cleared = await DELETE_AGENT_SESSION_ACP_BINDING(id)
     return cleared === true || hadCache
   } catch (error) {
     console.warn('[acp/session-binding] 解绑失败（不影响关闭会话）:', error)

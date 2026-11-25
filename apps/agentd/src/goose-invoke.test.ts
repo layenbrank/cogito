@@ -111,6 +111,11 @@ describe('goose 方法白名单', function () {
     expect(ALLOWED_GOOSE_METHODS).not.toContain('session/new')
   })
 
+  it('挡掉工具权限写入（否则公开面可撤销硬禁用）', function () {
+    expect(isAllowedGooseMethod('_goose/unstable/tools/permissions/set')).toBe(false)
+    expect(ALLOWED_GOOSE_METHODS).not.toContain('_goose/unstable/tools/permissions/set')
+  })
+
   it('挡掉任意未列出的方法（fail-closed）', async function () {
     const { base, calls } = await startServer()
     const response = await invoke(base, 'session/delete_everything', {})

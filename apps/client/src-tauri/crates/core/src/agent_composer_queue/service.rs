@@ -252,6 +252,7 @@ mod tests {
             acpSessionID: Set(None),
             acpCwd: Set(None),
             lastSeq: Set(0),
+            lastEpoch: Set(None),
             routeTier: Set(crate::agent_session::DEFAULT_ROUTE_TIER.to_string()),
             createdAt: Set(1),
             updatedAt: Set(1),

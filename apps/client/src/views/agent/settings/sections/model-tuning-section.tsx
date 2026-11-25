@@ -67,9 +67,15 @@ function ModelTuningSection(props: ModelTuningSectionProps) {
       })
       const activeModel = activeProvider.model ?? visible[0] ?? ''
       const order: string[] = []
-      if (activeModel) order.push(activeModel)
+      const seen = new Set<string>()
+      if (activeModel) {
+        order.push(activeModel)
+        seen.add(activeModel)
+      }
       for (const model of visible) {
-        if (order.indexOf(model) < 0) order.push(model)
+        if (seen.has(model)) continue
+        seen.add(model)
+        order.push(model)
       }
       return order.slice(0, MODEL_SEGMENT_LIMIT).map(function (model) {
         return { label: findModelLabel(model, activeProvider), model }

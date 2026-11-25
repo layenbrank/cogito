@@ -9,7 +9,7 @@ import type { ThreadMessage } from '@assistant-ui/react'
 import { useMemo } from 'react'
 
 import { collectToolPaths } from '@/features/agent/tool-paths.ts'
-import type { StatusEntry } from '@/lib/workspace-git'
+import type { StatusEntry } from '@/apis/workspace-git'
 import { groupEntries } from '@/views/code/lib/git-status.ts'
 
 interface SplitRows {

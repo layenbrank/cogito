@@ -174,9 +174,21 @@ function GoalAutoAdvance() {
       if (outcome.kind !== 'dispatch') return
       // 续跑 prompt 已由 advanceGoal 记进档案（下一轮据此判断「还是不是目标轮」）
       aui.composer.setText(outcome.prompt)
-      // 发送失败不能只写日志：租约已经消费掉了，记录却停在 running —— 目标会看起来
+      /**
+       * `send()` 在 `!canSend` 时**静默返回**（不抛错），正文会留在输入框里。
+       * 不判定的话：租约已经消费、记录停在 running，用户看到「推进中」却再也不会动（F-016）。
+       */
+      const sent = aui.composer.send()
+      const accepted = aui.composer.getState().text !== outcome.prompt
+      if (!accepted) {
+        aui.composer.setText('')
+        finishGoalRun(threadID, 'paused')
+        toast.error('目标推进的发送被拦下（会话未就绪或正在提交），已暂停；可点「继续推进」重试')
+        return
+      }
+      // 发送失败不能只写日志：租约已经消费掉了，记录却停在 running —— 目标会看 起来
       // 「还在推进」但再也没有下一轮。收成 paused，让用户看到真实状态并能手动续跑。
-      void Promise.resolve(aui.composer.send()).catch(function (error: unknown) {
+      void Promise.resolve(sent).catch(function (error: unknown) {
         console.warn('[agent/goal] 续跑发送失败，目标转为暂停:', error)
         finishGoalRun(threadID, 'paused')
         toast.error('目标推进发送失败，已暂停；可点「继续推进」重试')

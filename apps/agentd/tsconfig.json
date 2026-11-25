@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "lib": ["ESNext"],
+    "allowImportingTsExtensions": true,
 
     "strict": true,
     "noFallthroughCasesInSwitch": true,

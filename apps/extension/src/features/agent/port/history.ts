@@ -57,6 +57,7 @@ function buildDexieHistoryPort(): ChatHistoryPort {
         providerID: input?.providerID ?? null,
         workspaceID: input?.workspaceID ?? null,
         lastSeq: 0,
+        lastEpoch: null,
         acpSessionID: null,
         createdAt: now,
         updatedAt: now

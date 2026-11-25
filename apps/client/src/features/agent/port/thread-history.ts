@@ -21,9 +21,9 @@ import {
   type ThreadIdentity
 } from '@cogito/chat/adapters/thread-history'
 import type { ChatHistoryPort, ChatStreamEvent } from '@cogito/chat/ports'
-import { invoke } from '@tauri-apps/api/core'
 import { v4 as UUIDV4 } from 'uuid'
 
+import { GET_AGENT_MESSAGE_THREAD } from '@/apis/agent-message'
 import {
   bindBackgroundTurnPersister,
   clearPersistedRunning,
@@ -42,7 +42,7 @@ import { resumeThreadRun } from '@/features/agent/port/session'
 import { bindGoalHistoryPort } from '@/features/agent/goal-continue'
 import { readModeSnapshot, stampModeSnapshot } from '@/features/agent/mode'
 import { notifyTurnDone } from '@/features/agent/notify'
-import { CHANNELS } from '@/shared/ipc/channels'
+
 import { reportCaught } from '@/utils/exception-report'
 
 interface StoredLocalPayload {
@@ -93,9 +93,7 @@ async function GET_AGENT_THREAD(
   scrubDetach: boolean
 ): Promise<LoadThreadR | null> {
   try {
-    return await invoke<LoadThreadR>(CHANNELS.AGENT_MESSAGE.LOAD_THREAD, {
-      params: { sessionId, scrubDetach }
-    })
+    return await GET_AGENT_MESSAGE_THREAD<LoadThreadR>({ sessionId, scrubDetach })
   } catch (error) {
     console.warn('[agent/thread-history] loadThread 不可用，回退 TS 解码:', error)
     return null
@@ -307,7 +305,9 @@ function buildThreadHistoryAdapter(
           )
           return
         }
-        // 刷新场景：内存缓冲丢了，重新订阅 goose session（session/load 重放历史 + 续尾）
+        // 刷新场景：内存缓冲丢了，重新订阅 **agentd 的事件日志**（`pumpTurn` 按 `after`/`epoch` 补发）。
+        // 注意：这里**不是** goose 的 `session/load` 重放 —— 事件源是 agentd 的 `run_events`；
+        // 日志已淘汰时只会得到 `truncated`，正文补全要走 R5 的回放通道（见 ADR）。
         yield* mapChatStreamToRunResults(
           resumeThreadRun(threadID, options.abortSignal),
           options.abortSignal

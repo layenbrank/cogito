@@ -23,7 +23,7 @@ interface GooseAcpOptions {
   env?: NodeJS.ProcessEnv
   cwd?: string
   onStderr?: (text: string) => void
-  onExit?: (code: number | null) => void
+  onExit?: (code: number | null, reason?: string) => void
   requestTimeoutMs?: number
 }
 
@@ -137,6 +137,49 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
   let elicitationHandler: ElicitationRequestHandler | null = null
   let nextId = 1
   let closed = false
+  /** `onExit` 只报一次：`error` 与 `exit` 可能先后到达 */
+  let reportedExit = false
+
+  function rejectPending(error: Error): void {
+    for (const waiter of pending.values()) {
+      clearTimeout(waiter.timer)
+      waiter.reject(error)
+    }
+    pending.clear()
+  }
+
+  function reportExit(code: number | null, reason?: string): void {
+    if (reportedExit) return
+    reportedExit = true
+    options.onExit?.(code, reason)
+  }
+
+  /**
+   * 子进程错误（spawn 失败 / EPIPE / 管道被关）：
+   *
+   * Node 对未监听的 `'error'` 事件会直接抛成未捕获异常，把整个 agentd 带走。
+   * 所以所有错误统一折算成「本次 client 已死」：拒绝 pending、只报一次 exit，
+   * 由 supervisor 决定是否重启。
+   */
+  function fail(reason: string): void {
+    if (closed) return
+    closed = true
+    console.error(`[acp] ${reason}`)
+    rejectPending(new Error(`goose acp ${reason}`))
+    reportExit(null, reason)
+  }
+
+  /** 写 stdin：进程可能刚死但 `exit` 还没派发，写前要自己拦 */
+  function safeWrite(payload: unknown): boolean {
+    if (closed || child.stdin.destroyed || child.stdin.writableEnded) return false
+    try {
+      child.stdin.write(`${JSON.stringify(payload)}\n`)
+      return true
+    } catch (error) {
+      fail(`stdin 写入失败：${String(error)}`)
+      return false
+    }
+  }
 
   /** 把决定写回给 goose；请求方在等这条 result。 */
   function respondPermission(requestId: JsonRpcId, decision: PermissionDecision): void {
@@ -145,7 +188,7 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
       ? { outcome: { outcome: 'selected', optionId: decision.optionId } }
       : { outcome: { outcome: 'cancelled' } }
     console.log(`[acp] 审批回执 id=${requestId} → ${JSON.stringify(result.outcome)}`)
-    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: requestId, result })}\n`)
+    safeWrite({ jsonrpc: '2.0', id: requestId, result })
   }
 
   /**
@@ -172,7 +215,7 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
           ? { action: 'accept', content: decision.content ?? {} }
           : { action: decision.action }
       console.log(`[acp] 追问回执 id=${id} → ${decision.action}`)
-      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`)
+      safeWrite({ jsonrpc: '2.0', id, result })
     }
 
     if (!elicitationHandler || mode !== 'form') {
@@ -210,13 +253,11 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
 
     if (method !== 'session/request_permission') {
       // 未实现的反向请求必须回错，不能让它悬着
-      child.stdin.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id,
-          error: { code: -32601, message: `未实现的客户端方法: ${method}` }
-        })}\n`
-      )
+      safeWrite({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32601, message: `未实现的客户端方法: ${method}` }
+      })
       return
     }
 
@@ -260,6 +301,25 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
       respondPermission(id, null)
     }
   }
+
+  child.on('error', function (error: Error) {
+    // spawn 失败（ENOENT / EACCES）会走到这里；不监听就是未捕获异常
+    fail(`启动/运行失败：${error.message}`)
+  })
+
+  child.stdin.on('error', function (error: Error) {
+    // goose 刚死、exit 还没派发时写 stdin 会得到 EPIPE
+    fail(`stdin 错误：${error.message}`)
+  })
+
+  child.stdout.on('error', function (error: Error) {
+    fail(`stdout 错误：${error.message}`)
+  })
+
+  child.stderr.on('error', function (error: Error) {
+    // stderr 坏了不影响协议，但值得记一笔
+    console.warn(`[acp] stderr 错误：${error.message}`)
+  })
 
   child.stdout.setEncoding('utf8')
   child.stdout.on('data', function (chunk: string) {
@@ -306,13 +366,14 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
   })
 
   child.on('exit', function (code) {
-    closed = true
-    for (const waiter of pending.values()) {
-      clearTimeout(waiter.timer)
-      waiter.reject(new Error('goose acp 已退出'))
+    if (closed) {
+      // `fail()` / `close()` 已经处理过：pending 不会再有回包
+      if (!reportedExit) reportExit(code)
+      return
     }
-    pending.clear()
-    options.onExit?.(code)
+    closed = true
+    rejectPending(new Error('goose acp 已退出'))
+    reportExit(code)
   })
 
   function request(method: string, params: unknown, timeoutOverride?: number): Promise<unknown> {
@@ -326,13 +387,16 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
       }, timeoutOverride ?? timeoutMs)
       timer.unref()
       pending.set(id, { resolve, reject, timer })
-      child.stdin.write(`${JSON.stringify(payload)}\n`)
+      if (!safeWrite(payload)) {
+        pending.delete(id)
+        clearTimeout(timer)
+        reject(new Error('goose acp 未运行'))
+      }
     })
   }
 
   function notify(method: string, params: unknown): void {
-    if (closed) return
-    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`)
+    safeWrite({ jsonrpc: '2.0', method, params })
   }
 
   return {
@@ -399,7 +463,11 @@ function spawnGooseAcp(options: GooseAcpOptions): GooseAcpClient {
       } catch {
         // 已经关掉了
       }
-      child.kill()
+      try {
+        child.kill()
+      } catch {
+        // spawn 失败过的 child 没有可杀进程
+      }
     }
   }
 }

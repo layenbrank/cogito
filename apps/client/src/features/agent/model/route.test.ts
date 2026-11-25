@@ -7,13 +7,13 @@ vi.mock('@tauri-apps/api/core', function () {
 })
 
 import {
-  POST_AGENT_ROUTE_DEGRADE,
+  judgeRouteDegrade,
   isLocalKind,
   isRouteTier,
-  PUT_AGENT_ROUTE_TIER,
+  setRouteTier,
   noteRunFailure,
   pickProvider,
-  GET_AGENT_ROUTE,
+  planRoute,
   readRouteTier
 } from '@/features/agent/model/route'
 
@@ -26,7 +26,7 @@ const providers = [
 describe('分层路由（S11）', function () {
   beforeEach(function () {
     invoke.mockReset()
-    PUT_AGENT_ROUTE_TIER('local')
+    setRouteTier('local')
   })
 
   it('本地 provider 的 kind 只认白名单', function () {
@@ -75,7 +75,7 @@ describe('分层路由（S11）', function () {
       localModels: [],
       probe: 'Ollama 未运行'
     })
-    const reply = await GET_AGENT_ROUTE('local', 'qwen3:14b')
+    const reply = await planRoute('local', 'qwen3:14b')
     expect(invoke).toHaveBeenCalledWith('agentRoute:plan', {
       params: { tier: 'local', model: 'qwen3:14b' }
     })
@@ -84,21 +84,21 @@ describe('分层路由（S11）', function () {
 
   it('规划失败或返回不可识别时按「不降级」处理', async function () {
     invoke.mockRejectedValueOnce(new Error('ipc down'))
-    await expect(GET_AGENT_ROUTE('local', null)).resolves.toBeNull()
+    await expect(planRoute('local', null)).resolves.toBeNull()
     invoke.mockResolvedValueOnce({ plan: { tier: 'edge' } })
-    await expect(GET_AGENT_ROUTE('local', null)).resolves.toBeNull()
+    await expect(planRoute('local', null)).resolves.toBeNull()
   })
 
   it('降级判定：可判定失败换云，用户取消不换', async function () {
     invoke.mockResolvedValueOnce({ next: 'cloud', failure: 'connectRefused' })
-    await expect(POST_AGENT_ROUTE_DEGRADE('local', 'Connection refused')).resolves.toBe('cloud')
+    await expect(judgeRouteDegrade('local', 'Connection refused')).resolves.toBe('cloud')
     invoke.mockResolvedValueOnce({ next: null, failure: 'userCancel' })
-    await expect(POST_AGENT_ROUTE_DEGRADE('local', '操作已取消')).resolves.toBeNull()
+    await expect(judgeRouteDegrade('local', '操作已取消')).resolves.toBeNull()
   })
 
   it('降级判定调用失败时不开新路', async function () {
     invoke.mockRejectedValueOnce(new Error('boom'))
-    await expect(POST_AGENT_ROUTE_DEGRADE('local', 'Connection refused')).resolves.toBeNull()
+    await expect(judgeRouteDegrade('local', 'Connection refused')).resolves.toBeNull()
   })
 
   it('本轮可判定失败后档位切到云并落库', async function () {
@@ -126,8 +126,8 @@ describe('分层路由（S11）', function () {
 
   it('档位落库失败不影响本轮', async function () {
     invoke.mockRejectedValueOnce(new Error('db locked'))
-    PUT_AGENT_ROUTE_TIER('cloud', 's1')
+    setRouteTier('cloud', 's1')
     expect(readRouteTier()).toBe('cloud')
-    PUT_AGENT_ROUTE_TIER('local')
+    setRouteTier('local')
   })
 })

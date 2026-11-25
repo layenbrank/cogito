@@ -12,9 +12,8 @@
  * 注意：只写本地 store、不注册 goose，会出现「UI 能选组织模型，切换/发送时 goose 不认识
  * cogito_gateway」——同步目录成功后必须 best-effort 注册，发送前再校验一次。
  */
-import { invoke } from '@tauri-apps/api/core'
-
 import { GET_GATEWAY_MODELS, type GatewayModel } from '@/apis/gateway'
+import { PATCH_COGITO_PROVIDER_TENANT, POST_COGITO_PROVIDER } from '@/apis/agent-runtime'
 import { findAcpHandle } from '@/features/agent/port/agentd-connection'
 import { fetchProviderEntry } from '@/features/agent/acp/goose-providers'
 import { waitGooseReady } from '@/features/agent/port/session'
@@ -26,7 +25,6 @@ import { stringifyModels, parseModels } from '@/features/agent/model/providers'
 import { GATEWAY_PROVIDER_KIND } from '@/features/quota/gate'
 import { reportCaught } from '@/utils/exception-report'
 import { syncActiveTenant } from '@/features/quota/tenant'
-import { CHANNELS } from '@/shared/ipc/channels'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
 import { findAuthToken } from '@/utils/auth'
 import { ENV_URLS } from '@/utils/http/env'
@@ -209,16 +207,6 @@ async function dropStaleCogitoRow(): Promise<void> {
   }
 }
 
-async function POST_COGITO_PROVIDER(tenantID: string, baseUrl: string, models: string[], force: boolean) {
-  // Tauri 把 `tenant_id` 解成 `tenantId`（不是业务约定的 `tenantID`）
-  return invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, {
-    tenantId: tenantID,
-    baseUrl,
-    models,
-    force
-  })
-}
-
 type GooseCogitoStatus = 'ready' | 'missing' | 'unknown'
 
 /**
@@ -278,7 +266,7 @@ async function ensureCogitoProvider(): Promise<void> {
   }
 
   try {
-    await POST_COGITO_PROVIDER(tenantID, baseUrl, models, false)
+    await POST_COGITO_PROVIDER({ tenantId: tenantID, baseUrl, models, force: false })
   } catch (error) {
     throw softFailure(
       `组织模型暂不可用：${asError(error, '注册网关供应商失败').message}`
@@ -288,7 +276,7 @@ async function ensureCogitoProvider(): Promise<void> {
   let status = await findGooseCogitoStatus()
   if (status === 'missing') {
     try {
-      await POST_COGITO_PROVIDER(tenantID, baseUrl, models, true)
+      await POST_COGITO_PROVIDER({ tenantId: tenantID, baseUrl, models, force: true })
     } catch (error) {
       throw softFailure(
         `组织模型暂不可用：${asError(error, '强制重载网关供应商失败').message}`
@@ -319,7 +307,7 @@ async function ensureCogitoProvider(): Promise<void> {
 async function PUT_COGITO_PROVIDER_TENANT(tenantID: string): Promise<void> {
   try {
     // 键名须为 `tenantId`，与 `writeGooseProvider` 同一套 Tauri 解包规则
-    await invoke<boolean>(CHANNELS.COGITO.PROVIDER_UPDATE_TENANT, { tenantId: tenantID })
+    await PATCH_COGITO_PROVIDER_TENANT(tenantID)
   } catch (error) {
     reportCaught('acp.cogito-provider.setTenant', error, 'warning')
   }

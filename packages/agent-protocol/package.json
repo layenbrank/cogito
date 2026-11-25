@@ -3,9 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "agentd 与前端共享的纯契约：./protocol 编排状态与事件类型，./policy 审批与工具风险的唯一判定实现",
+  "description": "agentd 与前端共享的工具/审批契约：./policy 是工具效果分类、工具风险与审批档换算的唯一判定实现",
   "exports": {
-    "./protocol": "./src/protocol/index.ts",
     "./policy": "./src/policy/index.ts"
   },
   "scripts": {

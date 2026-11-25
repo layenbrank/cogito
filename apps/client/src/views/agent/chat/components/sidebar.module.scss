@@ -323,9 +323,13 @@
 .emptySession {
   display: block;
   padding: 6px 10px;
+  overflow: hidden;
   font-size: 12px;
   font-style: italic;
   color: var(--muted-foreground);
+  /* 栏被拖窄 / 最小化假窄时也不能折成两三字一行（看起来像文字叠在一起） */
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty {

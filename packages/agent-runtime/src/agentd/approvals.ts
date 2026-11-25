@@ -18,7 +18,16 @@
 import type { CreateElicitationResponse } from '@agentclientprotocol/sdk'
 
 import { AGENTD_ROUTES } from './runs'
-import type { AgentdTransport } from './transport'
+
+/**
+ * 回执只需要「调一个 agentd 路由」。
+ *
+ * 不收 `AgentdTransport` 全脸：那样每个单测/宿主都得把 `findEndpoint` / `invokeGoose`
+ * 一起伪造，而回执根本用不到它们。
+ */
+interface AgentdCaller {
+  call: (path: string, init?: RequestInit) => Promise<Response>
+}
 
 /** 待审批票据：`toolCallId → 票据` */
 interface ApprovalTicket {
@@ -59,21 +68,17 @@ const SETTLED_APPROVALS_CAP = 256
 /**
  * 按「允许 / 拒绝」派生回执选项。
  *
- * **必须先找 `*_once`**：goose 下发的顺序是 `allow_always, allow_once, reject_once,
- * reject_always`，用一个 `/allow/` 正则去 `find` 会先命中 `allow_always` —— 用户只点了
- * 一次「允许」，却把这条工具永久放进了 `permission.yaml` 的 `user` 段。这正是审批判定
- * 反复强调「替用户拍板只能是这一次」要防的事。
+ * **只认精确的 `*_once`**，不做正则兵底：goose 下发的顺序是
+ * `allow_always, allow_once, reject_once, reject_always`，用 `/allow/` 去 `find`
+ * 会先命中 `allow_always` —— 用户只点了一次「允许」，却把这条工具永久放进了
+ * `permission.yaml` 的 `user` 段。没找到精确选项时返回 `null`，调用方据此
+ * fail-closed（取消整轮，而不是永久放行/禁用）。
  */
 function deriveOption(options: readonly string[], approved: boolean): string | null {
   const once = approved ? 'allow_once' : 'reject_once'
-  const exact = options.find(function (optionId) {
-    return optionId === once
-  })
-  if (exact) return exact
-  const pattern = approved ? /allow/ : /reject/
   return (
     options.find(function (optionId) {
-      return pattern.test(optionId)
+      return optionId === once
     }) ?? null
   )
 }
@@ -123,7 +128,7 @@ function createApprovalLedger(): ApprovalLedger {
 
 /** 把审批回执写回 agentd；`optionId === null` 表示取消本轮 */
 async function postApproval(
-  transport: AgentdTransport,
+  transport: AgentdCaller,
   threadID: string,
   requestId: string,
   optionId: string | null
@@ -142,7 +147,7 @@ async function postApproval(
 
 /** 把追问回执写回 agentd；`action` 原样透传（accept 要带 content） */
 async function postElicitation(
-  transport: AgentdTransport,
+  transport: AgentdCaller,
   threadID: string,
   requestId: string,
   decision: CreateElicitationResponse
@@ -159,5 +164,46 @@ async function postElicitation(
   }
 }
 
-export { createApprovalLedger, postApproval, postElicitation }
-export type { ApprovalLedger, ApprovalTakeInput, ApprovalTaken, ApprovalTicket }
+/** 待追问票据：`requestId → 发起它的会话`（回执只有 requestId，要靠它定位线程） */
+interface ElicitationTicket {
+  threadID: string
+  requestId: string
+}
+
+interface ElicitationRegistry {
+  remember: (requestId: string, ticket: ElicitationTicket) => void
+  forget: (requestId: string) => void
+  findTicket: (requestId: string) => ElicitationTicket | null
+}
+
+/**
+ * 追问票据表。
+ *
+ * 与审批账本同理：票据必须带 `threadID` —— 回执到达时「当前会话」可能已经切成别的了，
+ * 而 agentd 那边还在等这一次追问（超时后按 cancelled 结案）。
+ */
+function createElicitationRegistry(): ElicitationRegistry {
+  const pending = new Map<string, ElicitationTicket>()
+  return {
+    remember: function (requestId: string, ticket: ElicitationTicket) {
+      pending.set(requestId, ticket)
+    },
+    forget: function (requestId: string) {
+      pending.delete(requestId)
+    },
+    findTicket: function (requestId: string) {
+      return pending.get(requestId) ?? null
+    }
+  }
+}
+
+export { createApprovalLedger, createElicitationRegistry, deriveOption, postApproval, postElicitation }
+export type {
+  AgentdCaller,
+  ApprovalLedger,
+  ApprovalTakeInput,
+  ApprovalTaken,
+  ApprovalTicket,
+  ElicitationRegistry,
+  ElicitationTicket
+}

@@ -35,16 +35,16 @@ import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { joinWorkspacePath, toAgentPath } from '@/features/agent/workspace/paths.ts'
 import {
-  GET_KNOWLEDGE_BASES,
+  GET_KNOWLEDGE_SPACES,
   GET_KNOWLEDGE_DOCS,
   POST_KNOWLEDGE_RESCAN,
   GET_KNOWLEDGE_SEARCH,
   PUT_KNOWLEDGE_DOC,
-  type KnowledgeBase,
+  type KnowledgeSpace,
   type KnowledgeDocSummary,
   type KnowledgeHit
-} from '@/lib/knowledge-ipc.ts'
-import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+} from '@/apis/knowledge'
+import { useSpacesStore } from '@/stores/spaces'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
   buildNewDocContent,
@@ -70,7 +70,7 @@ interface KnowledgeBrowserProps {
 
 /** 当前打开的那篇：检索命中里没有字数 / 时间，所以字段都可选 */
 interface OpenDoc {
-  baseId: string
+  spaceId: string
   id: string
   title: string
   relPath: string
@@ -80,13 +80,13 @@ interface OpenDoc {
   editing: boolean
 }
 
-type CreateMode = 'doc' | 'base' | null
+type CreateMode = 'doc' | 'space' | null
 
 const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps) {
   const navigate = useNavigate()
   const { primaryRootPath } = useActiveWorkspace()
-  const [bases, updateBases] = useState<KnowledgeBase[]>([])
-  const [baseID, updateBaseID] = useState<string | null>(null)
+  const [spaces, updateSpaces] = useState<KnowledgeSpace[]>([])
+  const [spaceID, setSpaceID] = useState<string | null>(null)
   const [docs, updateDocs] = useState<KnowledgeDocSummary[]>([])
   const [query, updateQuery] = useState('')
   const [hits, updateHits] = useState<KnowledgeHit[]>([])
@@ -100,17 +100,17 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   const [createMode, updateCreateMode] = useState<CreateMode>(null)
   const [createName, updateCreateName] = useState('')
   const [templateId, updateTemplateId] = useState(WIKI_TEMPLATE_GENERAL)
-  const insertKnowledgeBase = useKnowledgeBaseStore(function (state) {
-    return state.insert
+  const insertKnowledgeSpace = useSpacesStore(function (state) {
+    return state.addSpace
   })
-  const importExample = useKnowledgeBaseStore(function (state) {
+  const importExample = useSpacesStore(function (state) {
     return state.importExample
   })
 
   function syncBasesFromStore() {
-    const state = useKnowledgeBaseStore.getState()
-    updateBases(state.bases)
-    updateBaseID(state.activeBaseID)
+    const state = useSpacesStore.getState()
+    updateSpaces(state.spaces)
+    setSpaceID(state.activeSpaceID)
   }
   const [isCreating, updateCreating] = useState(false)
 
@@ -123,17 +123,17 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         try {
           updateLoading(true)
           updateError(null)
-          const rows = await GET_KNOWLEDGE_BASES()
+          const rows = await GET_KNOWLEDGE_SPACES()
           if (cancelled) return
-          updateBases(rows)
-          updateBaseID(function (current) {
+          updateSpaces(rows)
+          setSpaceID(function (current) {
             if (current && rows.some((row) => row.id === current)) return current
             return rows[0]?.id ?? null
           })
         } catch (cause) {
           if (cancelled) return
           console.warn('[knowledge-browser] 读取知识库失败', cause)
-          updateBases([])
+          updateSpaces([])
           updateError(cause instanceof Error ? cause.message : '读取知识库失败')
         } finally {
           if (!cancelled) updateLoading(false)
@@ -150,9 +150,9 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   // 文档列表：跟着当前库走
   useEffect(
     function () {
-      // 库切没了就什么都不读：列表在渲染时按 baseID 兜空，不在这里 setState
-      if (!props.active || !baseID) return
-      const currentBaseID = baseID
+      // 库切没了就什么都不读：列表在渲染时按 spaceID 兜空，不在这里 setState
+      if (!props.active || !spaceID) return
+      const currentBaseID = spaceID
       let cancelled = false
       async function load() {
         try {
@@ -174,7 +174,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         cancelled = true
       }
     },
-    [props.active, baseID, docsToken]
+    [props.active, spaceID, docsToken]
   )
 
   /**
@@ -184,7 +184,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   useEffect(
     function () {
       const needle = query.trim()
-      if (!props.active || !baseID || !needle) {
+      if (!props.active || !spaceID || !needle) {
         updateHits([])
         updateSearching(false)
         return
@@ -192,7 +192,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
       let cancelled = false
       updateSearching(true)
       const timer = window.setTimeout(function () {
-        void GET_KNOWLEDGE_SEARCH(needle, baseID, 20)
+        void GET_KNOWLEDGE_SEARCH(needle, spaceID, 20)
           .then(function (rows) {
             if (!cancelled) updateHits(rows)
           })
@@ -210,21 +210,21 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         window.clearTimeout(timer)
       }
     },
-    [props.active, baseID, query]
+    [props.active, spaceID, query]
   )
 
   const baseById = useMemo(
     function () {
-      const map = new Map<string, KnowledgeBase>()
-      for (const base of bases) map.set(base.id, base)
+      const map = new Map<string, KnowledgeSpace>()
+      for (const space of spaces) map.set(space.id, space)
       return map
     },
-    [bases]
+    [spaces]
   )
-  const currentBase = baseID ? (baseById.get(baseID) ?? null) : null
+  const currentBase = spaceID ? (baseById.get(spaceID) ?? null) : null
   const isSearchMode = query.trim().length > 0
-  const visible = baseID ? docs : []
-  const openBase = open ? (baseById.get(open.baseId) ?? null) : null
+  const visible = spaceID ? docs : []
+  const openBase = open ? (baseById.get(open.spaceId) ?? null) : null
 
   function refreshDocs() {
     updateDocsToken(function (value) {
@@ -241,19 +241,19 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
    * 打开知识库整窗；给了库 + 库内路径就直达那篇。
    * 先记下目标：编辑器挂载前就能显示标题 / 骨架，随后 bootstrap 按 `?url=` 加载正文。
    */
-  function openKnowledgeView(base: KnowledgeBase | null, relPath?: string) {
-    if (!base || !relPath) {
+  function openKnowledgeView(space: KnowledgeSpace | null, relPath?: string) {
+    if (!space || !relPath) {
       void navigate('/knowledge')
       return
     }
-    const absolute = joinPath(base.rootPath, relPath)
+    const absolute = joinPath(space.rootPath, relPath)
     useKnowledgeStore.getState().toBeginOpen(absolute)
     void navigate(`/knowledge?url=${encodeURIComponent(absolute)}`)
   }
 
-  function attach(target: { relPath: string; title: string }, base: KnowledgeBase) {
+  function attach(target: { relPath: string; title: string }, space: KnowledgeSpace) {
     // 库根可能不在工作区内：`toAgentPath` 对工作区外的路径原样给绝对路径
-    const reference = toAgentPath(joinWorkspacePath(base.rootPath, target.relPath), primaryRootPath)
+    const reference = toAgentPath(joinWorkspacePath(space.rootPath, target.relPath), primaryRootPath)
     void attachWorkspaceFile(props.aui, reference)
       .then(function () {
         toast.success(`已引用「${target.title}」`)
@@ -272,17 +272,17 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
 
   /** 列表行 / 命中行的引用：按文档自己的库拼路径，不假设它属于当前库 */
   function attachDoc(doc: KnowledgeDocSummary) {
-    const base = baseById.get(doc.baseId)
-    if (!base) {
+    const space = baseById.get(doc.spaceId)
+    if (!space) {
       toast.error('这份文档所属的知识库已不在列表里')
       return
     }
-    attach(doc, base)
+    attach(doc, space)
   }
 
   function openDoc(doc: KnowledgeDocSummary, editing = false) {
     updateOpen({
-      baseId: doc.baseId,
+      spaceId: doc.spaceId,
       id: doc.id,
       title: doc.title,
       relPath: doc.relPath,
@@ -293,9 +293,9 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   }
 
   function openHit(hit: KnowledgeHit) {
-    if (!baseID) return
+    if (!spaceID) return
     updateOpen({
-      baseId: baseID,
+      spaceId: spaceID,
       id: hit.docId,
       title: hit.title,
       relPath: hit.relPath,
@@ -320,7 +320,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
       closeCreate()
       refreshDocs()
       updateOpen({
-        baseId: doc.baseId,
+        spaceId: doc.spaceId,
         id: doc.id,
         title: doc.title,
         relPath: doc.relPath,
@@ -337,21 +337,21 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
     }
   }
 
-  /** 新建知识库：走 store.insert（场景模板 + 脚手架单一路径） */
+  /** 新建空间：走 store.addSpace（场景模板 + 脚手架单一路径） */
   async function insertBaseFromUi() {
     const name = createName.trim()
     if (!name) return
     updateCreating(true)
     try {
-      const ok = await insertKnowledgeBase(name, templateId)
+      const ok = await insertKnowledgeSpace(name, templateId)
       if (!ok) {
         toast.error('新建知识库失败')
         return
       }
       closeCreate()
       syncBasesFromStore()
-      const active = useKnowledgeBaseStore.getState().bases.find(function (base) {
-        return base.id === useKnowledgeBaseStore.getState().activeBaseID
+      const active = useSpacesStore.getState().spaces.find(function (space) {
+        return space.id === useSpacesStore.getState().activeSpaceID
       })
       toast.success(`已新建知识库「${active?.name ?? name}」`)
     } catch (cause) {
@@ -364,8 +364,8 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
 
   /** 重扫：磁盘上被别处加进来 / 改过的文件重新入库 */
   function rescan() {
-    if (!baseID) return
-    void POST_KNOWLEDGE_RESCAN(baseID)
+    if (!spaceID) return
+    void POST_KNOWLEDGE_RESCAN(spaceID)
       .then(function (count) {
         refreshDocs()
         toast.success(`已重新扫描，更新 ${count} 篇`)
@@ -382,7 +382,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
       void createDoc()
       return
     }
-    if (createMode === 'base') {
+    if (createMode === 'space') {
       void insertBaseFromUi()
     }
   }
@@ -391,8 +391,8 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
     return (
       <div className={clsx('flex min-h-0 flex-1 flex-col', props.className)}>
         <KnowledgeDocPane
-          key={`${open.baseId}:${open.relPath}`}
-          base={openBase}
+          key={`${open.spaceId}:${open.relPath}`}
+          space={openBase}
           doc={{ id: open.id, title: open.title, relPath: open.relPath }}
           initialEditing={open.editing}
           wordCount={open.wordCount}
@@ -422,13 +422,13 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
 
   return (
     <div className={clsx('flex min-h-0 flex-1 flex-col', props.className)}>
-      {bases.length > 1 ? (
+      {spaces.length > 1 ? (
         <div className="border-border/60 flex shrink-0 gap-1 overflow-x-auto border-b p-1.5">
-          {bases.map(function (base) {
-            const isActive = base.id === baseID
+          {spaces.map(function (space) {
+            const isActive = space.id === spaceID
             return (
               <Button
-                key={base.id}
+                key={space.id}
                 type="button"
                 variant="ghost"
                 className={clsx(
@@ -436,9 +436,9 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
                   isActive ? 'bg-muted font-medium' : 'text-muted-foreground'
                 )}
                 onClick={function () {
-                  updateBaseID(base.id)
+                  setSpaceID(space.id)
                 }}>
-                {base.name}
+                {space.name}
               </Button>
             )
           })}
@@ -480,7 +480,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
           aria-label="新建文档"
           title="新建文档"
           className="size-7 shrink-0"
-          disabled={!baseID}
+          disabled={!spaceID}
           onClick={function () {
             updateCreateMode('doc')
             updateCreateName('')
@@ -512,7 +512,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
             className="min-w-36">
             <DropdownMenuItem
               onClick={function () {
-                updateCreateMode('base')
+                updateCreateMode('space')
                 updateCreateName('')
                 updateTemplateId(WIKI_TEMPLATE_GENERAL)
               }}>
@@ -537,7 +537,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={!baseID}
+              disabled={!spaceID}
               onClick={rescan}>
               <Icon
                 icon="lucide:refresh-cw"
@@ -546,7 +546,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
               重扫当前库
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={!baseID}
+              disabled={!spaceID}
               onClick={function () {
                 openKnowledgeView(currentBase)
               }}>
@@ -603,7 +603,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
               />
             </Button>
           </div>
-          {createMode === 'base' ? (
+          {createMode === 'space' ? (
             <Select
               value={templateId}
               items={WIKI_TEMPLATES.map(function (template) {
@@ -632,7 +632,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
         </div>
       ) : null}
 
-      {bases.length === 0 && !createMode && !isLoading ? (
+      {spaces.length === 0 && !createMode && !isLoading ? (
         <div className="border-border/60 flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 text-[11px] text-muted-foreground">
           <p>还没有知识库。选场景模板新建，或导入示例库。</p>
           <div className="flex gap-1">
@@ -641,7 +641,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
               size="sm"
               className="h-6 text-[11px]"
               onClick={function () {
-                updateCreateMode('base')
+                updateCreateMode('space')
                 updateCreateName('')
                 updateTemplateId(WIKI_TEMPLATE_GENERAL)
               }}>
@@ -792,12 +792,12 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={function () {
-                        const base = baseById.get(doc.baseId)
-                        if (!base) {
+                        const space = baseById.get(doc.spaceId)
+                        if (!space) {
                           toast.error('这份文档所属的知识库已不在列表里')
                           return
                         }
-                        openKnowledgeView(base, doc.relPath)
+                        openKnowledgeView(space, doc.relPath)
                       }}>
                       <Icon
                         icon="lucide:external-link"
@@ -814,7 +814,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
 
         {!isLoading && !error && !isSearchMode && visible.length === 0 ? (
           <p className="text-muted-foreground p-2.5 text-xs">
-            {bases.length === 0 ? '还没有知识库：用上方「⋯」新建一个' : '这个库还没有文档'}
+            {spaces.length === 0 ? '还没有知识库：用上方「⋯」新建一个' : '这个库还没有文档'}
           </p>
         ) : null}
 

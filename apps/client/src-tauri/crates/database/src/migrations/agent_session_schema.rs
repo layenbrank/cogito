@@ -38,6 +38,12 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
             "lastSeq",
             r#"ALTER TABLE agent_session ADD COLUMN "lastSeq" INTEGER NOT NULL DEFAULT 0"#,
         ),
+        // 事件流所属的 agentd 进程标识：重启后 epoch 变化 → 旧 seq 不可比较
+        (
+            "agent_session",
+            "lastEpoch",
+            r#"ALTER TABLE agent_session ADD COLUMN "lastEpoch" TEXT"#,
+        ),
         // 路由档位（S11 用）：老行一律回填 `local`，即「默认本地优先」
         (
             "agent_session",
@@ -54,12 +60,19 @@ mod tests {
     #[test]
     fn patches_are_additive_and_defaulted() {
         let patches = column_patches();
-        assert_eq!(patches.len(), 5, "已读状态 1 列 + ACP 绑定 4 列（S9）");
+        assert_eq!(patches.len(), 6, "已读状态 1 列 + ACP 绑定 5 列（S9 + epoch）");
         for (table, _, _) in &patches {
             assert_eq!(*table, "agent_session", "补列都落在 agent_session 上");
         }
         let columns: Vec<&str> = patches.iter().map(|(_, column, _)| *column).collect();
-        for expected in ["unread", "acpSessionID", "acpCwd", "lastSeq", "routeTier"] {
+        for expected in [
+            "unread",
+            "acpSessionID",
+            "acpCwd",
+            "lastSeq",
+            "lastEpoch",
+            "routeTier",
+        ] {
             assert!(columns.contains(&expected), "缺 {expected} 这一列");
         }
         for (_, column, sql) in &patches {

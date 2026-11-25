@@ -16,7 +16,7 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk'
 
-import type { SseFrame } from './sse'
+import type { SSEFrame } from './sse'
 
 /** 会话相关路径（`{baseUrl}` 之后的部分） */
 function threadPath(threadID: string): string {
@@ -29,11 +29,21 @@ const AGENTD_ROUTES = {
   runs(threadID: string): string {
     return `${threadPath(threadID)}/runs`
   },
-  events(threadID: string, after: number): string {
-    return `${threadPath(threadID)}/events?after=${after}`
+  events(threadID: string, after: number, epoch?: string): string {
+    const base = `${threadPath(threadID)}/events?after=${after}`
+    return epoch ? `${base}&epoch=${encodeURIComponent(epoch)}` : base
   },
   cancel(threadID: string): string {
     return `${threadPath(threadID)}/cancel`
+  },
+  /**
+   * 补历史：让 agentd 把 goose 的会话历史重放成一批 `replay` 事件。
+   *
+   * 只在本 thread **没有活跃轮**时可用（否则 409 `run_active`）；调用方必须把失败
+   * 当旁路（拿不到就重发），不能因此把这一轮弄成错误。
+   */
+  replay(threadID: string): string {
+    return `${threadPath(threadID)}/replay`
   },
   state(threadID: string): string {
     return `${threadPath(threadID)}/state`
@@ -68,6 +78,18 @@ interface AgentdApprovalPayload {
   optionId?: string | null
 }
 
+/** `approval_settled`：票据被**任一**客户端结案后的广播 */
+interface AgentdApprovalSettledPayload {
+  approval?: AgentdApprovalTicket
+  optionId?: string | null
+}
+
+/** `elicitation_settled`：追问被结案后的广播 */
+interface AgentdElicitationSettledPayload {
+  elicitation?: { requestId?: string; sessionId?: string }
+  decision?: { action?: string }
+}
+
 /** agentd 发来的结构化追问票据（`kind:'elicitation'` 的 payload） */
 interface AgentdElicitationPayload {
   elicitation: {
@@ -95,18 +117,55 @@ interface AgentdStatusPayload {
  * （心跳、未知事件类型、别的连接的事件）。
  */
 type AgentdRunFrame =
-  | { kind: 'sync'; lastSeq: number | null }
+  | {
+      kind: 'sync'
+      lastSeq: number | null
+      epoch: string | null
+      minSeq: number | null
+      truncated: boolean
+      reset: boolean
+      /** 连上来之前就待处理的票据（服务端快照），客户端必须按 approval 事件同一路径处理 */
+      approvals: AgentdApprovalTicket[]
+      elicitations: AgentdElicitationPayload['elicitation'][]
+    }
   | { kind: 'update'; seq: number | null; update: SessionUpdate }
+  /**
+   * 补历史重放（`session/load`）：形状与 `update` 相同，但语义是「覆盖」——
+   * agentd 推的是每消息的**完整**文本，客户端必须按 `messageId` 替换而不是追加。
+   */
+  | { kind: 'replay'; seq: number | null; update: SessionUpdate }
   | { kind: 'approval'; seq: number | null; payload: AgentdApprovalPayload }
+  | { kind: 'approval_settled'; seq: number | null; payload: AgentdApprovalSettledPayload }
   | { kind: 'elicitation'; seq: number | null; payload: AgentdElicitationPayload }
+  | { kind: 'elicitation_settled'; seq: number | null; payload: AgentdElicitationSettledPayload }
   | { kind: 'status'; seq: number | null; payload: AgentdStatusPayload }
   | { kind: 'ignored' }
 
 /** 未来新增的 `kind` 一律按 `ignored` 处理，而不是抛错：旧客户端不该被新服务端打挂 */
-function parseRunFrame(frame: SseFrame): AgentdRunFrame {
+function isRecordLike(value: unknown): boolean {
+  return typeof value === 'object' && value !== null
+}
+
+function parseRunFrame(frame: SSEFrame): AgentdRunFrame {
   if (frame.event === 'sync') {
     const lastSeq = frame.data.lastSeq
-    return { kind: 'sync', lastSeq: typeof lastSeq === 'number' ? lastSeq : null }
+    const minSeq = frame.data.minSeq
+    const approvals = Array.isArray(frame.data.approvals)
+      ? (frame.data.approvals as unknown[]).filter(isRecordLike) as unknown as AgentdApprovalTicket[]
+      : []
+    const elicitations = Array.isArray(frame.data.elicitations)
+      ? ((frame.data.elicitations as unknown[]).filter(isRecordLike) as unknown as AgentdElicitationPayload['elicitation'][])
+      : []
+    return {
+      kind: 'sync',
+      lastSeq: typeof lastSeq === 'number' ? lastSeq : null,
+      epoch: typeof frame.data.epoch === 'string' ? frame.data.epoch : null,
+      minSeq: typeof minSeq === 'number' ? minSeq : null,
+      truncated: frame.data.truncated === true,
+      reset: frame.data.reset === true,
+      approvals,
+      elicitations
+    }
   }
   if (frame.event !== 'run') return { kind: 'ignored' }
 
@@ -116,10 +175,24 @@ function parseRunFrame(frame: SseFrame): AgentdRunFrame {
   switch (frame.data.kind) {
     case 'update':
       return { kind: 'update', seq, update: payload as unknown as SessionUpdate }
+    case 'replay':
+      return { kind: 'replay', seq, update: payload as unknown as SessionUpdate }
     case 'approval':
       return { kind: 'approval', seq, payload: payload as unknown as AgentdApprovalPayload }
+    case 'approval_settled':
+      return {
+        kind: 'approval_settled',
+        seq,
+        payload: payload as unknown as AgentdApprovalSettledPayload
+      }
     case 'elicitation':
       return { kind: 'elicitation', seq, payload: payload as unknown as AgentdElicitationPayload }
+    case 'elicitation_settled':
+      return {
+        kind: 'elicitation_settled',
+        seq,
+        payload: payload as unknown as AgentdElicitationSettledPayload
+      }
     case 'status':
       return { kind: 'status', seq, payload: payload as unknown as AgentdStatusPayload }
     default:
@@ -161,8 +234,10 @@ export { AGENTD_ROUTES, createRunCursor, parseRunFrame, threadPath }
 export type {
   AgentdApprovalOption,
   AgentdApprovalPayload,
+  AgentdApprovalSettledPayload,
   AgentdApprovalTicket,
   AgentdElicitationPayload,
+  AgentdElicitationSettledPayload,
   AgentdRunFrame,
   AgentdStatusPayload,
   RunCursor

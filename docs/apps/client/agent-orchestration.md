@@ -3,6 +3,11 @@
 这套东西的决策理由在 [ADR](../../decisions/agent-orchestration-langgraph.md) 里。
 本文件只管**运维与对接**：谁拉起谁、哪些能力还在、超时到底多长、出问题看哪里。
 
+> **2026-11-23 审查提示**：本文件已按 R1 / R2 的实现校正过（事件持久化、审批票据、空闲超时、模型切换、
+> 子代理调用链）。仍有偏差的条目在原文处用 ⚠️ 标出；完整缺陷清单、证据与修复顺序见
+> [agent-audit.md](./agent-audit.md) 与 [agent-fix-roadmap.md](./agent-fix-roadmap.md)，
+> 目标架构见 `docs/decisions/agent-*.md`。
+
 ## 1. 进程拓扑
 
 ```mermaid
@@ -40,12 +45,12 @@ P5 逐项对照了被删掉的 `acp/session.ts`（2400+ 行），每项只有两
 | 后台回合（切走再回来） | ✅ 已实现 | agentd 常驻，回合本来就跑在进程外；`background-turn.ts` 只负责前端侧的泵与回放 |
 | 上下文用量条 | ✅ 已实现 | `usage_update` → `writeGooseUsage(threadID, used, size)` |
 | 思考级别（thinking level） | ✅ 已实现 | `GOOSE_THINKING_EFFORT` 的 `_goose/unstable/config/upsert`；会话内即时生效是**试写**，失败只写全局键 |
-| 模型 / 供应商切换 | ✅ 已实现 | `/goose/*` 透传面 + `switchGooseProviderModel` |
+| 模型 / 供应商切换 | ⚠️ 部分 | `/goose/*` 透传面 + `switchGooseProviderModel` 写的是 goose **defaults**：影响**下一次建会话**，已开的会话本轮不变。R2 起每轮显式 `providerID/modelID` 会在建会话前先写 defaults（内联 / 子代理 / 目标首轮因此真的按指定模型跑）；会话级切模型还没接（goose 没有可用的 model 配置项） |
 | 权限档（readonly/auto/ask…） | ✅ 已实现 | `session/set_config_option({configId:'mode'})`。**不是** `session/set_mode` —— 后者 goose 宽容返回 `{}` 但状态不变 |
 | 每轮系统提示 | ✅ 已实现 | `_goose/unstable/session/system-prompt/set`（`append` + `key=cogito`），由 agentd 在会话建好后写 |
 | 设置面（extensions/providers/diagnostics/defaults） | ✅ 已实现 | `/goose/{providers,extensions,diagnostics,defaults,sessions}` 透传 |
 | MCP 工具面 | ✅ 已实现 | 由**会话创建方**（前端）在 `session/new` 时给出，agentd 只落进 state |
-| 子代理（`subagent` 工具） | ✅ 已实现 | 调度侧一直在渲染进程（`agent://subagent-spawn` → `acp/subagent.ts`），这次只换了底层传输 |
+| 子代理（`subagent` 工具） | ✅ 已实现 | 调度侧在渲染进程（`agent://subagent-spawn` → `acp/subagent.ts`），子任务走 `port/session.ts` 的 `runThreadPrompt`（R2 起内部就是共享的 `runTurn`），只换传输不改职责 |
 | goal 自驱续跑 | ✅ 已实现 | 仍在渲染侧租约（`goal-run.ts`），未搬进 graph 循环 —— 见下 |
 | 取消 / 停止按钮 | ✅ 已实现 | `POST /threads/:id/cancel` → ACP `session/cancel` → abort 图 |
 
@@ -68,7 +73,7 @@ cogito 想要的是「硬策略 > 用户偏好 > 档位」，顺序相反 ——
 | --- | --- | --- | --- |
 | 硬策略 | 「哪些工具永远不许跑」 | `policy/approval.ts` 的 `findHardDenyLevel`（黑盒 shell + goose 原厂写工具） | agentd 在**每个 goose 会话建立时**写一次 `never_allow`（`graph.ts` `ensureHardDeny`） |
 | 档位 | 「本轮要不要问」 | `findGooseMode`：`auto` → `auto`，`ask` → `smart_approve`，`readonly` → `approve` | 前端每轮随 `input.mode` 下发，agentd `applyMode` |
-| 业务规则 | 「这一次该不该问」 | client `port/session.ts` 的 `decideApproval` | 收到 `session/request_permission` 后立即替用户拍板并回执 |
+| 业务规则 | 「这一次该不该问」 | client `approval-decision.ts` 的 `decideApprovalForThread`（包 `@cogito/agent-runtime/policy` 的纯判定） | 状态机 `@cogito/agent-runtime/agentd/turn` 收到 `approval` 帧（含 `sync` 快照）后立即替用户拍板并回执 |
 
 两条不变量：
 
@@ -96,7 +101,7 @@ cogito 想要的是「硬策略 > 用户偏好 > 档位」，顺序相反 ——
 | 追问票据 | 300 s | `elicitations.ts` `ELICITATION_TIMEOUT_MS` | 按 `cancel` 结案（与 UI 里点「取消」同义） |
 | goose 单次 JSON-RPC 请求 | 60 s | `goose/client.ts` `DEFAULT_REQUEST_TIMEOUT_MS` | 抛错，由节点决定是否重开会话 |
 | 前端等 agentd 就绪 | 30 s | `port/session.ts` `READY_TIMEOUT_MS` | 报「编排层未就绪」并给诊断入口 |
-| 一轮最长空闲 | 60 min | `port/session.ts` `RUN_IDLE_TIMEOUT_MS` | 断开 SSE 并报超时 |
+| 一轮最长空闲（无任何事件） | 60 min | `@cogito/agent-runtime/agentd/turn.ts` `DEFAULT_IDLE_TIMEOUT_MS` | 计时器参与 `Promise.race`，每收到一帧重置；超时以 `TurnFailure{code:'idle_timeout'}` 收尾（不是无限「思考中」） |
 | 宿主等 agentd 优雅退出 | 800 ms，然后 `taskkill /T /F` | `utils/agentd.rs` `shutdown_and_wait` | 强杀进程树 |
 | agentd 自身关停兜底 | 5 s | `main.ts` `SHUTDOWN_TIMEOUT_MS` | 强制 `process.exit` |
 

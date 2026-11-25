@@ -22,6 +22,11 @@ const METRIC_NAMES = [
   'runs.failed',
   'runs.cancelled',
   'runs.preempted',
+  // 写者租约冲突：同 thread 的另一个窗口正在跑，这一轮被 409 拦下
+  'runs.lease_conflicts',
+  // 流式端点断连（客户端关了页面/网络断了）：与「用户主动取消」分开数，
+  // 因为它更常指向网络或前端崩溃，而不是用户意图
+  'runs.disconnected',
   'approvals.requested',
   'approvals.settled',
   'approvals.timeout',

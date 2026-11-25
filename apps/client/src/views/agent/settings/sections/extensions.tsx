@@ -204,9 +204,13 @@ function ExtensionsSection() {
    * 下面用一条 `border-t` 切出「自定义服务器」并放 Add server 按钮，
    * 每个服务器一行 `rounded-xl border` 小卡（图标块 + 名称 + 状态 + 动作）。
    * 数据仍然是本仓的扩展快照（全局配置 / 会话内），只有外壳换成元素页那套。
+   *
+   * 宽度**不再自限**：这里曾经写死 `max-w-lg`（32rem = 512px），而设置页的内容列已经是
+   * `max-width: 44rem` —— 两层限宽叠起来，卡在宽窗口里只剩左边一条、右侧大片留白，
+   * 看着像渲染坏了。与其它 section 一致地铺满内容列即可。
    */
   return (
-    <div className="bg-background flex w-full max-w-lg flex-col rounded-2xl border p-5 shadow-sm">
+    <div className="bg-background flex w-full flex-col rounded-2xl border p-5 shadow-sm">
       <div data-slot="mcp-config-heading">
         <h4 className="text-sm font-semibold">MCP 服务器</h4>
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
@@ -365,7 +369,8 @@ function ExtensionsSection() {
                       }}
                     />
                   </div>
-                  <p className="text-muted-foreground truncate text-xs leading-relaxed">
+                  {/* 描述可能是 goose 给的一整句英文，一行截断太浪费；两行了不下就省略 */}
+                  <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
                     {describeExtension(entry.extension)}
                   </p>
                   <div className="flex flex-wrap items-center justify-end gap-1">

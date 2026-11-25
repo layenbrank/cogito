@@ -43,6 +43,7 @@ import { openAsideBrowser } from '@/views/agent/chat/components/open-aside-brows
 import type { ParsedFileTreeNode, ParsedToolCard } from '@/views/agent/chat/components/parse-tool-result'
 import { WriteToolCard } from '@/views/agent/chat/components/tool-card-read-write'
 import { ToolCardRetrieval } from '@/views/agent/chat/components/tool-card-retrieval'
+import { ToolCardSubagent } from '@/views/agent/chat/components/tool-card-subagent'
 import { ToolCardTimeline } from '@/views/agent/chat/components/tool-card-timeline'
 import { ToolCardTerminalBody } from '@/views/agent/chat/components/tool-card-terminal-body'
 import { ToolCardWebSearch } from '@/views/agent/chat/components/tool-card-web-search'
@@ -292,6 +293,10 @@ function ToolCardShellBody(props: ToolCallMessagePartProps & { parsed: ParsedToo
           outputText={props.parsed.text}
         />
       )
+    }
+    // 子任务分派：一次 spawn 就是一次 agent 交接（`elements/agent-handoff`）
+    if (variant === 'subagent' && !props.isError) {
+      return <ToolCardSubagent {...props} />
     }
     return (
       <ToolCardFallbackBody

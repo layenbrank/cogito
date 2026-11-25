@@ -24,6 +24,7 @@
 
 import { randomUUID } from 'node:crypto'
 
+import type { GateStore } from './gate-store'
 import type { PermissionChoice, PermissionDecision } from './goose/client'
 
 /** 与旧渲染侧 `TICKET_TIMEOUT_MS` 对齐：审批最多等 5 分钟 */
@@ -56,6 +57,15 @@ interface ApprovalHub {
   ask(input: ApprovalAskInput): Promise<PermissionDecision>
   /** 用户回执；`optionId=null` 表示拒绝/取消。返回 false 表示这条已经结案或不存在。 */
   settle(requestId: string, optionId: string | null): boolean
+  /**
+   * HTTP 回执专用：校验票据属于该 thread、optionId 在可选集合内，再幂等结案。
+   * 不返回具体原因（防止跨线程探测），只给 ok / not_found / invalid_option。
+   */
+  settleFor(
+    threadID: string,
+    requestId: string,
+    optionId: string | null
+  ): 'ok' | 'not_found' | 'invalid_option'
   pending(threadID?: string): ApprovalRequest[]
   pendingOf(sessionId: string): ApprovalRequest | undefined
   subscribe(listener: (event: ApprovalEvent) => void): () => void
@@ -71,9 +81,10 @@ interface Waiter {
   timer: ReturnType<typeof setTimeout>
 }
 
-function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
+function createApprovalHub(options?: { onTimeout?: () => void; store?: GateStore | null }): ApprovalHub {
   const waiters = new Map<string, Waiter>()
   const listeners = new Set<(event: ApprovalEvent) => void>()
+  const store = options?.store ?? null
 
   function publish(event: ApprovalEvent): void {
     for (const listener of listeners) {
@@ -85,11 +96,36 @@ function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
     }
   }
 
-  function settle(requestId: string, optionId: string | null): boolean {
+  function persist(request: ApprovalRequest): void {
+    try {
+      store?.insert({
+        requestId: request.requestId,
+        kind: 'approval',
+        threadID: request.threadID,
+        sessionId: request.sessionId,
+        payload: { toolCall: request.toolCall, options: request.options },
+        createdAt: request.createdAt,
+        expiresAt: request.createdAt + APPROVAL_TIMEOUT_MS
+      })
+    } catch {
+      // 持久化失败不影响当前进程的审批：内存 waiter 仍是真相
+    }
+  }
+
+  function finish(
+    requestId: string,
+    optionId: string | null,
+    state: 'settled' | 'expired' | 'cancelled'
+  ): boolean {
     const waiter = waiters.get(requestId)
     if (!waiter) return false
     waiters.delete(requestId)
     clearTimeout(waiter.timer)
+    try {
+      store?.settle(requestId, state, optionId)
+    } catch {
+      // 同上：结案以内存为准
+    }
     publish({
       type: 'approval_settled',
       approval: waiter.request,
@@ -97,6 +133,30 @@ function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
     })
     waiter.resolve(optionId === null ? null : { optionId })
     return true
+  }
+
+  function settle(requestId: string, optionId: string | null): boolean {
+    return finish(requestId, optionId, 'settled')
+  }
+
+  function settleFor(
+    threadID: string,
+    requestId: string,
+    optionId: string | null
+  ): 'ok' | 'not_found' | 'invalid_option' {
+    const waiter = waiters.get(requestId)
+    // 票据不属于该 thread 时按 not_found 处理：不回「存在但越权」，避免探测
+    if (!waiter || waiter.request.threadID !== threadID) return 'not_found'
+    if (
+      optionId !== null &&
+      !waiter.request.options.some(function (option) {
+        return option.optionId === optionId
+      })
+    ) {
+      return 'invalid_option'
+    }
+    finish(requestId, optionId, 'settled')
+    return 'ok'
   }
 
   function ask(input: ApprovalAskInput): Promise<PermissionDecision> {
@@ -112,11 +172,12 @@ function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
       const timer = setTimeout(function () {
         // 先告诉外部「这是超时」再结案：只靠 optionId=null 分不出「用户拒绝」与「没人理」
         options?.onTimeout?.()
-        settle(request.requestId, null)
+        finish(request.requestId, null, 'expired')
       }, APPROVAL_TIMEOUT_MS)
       // 不让人等死：定时器不该单独把进程撑活
       timer.unref?.()
       waiters.set(request.requestId, { request, resolve, timer })
+      persist(request)
       publish({ type: 'approval_requested', approval: request })
     })
   }
@@ -142,13 +203,13 @@ function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
 
   function cancelThread(threadID: string): void {
     for (const request of pending(threadID)) {
-      settle(request.requestId, null)
+      finish(request.requestId, null, 'cancelled')
     }
   }
 
   function cancelAll(): void {
     for (const request of pending()) {
-      settle(request.requestId, null)
+      finish(request.requestId, null, 'cancelled')
     }
   }
 
@@ -162,6 +223,7 @@ function createApprovalHub(options?: { onTimeout?: () => void }): ApprovalHub {
   return {
     ask,
     settle,
+    settleFor,
     pending,
     pendingOf,
     subscribe,

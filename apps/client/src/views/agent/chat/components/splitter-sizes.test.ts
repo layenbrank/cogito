@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  clampSplitterLayout,
   FALLBACK_LAYOUT,
   findDefaultLayout,
   findPreferredLayout,
@@ -176,5 +177,63 @@ describe('findDefaultLayout', function () {
 
   it('falls back when the container is not measurable', function () {
     expect(findDefaultLayout(0)).toEqual(FALLBACK_LAYOUT)
+  })
+})
+
+describe('clampSplitterLayout', function () {
+  /** 存档里的比例：在更宽的窗口里拖出来的窄左栏 */
+  const STORED = {
+    [SESSION_ID]: 16.5,
+    [MAIN_ID]: 36.9,
+    [PLAN_ID]: 46.6
+  }
+
+  function toPixels(layout: Record<string, number>, width: number) {
+    return {
+      session: ((layout[SESSION_ID] ?? 0) / 100) * width,
+      main: ((layout[MAIN_ID] ?? 0) / 100) * width,
+      plan: ((layout[PLAN_ID] ?? 0) / 100) * width
+    }
+  }
+
+  it('lifts a too-narrow sidebar back to its min width', function () {
+    const px = toPixels(clampSplitterLayout(STORED, 975), 975)
+    expect(px.session).toBeGreaterThanOrEqual(SESSION_MIN - 0.5)
+    expect(px.session).toBeLessThanOrEqual(SESSION_MAX + 0.5)
+    expect(px.session + px.main + px.plan).toBeCloseTo(975, 0)
+  })
+
+  it('caps the sidebar on a wide window', function () {
+    const px = toPixels(
+      clampSplitterLayout({ [SESSION_ID]: 40, [MAIN_ID]: 20, [PLAN_ID]: 40 }, 1684),
+      1684
+    )
+    expect(px.session).toBeLessThanOrEqual(SESSION_MAX + 0.5)
+  })
+
+  it('keeps collapsed panes at zero', function () {
+    const layout = clampSplitterLayout(
+      { [SESSION_ID]: 0, [MAIN_ID]: 36.9, [PLAN_ID]: 46.6 },
+      975
+    )
+    expect(layout[SESSION_ID]).toBe(0)
+    const px = toPixels(layout, 975)
+    expect(px.main + px.plan).toBeCloseTo(975, 0)
+  })
+
+  it('leaves the maximized aside layout alone', function () {
+    const layout = { [SESSION_ID]: 0, [MAIN_ID]: 0, [PLAN_ID]: 100 }
+    expect(clampSplitterLayout(layout, 975)).toEqual(layout)
+  })
+
+  it('keeps the middle pane alive when the mins do not fit', function () {
+    const px = toPixels(clampSplitterLayout(STORED, 800), 800)
+    expect(px.session).toBeGreaterThanOrEqual(SESSION_MIN - 0.5)
+    expect(px.plan).toBeGreaterThanOrEqual(PLAN_MIN - 0.5)
+    expect(px.main).toBeGreaterThan(0)
+  })
+
+  it('does nothing before the container is measurable', function () {
+    expect(clampSplitterLayout(STORED, 0)).toEqual(STORED)
   })
 })

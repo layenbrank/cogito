@@ -73,7 +73,7 @@ pub struct AutomationInput {
     pub name: String,
     /// 到期时交给智能体的一句话
     pub prompt: String,
-    pub knowledgeBaseId: Option<String>,
+    pub knowledgeSpaceId: Option<String>,
     /// 执行时的工作目录（`agent_workspace` 的 id）；为空 = 家目录
     pub workspaceId: Option<String>,
     /// 工作区下**具体哪个目录**（文件夹绝对路径）；为空 = 跟随工作区默认（第一个可用目录）
@@ -346,7 +346,7 @@ impl Service {
             let mut active: schema::ActiveModel = existing.into();
             active.name = Set(name);
             active.prompt = Set(prompt);
-            active.knowledge_base_id = Set(input.knowledgeBaseId);
+            active.knowledge_space_id = Set(input.knowledgeSpaceId);
             active.workspace_id = Set(workspace_id);
             active.workspace_path = Set(workspace_path);
             active.session_mode = Set(session_mode);
@@ -375,7 +375,7 @@ impl Service {
             id: Uuid::new_v4().to_string(),
             name,
             prompt,
-            knowledge_base_id: input.knowledgeBaseId,
+            knowledge_space_id: input.knowledgeSpaceId,
             workspace_id: workspace_id,
             workspace_path: workspace_path,
             session_mode: session_mode,
@@ -956,7 +956,7 @@ mod tests {
             id: None,
             name: "每日整理".to_string(),
             prompt: "整理昨天的知识库变更".to_string(),
-            knowledgeBaseId: None,
+            knowledgeSpaceId: None,
             workspaceId: None,
             workspacePath: None,
             sessionMode: None,
@@ -1134,7 +1134,10 @@ mod tests {
             .await
             .expect("claim 成功");
         assert_eq!(claimed.len(), 1, "错过多少轮都只补一次");
-        assert_eq!(claimed[0].run.trigger_kind, automation_trigger_kind::CATCHUP);
+        assert_eq!(
+            claimed[0].run.trigger_kind,
+            automation_trigger_kind::CATCHUP
+        );
         assert!(claimed[0].automation.next_run_at.unwrap() > much_later);
     }
 

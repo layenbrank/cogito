@@ -21,6 +21,7 @@ pub struct Binding {
     pub acp_session_id: String,
     pub cwd: String,
     pub last_seq: i64,
+    pub last_epoch: Option<String>,
     pub route_tier: String,
 }
 
@@ -35,6 +36,8 @@ pub struct BindP {
     pub cwd: Option<String>,
     #[serde(default)]
     pub last_seq: Option<i64>,
+    #[serde(default)]
+    pub last_epoch: Option<String>,
     #[serde(default)]
     pub route_tier: Option<String>,
 }
@@ -54,6 +57,7 @@ pub struct BoundSession {
     pub acp_session_id: String,
     pub cwd: String,
     pub last_seq: i64,
+    pub last_epoch: Option<String>,
     pub route_tier: String,
 }
 
@@ -193,6 +197,7 @@ impl Service {
             acpSessionID: Set(p.acpSessionID),
             acpCwd: Set(p.acpCwd),
             lastSeq: Set(p.lastSeq),
+            lastEpoch: Set(p.lastEpoch),
             routeTier: Set(p
                 .routeTier
                 .unwrap_or_else(|| DEFAULT_ROUTE_TIER.to_string())),
@@ -244,6 +249,9 @@ impl Service {
         if let Some(v) = payload.change.lastSeq {
             active.lastSeq = Set(v);
         }
+        if let Some(v) = payload.change.lastEpoch {
+            active.lastEpoch = Set(v);
+        }
         if let Some(v) = payload.change.routeTier {
             active.routeTier = Set(v);
         }
@@ -277,6 +285,14 @@ impl Service {
         }
         if let Some(last_seq) = p.last_seq {
             active.lastSeq = Set(last_seq.max(0));
+        }
+        if let Some(epoch) = p.last_epoch {
+            let trimmed = epoch.trim();
+            active.lastEpoch = Set(if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            });
         }
         if let Some(tier) = p.route_tier {
             active.routeTier = Set(tier);
@@ -313,6 +329,7 @@ impl Service {
                     acp_session_id: binding.acp_session_id,
                     cwd: binding.cwd,
                     last_seq: binding.last_seq,
+                    last_epoch: binding.last_epoch,
                     route_tier: binding.route_tier,
                 })
             })
@@ -343,6 +360,7 @@ impl Service {
         active.acpSessionID = Set(None);
         active.acpCwd = Set(None);
         active.lastSeq = Set(0);
+        active.lastEpoch = Set(None);
         active.update(db).await?;
         Ok(true)
     }
@@ -384,6 +402,7 @@ impl Service {
             acp_session_id,
             cwd: row.acpCwd.unwrap_or_default(),
             last_seq: row.lastSeq,
+            last_epoch: row.lastEpoch,
             route_tier: row.routeTier,
         })
     }
@@ -430,6 +449,7 @@ mod tests {
             acpSessionID: None,
             acpCwd: None,
             lastSeq: 0,
+            lastEpoch: None,
             routeTier: None,
         }
     }
@@ -446,6 +466,7 @@ mod tests {
                 acpSessionID: None,
                 acpCwd: None,
                 lastSeq: None,
+                lastEpoch: None,
                 routeTier: None,
             },
         }
@@ -516,6 +537,7 @@ mod tests {
                 acp_session_id: Some(" acp-42 ".to_string()),
                 cwd: Some("C:\\repo".to_string()),
                 last_seq: Some(17),
+                last_epoch: None,
                 route_tier: Some("local".to_string()),
             },
         )
@@ -540,6 +562,7 @@ mod tests {
                 acp_session_id: Some("acp-42".to_string()),
                 cwd: None,
                 last_seq: Some(23),
+                last_epoch: None,
                 route_tier: None,
             },
         )
@@ -568,6 +591,7 @@ mod tests {
                 acp_session_id: Some("   ".to_string()),
                 cwd: None,
                 last_seq: None,
+                last_epoch: None,
                 route_tier: None,
             },
         )
@@ -588,6 +612,7 @@ mod tests {
                 acp_session_id: Some("acp-1".to_string()),
                 cwd: None,
                 last_seq: None,
+                last_epoch: None,
                 route_tier: None,
             },
         )
@@ -613,6 +638,7 @@ mod tests {
                 acp_session_id: Some("acp-2".to_string()),
                 cwd: Some("/tmp".to_string()),
                 last_seq: None,
+                last_epoch: None,
                 route_tier: None,
             },
         )
@@ -646,6 +672,7 @@ mod tests {
                 acp_session_id: Some("acp-1".to_string()),
                 cwd: Some("/tmp".to_string()),
                 last_seq: Some(9),
+                last_epoch: None,
                 route_tier: None,
             },
         )

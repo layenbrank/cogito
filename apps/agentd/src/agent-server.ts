@@ -25,6 +25,15 @@ import { classifyRunFailure, toErrorExcerpt } from './error-kind'
 import type { EventHub, RunEvent } from './events'
 import type { Metrics } from './observability'
 import { isAllowedGooseMethod } from './goose/allowlist'
+import type { SessionRegistry } from './session-registry'
+import {
+  isAllowedSessionConfigID,
+  parseAfterQuery,
+  validateCwd,
+  validateEpoch,
+  validateMcpServers,
+  validateThreadID
+} from './validation'
 
 const GRAPH_NAME = 'agent'
 
@@ -58,17 +67,33 @@ interface AgentServerOptions {
   metrics?: Metrics | null
   /** 结构化日志（`AGENTD_EVENT` 一行一条）；为 null 时退化成不打 */
   logEvent?: ((name: string, fields?: Record<string, unknown>) => void) | null
+  /** thread → goose session 的内存登记（取消路径要在 checkpoint 落盘前拿到 sessionId） */
+  sessions?: SessionRegistry | null
+  /** 信任边界：工作区根与 MCP 命令白名单；缺省时只校验存在性与绝对路径 */
+  validation?: {
+    allowedRoots: readonly string[]
+    mcpAllowedCommands: readonly string[]
+    allowBareMcpCommand: boolean
+    allowArbitraryMcpCommand: boolean
+  } | null
 }
 
 interface GooseQueryPort {
   request(method: string, params?: unknown): Promise<unknown>
   cancel(sessionId: string): Promise<void>
+  /**
+   * 订阅 `session/update`（补历史要用：`session/load` 的重放是**通知**，没人监听就丢了）。
+   * 不实现时 `/threads/:id/replay` 一律 503。
+   */
+  onSessionUpdate?: (listener: (sessionId: string, update: unknown) => void) => () => void
 }
 
 interface AgentServer {
   readonly name: string
   mount(app: Express): void
   graphs(): readonly string[]
+  /** 关停时先断开长驻 SSE，否则 `server.close()` 永远等不到回调 */
+  closeConnections(): void
   stop(): Promise<void>
 }
 
@@ -84,11 +109,22 @@ interface ActiveRun {
   runID: string
   controller: AbortController
   startedAt: number
+  /** 发起这一轮的客户端身份（`x-cogito-client`）；旧客户端 / 未知身份为空串 */
+  clientID: string
+  /** 这个线程上的第几轮（从 1 递增）：冲突时报出去，便于两边对账 */
+  revision: number
 }
 
 /** 抢占旧轮时等它落地的上限：超过就继续开新的（宁可丢旧轮，也不要卡在发送中）。 */
 const PREEMPT_WAIT_MS = 1500
 const PREEMPT_POLL_MS = 50
+/**
+ * 写者租约的过期时间：持有者的轮次停了这么久还没收尾，就认为它已经不在（进程被强杀 /
+ * 客户端崩溃），允许别的客户端直接接管 —— 否则一个死掉的窗口能把整个会话永久锁住。
+ */
+const RUN_LEASE_STALE_MS = 10 * 60_000
+/** thread 登记上限：超过时淘汰最久未用且没有活跃轮的线程（客户端下一次 run 会重新 upsert） */
+const MAX_THREADS = 2_000
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -107,22 +143,50 @@ function withThreadID(input: unknown, threadID: string): unknown {
 }
 
 /** `graph.stream` 在不同 streamMode 下的形状不同：多 mode 时给 `[mode, chunk]` */
-function readChunk(chunk: unknown): { mode: string; value: unknown } {
+function toReadChunk(chunk: unknown): { mode: string; value: unknown } {
   if (Array.isArray(chunk) && chunk.length === 2 && typeof chunk[0] === 'string') {
     return { mode: chunk[0], value: chunk[1] }
   }
   return { mode: 'values', value: chunk }
 }
 
+/**
+ * 重放里哪些 update 值得回放：正文 / 推理 / 工具。
+ *
+ * `usage_update`、`available_commands_update`、`session_info_update` 也会跟着重放，
+ * 但它们不是「缺的那段正文」，推给客户端只会白刷一遍侧栏状态。
+ */
+const REPLAY_UPDATE_KINDS = new Set([
+  'user_message_chunk',
+  'agent_message_chunk',
+  'agent_thought_chunk',
+  'tool_call',
+  'tool_call_update'
+])
+
+function toReadReplayUpdate(update: unknown): unknown | null {
+  if (typeof update !== 'object' || update === null) return null
+  const kind = (update as { sessionUpdate?: unknown }).sessionUpdate
+  return typeof kind === 'string' && REPLAY_UPDATE_KINDS.has(kind) ? update : null
+}
+
 function createAgentServer(options: AgentServerOptions): AgentServer {
   const graphName = options.graphName ?? GRAPH_NAME
   const threads = new Map<string, ThreadRecord>()
   const activeRuns = new Map<string, ActiveRun>()
+  /** 每个线程上跑过几轮：冲突 / 回包都带它，两边对账用 */
+  const runRevisions = new Map<string, number>()
+  const sessions = options.sessions ?? null
+  const limits = options.validation ?? null
+  /** 长驻 SSE 连接：关停时主动结束，`server.close()` 才有机会回调 */
+  const SSEConnections = new Set<Response>()
   const approvals = options.approvals ?? null
   const elicitations = options.elicitations ?? null
   const events = options.events ?? null
   const metrics = options.metrics ?? null
   const logEvent = options.logEvent ?? null
+  /** 正在补历史的 thread：同一时刻只允许一次，两次并发会让重放通知交叉成两份 */
+  const replayInFlight = new Set<string>()
 
   // 审批与追问都汇进同一条流：前端只消费 `/threads/:id/events` 一个通道
   approvals?.subscribe(function (event) {
@@ -135,7 +199,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     })
     events?.emit(
       event.approval.threadID,
-      event.type === 'approval_requested' ? 'approval' : 'status',
+      event.type === 'approval_requested' ? 'approval' : 'approval_settled',
       event
     )
   })
@@ -149,17 +213,17 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     })
     events?.emit(
       event.elicitation.threadID,
-      event.type === 'elicitation_requested' ? 'elicitation' : 'status',
+      event.type === 'elicitation_requested' ? 'elicitation' : 'elicitation_settled',
       event
     )
   })
 
-  function readThreadID(req: Request): string {
+  function toReadThreadID(req: Request): string {
     return String(req.params.threadId ?? '')
   }
 
   /** 任意路由参数（goose 那组用 `:sessionId`，没有 thread 语义）。 */
-  function readParam(req: Request, name: string): string {
+  function toReadParam(req: Request, name: string): string {
     return String((req.params as Record<string, unknown>)[name] ?? '')
   }
 
@@ -169,6 +233,9 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
 
   /** 图状态里的 `sessionId`（取消时要拿它发 ACP cancel）；拿不到就返回 null。 */
   async function readSessionID(threadID: string): Promise<string | null> {
+    // 内存登记优先：首轮在 session/new 之后、checkpoint 落盘之前，只有这里有
+    const remembered = sessions?.find(threadID)
+    if (remembered) return remembered
     if (!options.graph.getState) return null
     try {
       const state = (await options.graph.getState({
@@ -178,6 +245,104 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       return typeof value === 'string' && value ? value : null
     } catch {
       return null
+    }
+  }
+
+  /**
+   * 补历史用的运行配置：goose 会话 id + 该会话创建时的 cwd / MCP 名单。
+   *
+   * `mcpServers` 必须用**会话创建时那一份**（空数组在 goose 侧表示「不改」）：
+   * 自己重新推导会把「本轮 `withTools=false`」的会话悄悄挂回全部工具。
+   */
+  async function toReadReplayConfig(threadID: string): Promise<{
+    sessionID: string
+    cwd: string
+    MCPServers: readonly unknown[]
+  } | null> {
+    if (!options.graph.getState) return null
+    const remembered = sessions?.find(threadID) ?? ''
+    try {
+      const state = (await options.graph.getState({
+        configurable: { thread_id: threadID }
+      })) as { values?: Record<string, unknown> } | undefined
+      const values = state?.values ?? {}
+      const sessionID =
+        typeof values.sessionId === 'string' && values.sessionId ? values.sessionId : remembered
+      const cwd = typeof values.cwd === 'string' ? values.cwd : ''
+      if (!sessionID || !cwd) return null
+      const MCPServers = Array.isArray(values.mcpServers) ? values.mcpServers : []
+      return { sessionID, cwd, MCPServers }
+    } catch (error) {
+      // 读不到状态 = 这个 thread 还没有 checkpoint；补不了历史，让调用方按「无会话」处理
+      console.warn(`[agent] 读取补历史所需状态失败（thread=${threadID}）：${String(error)}`)
+      return null
+    }
+  }
+
+  /**
+   * 补历史：把 goose 的会话历史重放成一批 `replay` 事件（R5-D3，
+   * 见 `docs/decisions/agent-r5-hardening.md`）。
+   *
+   * 只有事件日志已淘汰（`sync.truncated`）时才需要它：那时正文与工具卡真的缺段，
+   * 而 goose 侧历史是唯一权威来源（checkpoint 的 `reply` 只有最后一轮）。
+   *
+   * 三条硬约束：
+   * 1. **本轮不能有活跃 run**：`session/load` 会把会话挂回连接，与 live 流交叉会乱序；
+   * 2. **MCP 名单用会话创建时那一份**（见 `toReadReplayConfig`）；
+   * 3. **失败不抛**：补历史是旁路，拿不到就留诊断让用户重发，不能把这一轮带崩。
+   */
+  async function handleReplay(req: Request, res: Response): Promise<void> {
+    const threadID = toReadThreadID(req)
+    if (!ensureThread(threadID)) {
+      res.status(404).json({ error: 'thread_not_found' })
+      return
+    }
+    const goose = options.goose
+    const subscribe = goose?.onSessionUpdate
+    if (!goose || !subscribe) {
+      res.status(503).json({ error: 'goose_unavailable' })
+      return
+    }
+    if (activeRuns.has(threadID)) {
+      res.status(409).json({ error: 'run_active', message: '这一轮还在跑，等它结束再补历史' })
+      return
+    }
+    if (replayInFlight.has(threadID)) {
+      res.status(409).json({ error: 'replay_in_flight', message: '同一会话正在补历史' })
+      return
+    }
+
+    const config = await toReadReplayConfig(threadID)
+    if (!config) {
+      res.status(200).json({ replayed: 0, reason: 'no_session' })
+      return
+    }
+
+    replayInFlight.add(threadID)
+    let replayed = 0
+    const unsubscribe = subscribe(function (sessionID, update) {
+      if (sessionID !== config.sessionID) return
+      const payload = toReadReplayUpdate(update)
+      if (!payload) return
+      replayed += 1
+      events?.emit(threadID, 'replay', payload)
+    })
+    try {
+      await goose.request('session/load', {
+        // `sessionId` / `mcpServers` 是 ACP 的线格式字段名，不跟着本地命名改
+        sessionId: config.sessionID,
+        cwd: config.cwd,
+        mcpServers: config.MCPServers
+      })
+      logEvent?.('run.replay', { threadID, replayed })
+      res.json({ replayed })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logEvent?.('run.replay_failed', { threadID, error: toErrorExcerpt(message) })
+      res.status(502).json({ error: 'replay_failed', message })
+    } finally {
+      unsubscribe()
+      replayInFlight.delete(threadID)
     }
   }
 
@@ -219,6 +384,69 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     }
   }
 
+  /** 客户端身份（`x-cogito-client`）：只做长度/字符集归一，不合法就当未知身份 */
+  function toReadClientID(req: Request): string {
+    const raw = (req.get('x-cogito-client') ?? '').trim()
+    if (!raw) return ''
+    const safe = raw.replace(/[^A-Za-z0-9._-]/g, '').slice(0, 64)
+    return safe
+  }
+
+  /** 请求体里的 `takeover: true`：用户明确要求接管别的客户端的轮次 */
+  function toReadTakeover(body: unknown): boolean {
+    if (!body || typeof body !== 'object') return false
+    return (body as { takeover?: unknown }).takeover === true
+  }
+
+  /**
+   * 写者租约：这一轮能不能由 `clientID` 开始启？
+   *
+   * - 自己旧的一轮（同 clientID）→ 可以：那就是「重发 / 改完再发」的 supersede；
+   * - 别人的一轮 → 只有用户显式 `takeover` 才允许，另一种是持有者已经超过
+   *   `RUN_LEASE_STALE_MS` 没收尾（进程被强杀 / 客户端崩了，否则会把会话永久锁死）；
+   * - 未知身份（旧客户端没带 header）→ 保持旧行为，不拦。
+   *
+   * 拦下来的回包是 409 `writer_lease_held`，带持有者信息，客户端据此提示「另一个窗口在跑」。
+   */
+  function canTakeWriterLease(
+    active: ActiveRun | undefined,
+    clientID: string,
+    takeover: boolean
+  ): boolean {
+    if (!active) return true
+    if (takeover) return true
+    if (!active.clientID || !clientID) return true
+    if (active.clientID === clientID) return true
+    return Date.now() - active.startedAt > RUN_LEASE_STALE_MS
+  }
+
+  /** 409 的统一形状：客户端靠 `error` 字段判断，不用去解析文案 */
+  function rejectWriterLease(res: Response, active: ActiveRun): void {
+    metrics?.inc('runs.lease_conflicts')
+    logEvent?.('run.lease_conflict', {
+      threadID: active.runID,
+      runID: active.runID,
+      revision: active.revision
+    })
+    res.status(409).json({
+      error: 'writer_lease_held',
+      message: '这个会话正在被另一个窗口执行；如需接手请先确认',
+      holder: {
+        clientID: active.clientID,
+        runID: active.runID,
+        revision: active.revision,
+        startedAt: active.startedAt
+      }
+    })
+  }
+
+  /** 每线程轮次号：冲突 / 回包里带上它，两端对账就不用猜 */
+  function nextRevision(threadID: string): number {
+    const next = (runRevisions.get(threadID) ?? 0) + 1
+    runRevisions.set(threadID, next)
+    return next
+  }
+
   /**
    * 跑一轮（`/runs` 与 `/runs/stream` 共用）。
    *
@@ -228,12 +456,19 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     threadID: string,
     payload: unknown,
     onChunk?: (mode: string, value: unknown) => void,
-    presetRunID?: string
+    presetRunID?: string,
+    owner?: { clientID: string; revision: number }
   ): Promise<{ runID: string; status: 'success' | 'error'; message?: string }> {
     const runID = presetRunID ?? randomUUID()
     const controller = new AbortController()
     const startedAt = Date.now()
-    activeRuns.set(threadID, { runID, controller, startedAt })
+    activeRuns.set(threadID, {
+      runID,
+      controller,
+      startedAt,
+      clientID: owner?.clientID ?? '',
+      revision: owner?.revision ?? 0
+    })
     metrics?.inc('runs.started')
     logEvent?.('run.started', { threadID, runID, node: graphName })
     events?.emit(threadID, 'status', { phase: 'running', runID })
@@ -259,14 +494,18 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       for (;;) {
         const next = await Promise.race([iterator.next(), aborted])
         if (next.done) break
-        const parsed = readChunk(next.value)
+        const parsed = toReadChunk(next.value)
         onChunk?.(parsed.mode, parsed.value)
       }
     } catch (error) {
       status = 'error'
       message = error instanceof Error ? error.message : String(error)
     } finally {
-      activeRuns.delete(threadID)
+      // 只清理**自己这一轮**：`preempt` 等不到旧轮时，旧轮会在新轮登记之后才走到这里；
+      // 无条件 delete / cancelThread 会把新轮的登记与待审批票据一起抹掉。
+      const current = activeRuns.get(threadID)
+      const ownsRun = current?.runID === runID
+      if (ownsRun) activeRuns.delete(threadID)
       const durationMs = Date.now() - startedAt
       /**
        * 失败归因只算一次：结构化日志、计数器、回给前端的状态事件读同一个词。
@@ -301,9 +540,12 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       })
       const thread = threads.get(threadID)
       if (thread) thread.updated_at = nowIso()
-      // 回合已结束却还有待审批/待追问 → 这次不会再有人回执，按取消结掉避免永久挂起
-      approvals?.cancelThread(threadID)
-      elicitations?.cancelThread(threadID)
+      // 回合已结束却还有待审批/待追问 → 这次不会再有人回执，按取消结掉避免永久挂起。
+      // 只在「这轮仍是该 thread 的当前轮」时做；被抢占的旧轮不能结掉新轮的票据。
+      if (ownsRun) {
+        approvals?.cancelThread(threadID)
+        elicitations?.cancelThread(threadID)
+      }
       const statusEvent: {
         phase: string
         runID: string
@@ -320,44 +562,64 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
   }
 
   /** 把请求体折成图的入参（`command.resume` 要包成 Command 实例）。 */
-  function readRunPayload(req: Request, threadID: string): unknown {
-    const body = (req.body ?? {}) as { input?: unknown; command?: Record<string, unknown> }
+  function readRunPayload(body: unknown, threadID: string): unknown {
+    const record = (body ?? {}) as { input?: unknown; command?: Record<string, unknown> }
     // resume 必须传 **Command 实例**：直接透传普通对象会被当成 input 更新，于是再次 interrupt。
     //
     // 注意这条分支在当前产品路径上是**预留**：`graph.ts` 只有一个 goose 节点、没有 `interrupt`，
     // 前端也从不发 `command`。它由 `checkpointer.test.ts` / `agent-server.sdk.test.ts` 用
     // `@langchain/langgraph-sdk` 的 `command: { resume }` 覆盖，保证「哪天加了 humanGate」时
     // 协议形状是对的。改动这里请同步那两个测试。
-    return body.command !== undefined
-      ? new Command(body.command as never)
-      : withThreadID(body.input, threadID)
+    return record.command !== undefined
+      ? new Command(record.command as never)
+      : withThreadID(record.input, threadID)
   }
 
   async function handleRunStream(req: Request, res: Response): Promise<void> {
-    const threadID = readThreadID(req)
+    const threadID = toReadThreadID(req)
     const thread = ensureThread(threadID)
     if (!thread) {
       res.status(404).json({ error: 'thread_not_found' })
       return
     }
 
-    const payload = readRunPayload(req, threadID)
+    // 流式端点与 `/runs` 同一套写者租约：先回 409，再决定要不要 flush headers
+    const clientID = toReadClientID(req)
+    const activeLease = activeRuns.get(threadID)
+    if (activeLease && !canTakeWriterLease(activeLease, clientID, toReadTakeover(req.body))) {
+      rejectWriterLease(res, activeLease)
+      return
+    }
+
+    const validated = await normalizeRunInput(req.body, threadID)
+    if (!validated.ok) {
+      res.status(validated.status).json({ error: validated.code, message: validated.message })
+      return
+    }
+    const payload = validated.payload
 
     res.status(200)
     res.setHeader('content-type', 'text/event-stream; charset=utf-8')
     res.setHeader('cache-control', 'no-cache, no-transform')
     res.setHeader('connection', 'keep-alive')
     res.flushHeaders()
+    trackSse(res)
 
     // 流式端点也要单飞：否则同一线程上两轮交错写 checkpoint
     await preempt(threadID)
 
     const runID = randomUUID()
-    writeSse(res, 'metadata', { run_id: runID })
+    const revision = nextRevision(threadID)
+    writeSse(res, 'metadata', { run_id: runID, revision })
 
     let closed = false
+    let finished = false
     res.on('close', function () {
       closed = true
+      // 客户端断了但这一轮还在跑：继续跑等于烧 token、写文件，而没人看结果。
+      // 与 `/threads/:id/cancel` 走同一条收尾路径（先 ACP cancel 收住长工具，再中止图）。
+      if (finished) return
+      void abortDisconnectedRun(threadID, runID)
     })
 
     const result = await executeRun(
@@ -367,9 +629,11 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         if (closed) return
         writeSse(res, mode, value)
       },
-      runID
+      runID,
+      { clientID, revision }
     )
 
+    finished = true
     if (result.status === 'error' && result.message) {
       writeSse(res, 'error', { message: result.message })
     }
@@ -379,8 +643,35 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     res.end()
   }
 
+  /**
+   * 流式端点的客户端断连收尾。
+   *
+   * 只把 `res` 关掉是不够的：图还在推进、goose 还在执行工具、checkpoint 还在写。
+   * 这里只中止**这一条** run（`runID` 对得上才算），避免误杀之后新起的一轮。
+   */
+  async function abortDisconnectedRun(threadID: string, runID: string): Promise<void> {
+    const active = activeRuns.get(threadID)
+    if (!active || active.runID !== runID) return
+    metrics?.inc('runs.disconnected')
+    logEvent?.('run.disconnected', { threadID, runID })
+    const sessionID = await readSessionID(threadID)
+    if (sessionID && options.goose) {
+      try {
+        await options.goose.cancel(sessionID)
+      } catch {
+        // goose 已经没了 / 没在跑：继续掉图
+      }
+    }
+    active.controller.abort()
+  }
+
+  /** 线程的真实运行态：有活跃轮就是 running（以前恒报 idle，前端只能靠事件流猜） */
+  function readThreadStatus(threadID: string): 'running' | 'idle' {
+    return activeRuns.has(threadID) ? 'running' : 'idle'
+  }
+
   async function handleState(req: Request, res: Response): Promise<void> {
-    const threadID = readThreadID(req)
+    const threadID = toReadThreadID(req)
     if (!ensureThread(threadID)) {
       res.status(404).json({ error: 'thread_not_found' })
       return
@@ -396,11 +687,95 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
           values = state.values ?? {}
           next = [...(state.next ?? [])]
         }
-      } catch {
-        // 图还没跑过时 getState 可能抛，按空状态返回
+      } catch (error) {
+        // 图还没跑过时 getState 可能抛，按空状态返回；但要留痕，否则「状态总是空」无从查起
+        console.warn(`[agent] 读取图状态失败（thread=${threadID}）:`, error)
       }
     }
-    res.json({ values, next, metadata: { source: 'loop' }, created_at: nowIso() })
+    res.json({
+      values,
+      next,
+      status: readThreadStatus(threadID),
+      metadata: { source: 'loop' },
+      created_at: nowIso()
+    })
+  }
+
+  function trackSse(res: Response): void {
+    SSEConnections.add(res)
+    res.on('close', function () {
+      SSEConnections.delete(res)
+    })
+  }
+
+  /**
+   * thread 登记上限：淘汰最久未用且没有活跃轮的线程。
+   *
+   * 客户端每次 run 前都会 `POST /threads` 幂等 upsert，所以淘汰不会丢持久数据；
+   * 有活跃轮的线程一律不动，否则 `/threads/:id/*` 会突然 404。
+   */
+  function evictThreadIfNeeded(): boolean {
+    if (threads.size < MAX_THREADS) return true
+    let oldestID: string | null = null
+    let oldestAt = Number.POSITIVE_INFINITY
+    for (const [id, thread] of threads) {
+      if (activeRuns.has(id)) continue
+      const at = Date.parse(thread.updated_at)
+      if (Number.isFinite(at) && at < oldestAt) {
+        oldestAt = at
+        oldestID = id
+      }
+    }
+    if (!oldestID) return false
+    threads.delete(oldestID)
+    sessions?.forgetThread(oldestID)
+    return true
+  }
+
+  type NormalizedRun =
+    | { ok: true; payload: unknown }
+    | { ok: false; status: number; code: string; message: string }
+
+  /**
+   * run 输入的信任边界：`cwd` 必须是允许根内的现存目录，`mcpServers` 必须是
+   * 已存在的绝对可执行文件。校验通过后把**归一化后的值**交给图，避免下游再信任原始输入。
+   */
+  async function normalizeRunInput(body: unknown, threadID: string): Promise<NormalizedRun> {
+    const record = (body ?? {}) as { input?: unknown; command?: unknown }
+    if (record.command !== undefined) {
+      // resume 走 Command 实例，不是普通 input；形状由 SDK 测试守着
+      return { ok: true, payload: readRunPayload(record, threadID) }
+    }
+    const input = record.input
+    if (input === undefined || input === null) {
+      return { ok: true, payload: withThreadID(undefined, threadID) }
+    }
+    if (typeof input !== 'object' || Array.isArray(input)) {
+      return { ok: false, status: 400, code: 'input_invalid', message: 'input 必须是对象' }
+    }
+    const normalized = { ...(input as Record<string, unknown>) }
+
+    if (normalized.cwd !== undefined) {
+      const result = await validateCwd(normalized.cwd, limits?.allowedRoots ?? [])
+      if (!result.ok) {
+        return { ok: false, status: 400, code: result.code, message: result.message }
+      }
+      normalized.cwd = result.value
+    }
+
+    if (normalized.mcpServers !== undefined) {
+      const result = await validateMcpServers(normalized.mcpServers, {
+        allowedCommands: limits?.mcpAllowedCommands ?? [],
+        allowBareCommand: limits?.allowBareMcpCommand ?? false,
+        allowArbitraryCommand: limits?.allowArbitraryMcpCommand ?? false
+      })
+      if (!result.ok) {
+        return { ok: false, status: 400, code: result.code, message: result.message }
+      }
+      normalized.mcpServers = result.value
+    }
+
+    return { ok: true, payload: { ...normalized, threadID } }
   }
 
   function mount(app: Express): void {
@@ -461,18 +836,28 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       )
     })
 
-    app.post('/goose/sessions', function (req: Request, res: Response) {
+    app.post('/goose/sessions', async function (req: Request, res: Response) {
       if (!goose) {
         res.status(503).json({ error: 'goose_unavailable' })
         return
       }
-      const body = (req.body ?? {}) as { cwd?: string; mcpServers?: unknown[] }
-      if (typeof body.cwd !== 'string' || body.cwd.length === 0) {
-        res.status(400).json({ error: 'cwd_required' })
+      const body = (req.body ?? {}) as { cwd?: unknown; mcpServers?: unknown }
+      const cwd = await validateCwd(body.cwd, limits?.allowedRoots ?? [])
+      if (!cwd.ok) {
+        res.status(400).json({ error: cwd.code, message: cwd.message })
+        return
+      }
+      const servers = await validateMcpServers(body.mcpServers, {
+        allowedCommands: limits?.mcpAllowedCommands ?? [],
+        allowBareCommand: limits?.allowBareMcpCommand ?? false,
+        allowArbitraryCommand: limits?.allowArbitraryMcpCommand ?? false
+      })
+      if (!servers.ok) {
+        res.status(400).json({ error: servers.code, message: servers.message })
         return
       }
       goose
-        .request('session/new', { cwd: body.cwd, mcpServers: body.mcpServers ?? [] })
+        .request('session/new', { cwd: cwd.value, mcpServers: servers.value })
         .then(
           function (result) {
             res.json(result ?? {})
@@ -497,7 +882,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       // goose 会宽容返回 `{}` 但**不改状态**，于是“设了 approve 却仍然直接执行”。
       goose
         .request('session/set_config_option', {
-          sessionId: readParam(req, 'sessionId'),
+          sessionId: toReadParam(req, 'sessionId'),
           configId: 'mode',
           value: body.modeId
         })
@@ -516,10 +901,15 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         res.status(503).json({ error: 'goose_unavailable' })
         return
       }
-      const body = (req.body ?? {}) as { configId?: string; value?: unknown }
+      const body = (req.body ?? {}) as { configId?: unknown; value?: unknown }
+      // 与 `/mode` 对齐：不认识的 configId 一律拒绝，不透传成「万能配置写口」
+      if (!isAllowedSessionConfigID(body.configId)) {
+        res.status(400).json({ error: 'config_id_not_allowed', configId: body.configId })
+        return
+      }
       goose
         .request('session/set_config_option', {
-          sessionId: readParam(req, 'sessionId'),
+          sessionId: toReadParam(req, 'sessionId'),
           configId: body.configId,
           value: body.value
         })
@@ -538,7 +928,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         res.status(503).json({ error: 'goose_unavailable' })
         return
       }
-      const sessionId = readParam(req, 'sessionId')
+      const sessionId = toReadParam(req, 'sessionId')
       goose.cancel(sessionId).then(
         function () {
           res.status(202).json({ ok: true })
@@ -558,12 +948,23 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     app.post('/threads', function (req: Request, res: Response) {
       const body = (req.body ?? {}) as { thread_id?: unknown; metadata?: Record<string, unknown> }
       const requested = typeof body.thread_id === 'string' ? body.thread_id.trim() : ''
+      if (requested) {
+        const checked = validateThreadID(requested)
+        if (!checked.ok) {
+          res.status(400).json({ error: checked.code, message: checked.message })
+          return
+        }
+      }
       const threadID = requested || randomUUID()
       const existing = threads.get(threadID)
       if (existing) {
         existing.updated_at = nowIso()
         if (body.metadata) existing.metadata = body.metadata
         res.json({ ...existing, status: 'idle', values: {} })
+        return
+      }
+      if (!evictThreadIfNeeded()) {
+        res.status(429).json({ error: 'thread_limit_reached' })
         return
       }
       const thread: ThreadRecord = {
@@ -577,12 +978,12 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     })
 
     app.get('/threads/:threadId', function (req: Request, res: Response) {
-      const thread = ensureThread(readThreadID(req))
+      const thread = ensureThread(toReadThreadID(req))
       if (!thread) {
         res.status(404).json({ error: 'thread_not_found' })
         return
       }
-      res.json({ ...thread, status: 'idle', values: {} })
+      res.json({ ...thread, status: readThreadStatus(thread.thread_id), values: {} })
     })
 
     app.get('/threads/:threadId/state', function (req: Request, res: Response) {
@@ -600,20 +1001,30 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
      * 不应该被绑在「一次图执行」的 HTTP 生命周期上。
      */
     app.post('/threads/:threadId/runs', function (req: Request, res: Response) {
-      const threadID = readThreadID(req)
+      const threadID = toReadThreadID(req)
       const thread = ensureThread(threadID)
       if (!thread) {
         res.status(404).json({ error: 'thread_not_found' })
         return
       }
-
-      const payload = readRunPayload(req, threadID)
-      const runID = randomUUID()
-      res.status(202).json({ run_id: runID, thread_id: threadID })
+      const clientID = toReadClientID(req)
+      const active = activeRuns.get(threadID)
+      if (active && !canTakeWriterLease(active, clientID, toReadTakeover(req.body))) {
+        rejectWriterLease(res, active)
+        return
+      }
 
       void (async function () {
+        const validated = await normalizeRunInput(req.body, threadID)
+        if (!validated.ok) {
+          res.status(validated.status).json({ error: validated.code, message: validated.message })
+          return
+        }
+        const runID = randomUUID()
+        const revision = nextRevision(threadID)
+        res.status(202).json({ run_id: runID, thread_id: threadID, revision })
         await preempt(threadID)
-        await executeRun(threadID, payload, undefined, runID)
+        await executeRun(threadID, validated.payload, undefined, runID, { clientID, revision })
       })()
     })
 
@@ -624,7 +1035,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
      * 中止图（否则 `graph.stream` 会继续把后续 update 写进事件流）。
      */
     app.post('/threads/:threadId/cancel', function (req: Request, res: Response) {
-      const threadID = readThreadID(req)
+      const threadID = toReadThreadID(req)
       if (!ensureThread(threadID)) {
         res.status(404).json({ error: 'thread_not_found' })
         return
@@ -648,6 +1059,14 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       })()
     })
 
+    /**
+     * 补历史：`session/load` 重放成一批 `replay` 事件（客户端按 `messageId` 替换正文）。
+     * 只在没有活跃轮时可用；失败按旁路处理，不影响任何正在跑的东西。
+     */
+    app.post('/threads/:threadId/replay', function (req: Request, res: Response) {
+      void handleReplay(req, res)
+    })
+
     // ── 工具审批 ────────────────────────────────────────────────────────────
     // 审批不能用 LangGraph 的 interrupt：`session/request_permission` 是在 session/prompt
     // 还没返回时推上来的，打断节点就丢了那次 await。这里改成「挂住 ACP 回包 + 独立回执」。
@@ -657,7 +1076,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         res.status(503).json({ error: 'approvals_unavailable' })
         return
       }
-      res.json({ approvals: approvals.pending(readThreadID(req)) })
+      res.json({ approvals: approvals.pending(toReadThreadID(req)) })
     })
 
     app.post('/threads/:threadId/approvals/:requestId', function (req: Request, res: Response) {
@@ -667,9 +1086,13 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       }
       const body = (req.body ?? {}) as { optionId?: string | null; cancelled?: boolean }
       const optionId = body.cancelled === true ? null : (body.optionId ?? null)
-      const settled = approvals.settle(readParam(req, 'requestId'), optionId)
-      if (!settled) {
+      const result = approvals.settleFor(toReadThreadID(req), toReadParam(req, 'requestId'), optionId)
+      if (result === 'not_found') {
         res.status(404).json({ error: 'approval_not_found' })
+        return
+      }
+      if (result === 'invalid_option') {
+        res.status(400).json({ error: 'invalid_option' })
         return
       }
       res.json({ ok: true, optionId })
@@ -682,7 +1105,7 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         res.status(503).json({ error: 'elicitations_unavailable' })
         return
       }
-      res.json({ elicitations: elicitations.pending(readThreadID(req)) })
+      res.json({ elicitations: elicitations.pending(toReadThreadID(req)) })
     })
 
     app.post('/threads/:threadId/elicitations/:requestId', function (req: Request, res: Response) {
@@ -698,7 +1121,11 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         body.action === 'accept' || body.action === 'cancel' ? body.action : 'decline'
       const decision: ElicitationDecision =
         action === 'accept' ? { action: 'accept', content: body.content ?? {} } : { action }
-      const settled = elicitations.settle(readParam(req, 'requestId'), decision)
+      const settled = elicitations.settleFor(
+        toReadThreadID(req),
+        toReadParam(req, 'requestId'),
+        decision
+      )
       if (!settled) {
         res.status(404).json({ error: 'elicitation_not_found' })
         return
@@ -712,14 +1139,24 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         res.status(503).json({ error: 'events_unavailable' })
         return
       }
-      const threadID = readThreadID(req)
+      const threadID = toReadThreadID(req)
       if (!ensureThread(threadID)) {
         res.status(404).json({ error: 'thread_not_found' })
         return
       }
 
-      const rawAfter = Number(req.query.after)
-      const after = Number.isFinite(rawAfter) ? rawAfter : undefined
+      const parsedAfter = parseAfterQuery(req.query.after)
+      if (!parsedAfter.ok) {
+        res.status(400).json({ error: parsedAfter.code, message: parsedAfter.message })
+        return
+      }
+      const parsedEpoch = validateEpoch(req.query.epoch)
+      if (!parsedEpoch.ok) {
+        res.status(400).json({ error: parsedEpoch.code, message: parsedEpoch.message })
+        return
+      }
+      const after = parsedAfter.value
+      const requestedEpoch = parsedEpoch.value
 
       metrics?.inc('events.sse.connections')
 
@@ -728,16 +1165,15 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
       res.setHeader('cache-control', 'no-cache, no-transform')
       res.setHeader('connection', 'keep-alive')
       res.flushHeaders()
+      trackSse(res)
 
       // 先订阅、再补发：反过来的话，「取快照 → 挂订阅」之间产生的事件既不在补发里，
       // 也没有订阅者接住 —— 前端会永久缺一段正文，而 `sync` 又告诉它「你已经是最新的」。
       // 补发与实时尾部会重叠，所以写出口统一按 `seq` 去重。
       //
-      // 游标初值必须是 0 而**不是** `after`：`seq` 是本进程内的内存计数器，agentd 重启后
-      // 从头开始，而前端手里还留着上一个进程的大游标。若以 `after` 初始化，`send()` 会把
-      // 新进程的每一条事件都判成「已写过」丢掉 —— 前端表现为「重试后一直思考中、零输出」，
-      // 直到一轮的空闲上限（60 分钟）才报超时。补发本身已由 `since(after)` 过滤过，
-      // 从 0 起算不会重复写。
+      // 游标初值必须是 0 而**不是** `after`：同进程内 seq 持续递增，但重连时服务端会先把
+      // `seq > after` 的补发写出来，`lastWritten` 自然推进到补发末尾。初始化为 `after` 反而
+      // 会让「同 seq 的实时尾部」被误判成已写过。
       let lastWritten = 0
       let replaying = true
       const queued: RunEvent[] = []
@@ -754,22 +1190,29 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
         send(event)
       })
 
-      // 先按游标补发，再发一份「现状」：审批请求可能发生在连上来之前
-      const missed = events.since(threadID, after)
-      if (after !== undefined && missed.length > 0) {
+      // 先按游标从持久日志补发，再发一份「现状」：审批请求可能发生在连上来之前
+      const replay = events.replay(threadID, after, requestedEpoch)
+      if (after !== undefined && replay.events.length > 0) {
         // 「补发了几次」是断流频率的直接度量：值高说明前端在反复重连，而不是网络偶发
         metrics?.inc('events.cursor.replays')
-        logEvent?.('events.replay', { threadID, from: after, count: missed.length })
+        logEvent?.('events.replay', { threadID, from: after, count: replay.events.length })
       }
-      for (const event of missed) {
+      if (replay.truncated) {
+        logEvent?.('events.replay.truncated', { threadID, from: after ?? 0, minSeq: replay.minSeq })
+      }
+      for (const event of replay.events) {
         send(event)
       }
       // `lastSeq` 必须是**已经写到这条连接上**的位置，不是服务端最新：
       // 报大了会让前端下次从中间开始取，安静地跳过一段正文。
       writeSse(res, 'sync', {
+        epoch: replay.epoch,
+        lastSeq: lastWritten,
+        minSeq: replay.minSeq,
+        truncated: replay.truncated,
+        reset: replay.reset,
         approvals: approvals ? approvals.pending(threadID) : [],
-        elicitations: elicitations ? elicitations.pending(threadID) : [],
-        lastSeq: lastWritten
+        elicitations: elicitations ? elicitations.pending(threadID) : []
       })
       replaying = false
       for (const event of queued) {
@@ -787,11 +1230,29 @@ function createAgentServer(options: AgentServerOptions): AgentServer {
     graphs: function (): readonly string[] {
       return [graphName]
     },
+    closeConnections: function (): void {
+      for (const res of SSEConnections) {
+        try {
+          res.end()
+        } catch {
+          // 已经断开
+        }
+      }
+      SSEConnections.clear()
+    },
     stop: async function (): Promise<void> {
+      for (const res of SSEConnections) {
+        try {
+          res.end()
+        } catch {
+          // 已经断开
+        }
+      }
+      SSEConnections.clear()
       threads.clear()
+      sessions?.clear()
     }
   }
 }
 
-export { GRAPH_NAME, createAgentServer, readChunk, writeSse }
-export type { AgentServer, AgentServerOptions, CompiledGraphLike }
+export { createAgentServer }

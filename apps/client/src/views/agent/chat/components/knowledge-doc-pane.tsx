@@ -36,9 +36,10 @@ import {
   DELETE_KNOWLEDGE_DOC,
   GET_KNOWLEDGE_DOC_REF,
   PUT_KNOWLEDGE_DOC,
-  type KnowledgeBase,
+  type KnowledgeSpace,
   type KnowledgeDocSummary
-} from '@/lib/knowledge-ipc.ts'
+} from '@/apis/knowledge'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import { rewriteMarkdownAssetSrc } from '@/views/agent/chat/components/knowledge-doc.ts'
 import { parseFrontMatter } from '@/views/knowledge/lib/front-matter.ts'
 import { readMarkdownFile, writeMarkdownFile } from '@/views/knowledge/lib/fs.ts'
@@ -53,7 +54,7 @@ interface KnowledgeDocTarget {
 }
 
 interface KnowledgeDocPaneProps {
-  base: KnowledgeBase
+  space: KnowledgeSpace
   doc: KnowledgeDocTarget
   /** 列表里点「编辑」进来时直接落在编辑态 */
   initialEditing?: boolean
@@ -71,7 +72,7 @@ interface KnowledgeDocPaneProps {
 type PaneMode = 'preview' | 'edit'
 
 function KnowledgeDocPane(props: KnowledgeDocPaneProps) {
-  const absolutePath = joinPath(props.base.rootPath, props.doc.relPath)
+  const absolutePath = joinPath(props.space.rootPath, props.doc.relPath)
   const [mode, updateMode] = useState<PaneMode>(props.initialEditing ? 'edit' : 'preview')
   const [content, updateContent] = useState<string | null>(null)
   /** 落盘时的正文：与 content 不同即「未保存」 */
@@ -134,7 +135,9 @@ function KnowledgeDocPane(props: KnowledgeDocPaneProps) {
   )
 
   const isDirty = content !== null && savedContent !== null && content !== savedContent
-  isDirtyRef.current = isDirty
+  useIsomorphicLayoutEffect(function () {
+    isDirtyRef.current = isDirty
+  })
 
   // popover 收起等外部原因卸载时，脏内容会随组件一起消失 —— 至少提示一声
   useEffect(function () {

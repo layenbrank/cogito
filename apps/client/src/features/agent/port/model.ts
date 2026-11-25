@@ -35,16 +35,18 @@ import {
   renewGoalTurn,
   startGoalRun
 } from '@/features/agent/goal-run'
-import { appendModeGuidance, resolveRunMode } from '@/features/agent/mode'
+import { appendModeGuidance, commitThreadMode, resolveRunMode } from '@/features/agent/mode'
+import { isPlanExecuteIntent } from '@/features/agent/plan-execute'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { buildSystemPrompt } from '@/features/agent/model/prompt-project'
+import { collectWikiContextSegment } from '@/features/agent/model/prompts'
 import { parseModels } from '@/features/agent/model/providers'
 import {
   isLocalKind,
   noteRunFailure,
   pickProvider,
-  GET_AGENT_ROUTE,
+  planRoute,
   readRouteTier
 } from '@/features/agent/model/route'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
@@ -172,7 +174,7 @@ async function findRoutedProvider(): Promise<AgentProvider | null> {
   // 用户自己点过（持久化的选择）就照办；只有系统给的默认值时，才允许按档位探测、兜底
   const isAutomatic = !state.activeProviderPicked
   if (!isAutomatic || tier !== 'local' || !isLocalKind(provider.kind)) return provider
-  const reply = await GET_AGENT_ROUTE(tier, findActiveModel(provider))
+  const reply = await planRoute(tier, findActiveModel(provider))
   if (!reply?.plan.degraded) return provider
   const cloud = await findCloudFallback(state.providers, provider.id)
   if (!cloud) {
@@ -310,11 +312,37 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
     },
 
     async *run(input, signal): AsyncIterable<ChatStreamEvent> {
-      const host = findHost(input)
+      // 首帧之前**不抛错**：抛出去时适配器只拿到一个失败的 Promise，界面会永远转圈（F-011）。
+      // 已知原因的早退一律先给一条可见的错误事件。
+      let host: AgentRunHost
+      try {
+        host = findHost(input)
+      } catch (error) {
+        reportCaught('agent.port.run.host', error, 'warning')
+        yield {
+          kind: 'error',
+          message: error instanceof Error ? error.message : String(error),
+          usage: RUN_USAGE
+        }
+        return
+      }
       const provider = findProviderByID(input.providerID)
-      if (!provider) throw new Error('[agent/port] 选中的 provider 已不存在，请在设置里重新选择')
-      if (!provider.enabled)
-        throw new Error('[agent/port] 选中的 provider 已被停用，请在设置里启用')
+      if (!provider) {
+        yield {
+          kind: 'error',
+          message: '选中的 provider 已不存在，请在设置里重新选择',
+          usage: RUN_USAGE
+        }
+        return
+      }
+      if (!provider.enabled) {
+        yield {
+          kind: 'error',
+          message: '选中的 provider 已被停用，请在设置里启用',
+          usage: RUN_USAGE
+        }
+        return
+      }
 
       const parsed = parseRunMessages(input.messages)
       const visibleText = appendImages(
@@ -340,15 +368,31 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       const activeScenario = findActiveScenario()
       // 本轮的模式**认消息快照**：重新生成复现「当初那一次」的选择，而不是现在选中的那个；
       // 老数据（没有快照）才回落会话偏好 —— 顺序由 `resolveRunMode` 固定。
-      const runMode = resolveRunMode(input.messages)
+      let runMode = resolveRunMode(input.messages)
+      // 人还停在计划档、但这句话是要动手：先离开只读再组提示词。
+      // 不切的话系统提示仍是「只写计划」，写工具也会被拒，这一轮会直接停。
+      if (runMode === 'plan' && isPlanExecuteIntent(text)) {
+        runMode = 'agent'
+        try {
+          await commitThreadMode(host.threadID, 'agent')
+        } catch (error) {
+          console.warn('[agent/port] 计划模式切到执行失败:', error)
+        }
+      }
       const promptScenario: ScenarioKey =
         runMode === 'plan' && activeScenario === 'plan' ? 'general' : activeScenario
       const baseSystemText =
         overrides.findSystemText?.(input) ??
         (parsed.systemText?.trim() ||
           (await buildSystemPrompt(promptScenario, buildPromptContext())))
-      // 会话模式（执行/计划/问答/目标）只追加提示约束，不改审批档
-      const systemText = appendModeGuidance(baseSystemText, runMode)
+      // 知识库场景：把本库说明书（purpose/schema/overview）随系统提示一起给出。
+      // 只在 knowledge 场景注入，避免其它场景被几千字 schema 拖慢、带偏。
+      const wikiSegment =
+        promptScenario === 'knowledge' ? await collectWikiContextSegment() : null
+      const systemText = appendModeGuidance(
+        wikiSegment ? `${baseSystemText}\n\n${wikiSegment}` : baseSystemText,
+        runMode
+      )
 
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
@@ -437,6 +481,8 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
               // goose 的会话配置项认 providerId（行里的 `kind`），不是本地行 id
               providerID: provider.kind,
               modelID: input.model,
+              // 提示词、goose 会话档、审批策略必须认**同一个**模式（本轮快照）
+              agentMode: runMode,
               signal: cancelSignal
             })) {
               switch (item.kind) {
@@ -451,6 +497,13 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
                   }
                   break
                 }
+                case 'replay': {
+                  // 补历史：正文是这条消息的完整文本 → 覆盖语义；且不计入 `capturedText`
+                  // （它不是本轮新产出的内容，拼进场景收尾会把整段历史当成结论）
+                  const event = parseAcpStreamEvent(item.update, { ...context, replace: true })
+                  if (event) yield event
+                  break
+                }
                 case 'approval':
                 case 'elicitation':
                   // 停下来等人：事件交给 UI，回执走 `respondToApproval` / `respondToElicitation`
@@ -459,7 +512,7 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
                     yield {
                       kind: 'text',
                       blockID: 'plan-mode-hint',
-                      text: '\n\n（计划模式禁止写操作：请在审批中拒绝写工具，或切到「执行」模式后再改。）\n'
+                      text: '\n\n（计划模式不会改文件。把计划写完即可；要动手请回复「开始执行」。）\n'
                     }
                   }
                   yield item.event

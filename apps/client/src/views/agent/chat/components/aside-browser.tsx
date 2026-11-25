@@ -37,7 +37,7 @@ import {
   type BrowserNavigationEntry,
   type BrowserPickerActiveEvent,
   type PickedBrowserElement
-} from '@/features/browser/api'
+} from '@/apis/browser'
 import { attachPickedElement } from '@/features/browser/attach-picked-element'
 import { formatAddress, formatTabTitle, isAddressDirty } from '@/features/browser/address'
 import { describeDevice, fitFor, isUsableDevice } from '@/features/browser/device'
@@ -608,8 +608,7 @@ function AsideBrowser() {
    * 截图并**直接加进会话输入框**（不另开预览层）。
    *
    * 两个坑：
-   * 1. `Page.captureScreenshot(fromSurface: true)` 取的是合成后的画面，
-   *    webview 被隐藏时只能拿到空白 —— 所以会保证页面视图下才截；
+   * 1. 控件被隐藏时合成器不出帧，截到的是空白 —— 所以会保证页面视图下才截；
    * 2. 从 network 视图切回页面后 webview 需要重新合成，立刻截也是空白，
    *    所以等一个 `SHOW_SETTLE_MS`。
    */
@@ -1090,7 +1089,7 @@ function AsideBrowser() {
                   <img
                     src={pauseSrc}
                     alt=""
-                    className="size-full object-cover"
+                    className="size-full object-fill"
                     draggable={false}
                   />
                 ) : null}

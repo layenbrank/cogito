@@ -30,7 +30,7 @@ function task(patch: Partial<Automation>): Automation {
     id: patch.id ?? 'task-1',
     name: '每日整理',
     prompt: '整理昨天的变更',
-    knowledgeBaseId: null,
+    knowledgeSpaceId: null,
     workspaceId: null,
     approval: 'readonly',
     providerId: null,

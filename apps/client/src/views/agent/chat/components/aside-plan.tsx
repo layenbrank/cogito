@@ -38,7 +38,7 @@ import { toast } from 'sonner'
 
 import { readNextGoalBudget, subscribeGoalBudget, useGoalRun } from '@/features/agent/goal-run'
 import { findLatestPlan } from '@/features/agent/plan'
-import { findLastAssistantText, findPlanDraft, isPlanDocument } from '@/features/agent/plan-draft'
+import { findPanelDraft } from '@/features/agent/plan-draft'
 import {
   listPlanFiles,
   readPlanFile,
@@ -154,9 +154,9 @@ function AsidePlan(props: AsidePlanProps) {
       }
       if (!draftDigest) return null
       const messages = aui.thread.getState().messages
-      // 兜底只认「真计划文档」：随便一句带编号的回答不该占据计划页签
-      if (!isPlanDocument(findLastAssistantText(messages) ?? '')) return null
-      return findPlanDraft(messages)
+      // 是否当成计划由**产出该回复那一轮的模式快照**决定，与当前选中的档位无关：
+      // 随手聊完再切到计划模式，旧回答不该被当成计划。
+      return findPanelDraft(messages)
     },
     [aui, draftDigest, record]
   )

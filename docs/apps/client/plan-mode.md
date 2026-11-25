@@ -1,6 +1,9 @@
 # 计划模式：正文是唯一执行依据
 
 > 2026-11 复盘。**结论先行**：计划里不要再有「清单」，执行时也只发正文。
+>
+> **路径已变**：下文提到的 `acp/session.ts` 已不存在，现为 `features/agent/port/session.ts`；
+> 审批由 agentd 的审批服务承担。当前实现偏差见 [agent-audit.md](./agent-audit.md)。
 
 ## 问题
 
@@ -24,7 +27,7 @@
 | 右栏「计划」页签以**正文**为主：抬头只给标题 / 概述 / 步数，正文全量 Markdown；「详情」只给标题 + 概述 + 前 3 步 + 「查看完整计划」 | `aside-plan.tsx`、`aside-busy.tsx` 的 `PlanDraftBlock` |
 | 没有编号列表时，**计划类标题下的普通项目符号**也算步骤；没有计划类标题则只认编号 / 勾选框，避免任何带列表的回复都被当成计划 | `plan-draft.ts` 的 `BULLET_LINE` + `findStepList`（单测 `plan-draft.test.ts`） |
 | 执行消息固定四条硬约束：阶段顺序、文件级落地、跑验证、待确认项按默认执行 | `plan-execute.ts` 的 `EXECUTE_RULES` |
-| **计划模式硬只读**：写工具在权限回调直接拒绝；goose 有效档为 readonly（不改用户审批偏好） | `acp/session.ts` `requestThreadPermission`；`effective-approval.ts`；切模式时 `syncApprovalForThread` |
+| **计划模式硬只读**：写工具在审批判定里直接 `reject_once`（不放行、也不中止回合）；goose 有效档为 `approve`（不改用户审批偏好） | `decideApproval`（`planning` / `readOnlySession` → `lockWrites`，见 `@cogito/agent-runtime/policy`）；`effective-approval.ts` 的 `findRunGooseMode`；切模式时 `syncApprovalForThread` |
 | **执行收尾写 status**：普通执行一轮结束 → `done` / 中止 → `interrupted`；经 Goal 推进则跟 Goal 终态 | `views/agent/chat/components/plan-run-finish.tsx` |
 
 ## 计划版本化：revision / executedRevision

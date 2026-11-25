@@ -51,11 +51,10 @@ import {
 } from '@/features/agent/acp/goose-providers'
 import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/port/session'
 import { findToolRisk, RISK_META } from '@/features/agent/tool-risk'
+import { DELETE_GOOSE_PERMISSIONS, GET_GOOSE_PERMISSIONS } from '@/apis/security'
 import {
   classifyEntry,
   listUserEntries,
-  GET_GOOSE_PERMISSIONS,
-  DELETE_GOOSE_PERMISSIONS,
   type GoosePermissions
 } from '@/shared/ipc/goose-permissions'
 import { useAgentStore } from '@/stores/agent'
@@ -335,7 +334,9 @@ function ToolPermissionsSection() {
                       onValueChange={function (value) {
                         void changePermission(tool.name, value as ToolPermissionLevel)
                       }}>
-                      <SelectTrigger size="sm">
+                      <SelectTrigger
+                        size="sm"
+                        className="w-30 shrink-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

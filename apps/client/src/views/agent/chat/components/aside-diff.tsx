@@ -6,7 +6,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 
-import type { DiffRevs } from '@/lib/workspace-git'
+import type { DiffRevs } from '@/apis/workspace-git'
 import '@/lib/monaco-environment.ts'
 import { useAsideDiffData } from '@/views/agent/chat/components/aside-diff-data'
 import { useAsideDiffEditor } from '@/views/agent/chat/components/aside-diff-editor'

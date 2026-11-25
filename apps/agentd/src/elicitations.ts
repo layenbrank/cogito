@@ -22,6 +22,8 @@
 
 import { randomUUID } from 'node:crypto'
 
+import type { GateStore } from './gate-store'
+
 /** 追问最多等 5 分钟：与审批票据同值，超过就没人会回来填表了 */
 export const ELICITATION_TIMEOUT_MS = 300_000
 
@@ -62,6 +64,8 @@ interface ElicitationEvent {
 interface ElicitationHub {
   ask(input: ElicitationAskInput): Promise<ElicitationDecision>
   settle(requestId: string, decision: ElicitationDecision): boolean
+  /** HTTP 回执专用：票据必须属于该 thread */
+  settleFor(threadID: string, requestId: string, decision: ElicitationDecision): boolean
   pending(threadID?: string): ElicitationRequest[]
   subscribe(listener: (event: ElicitationEvent) => void): () => void
   /** 线程被取消/结束时兜底 */
@@ -75,9 +79,13 @@ interface Waiter {
   timer: ReturnType<typeof setTimeout>
 }
 
-function createElicitationHub(options?: { onTimeout?: () => void }): ElicitationHub {
+function createElicitationHub(options?: {
+  onTimeout?: () => void
+  store?: GateStore | null
+}): ElicitationHub {
   const waiters = new Map<string, Waiter>()
   const listeners = new Set<(event: ElicitationEvent) => void>()
+  const store = options?.store ?? null
 
   function publish(event: ElicitationEvent): void {
     for (const listener of listeners) {
@@ -89,14 +97,58 @@ function createElicitationHub(options?: { onTimeout?: () => void }): Elicitation
     }
   }
 
-  function settle(requestId: string, decision: ElicitationDecision): boolean {
+  function persist(request: ElicitationRequest): void {
+    try {
+      store?.insert({
+        requestId: request.requestId,
+        kind: 'elicitation',
+        threadID: request.threadID,
+        sessionId: request.sessionId,
+        payload: {
+          mode: request.mode,
+          message: request.message,
+          requestedSchema: request.requestedSchema,
+          ...(request.url ? { url: request.url } : {})
+        },
+        createdAt: request.createdAt,
+        expiresAt: request.createdAt + ELICITATION_TIMEOUT_MS
+      })
+    } catch {
+      // 持久化失败不影响当前进程的追问
+    }
+  }
+
+  function finish(
+    requestId: string,
+    decision: ElicitationDecision,
+    state: 'settled' | 'expired' | 'cancelled'
+  ): boolean {
     const waiter = waiters.get(requestId)
     if (!waiter) return false
     waiters.delete(requestId)
     clearTimeout(waiter.timer)
+    try {
+      store?.settle(requestId, state, decision.action)
+    } catch {
+      // 同上：以内存为准
+    }
     publish({ type: 'elicitation_settled', elicitation: waiter.request, decision })
     waiter.resolve(decision)
     return true
+  }
+
+  function settle(requestId: string, decision: ElicitationDecision): boolean {
+    return finish(requestId, decision, 'settled')
+  }
+
+  function settleFor(
+    threadID: string,
+    requestId: string,
+    decision: ElicitationDecision
+  ): boolean {
+    const waiter = waiters.get(requestId)
+    if (!waiter || waiter.request.threadID !== threadID) return false
+    return finish(requestId, decision, 'settled')
   }
 
   function ask(input: ElicitationAskInput): Promise<ElicitationDecision> {
@@ -115,10 +167,11 @@ function createElicitationHub(options?: { onTimeout?: () => void }): Elicitation
         // 先告诉外部「这是超时」再结案：`cancel` 本身分不出「用户点取消」与「没人理」
         options?.onTimeout?.()
         // 无人回执时按 cancel 结案：与 UI 里点「取消」同义，goose 会当作「用户不填」
-        settle(request.requestId, { action: 'cancel' })
+        finish(request.requestId, { action: 'cancel' }, 'expired')
       }, ELICITATION_TIMEOUT_MS)
       timer.unref?.()
       waiters.set(request.requestId, { request, resolve, timer })
+      persist(request)
       publish({ type: 'elicitation_requested', elicitation: request })
     })
   }
@@ -137,13 +190,13 @@ function createElicitationHub(options?: { onTimeout?: () => void }): Elicitation
 
   function cancelThread(threadID: string): void {
     for (const request of pending(threadID)) {
-      settle(request.requestId, { action: 'cancel' })
+      finish(request.requestId, { action: 'cancel' }, 'cancelled')
     }
   }
 
   function cancelAll(): void {
     for (const request of pending()) {
-      settle(request.requestId, { action: 'cancel' })
+      finish(request.requestId, { action: 'cancel' }, 'cancelled')
     }
   }
 
@@ -154,7 +207,7 @@ function createElicitationHub(options?: { onTimeout?: () => void }): Elicitation
     }
   }
 
-  return { ask, settle, pending, subscribe, cancelThread, cancelAll }
+  return { ask, settle, settleFor, pending, subscribe, cancelThread, cancelAll }
 }
 
 export { createElicitationHub }

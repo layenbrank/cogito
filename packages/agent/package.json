@@ -3,17 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "cogito agent 运行时：在线模型 provider + 工具/权限/技能 + 会话流（对齐 opencode v2，Effect）",
+  "description": "provider 契约（唯一职责）：provider 预设、模型条目与能力归一；被 apps/studio 直接使用，不承担任何运行逻辑",
   "exports": {
-    ".": "./src/index.ts",
-    "./provider": "./src/provider.ts",
-    "./message": "./src/message.ts",
-    "./tool": "./src/tool.ts",
-    "./permission": "./src/permission.ts",
-    "./events": "./src/events.ts",
-    "./agent": "./src/agent.ts",
-    "./skill": "./src/skill.ts",
-    "./client/openai-compatible": "./src/client/openai-compatible.ts"
+    "./provider": "./src/provider.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

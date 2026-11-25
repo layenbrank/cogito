@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { MIN_TOKEN_LENGTH, parsePort, readConfig } from './config'
@@ -47,6 +49,22 @@ describe('readConfig', function () {
     expect(config.gooseBinary).toBeNull()
     expect(config.version).toBe('0.0.0-dev')
     expect(config.isolated).toBe(false)
+    expect(config.allowedRoots).toEqual([])
+    expect(config.mcpAllowedCommands).toEqual([])
+    expect(config.allowBareMcpCommand).toBe(false)
+    expect(config.allowArbitraryMcpCommand).toBe(false)
+  })
+
+  it('工作区根与 MCP 白名单按 path.delimiter 拆分', function () {
+    const config = readConfig({
+      ...BASE_ENV,
+      AGENTD_ALLOWED_ROOTS: ['D:/work', 'E:/projects'].join(path.delimiter),
+      AGENTD_MCP_ALLOWED_COMMANDS: ['D:/bin/cogito-mcp.exe'].join(path.delimiter),
+      AGENTD_MCP_ALLOW_BARE_COMMAND: '1'
+    })
+    expect(config.allowedRoots).toEqual(['D:/work', 'E:/projects'])
+    expect(config.mcpAllowedCommands).toEqual(['D:/bin/cogito-mcp.exe'])
+    expect(config.allowBareMcpCommand).toBe(true)
   })
 
   it('显式配置原样生效', function () {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildCapabilitySummary } from '@/features/agent/model/capabilities'
-import type { ActionEntry } from '@/lib/directive-ipc'
+import type { ActionEntry } from '@/apis/directive'
 
 function action(overrides: Partial<ActionEntry> & Pick<ActionEntry, 'id' | 'bucket'>): ActionEntry {
   return {

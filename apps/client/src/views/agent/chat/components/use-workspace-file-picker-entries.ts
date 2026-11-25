@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { WorkspaceFiles, type DirEntry } from '@/lib/workspace-files.ts'
+import { WorkspaceFiles, type DirEntry } from '@/apis/workspace-files'
 import type { PickerEntry } from '@/views/agent/chat/components/workspace-file-picker-list'
 
 /** 搜索防抖：每敲一个字就搜一次会把磁盘打满，列表也跟着闪 */

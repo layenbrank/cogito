@@ -26,6 +26,7 @@
 import {
   findGooseMode,
   findHardDenyLevel,
+  isCommandTool,
   isWriteTool,
   type ApprovalMode
 } from '@cogito/agent-protocol/policy'
@@ -52,6 +53,11 @@ interface ApprovalDecisionInput {
   approvalMode: ApprovalMode
   /** 计划模式：这一轮在出计划，不该落盘 */
   planning: boolean
+  /**
+   * 问答 / 计划的只读能力面。与审批档正交：自动审批也不能在这两档里写文件。
+   * 缺省视为 false，旧调用方不用改。
+   */
+  readOnlySession?: boolean
   /** 目标推进中：无人值守的长任务 */
   goalActive: boolean
   options: readonly ApprovalOption[]
@@ -65,6 +71,7 @@ function pickOnce(options: readonly ApprovalOption[], kind: string): string | nu
 }
 
 function decideApproval(input: ApprovalDecisionInput): ApprovalOutcome {
+  const lockWrites = input.planning || input.readOnlySession === true
   // 1. 硬禁用。goose 侧本来会靠 permission.yaml 的 never_allow 拦，但那是
   //    一份可被清空、可被用户改的全局文件 —— auto 档下它是**唯一**拦住黑盒 shell 的
   //    屏障，不能只有这一道。
@@ -74,7 +81,7 @@ function decideApproval(input: ApprovalDecisionInput): ApprovalOutcome {
   //    反复改道，而用户完全不知道发生过什么。现在把卡推给用户，卡上标出风险与替代工具。
   //    计划模式仍然直接拒：那一轮本来就不该落盘，没有「允许一次」的语义。
   if (findHardDenyLevel(input.toolName) !== null) {
-    if (input.approvalMode === 'ask' && !input.planning) return { kind: 'ask' }
+    if (input.approvalMode === 'ask' && !lockWrites) return { kind: 'ask' }
     const optionId = pickOnce(input.options, 'reject_once')
     return optionId
       ? { kind: 'deny', optionId }
@@ -83,8 +90,20 @@ function decideApproval(input: ApprovalDecisionInput): ApprovalOutcome {
 
   // 2. 只读档 / 计划模式：写工具直接拒，只读工具直接放行 —— 否则 `approve` 档下
   //    连 list/read 都要弹一张卡，用户会被淹。
-  if (input.planning || input.approvalMode === 'readonly') {
+  //
+  //    **计划模式对命令例外**：它要调研就得能跑 `git diff` / `ls` / 跑一次验证命令。
+  //    一律硬拒的结果是「看不到现状 → 只能给空泛方案 → 计划没法用」。命令类工具改成
+  //    问用户：批准才跑，拒了也只是这一次；文件写仍然直接拒（计划轮不该落盘）。
+  if (lockWrites || input.approvalMode === 'readonly') {
     if (isWriteTool(input.toolName)) {
+      if (
+        input.planning &&
+        isCommandTool(input.toolName) &&
+        pickOnce(input.options, 'allow_once') !== null &&
+        pickOnce(input.options, 'reject_once') !== null
+      ) {
+        return { kind: 'ask' }
+      }
       const optionId = pickOnce(input.options, 'reject_once')
       return optionId
         ? { kind: 'deny', optionId }

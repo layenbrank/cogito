@@ -1,7 +1,8 @@
 /**
  * 输入区会话模式选择：执行 / 计划 / 问答 / 目标。
  *
- * 与审批档正交：模式只改系统提示里的行为约束，审批仍是独立的安全档位。
+ * 与审批档正交：模式改系统提示，并决定发给 goose 的会话档
+ *（问答是 chat、计划是只读）。审批档仍然独立。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'

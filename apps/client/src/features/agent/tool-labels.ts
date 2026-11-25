@@ -25,6 +25,9 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   web_fetch: '抓取网页',
   skill: '调用技能',
   subagent: '派生子任务',
+  cogito_agent_spawn: '派生子任务',
+  cogito_agent_wait: '等待子任务',
+  cogito_agent_result: '取子任务结果',
   memory: '记忆',
   todo: '待办',
   // corex MCP（与指令磁贴共用；goose 名可能带 server 前缀，靠 includes 命中）
@@ -38,14 +41,14 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   corex_validate: '校验指令',
   // 本地工具（cogito-mcp，cogito_ 前缀）
   cogito_calendar_read: '读取日程',
-  cogito_knowledge_list_bases: '列出知识库',
+  cogito_knowledge_list_spaces: '列出知识库',
   cogito_knowledge_list_docs: '列出文档',
   cogito_knowledge_read_doc: '读取文档',
   cogito_knowledge_read_wiki: '读取 Wiki 页',
   cogito_knowledge_search: '检索知识',
   cogito_knowledge_lint: '检查 Wiki 结构',
   cogito_knowledge_ingest: '入队摄入 Wiki',
-  cogito_knowledge_write_doc: '写入知识草稿',
+  cogito_knowledge_write_doc: '写入待发布区',
   cogito_knowledge_graph_search: '图谱邻居检索',
   cogito_knowledge_workspace_write: '写入 .agent 产物',
   cogito_workspace_write: '写入工作区文件',
@@ -141,6 +144,7 @@ type ToolCardVariant =
   | 'web'
   | 'retrieval'
   | 'timeline'
+  | 'subagent'
   | 'generic'
   | 'tree'
 
@@ -155,7 +159,16 @@ function isReadTool(name: string): boolean {
   )
 }
 
-function isWriteTool(name: string): boolean {
+/**
+ * 这个工具该画「写入卡片」吗（**展示形态**，不是安全判定）。
+ *
+ * 改名自 `isWriteTool`：与 `@cogito/agent-protocol/policy` 的同名函数语义不同——
+ * 那个是安全闸门（写工具在只读/询问档要拦），这里是选渲染形态（终端、浏览器有自己的卡）。
+ * 两处同名不同义曾经直接造成「同一个工具三处结论不同」的误判（F-025）。
+ *
+ * 不变量（`tool-classification.test.ts` 守着）：**判为写卡的，policy 必定也会判 write**。
+ */
+function usesWriteCard(name: string): boolean {
   if (isBrowserTool(name)) return false
   const lower = name.toLowerCase()
   // 右栏终端有自己的卡：`cogito_terminal_write` 名字里带 write，但它不动文件
@@ -227,6 +240,16 @@ function isGitTool(name: string): boolean {
   return lower.includes('git') || lower.includes('commit')
 }
 
+/**
+ * 子任务分派工具（`cogito_agent_spawn`；goose 原生名也可能叫 `subagent`）。
+ *
+ * 只算**分派**那一下：`_wait` / `_result` 是读取，不该画成「交接」
+ */
+function isSubagentTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower === 'subagent' || lower.includes('agent_spawn')
+}
+
 export {
   findBrowserToolLabel,
   isBrowserTool,
@@ -238,8 +261,9 @@ export {
   isRetrievalTool,
   isSearchTool,
   isShellTool,
+  isSubagentTool,
   isWebTool,
-  isWriteTool,
-  toAgentToolLabel
+  toAgentToolLabel,
+  usesWriteCard
 }
 export type { ToolCardVariant }

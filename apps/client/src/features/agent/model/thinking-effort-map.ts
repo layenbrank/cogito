@@ -65,11 +65,10 @@ function resolveThinkingValue(
   })
   if (ids.length === 0) return { value: level, matched: true, degraded: false }
 
+  const idSet = new Set(ids)
   for (const candidate of THINKING_CANDIDATES[level]) {
-    const hit = ids.find(function (id) {
-      return id === candidate
-    })
-    if (hit) return { value: hit, matched: true, degraded: hit !== level }
+    if (!idSet.has(candidate)) continue
+    return { value: candidate, matched: true, degraded: candidate !== level }
   }
   // 一个都不沾：不硬塞，交给 goose 全局键那层兼容映射
   return { value: level, matched: false, degraded: true }

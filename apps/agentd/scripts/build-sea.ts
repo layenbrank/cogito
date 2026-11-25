@@ -172,7 +172,9 @@ function restoreDisplaced(outFile: string): void {
   const dir = path.dirname(outFile)
   const prefix = `${path.basename(outFile)}${DISPLACED_TAG}`
   const displaced = readdirSync(dir)
-    .filter((name) => name.startsWith(prefix))
+    .filter(function (name) {
+      return name.startsWith(prefix)
+    })
     .sort()
   const newest = displaced[displaced.length - 1]
   if (!newest) return

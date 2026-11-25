@@ -360,7 +360,9 @@ describe('追问（elicitation）', function () {
   })
 
   it('回执：cancel 不带内容，accept 补空对象', function () {
-    expect(parseAcpElicitationResponse({ elicitationId: 'e1', action: 'cancel' })).toEqual({ action: 'cancel' })
+    expect(parseAcpElicitationResponse({ elicitationId: 'e1', action: 'cancel' })).toEqual({
+      action: 'decline'
+    })
     expect(parseAcpElicitationResponse({ elicitationId: 'e1', action: 'accept', content: { a: 1 } })).toEqual({
       action: 'accept',
       content: { a: 1 }

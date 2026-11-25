@@ -27,19 +27,14 @@ import {
   isRetrievalTool,
   isSearchTool,
   isShellTool,
+  isSubagentTool,
   isWebTool,
-  isWriteTool,
+  usesWriteCard,
   type ToolCardVariant
 } from '@/features/agent/tool-labels'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { formatTerminalText, normalizeToolOutput } from './tool-output'
-
-function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
-}
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 const HTTP_URL = /https?:\/\/[^\s)\]"']+/g
 
@@ -169,18 +164,20 @@ function findToolFamily(toolName: string): ToolFamily {
   if (isShellTool(toolName)) return 'shell'
   if (isCodeTool(toolName)) return 'code'
   if (isWebTool(toolName)) return 'web'
-  if (isReadTool(toolName) || isWriteTool(toolName) || isSearchTool(toolName)) return 'files'
+  if (isReadTool(toolName) || usesWriteCard(toolName) || isSearchTool(toolName)) return 'files'
   return 'generic'
 }
 
 function findBaseVariant(toolName: string): ToolCardVariant {
+  // 子任务分派排最前：`cogito_agent_spawn` 的风险等级是 write，但卡片是「交接」不是 diff
+  if (isSubagentTool(toolName)) return 'subagent'
   if (isShellTool(toolName)) return 'command'
   if (isCodeTool(toolName)) return 'code'
   if (isWebTool(toolName)) return 'web'
   if (isRetrievalTool(toolName)) return 'retrieval'
   // 日历要排在读写之前：`cogito_calendar_read` 名字里带 `read`
   if (isCalendarTool(toolName)) return 'timeline'
-  if (isWriteTool(toolName)) return 'write'
+  if (usesWriteCard(toolName)) return 'write'
   if (isSearchTool(toolName)) return 'search'
   if (isReadTool(toolName)) return 'read'
   return 'generic'
@@ -272,7 +269,7 @@ function findCodeLanguage(toolName: string, args: unknown): CodeHighlightLanguag
   const lower = toolName.toLowerCase()
   if (lower.includes('grep') || lower.includes('glob')) return 'markdown'
 
-  if (isReadTool(toolName) || isWriteTool(toolName)) {
+  if (isReadTool(toolName) || usesWriteCard(toolName)) {
     const path =
       (record && firstString(record, ['filePath', 'path', 'file_path', 'target'])) ?? ''
     const ext = Object.keys(EXT_LANGUAGE).find(function (suffix) {
@@ -535,7 +532,7 @@ async function fetchWriteCodeDiff(args: unknown): Promise<WriteCodeDiff | null> 
   const path = findWritePath(args)
   const filename = path ? findBaseName(path) : 'file'
   const first = pairs[0]
-  if (pairs.length === 1 && first.before && first.after && isTauriRuntime()) {
+  if (pairs.length === 1 && first.before && first.after && canUseTauriIpc()) {
     try {
       const diff = await invoke<{
         lines: WriteDiffLine[]

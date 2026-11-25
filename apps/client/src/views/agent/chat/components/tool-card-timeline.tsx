@@ -25,9 +25,10 @@ import {
   CollapsibleTrigger
 } from '@cogito/design/components/collapsible'
 import { clsx } from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { findToolActivity } from '@/features/agent/tool-activity'
+import { useIsomorphicLayoutEffect } from '@/hooks/use-isomorphic-layout-effect'
 import {
   parseCalendarEvents,
   toClockLabel,
@@ -43,7 +44,7 @@ type TimelineCardProps = ToolCallMessagePartProps & { outputText: string }
  */
 function useNow(): number {
   const [now, setNow] = useState(0)
-  useEffect(function () {
+  useIsomorphicLayoutEffect(function () {
     setNow(Date.now())
   }, [])
   return now

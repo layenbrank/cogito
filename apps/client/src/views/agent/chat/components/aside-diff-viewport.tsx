@@ -1,7 +1,7 @@
 import { cn } from 'cn'
 import type { RefObject } from 'react'
 
-import type { DiffHunk, DiffMeta } from '@/lib/workspace-git'
+import type { DiffHunk, DiffMeta } from '@/apis/workspace-git'
 import { AsideDiffOverlays } from '@/views/agent/chat/components/aside-diff-overlays'
 import { AsideHunks } from '@/views/agent/chat/components/aside-diff-hunks'
 

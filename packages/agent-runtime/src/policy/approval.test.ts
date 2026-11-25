@@ -82,6 +82,16 @@ describe('只读档与计划模式', function () {
     ).toEqual({ kind: 'allow', optionId: 'allow_once' })
   })
 
+  it('问答的只读能力面与计划一样拒写，不看审批档是不是自动', function () {
+    expect(decideApproval(input({ readOnlySession: true, approvalMode: 'auto' }))).toEqual({
+      kind: 'deny',
+      optionId: 'reject_once'
+    })
+    expect(
+      decideApproval(input({ toolName: 'cogito_workspace_read', readOnlySession: true, approvalMode: 'auto' }))
+    ).toEqual({ kind: 'allow', optionId: 'allow_once' })
+  })
+
   it('计划模式与只读档同一条路径', function () {
     expect(decideApproval(input({ planning: true })).kind).toBe('deny')
     expect(decideApproval(input({ planning: true, toolName: 'cogito_workspace_list' }))).toEqual({
@@ -100,6 +110,37 @@ describe('只读档与计划模式', function () {
         })
       ).kind
     ).toBe('ask')
+  })
+
+  it('计划模式对命令类工具问用户（要调研就得能跑只读命令），文件写仍直接拒', function () {
+    // 命令：推卡；用户点「允许一次」才跑
+    expect(
+      decideApproval(input({ toolName: 'local__cogito_terminal_run', planning: true }))
+    ).toEqual({ kind: 'ask' })
+    // 文件写：同样在计划模式，仍然直接拒（计划轮不落盘）
+    expect(
+      decideApproval(input({ toolName: 'local__cogito_workspace_write', planning: true }))
+    ).toEqual({ kind: 'deny', optionId: 'reject_once' })
+  })
+
+  it('问答模式不走命令例外：它是「只读回答」，命令一律拒', function () {
+    expect(
+      decideApproval(
+        input({ toolName: 'cogito_terminal_run', readOnlySession: true, approvalMode: 'auto' })
+      )
+    ).toEqual({ kind: 'deny', optionId: 'reject_once' })
+  })
+
+  it('计划模式的命令卡拿不到 allow_once 时 fail-closed（不推一张点不了的卡）', function () {
+    expect(
+      decideApproval(
+        input({
+          toolName: 'cogito_terminal_run',
+          planning: true,
+          options: [{ optionId: 'reject_once', kind: 'reject_once' }]
+        })
+      )
+    ).toEqual({ kind: 'deny', optionId: 'reject_once' })
   })
 })
 

@@ -30,7 +30,7 @@ import {
 } from '@/features/agent/workspace/git.ts'
 import { GitOperationsMenu } from '@/features/git-operations/menu.tsx'
 import { WorktreeDialog } from '@/features/git-operations/worktree-dialog.tsx'
-import { WorkspaceGit, type WorktreeEntry } from '@/lib/workspace-git'
+import { WorkspaceGit, type WorktreeEntry } from '@/apis/workspace-git'
 import { AsideDiff } from '@/views/agent/chat/components/aside-diff'
 import {
   AsideReviewList,

@@ -8,6 +8,8 @@
  *   `/health` 不需要它，其余端点全部要。
  */
 
+import path from 'node:path'
+
 const MIN_TOKEN_LENGTH = 16
 
 interface AgentdConfig {
@@ -22,6 +24,26 @@ interface AgentdConfig {
   version: string
   /** 双实例隔离（dev 与正式包同跑）标记，只影响日志前缀 */
   isolated: boolean
+  /** run 的 cwd 必须落在这些根内（空 = 只校验存在性，不限制位置） */
+  allowedRoots: string[]
+  /** MCP command 白名单（空 = 不启用白名单，但仍要求绝对路径） */
+  mcpAllowedCommands: string[]
+  /** 是否允许裸命令（依赖 PATH）；默认 false */
+  allowBareMcpCommand: boolean
+  /** 是否允许任意绝对路径 MCP（用户自装）；默认 false，只认 corex-mcp / cogito-mcp */
+  allowArbitraryMcpCommand: boolean
+}
+
+function readList(raw: string | undefined): string[] {
+  if (!raw) return []
+  return raw
+    .split(path.delimiter)
+    .map(function (item) {
+      return item.trim()
+    })
+    .filter(function (item) {
+      return item.length > 0
+    })
 }
 
 function parsePort(raw: string | undefined): number {
@@ -52,7 +74,11 @@ function readConfig(env: NodeJS.ProcessEnv = process.env): AgentdConfig {
     goosePathRoot: env.AGENTD_GOOSE_PATH_ROOT?.trim() || null,
     gooseBinary: env.AGENTD_GOOSE_BINARY?.trim() || null,
     version: env.AGENTD_VERSION?.trim() || '0.0.0-dev',
-    isolated: env.AGENTD_ISOLATED === '1'
+    isolated: env.AGENTD_ISOLATED === '1',
+    allowedRoots: readList(env.AGENTD_ALLOWED_ROOTS),
+    mcpAllowedCommands: readList(env.AGENTD_MCP_ALLOWED_COMMANDS),
+    allowBareMcpCommand: env.AGENTD_MCP_ALLOW_BARE_COMMAND === '1',
+    allowArbitraryMcpCommand: env.AGENTD_MCP_ALLOW_ARBITRARY === '1'
   }
 }
 

@@ -8,6 +8,7 @@
  */
 
 import type { Server } from 'node:http'
+import { tmpdir } from 'node:os'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -19,6 +20,8 @@ import type { AgentdStatus } from './server'
 
 const TOKEN = 'test-token-0123456789'
 const running: Server[] = []
+/** run 的 cwd 会在路由层校验存在性；用一个真实目录，别用 POSIX 风格的假路径 */
+const CWD = tmpdir()
 
 function buildStatus(): AgentdStatus {
   return {
@@ -135,6 +138,26 @@ afterEach(async function () {
 })
 
 describe('线程创建', function () {
+  it('非法 thread_id 被拒绝', async function () {
+    const harness = await startServer({
+      stream: function () {
+        return Promise.resolve(
+          (async function* () {
+            yield ['values', {}]
+          })()
+        )
+      }
+    })
+    const response = await fetch(`${harness.base}/threads`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ thread_id: 'bad id/../../x' })
+    })
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string }
+    expect(body.error).toBe('thread_id_invalid')
+  })
+
   it('带 thread_id 时是幂等 upsert（重启后仍能对上 checkpoint 主键）', async function () {
     const { base } = await startServer(slowGraph(10))
     const first = await fetch(`${base}/threads`, {
@@ -176,7 +199,7 @@ describe('取消', function () {
     const run = await fetch(`${base}/threads/t-cancel/runs`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ input: { prompt: 'hi', cwd: '/w' } })
+      body: JSON.stringify({ input: { prompt: 'hi', cwd: CWD } })
     })
     expect(run.status).toBe(202)
 
@@ -219,6 +242,46 @@ describe('取消', function () {
   })
 })
 
+describe('流式端点断连', function () {
+  it('客户端断开后中止这一轮并取消 goose（不留下无人看的 run）', async function () {
+    const harness = await startServer(slowGraph(3000))
+    const base = harness.base
+    await fetch(`${base}/threads`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ thread_id: 't-stream' })
+    })
+
+    const controller = new AbortController()
+    const response = await fetch(`${base}/threads/t-stream/runs/stream`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ input: { prompt: 'hi', cwd: CWD } }),
+      signal: controller.signal
+    })
+    expect(response.status).toBe(200)
+
+    // 先读一帧，确保流已经建立；然后模拟客户端断开
+    const reader = response.body?.getReader()
+    await reader?.read()
+    controller.abort()
+
+    expect(
+      await waitFor(function () {
+        return harness.cancelled.includes('session-test')
+      })
+    ).toBe(true)
+    // 断连也要有 settled：否则事件流订阅者会一直等
+    expect(
+      await waitFor(function () {
+        return harness.events.some(function (event) {
+          return event.kind === 'status' && (event.payload as { phase?: string }).phase === 'settled'
+        })
+      })
+    ).toBe(true)
+  })
+})
+
 describe('同线程单飞', function () {
   it('第二轮会抢占第一轮：两个 run 都结案，不会交错挂着', async function () {
     const harness = await startServer(slowGraph(2000))
@@ -232,7 +295,7 @@ describe('同线程单飞', function () {
     const first = await fetch(`${base}/threads/t-serial/runs`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ input: { prompt: 'first', cwd: '/w' } })
+      body: JSON.stringify({ input: { prompt: 'first', cwd: CWD } })
     })
     const firstBody = (await first.json()) as { run_id: string }
 
@@ -245,7 +308,7 @@ describe('同线程单飞', function () {
     const second = await fetch(`${base}/threads/t-serial/runs`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ input: { prompt: 'second', cwd: '/w' } })
+      body: JSON.stringify({ input: { prompt: 'second', cwd: CWD } })
     })
     const secondBody = (await second.json()) as { run_id: string }
     expect(secondBody.run_id).not.toBe(firstBody.run_id)
@@ -257,5 +320,132 @@ describe('同线程单飞', function () {
         return payload.phase === 'settled' && payload.runID === firstBody.run_id
       })
     }, 5000)).toBe(true)
+  })
+})
+
+/**
+ * 写者租约：同 thread 多客户端时**明确互斥**。
+ *
+ * 以前第二个客户端会静默抢占第一个的轮次，两个界面各自显示一半、审批互相抢。
+ * 现在按 `x-cogito-client` 区分：自己的一轮可以 supersede，别人的必须显式 `takeover`。
+ */
+describe('写者租约', function () {
+  function clientHeaders(clientID: string): Record<string, string> {
+    return { ...headers(), 'x-cogito-client': clientID }
+  }
+
+  async function startRun(
+    base: string,
+    threadID: string,
+    clientID: string,
+    extra: Record<string, unknown> = {}
+  ): Promise<Response> {
+    return fetch(`${base}/threads/${threadID}/runs`, {
+      method: 'POST',
+      headers: clientHeaders(clientID),
+      body: JSON.stringify({ input: { prompt: 'hi', cwd: CWD }, ...extra })
+    })
+  }
+
+  async function startThread(base: string, threadID: string): Promise<void> {
+    await fetch(`${base}/threads`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ thread_id: threadID })
+    })
+  }
+
+  it('另一个客户端正在跑：409 writer_lease_held，且不会抢占它', async function () {
+    const harness = await startServer(slowGraph(2000))
+    const base = harness.base
+    await startThread(base, 't-lease')
+
+    const first = await startRun(base, 't-lease', 'client-a')
+    expect(first.status).toBe(202)
+    const firstBody = (await first.json()) as { run_id: string; revision: number }
+    expect(firstBody.revision).toBe(1)
+
+    // 等第一轮真的跑起来，否则租约还没登记
+    expect(await waitFor(function () {
+      return harness.events.some(function (event) {
+        return (event.payload as { runID?: string }).runID === firstBody.run_id
+      })
+    })).toBe(true)
+
+    const second = await startRun(base, 't-lease', 'client-b')
+    expect(second.status).toBe(409)
+    const body = (await second.json()) as {
+      error: string
+      holder: { clientID: string; runID: string; revision: number }
+    }
+    expect(body.error).toBe('writer_lease_held')
+    expect(body.holder.clientID).toBe('client-a')
+    expect(body.holder.runID).toBe(firstBody.run_id)
+    // 被拦下的请求不能取消别人的一轮
+    expect(harness.cancelled).toEqual([])
+  })
+
+  it('显式 takeover：允许接手，旧轮被收掉', async function () {
+    const harness = await startServer(slowGraph(2000))
+    const base = harness.base
+    await startThread(base, 't-takeover')
+
+    const first = await startRun(base, 't-takeover', 'client-a')
+    const firstBody = (await first.json()) as { run_id: string }
+    expect(await waitFor(function () {
+      return harness.events.some(function (event) {
+        return (event.payload as { runID?: string }).runID === firstBody.run_id
+      })
+    })).toBe(true)
+
+    const second = await startRun(base, 't-takeover', 'client-b', { takeover: true })
+    expect(second.status).toBe(202)
+    expect(await waitFor(function () {
+      return harness.cancelled.length > 0
+    })).toBe(true)
+  })
+
+  it('同一客户端重发：允许（那就是自己的旧轮被 supersede）', async function () {
+    const harness = await startServer(slowGraph(2000))
+    const base = harness.base
+    await startThread(base, 't-self')
+
+    const first = await startRun(base, 't-self', 'client-a')
+    const firstBody = (await first.json()) as { run_id: string }
+    expect(await waitFor(function () {
+      return harness.events.some(function (event) {
+        return (event.payload as { runID?: string }).runID === firstBody.run_id
+      })
+    })).toBe(true)
+
+    const second = await startRun(base, 't-self', 'client-a')
+    expect(second.status).toBe(202)
+    const secondBody = (await second.json()) as { revision: number }
+    expect(secondBody.revision).toBe(2)
+  })
+
+  it('不带身份头的旧客户端：保持旧行为（允许），不因升级把老版本锁死', async function () {
+    const harness = await startServer(slowGraph(2000))
+    const base = harness.base
+    await startThread(base, 't-legacy')
+
+    const first = await fetch(`${base}/threads/t-legacy/runs`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ input: { prompt: 'hi', cwd: CWD } })
+    })
+    expect(first.status).toBe(202)
+    expect(await waitFor(function () {
+      return harness.events.some(function (event) {
+        return (event.payload as { phase?: string }).phase === 'running'
+      })
+    })).toBe(true)
+
+    const second = await fetch(`${base}/threads/t-legacy/runs`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ input: { prompt: 'again', cwd: CWD } })
+    })
+    expect(second.status).toBe(202)
   })
 })

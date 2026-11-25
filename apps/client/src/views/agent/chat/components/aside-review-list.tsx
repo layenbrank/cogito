@@ -21,7 +21,7 @@ import { Textarea } from '@cogito/design/components/textarea'
 import { cn } from 'cn'
 import { useState } from 'react'
 
-import type { DiffRevs, ShowFile, StatusEntry, UpstreamResult } from '@/lib/workspace-git'
+import type { DiffRevs, ShowFile, StatusEntry, UpstreamResult } from '@/apis/workspace-git'
 import { AgentLoading } from '@/views/agent/chat/components/agent-loading'
 import { Changes, type GroupKind } from '@/views/code/workspace/scm/changes.tsx'
 import { CommitBar } from '@/views/code/workspace/scm/commit-bar.tsx'

@@ -25,7 +25,7 @@
 | 计划 | `aside-plan.tsx` | `features/agent/plan-*` | 确认执行 |
 | **任务** | `aside-tasks.tsx`（复用 `views/agent/tasks/{model,task-form,task-runs,schedule-field}`） | `useAutomationStore`（本机 / goose / 云端三源） | 卡片管理、新建、看执行记录 |
 | 文件 | `aside-files.tsx` | `workspaceFiles:*` + `useActiveWorkspace` | 预览 / 引用 / 审阅 |
-| **知识库** | `aside-knowledge.tsx` → `knowledge-browser.tsx` | `knowledge:listBases` / `knowledge:listDocs` | 引用文档 |
+| **知识库** | `aside-knowledge.tsx` → `knowledge-browser.tsx` | `knowledge:listSpaces` / `knowledge:listDocs` | 引用文档 |
 | **技能** | `aside-skills.tsx` | `workspaceSkills:list` | 引用 `SKILL.md` |
 | 审阅 | `aside-review.tsx` | `workspaceGit:*` | 逐块采纳 / 丢弃 |
 | 历史 | `aside-history.tsx` | `workspaceGit:*` | 看提交与改动 |

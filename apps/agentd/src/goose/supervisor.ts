@@ -19,6 +19,8 @@ interface GooseSupervisorOptions {
   cwd?: string
   baseEnv?: NodeJS.ProcessEnv
   onStderr?: (text: string) => void
+  /** 内层进程退出（含 spawn 失败）：宿主据此结掉待审批/待追问 */
+  onExit?: (info: { code: number | null; reason?: string }) => void
 }
 
 interface GooseSnapshot {
@@ -52,6 +54,19 @@ function createGooseSupervisor(options: GooseSupervisorOptions): GooseSupervisor
   let restarts = 0
   let lastError: string | undefined
   let agentInfo: string | undefined
+  /**
+   * 启动/停止/重启必须串行：`/admin/goose/restart` 连点两下时，
+   * 并发执行会互相 `dispose()` 掉对方刚建好的 client。
+   */
+  let queue: Promise<void> = Promise.resolve()
+
+  function enqueue(task: () => Promise<void>): Promise<void> {
+    const next = queue.then(task, task)
+    queue = next.catch(function () {
+      // 队列不因单次失败而断掉；失败已由 state/lastError 记录
+    })
+    return next
+  }
 
   function snapshot(): GooseSnapshot {
     const value: GooseSnapshot = { state, restarts }
@@ -71,7 +86,7 @@ function createGooseSupervisor(options: GooseSupervisorOptions): GooseSupervisor
     client = null
   }
 
-  async function start(): Promise<void> {
+  async function startInner(): Promise<void> {
     if (!options.binary || !options.pathRoot) {
       state = 'disabled'
       return
@@ -86,12 +101,13 @@ function createGooseSupervisor(options: GooseSupervisorOptions): GooseSupervisor
       cwd: options.cwd,
       env: readGooseEnv(options.pathRoot, options.baseEnv ?? process.env),
       onStderr: options.onStderr,
-      onExit: function (code) {
+      onExit: function (code, reason) {
         // 非主动停止时进 failed；state 已 ready 说明是运行中崩了
         if (state === 'ready' || state === 'starting') {
           state = 'failed'
-          lastError = `goose acp 退出（code=${code ?? 'null'}）`
+          lastError = reason ?? `goose acp 退出（code=${code ?? 'null'}）`
         }
+        options.onExit?.({ code, ...(reason ? { reason } : {}) })
       }
     })
     client = next
@@ -109,14 +125,22 @@ function createGooseSupervisor(options: GooseSupervisorOptions): GooseSupervisor
     }
   }
 
+  async function start(): Promise<void> {
+    return enqueue(startInner)
+  }
+
   async function stop(): Promise<void> {
-    dispose()
-    if (state !== 'disabled') state = 'failed'
+    return enqueue(async function () {
+      dispose()
+      if (state !== 'disabled') state = 'failed'
+    })
   }
 
   async function restart(): Promise<void> {
-    restarts += 1
-    await start()
+    return enqueue(async function () {
+      restarts += 1
+      await startInner()
+    })
   }
 
   return {

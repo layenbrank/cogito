@@ -26,7 +26,7 @@ import {
   useWorkspaceGitSnapshot
 } from '@/features/agent/workspace/git.ts'
 import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
-import { WorkspaceGit, type CommitHit, type ShowFile } from '@/lib/workspace-git'
+import { WorkspaceGit, type CommitHit, type ShowFile } from '@/apis/workspace-git'
 import { AsideDiff } from '@/views/agent/chat/components/aside-diff'
 import {
   ASIDE_PATH_TRIGGER,

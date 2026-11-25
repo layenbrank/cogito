@@ -167,6 +167,7 @@ function ScheduleField(props: ScheduleFieldProps) {
 
   function renderWeekdays() {
     if (config.kind !== 'weekly') return null
+    const picked = new Set(config.weekdays)
     return (
       <div className={styles.fieldGroup}>
         <div className={styles.weekLabelRow}>
@@ -176,7 +177,7 @@ function ScheduleField(props: ScheduleFieldProps) {
             const isActive =
               config.weekdays.length === preset.weekdays.length &&
               preset.weekdays.every(function (day) {
-                return config.weekdays.includes(day)
+                return picked.has(day)
               })
             return (
               <button

@@ -280,6 +280,38 @@ function createContentAccumulator() {
     blocks[index] = block
   }
 
+  /**
+   * 覆盖式写入（`replace`）：`text` 是这条消息的**完整**文本。
+   *
+   * 补历史时 goose 给的是每消息聚合文本，而流式阶段已经渲染过一部分：接着追加会让正文翻倍。
+   * 所以按 `kind:blockID` 找到**第一块**改写（位置不动，卡片不会跳），
+   * 同一 id 因工具调用被拆出的其余块清空（空文本不进 parts）。
+   */
+  function replaceBlock(kind: 'text' | 'reasoning', blockID: string, text: string): void {
+    let target: number | null = null
+    for (let index = 0; index < blocks.length; index += 1) {
+      const block = blocks[index]
+      if (block.type !== 'text' && block.type !== 'reasoning') continue
+      if (block.type !== kind || block.blockID !== blockID) continue
+      if (target === null) {
+        target = index
+        continue
+      }
+      block.text = ''
+      block.completedAt = Date.now()
+    }
+    if (target === null) {
+      if (!text) return
+      closeLastTextBlock()
+      blocks.push({ type: kind, blockID, text, startedAt: Date.now(), completedAt: Date.now() })
+      return
+    }
+    const existing = blocks[target]
+    if (existing.type !== 'text' && existing.type !== 'reasoning') return
+    existing.text = text
+    existing.completedAt = Date.now()
+  }
+
   /** 快照：一个字都没吐过的块不进 parts */
   function parts(): ThreadAssistantMessagePart[] {
     const result: ThreadAssistantMessagePart[] = []
@@ -353,7 +385,16 @@ function createContentAccumulator() {
     }
   }
 
-  return { appendBlock, cancelOpenTools, updateTool, setPlan, addElicitation, parts, finish }
+  return {
+    appendBlock,
+    cancelOpenTools,
+    replaceBlock,
+    updateTool,
+    setPlan,
+    addElicitation,
+    parts,
+    finish
+  }
 }
 
 function toStatus(finishReason: string): ChatModelRunResult['status'] {
@@ -434,7 +475,8 @@ async function* mapChatStreamToRunResults(
       case 'text': {
         totalChunks += 1
         if (firstTokenTime === undefined) firstTokenTime = Date.now()
-        content.appendBlock('text', event.blockID, event.text)
+        if (event.replace === true) content.replaceBlock('text', event.blockID, event.text)
+        else content.appendBlock('text', event.blockID, event.text)
         softDirty = true
         if (Date.now() - lastSoftYieldAt >= STREAM_COALESCE_MS) {
           const soft = flushSoftIfNeeded()
@@ -443,7 +485,8 @@ async function* mapChatStreamToRunResults(
         break
       }
       case 'reasoning': {
-        content.appendBlock('reasoning', event.blockID, event.text)
+        if (event.replace === true) content.replaceBlock('reasoning', event.blockID, event.text)
+        else content.appendBlock('reasoning', event.blockID, event.text)
         softDirty = true
         if (Date.now() - lastSoftYieldAt >= STREAM_COALESCE_MS) {
           const soft = flushSoftIfNeeded()

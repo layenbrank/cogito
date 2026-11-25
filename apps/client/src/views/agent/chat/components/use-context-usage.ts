@@ -29,6 +29,10 @@ import {
 } from '@/features/agent/context-estimate'
 import { FALLBACK_MAX_TOKENS, pickContextWindow } from '@/features/agent/context-window'
 import type { ContextWindowSource } from '@/features/agent/context-window'
+import {
+  readSentSystemText,
+  subscribeSentSystemText
+} from '@/features/agent/sent-system-text'
 import { findModelPref } from '@/features/agent/model/model-prefs'
 import { appendModeGuidance, readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
@@ -96,7 +100,22 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
   // 估算要看正文长度（否则流式期间停在上一轮快照），但按 400 字符分档，不逐 token 重渲染
   const messages = useThrottledValue(useStructuralThreadMessages({ withTextLength: true }), 200)
 
-  const systemText = useMemo(
+  /**
+   * 系统提示**用实际发出去的那份**：`port/model.ts` 在发送时可能追加场景覆盖、
+   * 端口覆盖（dock / 内联各有自己的 systemText），这里自己推导会与真实上下文不一致。
+   * 没发过（新会话）才回退到推导值。
+   */
+  const sentSystemText = useSyncExternalStore(
+    subscribeSentSystemText,
+    function () {
+      return threadID ? readSentSystemText(threadID) : null
+    },
+    function () {
+      return threadID ? readSentSystemText(threadID) : null
+    }
+  )
+
+  const derivedSystemText = useMemo(
     function () {
       const scenario = findActiveScenario()
       const promptScenario =
@@ -107,6 +126,7 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mode]
   )
+  const systemText = sentSystemText ?? derivedSystemText
 
   const estimated = useMemo(
     function () {

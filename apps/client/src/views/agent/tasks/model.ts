@@ -95,7 +95,7 @@ interface TaskDraft {
   planThenGoal: boolean
   /** 工作区相对路径；空 = 不绑定已有计划 */
   planFilePath: string | null
-  knowledgeBaseId: string | null
+  knowledgeSpaceId: string | null
   /** 执行时的思考强度（默认「标准」）：只作用于本任务起的会话，不动用户自己的模型偏好 */
   thinking: ThinkingLevel
   /** 执行身份（服务端任务才有意义）：`null` = 未知，保存时不传 */
@@ -312,7 +312,7 @@ function toDraft(item: Automation): TaskDraft {
     goalBudget: parseGoalBudget(item.goalBudget),
     planThenGoal: Boolean(item.planThenGoal) && !item.planFilePath,
     planFilePath: item.planFilePath ?? null,
-    knowledgeBaseId: item.knowledgeBaseId ?? null,
+    knowledgeSpaceId: item.knowledgeSpaceId ?? null,
     thinking: parseAutomationThinking(item.thinking),
     // 原值带上：编辑服务端任务时要把「以谁的身份跑」原样回写
     runAsKind: item.runAsKind?.trim() || null,
@@ -339,7 +339,7 @@ function createDraft(owner: string): TaskDraft {
     goalBudget: 6,
     planThenGoal: false,
     planFilePath: null,
-    knowledgeBaseId: null,
+    knowledgeSpaceId: null,
     thinking: 'medium',
     runAsKind: null,
     enabled: true
@@ -420,7 +420,7 @@ function toSaveInput(draft: TaskDraft): AutomationSave {
     goalBudget: draft.goalBudget,
     planThenGoal: draft.planFilePath ? false : draft.planThenGoal,
     planFilePath: draft.planFilePath,
-    knowledgeBaseId: draft.knowledgeBaseId,
+    knowledgeSpaceId: draft.knowledgeSpaceId,
     thinking: draft.thinking,
     // 认不出来就不传：让服务端保留原值，而不是被改成本人
     runAsKind: toRunAsKind(draft.runAsKind),

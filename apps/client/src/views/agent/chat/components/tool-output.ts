@@ -4,9 +4,8 @@
  *
  * Tauri 下优先走 Rust `agentTool:normalizeOutput`；失败 / 非桌面回退本文件同步实现。
  */
-import { invoke } from '@tauri-apps/api/core'
-
-import { CHANNELS } from '@/shared/ipc/channels'
+import { POST_AGENT_TOOL_NORMALIZE_OUTPUT } from '@/apis/agent-runtime'
+import { canUseTauriIpc } from '@/features/window/shell-mode'
 
 const CODE_KEYS = ['code', 'script', 'source', 'javascript'] as const
 const OUTPUT_KEYS = [
@@ -19,13 +18,6 @@ const OUTPUT_KEYS = [
   'message',
   'data'
 ] as const
-
-function isTauriRuntime(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  )
-}
 
 interface ShellCommand {
   command: string
@@ -236,13 +228,11 @@ async function normalizeToolOutput(
    * `missing field value` —— 于是每渲染一次刷一条 warn。这种空值本来就走 TS
    * 分支，不必打 IPC，也不必进日志。
    */
-  if (value !== undefined && isTauriRuntime()) {
+  if (value !== undefined && canUseTauriIpc()) {
     try {
-      const result = await invoke<{ text: string }>(CHANNELS.AGENT_TOOL.NORMALIZE_OUTPUT, {
-        params: {
-          value,
-          ...(maxChars === undefined ? {} : { maxChars })
-        }
+      const result = await POST_AGENT_TOOL_NORMALIZE_OUTPUT({
+        value,
+        ...(maxChars === undefined ? {} : { maxChars })
       })
       return result.text
     } catch (error) {

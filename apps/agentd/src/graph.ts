@@ -171,6 +171,16 @@ function fingerprintMcpServers(servers: readonly unknown[]): string {
   return rows.sort().join('\n')
 }
 
+/**
+ * 会话复用指纹：MCP 配置 + cwd。
+ *
+ * 只看 MCP 不够：用户把会话切到另一个工作区后，复用的旧 session 仍以旧 cwd 为根，
+ * 工具会在旧目录读写（看起来像「模型写错地方」）。cwd 变了就重开会话。
+ */
+function fingerprintSession(cwd: string, servers: readonly unknown[]): string {
+  return `cwd:${cwd}\n${fingerprintMcpServers(servers)}`
+}
+
 /** 判断错误是不是「会话没了」（goose 重启 / session/load 失败）。 */
 function isStaleSession(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
@@ -238,10 +248,13 @@ interface GooseGraphOptions {
   logEvent?: ((name: string, fields?: Record<string, unknown>) => void) | null
   /** 计数器（工具成败）；为 null 时只是不计数 */
   metrics?: Metrics | null
+  /** session 一建立/被复用就登记：agentd 的取消路径要在 checkpoint 落盘前拿到它 */
+  onSession?: (threadID: string, sessionId: string) => void
 }
 
 function createGooseGraph(options: GooseGraphOptions) {
-  const { supervisor, checkpointer, approvals, elicitations, events, logEvent, metrics } = options
+  const { supervisor, checkpointer, approvals, elicitations, events, logEvent, metrics, onSession } =
+    options
   /** sessionId → threadID：审批请求只带 sessionId，得靠这张表回到线程。 */
   const sessionThreads = new Map<string, string>()
 
@@ -252,7 +265,13 @@ function createGooseGraph(options: GooseGraphOptions) {
   function bindIncoming(client: GooseAcpClient): void {
     if (approvals) {
       client.onPermissionRequest(function (prompt) {
-        const threadID = sessionThreads.get(prompt.sessionId) ?? prompt.sessionId
+        const threadID = sessionThreads.get(prompt.sessionId)
+        if (!threadID) {
+          // 未经 `/threads/:id/runs` 建立的会话（或 agentd 重启后的旧会话）没有可回执的线程：
+          // 不能把票据打上 sessionId 当 threadID —— 前端收不到、取消也结不掉。
+          console.warn(`[agent] 审批请求来自未登记的 session（按取消处理）：${prompt.sessionId}`)
+          return Promise.resolve(null)
+        }
         return approvals.ask({
           threadID,
           sessionId: prompt.sessionId,
@@ -263,7 +282,11 @@ function createGooseGraph(options: GooseGraphOptions) {
     }
     if (elicitations) {
       client.onElicitationRequest(function (prompt) {
-        const threadID = sessionThreads.get(prompt.sessionId) ?? prompt.sessionId
+        const threadID = sessionThreads.get(prompt.sessionId)
+        if (!threadID) {
+          console.warn(`[agent] 追问请求来自未登记的 session（按 decline）：${prompt.sessionId}`)
+          return Promise.resolve({ action: 'decline' as const })
+        }
         return elicitations.ask({
           threadID,
           sessionId: prompt.sessionId,
@@ -430,14 +453,27 @@ function createGooseGraph(options: GooseGraphOptions) {
     }
   }
 
-  async function gooseNode(state: typeof OrchestrationState.State): Promise<TurnResult> {
+  /** 图 config 里的 `thread_id`：直接 `graph.invoke` 时 state 没有这个字段 */
+  function threadIDFromConfig(config: unknown): string {
+    if (typeof config !== 'object' || config === null) return ''
+    const configurable = (config as { configurable?: unknown }).configurable
+    if (typeof configurable !== 'object' || configurable === null) return ''
+    const value = (configurable as { thread_id?: unknown }).thread_id
+    return typeof value === 'string' ? value : ''
+  }
+
+  async function gooseNode(
+    state: typeof OrchestrationState.State,
+    config?: unknown
+  ): Promise<TurnResult> {
     const client = supervisor.client()
     if (!client) {
       throw new Error('goose 未就绪（/health 的 goose 字段可查状态）')
     }
     bindIncoming(client)
+    const threadID = state.threadID || threadIDFromConfig(config)
 
-    const fingerprint = fingerprintMcpServers(state.mcpServers)
+    const fingerprint = fingerprintSession(state.cwd, state.mcpServers)
     // 会话能复用，前提是**工具面配置没变**。桥地址是内核随机端口，app 重启就换一个；
     // 复用旧会话不会重挂 MCP，于是 `cogito-mcp` 仍去连旧端口 —— 表现是本地工具面整体
     // 消失（只有 `cogito_ping`），并且要等用户重启会话才恢复。指纹不同就重开一个会话。
@@ -449,8 +485,9 @@ function createGooseGraph(options: GooseGraphOptions) {
         await ensureHardDeny(client, state.sessionId)
         // 复用会话也要重挂：同一 thread 的不同轮次可能带不同场景的系统提示
         await applySystemText(client, state.sessionId, state.systemText)
+        onSession?.(threadID, state.sessionId)
         return {
-          reply: await runTurn(client, state.sessionId, state.prompt, state.threadID),
+          reply: await runTurn(client, state.sessionId, state.prompt, threadID),
           sessionId: state.sessionId,
           mcpFingerprint: state.mcpFingerprint
         }
@@ -461,11 +498,12 @@ function createGooseGraph(options: GooseGraphOptions) {
     }
 
     const session = await client.newSession({ cwd: state.cwd, mcpServers: state.mcpServers })
-    sessionThreads.set(session.sessionId, state.threadID)
+    sessionThreads.set(session.sessionId, threadID)
+    onSession?.(threadID, session.sessionId)
     await applyMode(client, session.sessionId, state.mode)
     await ensureHardDeny(client, session.sessionId)
     await applySystemText(client, session.sessionId, state.systemText)
-    const reply = await runTurn(client, session.sessionId, state.prompt, state.threadID)
+    const reply = await runTurn(client, session.sessionId, state.prompt, threadID)
     return { reply, sessionId: session.sessionId, mcpFingerprint: fingerprint }
   }
 

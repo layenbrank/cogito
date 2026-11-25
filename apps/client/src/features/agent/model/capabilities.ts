@@ -7,7 +7,7 @@
  * - 有 token 预算：按 bucket 轮转截断，超出的部分明确写「调用 corex_actions 查看」。
  * - 模型最容易犯的错是臆造动作 id，所以标题里必须有「禁止臆造」。
  */
-import type { ActionEntry } from '@/lib/directive-ipc'
+import type { ActionEntry } from '@/apis/directive'
 
 const BUCKET_ORDER = ['system', 'ui', 'data', 'network', 'logic', 'plugin'] as const
 

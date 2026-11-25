@@ -6,6 +6,7 @@ import {
   consumeBackgroundTurn,
   findBackgroundTurn,
   followBackgroundTurn,
+  hasPersistedRunningTurn,
   hasRunningBackgroundTurn,
   isDetachAbort,
   isTerminalEvent,
@@ -224,6 +225,33 @@ describe('consumeBackgroundTurn robustness', function () {
     // 泵跑完终态 + finally 里的补写是异步的，留一点时间
     await delay(50)
     expect(persisted.events.some(isTerminalEvent)).toBe(true)
+  })
+
+  it('补写历史发生在清「还在跑」标记之前（F-018：两步之间刷新不能丢回复）', async function () {
+    const threadID = 'thread-bg-order'
+    const seenWhilePersisting: boolean[] = []
+    bindBackgroundTurnPersister(function () {
+      // 补写发生的这一刻，持久化标记必须还在：否则用户恰好此刻刷新，
+      // `load()` 既不会认领这轮、也不会补写 —— 回复永久丢失
+      seenWhilePersisting.push(hasPersistedRunningTurn(threadID))
+    })
+
+    async function* start(): AsyncGenerator<ChatStreamEvent> {
+      yield { kind: 'text', blockID: 't', text: 'x' }
+      yield { kind: 'finish', finishReason: 'end_turn', usage: {} }
+    }
+
+    const ui = new AbortController()
+    for await (const event of consumeBackgroundTurn(threadID, ui.signal, start)) {
+      if (event.kind === 'text') {
+        ui.abort({ name: 'AbortError', detach: true })
+        break
+      }
+    }
+
+    await delay(50)
+    expect(seenWhilePersisting).toEqual([true])
+    expect(hasPersistedRunningTurn(threadID)).toBe(false)
   })
 
   it('aborts the old pump and starts a new one when start differs', async function () {

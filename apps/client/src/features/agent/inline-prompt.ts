@@ -4,8 +4,8 @@
  * 不复用聊天会话 —— 每次起一个独立 ACP session，跑完就关。内联改写不需要历史，
  * 复用会把草稿混进用户的对话上下文；关闭走 `closeThreadSession`，否则会话表会一直长。
  *
- * 内联**不挂工具**（system 提示里明说）：一轮里若触发审批，这里没有审批 UI，
- * 只能等票据超时，用户看到的就是「卡住」。
+ * 内联**不挂工具**：一轮里若触发审批，这里没有审批 UI，只能等票据超时，用户看到的就是
+ * 「卡住」。现在不只靠提示词 —— `withTools: false` 让这一轮真的拿不到 MCP 工具（F-015）。
  */
 import { closeThreadSession, runThreadPrompt } from '@/features/agent/port/session'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
@@ -58,6 +58,8 @@ async function runInlinePrompt(input: InlinePromptInput): Promise<string> {
     for await (const item of runThreadPrompt(threadID, {
       text,
       systemText: input.systemText?.trim() || INLINE_SYSTEM_PROMPT,
+      // 真的不挂工具：提示词里写「不要用工具」是恳求，这里是不给它（F-015）
+      withTools: false,
       providerID: target.providerID,
       modelID: target.model,
       signal: input.signal

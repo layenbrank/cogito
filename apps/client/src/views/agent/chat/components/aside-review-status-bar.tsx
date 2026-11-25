@@ -16,7 +16,7 @@ import { useState, type ReactNode } from 'react'
 import { WorkspaceFolderChips } from '@/views/agent/chat/components/workspace-folder-chips'
 import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
 
-import type { BranchesResult, UpstreamResult } from '@/lib/workspace-git'
+import type { BranchesResult, UpstreamResult } from '@/apis/workspace-git'
 
 type BusyAction = 'fetch' | 'pull' | 'push' | 'refresh' | 'checkout'
 

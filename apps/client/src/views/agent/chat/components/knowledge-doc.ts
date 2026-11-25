@@ -7,8 +7,8 @@
  */
 import { findImageSrc } from '@/views/knowledge/lib/image-src.ts'
 
-/** 新文档落在 wiki/ 下：与「生成」的落点一致（type=note 也归 wiki） */
-const NEW_DOC_DIR = 'wiki'
+/** 新文档落在 wiki/notes/ 下：与 `type: note` 的规范落点一致 */
+const NEW_DOC_DIR = 'wiki/notes'
 
 /**
  * 标题 → 文件名。保留中文（库里很多中文标题），其余非字母数字压成 `-`；

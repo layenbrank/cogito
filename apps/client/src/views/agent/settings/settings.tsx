@@ -73,7 +73,9 @@ function AgentSettings() {
    * `pickedID` 只负责「点完立刻切」，不该永久盖住深链：
    * 以前一旦点过一节，`?section=` 再怎么变都无效了（从别处跳「诊断」还是停在原来那节）。
    */
-  const [seenSection, updateSeenSection] = useState(searchParams.get('section'))
+  const [seenSection, updateSeenSection] = useState<string | null>(function () {
+    return searchParams.get('section')
+  })
   const sectionParam = searchParams.get('section')
   if (sectionParam !== seenSection) {
     updateSeenSection(sectionParam)

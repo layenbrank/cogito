@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import {
   GET_CURSOR_AGENT_STATUS,
   type CursorAgentStatus
-} from '@/features/agent/cursor-agent'
+} from '@/apis/agent-runtime'
 import styles from '@/views/agent/settings/settings.module.scss'
 
 function findStatusLabel(status: CursorAgentStatus | null, busy: boolean): string {

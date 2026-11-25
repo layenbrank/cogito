@@ -4,12 +4,14 @@
  * 边界对齐 Qoder CN 的 Plan / Goal 定位：
  * - **计划**：只读调研，产出一份可审阅的方案，确认后才动手（路径事先可知）；
  * - **目标**：给可验证终态，模型自寻路径、自驱迭代并自判完成度（路径事先不可穷举）；
- * - **问答**：只读，给结论不动手；
+ * - **问答**：只读工具，给结论，不改文件；
  * - **执行**：默认，直接改代码跑命令。
  *
- * 模式与审批偏好正交（UI 上仍可独立选 ask/auto/readonly），但**计划模式的有效
- * 能力面是只读**：`requestThreadPermission` 硬拒写工具，goose 同步为 readonly
- *（不改偏好落盘）。目标模式启停会强制/恢复自动审批并完整 sync goose。
+ * 模式与审批偏好正交（UI 上仍可独立选 ask/auto/readonly），但有两条例外：
+ * - **问答 / 计划**的能力面是只读：可以读文件和搜索，写工具直接拒。
+ *   发给 goose 的是 `approve`（每个工具先到我们这儿），不是已删除的 `chat`，也不是 `auto`。
+ *   动手只走右栏「开始执行」，不靠用户消息里的「继续」猜。
+ * 目标模式启停会强制/恢复自动审批并完整 sync goose。
  *
  * Goal 终态：`done`（GOAL_DONE）/ `exhausted`（预算用尽）/ `paused`（用户或插话）
  * 三者互不覆盖；见 `finishGoalRun`。
@@ -33,7 +35,9 @@ interface AgentModeMeta {
   guidance: string
 }
 
-const PLAN_GUIDANCE = `【计划模式】本轮只做只读调研：读文件、搜索、查看 git 历史与状态；**不修改文件、不执行命令** —— 产出仅是一份可审阅的计划，动手是下一轮的事。
+const PLAN_GUIDANCE = `【计划模式】本轮做只读调研：读文件、搜索、查 git 历史与状态。
+**可以跑只读命令**（git status / git diff / git log / ls / cat / 搜索类）；**不修改文件、不跑会改状态的命令**（安装、构建、写删文件、迁移）—— 产出仅是一份可审阅的计划，动手是下一轮的事。
+命令会在审批卡上等你放行：被拒就换一种不依赖它的方式取证，不要因为被拒就停笔。
 
 用户需求里给了验收标准就原样落到「验证」章节；没给就自己定可判定的标准。
 
@@ -56,10 +60,15 @@ const PLAN_GUIDANCE = `【计划模式】本轮只做只读调研：读文件、
 约束：
 - **实施步骤 3–8 条**，每条要足够小 —— 能在一个较小的 diff 内看清影响范围；
 - 其余章节是详细说明，写完整，不要省略、不要折叠成一句；
-- 结尾不要问「是否开始执行」，确认后客户端会提供「开始执行」按钮。`
+- **本轮必须把上面的骨架写完再停**。不要只输出标题或概述就结束；不要用计划/待办工具代替正文；
+- 读文件被拒或写工具被拒都是预期（这一轮本来就不能改文件）：换只读工具继续调研，然后把计划写完，不要因此结束本轮；
+- 结尾不要问「是否开始执行」。要改代码时，用户点右栏「开始执行」，不要把一句「继续」当成开工。`
 
-const ASK_GUIDANCE = `【问答模式】以回答问题为目标：读文件、搜索代码、查看 git 历史与状态这类**只读**操作正常使用；不要写文件，不要执行会改变状态的命令。
-回答直接给结论与依据（引用 \`路径:行号\`），不要顺手重构；确实要改代码或跑命令才能验证时，说明原因并请用户切到「执行」模式。`
+const ASK_GUIDANCE = `【问答模式】可以读文件、搜索代码、查看 git 状态。不要写文件，不要执行会改状态的命令；写工具会被拒绝，拒绝后用只读结果把答案写完，不要因此结束本轮。
+回答直接给结论与依据（引用 \`路径:行号\`）。确实要改代码时，请用户切到「执行」或在计划页点「开始执行」。`
+
+const AGENT_GUIDANCE = `【执行模式】直接完成用户的请求：可以读、可以改、可以跑命令。
+需要先列步骤时，把步骤写进回复并**立刻开始做**。不要只输出一份计划就结束本轮，也不要因为调用了计划或待办工具就停下来等用户。`
 
 /**
  * 对应 Qoder CN 的 Goal 驱动：只给**期望终态**，路径由模型在循环里自主逼近。
@@ -125,7 +134,7 @@ const MODE_META: Record<AgentMode, AgentModeMeta> = {
     label: '执行',
     hint: '默认：直接改代码、跑命令',
     icon: 'lucide:zap',
-    guidance: ''
+    guidance: AGENT_GUIDANCE
   },
   plan: {
     value: 'plan',
@@ -137,7 +146,7 @@ const MODE_META: Record<AgentMode, AgentModeMeta> = {
   ask: {
     value: 'ask',
     label: '问答',
-    hint: '只读回答：可读文件，不改代码、不跑命令',
+    hint: '只读回答：可读文件，不改代码、不跑会改状态的命令',
     icon: 'lucide:message-circle-question',
     guidance: ASK_GUIDANCE
   },
@@ -281,6 +290,18 @@ async function writeAgentModeFor(threadID: string, mode: AgentMode): Promise<voi
   return afterModeWrite(id || null, written)
 }
 
+/**
+ * 写模式并等 goose 档位同步完。
+ *
+ * 普通切换不走这里：推 goose 要 ACP，卡住不该拖住菜单。
+ * 「计划 → 执行」必须等它：否则这一轮的 run 仍按只读档发出去，模型一碰写工具就被拒，计划执行直接停。
+ */
+async function commitThreadMode(threadID: string, mode: AgentMode): Promise<void> {
+  const id = threadID.trim()
+  await writeAgentModeFor(id, mode)
+  if (id) await pushEffectiveApproval(id)
+}
+
 /** 消息上的模式快照键（落 `metadata.custom`，随消息 JSON 一起进 `agent_message.content`） */
 const MODE_SNAPSHOT_KEY = 'modeSnapshot'
 
@@ -370,7 +391,7 @@ function resolveRunMode(
 }
 
 /**
- * 把模式约束拼到系统提示末尾；执行模式原样返回。
+ * 把模式约束拼到系统提示末尾。四种模式都有约束（执行模式要求不要只出计划就停）。
  *
  * `mode` 显式传入时以它为准（发送 / 重新生成都从消息快照算出来再传进来），
  * 不传才读当前会话偏好 —— 这条默认值是给「没有历史消息」的场景用的。
@@ -385,6 +406,7 @@ export {
   MODE_SNAPSHOT_KEY,
   appendModeGuidance,
   buildModeSnapshot,
+  commitThreadMode,
   findAgentMode,
   findModeSnapshot,
   readAgentMode,

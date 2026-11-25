@@ -18,13 +18,13 @@ describe('toDocSlug', function () {
 })
 
 describe('buildNewDocRelative', function () {
-  it('默认落在 wiki/ 下', function () {
-    expect(buildNewDocRelative('Monthly Note')).toBe('wiki/monthly-note.md')
+  it('默认落在 wiki/notes/ 下', function () {
+    expect(buildNewDocRelative('Monthly Note')).toBe('wiki/notes/monthly-note.md')
   })
 
   it('重名时按 index 加后缀，不覆盖已有文档', function () {
-    expect(buildNewDocRelative('Monthly Note', 1)).toBe('wiki/monthly-note.md')
-    expect(buildNewDocRelative('Monthly Note', 3)).toBe('wiki/monthly-note-3.md')
+    expect(buildNewDocRelative('Monthly Note', 1)).toBe('wiki/notes/monthly-note.md')
+    expect(buildNewDocRelative('Monthly Note', 3)).toBe('wiki/notes/monthly-note-3.md')
   })
 })
 

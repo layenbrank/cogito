@@ -1,10 +1,14 @@
 /**
  * 一轮对话「怎么失败的」翻译成人话。
  *
+ * 住在协议层而不是某个宿主里：client 与浏览器扩展都要给出**同一套说法**，
+ * 两端各写一版「哪种错误算连接断开」迟早会漂移，而漂移的表现是「同一个故障，
+ * 桌面端说重发即可、扩展说 Failed to fetch」，用户与排查都被误导。
+ *
  * 三件事在这里定：
- * 1. **取消不是失败**：用户按停止会把 `session/prompt` 的请求打回，ACP SDK 顺手
- *    reject 掉排队中的 `nextUpdate()`，泵和 prompt 两条路都会收到同一个 abort 错误。
- *    判成失败就会在用户主动停止时弹一个红色错误块。
+ * 1. **取消不是失败**：用户按停止会把请求打回，ACP SDK 顺手 reject 掉排队中的
+ *    `nextUpdate()`，泵和 prompt 两条路都会收到同一个 abort 错误。判成失败就会在
+ *    用户主动停止时弹一个红色错误块。
  * 2. **连接被重置要说清下一步**：这些消息原本是 SDK / WebView 的内部话术
  *    （`Active session disposed`、`Connection closed`、`Failed to fetch`），用户既
  *    看不懂也不知道该做什么。统一换成「发生了什么 + 重发一次就好」，原始错误留在
@@ -81,10 +85,12 @@ function annotateRunFailure(message: string, kind: unknown): string {
  */
 function humanizeRunError(error: unknown, reset: boolean): Error {
   const source = error instanceof Error ? error : new Error(String(error))
-  const isReset = reset || RESET_ERROR_PATTERNS.some((pattern) => pattern.test(source.message))
+  const isReset = reset || RESET_ERROR_PATTERNS.some(function (pattern) {
+    return pattern.test(source.message)
+  })
   if (!isReset) return source
   return new Error(RESET_ERROR_HINT, { cause: source })
 }
 
 export { RESET_ERROR_HINT, annotateRunFailure, humanizeRunError, isRunCancelled }
-export type { CancellableRun, RunFailureKind }
+export type { RunFailureKind }

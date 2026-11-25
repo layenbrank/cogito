@@ -6,6 +6,9 @@
  */
 
 import type { Server } from 'node:http'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -138,22 +141,134 @@ describe('goose 查询面', function () {
     const { base, calls } = await startServer({
       goose: { request: function () { return Promise.resolve({}) } }
     })
+    const cwd = await mkdtemp(join(tmpdir(), 'agentd-cwd-'))
 
-    const bad = await fetch(`${base}/goose/sessions`, {
+    try {
+      const bad = await fetch(`${base}/goose/sessions`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      expect(bad.status).toBe(400)
+      expect(calls).toHaveLength(0)
+
+      const missing = await fetch(`${base}/goose/sessions`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({ cwd: join(cwd, 'does-not-exist') })
+      })
+      expect(missing.status).toBe(400)
+      expect(calls).toHaveLength(0)
+
+      const good = await fetch(`${base}/goose/sessions`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({ cwd })
+      })
+      expect(good.status).toBe(200)
+      expect(calls[0]).toEqual({ method: 'session/new', params: { cwd, mcpServers: [] } })
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('run 的 cwd 不在允许根内时 400', async function () {
+    const { base } = await startServer({
+      goose: { request: function () { return Promise.resolve({}) } }
+    })
+    const thread = await fetch(`${base}/threads`, {
       method: 'POST',
       headers: { ...authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({ thread_id: 'cwd-check' })
     })
-    expect(bad.status).toBe(400)
+    expect(thread.status).toBe(200)
+
+    const response = await fetch(`${base}/threads/cwd-check/runs`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ input: { prompt: 'hi', cwd: 'C:/definitely-missing-agentd-dir' } })
+    })
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string }
+    expect(body.error).toBe('cwd_not_found')
+  })
+
+  it('MCP command 必须是绝对路径且存在', async function () {
+    const { base, calls } = await startServer({
+      goose: { request: function () { return Promise.resolve({}) } }
+    })
+    const cwd = await mkdtemp(join(tmpdir(), 'agentd-cwd-'))
+
+    try {
+      const bare = await fetch(`${base}/goose/sessions`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({
+          cwd,
+          mcpServers: [{ name: 'evil', command: 'bash', args: [], env: [] }]
+        })
+      })
+      expect(bare.status).toBe(400)
+      const body = (await bare.json()) as { error: string }
+      expect(body.error).toBe('mcp_command_not_absolute')
+      expect(calls).toHaveLength(0)
+
+      const missing = await fetch(`${base}/goose/sessions`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({
+          cwd,
+          mcpServers: [
+            { name: 'gone', command: join(cwd, 'nope.exe'), args: [], env: [] }
+          ]
+        })
+      })
+      expect(missing.status).toBe(400)
+      expect(calls).toHaveLength(0)
+
+      const product = join(cwd, 'corex-mcp.exe')
+      await writeFile(product, 'stub')
+      const good = await fetch(`${base}/goose/sessions`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({
+          cwd,
+          mcpServers: [{ name: 'corex', command: product, args: [], env: [] }]
+        })
+      })
+      expect(good.status).toBe(200)
+      expect(calls[0]).toEqual({
+        method: 'session/new',
+        params: { cwd, mcpServers: [{ name: 'corex', command: product, args: [], env: [] }] }
+      })
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('会话配置只允许已知 configId', async function () {
+    const { base, calls } = await startServer({
+      goose: { request: function () { return Promise.resolve({ ok: true }) } }
+    })
+
+    const denied = await fetch(`${base}/goose/sessions/abc/config`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ configId: 'arbitrary', value: 1 })
+    })
+    expect(denied.status).toBe(400)
     expect(calls).toHaveLength(0)
 
-    const good = await fetch(`${base}/goose/sessions`, {
+    const allowed = await fetch(`${base}/goose/sessions/abc/config`, {
       method: 'POST',
       headers: { ...authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({ cwd: 'C:/work' })
+      body: JSON.stringify({ configId: 'mode', value: 'approve' })
     })
-    expect(good.status).toBe(200)
-    expect(calls[0]).toEqual({ method: 'session/new', params: { cwd: 'C:/work', mcpServers: [] } })
+    expect(allowed.status).toBe(200)
+    expect(calls[0]).toEqual({
+      method: 'session/set_config_option',
+      params: { sessionId: 'abc', configId: 'mode', value: 'approve' }
+    })
   })
 
   it('会话配置与取消都透传 sessionId', async function () {

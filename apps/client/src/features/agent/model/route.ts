@@ -11,9 +11,12 @@
  *
  * 探测（Ollama `/api/tags`）也在 Rust：渲染进程不该为了路由去直连本地端口。
  */
-import { invoke } from '@tauri-apps/api/core'
-
-import { CHANNELS } from '@/shared/ipc/channels'
+import {
+  GET_AGENT_ROUTE_PLAN,
+  POST_AGENT_ROUTE_DEGRADE,
+  PUT_AGENT_ROUTE_TIER,
+  type AgentRoutePlanReply
+} from '@/apis/agent-route'
 
 /** 路由档位。与 Rust 侧 `agent_route::Tier` 同名字面量。 */
 type RouteTier = 'local' | 'cloud'
@@ -35,16 +38,7 @@ function isRouteTier(value: unknown): value is RouteTier {
 }
 
 /** `agentRoute:plan` 的返回（字段按 Rust 的 camelCase 契约） */
-interface RoutePlanReply {
-  plan: {
-    tier: RouteTier
-    fallback: RouteTier | null
-    degraded: boolean
-    reason: string
-  }
-  localModels: string[]
-  probe: string
-}
+type RoutePlanReply = AgentRoutePlanReply
 
 /** provider 的选择只看这三个字段，测试里不用造完整的 AgentProvider */
 interface RouteProvider {
@@ -70,13 +64,11 @@ function readRouteTier(): RouteTier {
  *
  * 落库失败只打 warn：档位是偏好，丢了最多这一轮走错路，不能让一次发送失败。
  */
-function PUT_AGENT_ROUTE_TIER(tier: RouteTier, sessionID?: string | null): void {
+function setRouteTier(tier: RouteTier, sessionID?: string | null): void {
   currentTier = tier
   const id = sessionID?.trim()
   if (!id) return
-  void invoke(CHANNELS.AGENT_ROUTE.SET_TIER, {
-    params: { sessionId: id, tier }
-  }).catch(function (error: unknown) {
+  void PUT_AGENT_ROUTE_TIER({ sessionId: id, tier }).catch(function (error: unknown) {
     console.warn('[agent/route] 档位落库失败（不影响本轮）:', error)
   })
 }
@@ -108,11 +100,9 @@ function narrowPlan(raw: unknown): RoutePlanReply | null {
  * 失败（IPC 挂了 / 判定异常）返回 `null` —— 调用方按**不降级**处理：
  * 探测不出来不等于本地不可用，悄悄换云等于把数据送出本机。
  */
-async function GET_AGENT_ROUTE(tier: RouteTier, model: string | null): Promise<RoutePlanReply | null> {
+async function planRoute(tier: RouteTier, model: string | null): Promise<RoutePlanReply | null> {
   try {
-    const raw = await invoke<unknown>(CHANNELS.AGENT_ROUTE.PLAN, {
-      params: { tier, model }
-    })
+    const raw = await GET_AGENT_ROUTE_PLAN({ tier, model })
     const reply = narrowPlan(raw)
     if (!reply) {
       console.warn('[agent/route] 路由判定返回不可识别，按本地可用处理:', raw)
@@ -130,11 +120,9 @@ async function GET_AGENT_ROUTE(tier: RouteTier, model: string | null): Promise<R
  *
  * 归类在 Rust；这里只保证「判定不可用时不换」。
  */
-async function POST_AGENT_ROUTE_DEGRADE(from: RouteTier, message: string): Promise<RouteTier | null> {
+async function judgeRouteDegrade(from: RouteTier, message: string): Promise<RouteTier | null> {
   try {
-    const raw = await invoke<{ next?: unknown; failure?: unknown }>(CHANNELS.AGENT_ROUTE.DEGRADE, {
-      params: { from, message }
-    })
+    const raw = await POST_AGENT_ROUTE_DEGRADE({ from, message })
     return isRouteTier(raw?.next) ? raw.next : null
   } catch (error) {
     console.warn('[agent/route] 降级判定失败（按不降级处理）:', error)
@@ -183,22 +171,22 @@ async function noteRunFailure(input: {
   message: string
   sessionID?: string | null
 }): Promise<RouteTier | null> {
-  const next = await POST_AGENT_ROUTE_DEGRADE(input.from, input.message)
+  const next = await judgeRouteDegrade(input.from, input.message)
   if (!next) return null
-  PUT_AGENT_ROUTE_TIER(next, input.sessionID)
+  setRouteTier(next, input.sessionID)
   console.info('[agent/route] 本轮可判定失败，已降级到', next)
   return next
 }
 
 export {
   DEFAULT_TIER,
-  POST_AGENT_ROUTE_DEGRADE,
+  judgeRouteDegrade,
   isLocalKind,
   isRouteTier,
-  PUT_AGENT_ROUTE_TIER,
+  setRouteTier,
   noteRunFailure,
   pickProvider,
-  GET_AGENT_ROUTE,
+  planRoute,
   readRouteTier
 }
 export type { RoutePlanReply, RouteProvider, RouteTier }

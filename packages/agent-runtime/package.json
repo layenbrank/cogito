@@ -7,8 +7,10 @@
   "exports": {
     "./agentd": "./src/agentd/transport.ts",
     "./agentd/approvals": "./src/agentd/approvals.ts",
+    "./agentd/run-error": "./src/agentd/run-error.ts",
     "./agentd/runs": "./src/agentd/runs.ts",
     "./agentd/sse": "./src/agentd/sse.ts",
+    "./agentd/turn": "./src/agentd/turn.ts",
     "./acp": "./src/acp/stream.ts",
     "./policy": "./src/policy/approval.ts"
   },

@@ -46,6 +46,12 @@ interface AcpStreamContext {
    * 这个状态不属于纯映射，故由外部注入。
    */
   blockID(messageId: string | null | undefined, kind: 'text' | 'reasoning'): string
+  /**
+   * 覆盖语义：这批 update 来自**补历史**（`session/load` 重放），正文是每条消息的完整文本。
+   *
+   * 打上之后累积器改写已有块而不是追加 —— 不分的话重放会让正文翻倍。
+   */
+  replace?: boolean
   /** 上下文用量回调：不走事件流（它每轮都来，塞进消息里就成了一堆垃圾条目） */
   onContextUsage?(usage: AcpContextUsage): void
 }
@@ -276,9 +282,13 @@ function parseAcpElicitationRequest(request: CreateElicitationRequest): {
   }
 }
 
-/** 追问回执 → ACP 结果（`cancel` 与 `decline` 都表示「不填」） */
+/**
+ * 追问回执 → ACP 结果。
+ *
+ * UI 的「取消」映射成 `decline`：goose 的 `cancel` 会中止整轮，`decline` 只是这张表不填、模型继续。
+ */
 function parseAcpElicitationResponse(response: ChatElicitationResponse): CreateElicitationResponse {
-  if (response.action === 'cancel') return { action: 'cancel' }
+  if (response.action === 'cancel') return { action: 'decline' }
   return { action: 'accept', content: response.content ?? {} }
 }
 
@@ -297,16 +307,20 @@ const STREAM_MAPPER: Partial<{
 }> = {
   agent_message_chunk(update, context) {
     const text = findTextBlock(update.content)
-    return text === null
-      ? null
-      : { kind: 'text', blockID: context.blockID(update.messageId, 'text'), text }
+    if (text === null) return null
+    const blockID = context.blockID(update.messageId, 'text')
+    return context.replace === true
+      ? { kind: 'text', blockID, text, replace: true }
+      : { kind: 'text', blockID, text }
   },
 
   agent_thought_chunk(update, context) {
     const text = findTextBlock(update.content)
-    return text === null
-      ? null
-      : { kind: 'reasoning', blockID: context.blockID(update.messageId, 'reasoning'), text }
+    if (text === null) return null
+    const blockID = context.blockID(update.messageId, 'reasoning')
+    return context.replace === true
+      ? { kind: 'reasoning', blockID, text, replace: true }
+      : { kind: 'reasoning', blockID, text }
   },
 
   tool_call(update: ToolCall) {

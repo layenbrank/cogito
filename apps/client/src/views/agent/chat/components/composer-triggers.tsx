@@ -50,8 +50,8 @@ import {
   completePathSegment,
   findFolderLabel
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
-import { WorkspaceFiles } from '@/lib/workspace-files.ts'
-import { WorkspaceSkills } from '@/lib/workspace-skills.ts'
+import { WorkspaceFiles } from '@/apis/workspace-files'
+import { WorkspaceSkills } from '@/apis/workspace-skills'
 
 import { findFileIcon, findFolderIcon } from '@/views/workspace/overlay/file-icon.ts'
 import { cn } from 'cn'

@@ -10,7 +10,6 @@ use tauri::{AppHandle, Manager};
 
 use super::cdp;
 use super::intercept;
-use super::lifecycle;
 use super::state::BrowserState;
 
 /// 输入类 CDP 调用（点击 / 按键）的短超时。
@@ -284,7 +283,7 @@ fn parse_key_combo(raw: &str) -> KeyCombo {
 /// 探针：确认 CDP 通道在这台机器上确实可用。
 ///
 /// 四项分别对应 agent 的「读 / 看网络 / 拦截改参 / 看画面」：
-/// `Runtime.evaluate` / `Network.enable` / **真实拦截往返** / `Page.captureScreenshot`。
+/// `Runtime.evaluate` / `Network.enable` / **真实拦截往返** / 正式截图通道。
 pub async fn probe(app: &AppHandle, label: &str) -> Result<Value, String> {
     let evaluate = cdp::call(
         app,
@@ -302,14 +301,8 @@ pub async fn probe(app: &AppHandle, label: &str) -> Result<Value, String> {
     // 设备模拟（Emulation 域 + 缩放通道）：会短暂改页面状态，探针自己负责复原
     probe.insert("emulation".into(), super::emulate::probe(app, label).await);
 
-    // 截图单独处理：base64 动辄几 MB，绝不能原样塞进探针结果
-    let screenshot = cdp::call(
-        app,
-        label,
-        "Page.captureScreenshot",
-        json!({ "format": "png", "fromSurface": true }),
-    )
-    .await;
+    // 截图走正式通道（控件位图优先）。base64 动辄几 MB，探针只留长度和通道。
+    let screenshot = super::capture::screenshot(app, label, Some("jpeg"), false).await;
     probe.insert("screenshot".into(), summarize_screenshot(screenshot));
 
     Ok(Value::Object(probe))
@@ -370,17 +363,20 @@ async fn probe_intercept(app: &AppHandle, label: &str) -> Value {
     }
 }
 
-/// 截图只报“能不能拿到”和字节数
+/// 截图只报“能不能拿到”、字节数和实际通道
 fn summarize_screenshot(result: Result<Value, String>) -> Value {
     match result {
         Ok(value) => {
-            // `Page.captureScreenshot` 直接返回 `{data}`，没有外层 `result`
             let length = value
-                .get("data")
+                .get("base64")
                 .and_then(Value::as_str)
                 .map(str::len)
                 .unwrap_or(0);
-            json!({ "ok": length > 0, "base64Length": length })
+            json!({
+                "ok": length > 0,
+                "base64Length": length,
+                "mode": value.get("mode").and_then(Value::as_str).unwrap_or("")
+            })
         }
         Err(message) => json!({ "ok": false, "error": message }),
     }
@@ -963,300 +959,17 @@ pub async fn wait(
     }))
 }
 
-/// 截图的两条通道，按顺序尝试：
-/// 1. `fromSurface: true` —— 合成面（滚动之后看到的真实画面）；
-/// 2. `fromSurface: false` —— 视图面。
+/// 截屏。实现在 `capture`：控件位图优先，CDP 只在显式 clip（乘过 zoom）时使用。
 ///
-/// 为什么需要两条：窗口不可见 / webview 被 `hide()` 时合成器可能不再出帧，
-/// `fromSurface: true` 的调用会**等不到完成回调**（WebView2 不回包，只有超时）。
-/// 视图面在同样的状态下往往还能立刻拿到一张（可能是空白），而空图会再走一次
-/// `reveal_for_capture` 重拍 —— 有图 / 有明确原因，都好过「先等十秒再报错」。
-fn screenshot_channels() -> [bool; 2] {
-    [true, false]
-}
-
-/// `Page.captureScreenshot` 的参数：`fromSurface` 决定截合成面还是视图面。
-fn screenshot_params(format: &str, from_surface: bool) -> Value {
-    let mut params = json!({ "format": format, "fromSurface": from_surface });
-    // quality 只对 jpeg 有意义，png 带上它反而会被协议拒绝
-    if format == "jpeg" {
-        params["quality"] = json!(SCREENSHOT_JPEG_QUALITY);
-    }
-    params
-}
-
-/// 单次截图的上限。比全局 10s 短：两条通道加起来仍是一次工具调用的合理等待时间，
-/// 也不会在窗口不可见时把调用方挂满十秒（那正是上一版的观感问题）。
-const SCREENSHOT_TIMEOUT: Duration = Duration::from_millis(4000);
-
-/// jpeg 质量：给模型看够用，体积比 png 小一个量级。
-const SCREENSHOT_JPEG_QUALITY: u8 = 75;
-
-/// 截屏：`Page.captureScreenshot` 拿 base64，返回原始 base64 + mime。
-///
-/// 不返回 data URL：同一份 base64 再拼一遍会让 JSON 体积翻倍。需要 data URL 时
-/// 调用方（前端 / 面板）自己拼一行就行。
-///
-/// `format`：`jpeg` 给模型看（体积小很多，样式判断够用），`png` 给用户看。
-/// 通道顺序见 `screenshot_channels()`：合成面优先，超时 / 报错再退到视图面，
-/// 两条都不行时把各自的失败原因一起带回去（便于区分「没画面」和「没权限」）。
+/// `format`：`jpeg` 给模型看，其余（含省略）给用户，走 png。
+/// `full_page` 默认关。整页有 Chromium 的「底部重复顶部」问题，只有工具显式要求才拍。
 pub async fn screenshot(
     app: &AppHandle,
     label: &str,
     format: Option<&str>,
+    full_page: bool,
 ) -> Result<Value, String> {
-    let (cdp_format, mime_type) = match format {
-        Some("jpeg") => ("jpeg", "image/jpeg"),
-        _ => ("png", "image/png"),
-    };
-
-    let mut errors: Vec<String> = Vec::new();
-    let mut response = Value::Null;
-    let mut channel_mode = "surface";
-    // 拍之前先亮：WebView2 在隐藏态根本不出帧，`fromSurface` 通道会白等满 4s 才超时。
-    // 亮不起来也不算错（可能被别的窗口压着），每条通道自己还有「空图再亮一次」的兜底。
-    let pre_revealed = lifecycle::reveal_for_capture(app, label);
-    if pre_revealed {
-        log::info!("browser: 截图前先把视图显示出来（{label}）");
-    }
-    for (index, from_surface) in screenshot_channels().into_iter().enumerate() {
-        let params = screenshot_params(cdp_format, from_surface);
-        let mut outcome = cdp::call_with_timeout(
-            app,
-            label,
-            "Page.captureScreenshot",
-            params.clone(),
-            SCREENSHOT_TIMEOUT,
-        )
-        .await;
-
-        // 空图不是报错：webview 隐藏（切在聊天视图 / 浮层让位）时 WebView2 会返回空对象。
-        // 临时显示一下再拍，拍完收回 —— 否则 agent 在聊天视图下永远截不到图。
-        let empty = matches!(&outcome, Ok(value) if value.get("data").is_none());
-        if empty && !pre_revealed && lifecycle::reveal_for_capture(app, label) {
-            log::info!("browser: 截图拿到空数据，临时显示后重试（{label}）");
-            outcome = cdp::call_with_timeout(
-                app,
-                label,
-                "Page.captureScreenshot",
-                params,
-                SCREENSHOT_TIMEOUT,
-            )
-            .await;
-            lifecycle::hide_after_capture(app, label);
-        }
-
-        match outcome {
-            Ok(value) if value.get("data").is_some() => {
-                channel_mode = if from_surface { "surface" } else { "view" };
-                if index > 0 {
-                    log::info!(
-                        "browser: 截图从第 {} 条通道拿到画面（{label}，fromSurface={from_surface}）",
-                        index + 1
-                    );
-                }
-                response = value;
-                break;
-            }
-            Ok(_) => errors.push(format!("fromSurface={from_surface}: 响应里没有 data")),
-            Err(error) => {
-                log::warn!(
-                    "browser: 截图 fromSurface={from_surface} 失败（{label}），换下一条通道: {error}"
-                );
-                errors.push(format!("fromSurface={from_surface}: {error}"));
-            }
-        }
-    }
-
-    if response.get("data").is_none() {
-        // CDP 两条通道都没画面：退到 OS 级兜底（屏幕像素），拿到就不算失败
-        match os_capture(app, label, cdp_format).await {
-            Ok(value) => {
-                if pre_revealed {
-                    lifecycle::hide_after_capture(app, label);
-                }
-                return Ok(value);
-            }
-            Err(error) => errors.push(format!("os: {error}")),
-        }
-        if pre_revealed {
-            lifecycle::hide_after_capture(app, label);
-        }
-        return Err(format!(
-            "截不到图（{label}）：窗口不可见或被遮挡（已尝试 surface/view/os）—— {}",
-            errors.join("；")
-        ));
-    }
-
-    let data = response
-        .get("data")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            log::warn!("browser: 截图响应里没有 data（{label}）: {response}");
-            "截图响应里没有 data".to_string()
-        })?
-        .to_string();
-
-    let data = shrink_oversized(app, label, cdp_format, data).await;
-    if pre_revealed {
-        lifecycle::hide_after_capture(app, label);
-    }
-
-    Ok(json!({ "mimeType": mime_type, "base64": data, "mode": channel_mode }))
-}
-
-/// OS 级兜底：CDP 两条通道都拿不到画面时，从屏幕像素里裁一块。
-///
-/// 走的是 `capture` 模块同一条 corex IPC（`capture/screenshot` → 主屏 PNG），再按浏览器面板的
-/// 客户区矩形裁切 —— 不自己写 BitBlt：corex 已经处理了多显示器 / DPI / 缩放，进程里再加一套
-/// GDI 只会多一份平台特例。截完立刻删掉整屏 png，不占缓存。
-///
-/// 代价：拍到的是**屏幕上真实的那一块**，被别的窗口压着就会把遮挡也拍进来，
-/// 所以返回值带 `mode: "os"`，调用方据此知道这不是合成画面。
-async fn os_capture(app: &AppHandle, label: &str, format: &str) -> Result<Value, String> {
-    let snapshot = tauri::Manager::state::<crate::browser::state::BrowserState>(app).snapshot();
-    let layout = snapshot.layout;
-    if !layout.has_been_laid_out || layout.width < 2.0 || layout.height < 2.0 {
-        return Err("面板还没布局，无法确定裁切区域".to_string());
-    }
-    // 主窗口 label 来自 tauri.conf.json（子 webview 的客户区坐标相对它）
-    let window =
-        tauri::Manager::get_webview_window(app, "main").ok_or_else(|| "没有主窗口".to_string())?;
-    let origin = window
-        .inner_position()
-        .map_err(|error| format!("读窗口位置失败：{error}"))?;
-    let scale = window
-        .scale_factor()
-        .map_err(|error| format!("读窗口缩放失败：{error}"))?;
-
-    // 整屏 png 落到 agent 缓存目录（会话级，不脏工作区）
-    let dir = crate::utils::agent_cache::session_dir("browser-os-capture")?;
-    let target = dir.join(format!("shot-{}.png", crate::utils::clock::now_ms()));
-    let to = target.display().to_string();
-    let response = tauri::async_runtime::spawn_blocking(move || {
-        crate::utils::ipc::invoke_with(
-            "capture",
-            Some("screenshot"),
-            json!({ "to": to, "format": "png" }),
-        )
-    })
-    .await
-    .map_err(|error| format!("截图线程异常：{error}"))??;
-    if !response.ok {
-        return Err(response
-            .error
-            .unwrap_or_else(|| "OS 截图失败（corex 未就绪？）".to_string()));
-    }
-    let path = response
-        .path
-        .unwrap_or_else(|| target.display().to_string());
-
-    let (left, top, width, height) = (
-        origin.x as f64 + layout.x * scale,
-        origin.y as f64 + layout.y * scale,
-        layout.width * scale,
-        layout.height * scale,
-    );
-    log::info!(
-        "browser: CDP 截图失败，退到 OS 客户区兜底（{label}，{:.0}x{:.0} @ {:.0},{:.0}）",
-        width,
-        height,
-        left,
-        top
-    );
-    let want_jpeg = format == "jpeg";
-    let (bytes, mime_type) =
-        tauri::async_runtime::spawn_blocking(move || -> Result<(Vec<u8>, &'static str), String> {
-            let decoded = image::ImageReader::open(&path)
-                .map_err(|error| format!("打开整屏截图失败：{error}"))?
-                .decode()
-                .map_err(|error| format!("解码整屏截图失败：{error}"))?;
-            // 读进内存就删：这是纯中转文件
-            let _ = std::fs::remove_file(&path);
-            let max_width = decoded.width();
-            let max_height = decoded.height();
-            let x0 = (left.max(0.0) as u32).min(max_width.saturating_sub(1));
-            let y0 = (top.max(0.0) as u32).min(max_height.saturating_sub(1));
-            let w = (width.max(1.0) as u32)
-                .min(max_width.saturating_sub(x0))
-                .max(1);
-            let h = (height.max(1.0) as u32)
-                .min(max_height.saturating_sub(y0))
-                .max(1);
-            let (image_format, mime) = if want_jpeg {
-                (image::ImageFormat::Jpeg, "image/jpeg")
-            } else {
-                (image::ImageFormat::Png, "image/png")
-            };
-            let mut buffer = std::io::Cursor::new(Vec::new());
-            decoded
-                .crop_imm(x0, y0, w, h)
-                .write_to(&mut buffer, image_format)
-                .map_err(|error| format!("编码裁切结果失败：{error}"))?;
-            Ok((buffer.into_inner(), mime))
-        })
-        .await
-        .map_err(|error| format!("裁切线程异常：{error}"))??;
-
-    Ok(json!({
-        "mimeType": mime_type,
-        "base64": intercept::base64_encode(&bytes),
-        "mode": "os"
-    }))
-}
-
-/// 设备模拟（dpr 到 3）会让同一屏的 jpeg 大三四倍。超过阈值时按 CSS px 再拍一张，
-/// **只有真的更小才采用**：`clip.scale` 的含义在不同 WebView2 版本上不完全一致，
-/// 用“体积对不对”当判据，比猜协议语义安全（最坏情况就是留着原来那张）。
-async fn shrink_oversized(app: &AppHandle, label: &str, format: &str, data: String) -> String {
-    /// 触发二次截图的体积阈值（base64 字符数，约 300KB 原图）
-    const TRIGGER: usize = 400_000;
-
-    if format != "jpeg" || data.len() < TRIGGER {
-        return data;
-    }
-    let Ok(metrics) = super::emulate::readback(app, label).await else {
-        return data;
-    };
-    let (Some(width), Some(height), Some(dpr)) = (
-        metrics.get("innerWidth").and_then(Value::as_f64),
-        metrics.get("innerHeight").and_then(Value::as_f64),
-        metrics.get("dpr").and_then(Value::as_f64),
-    ) else {
-        return data;
-    };
-    if width < 1.0 || height < 1.0 || dpr <= 1.5 {
-        return data;
-    }
-
-    let params = json!({
-        "format": "jpeg",
-        "quality": 75,
-        "fromSurface": true,
-        "clip": { "x": 0.0, "y": 0.0, "width": width, "height": height, "scale": 1.0 / dpr }
-    });
-    let Ok(smaller) = cdp::call_with_timeout(
-        app,
-        label,
-        "Page.captureScreenshot",
-        params,
-        SCREENSHOT_TIMEOUT,
-    )
-    .await
-    else {
-        return data;
-    };
-    match smaller.get("data").and_then(Value::as_str) {
-        Some(shrunk) if !shrunk.is_empty() && shrunk.len() < data.len() => {
-            log::info!(
-                "browser: 截图按 CSS px 收缩（{label}，{} → {} 字符）",
-                data.len(),
-                shrunk.len()
-            );
-            shrunk.to_string()
-        }
-        _ => data,
-    }
+    super::capture::screenshot(app, label, format, full_page).await
 }
 
 #[cfg(test)]
@@ -1298,23 +1011,5 @@ mod tests {
 
         let plain = parse_key_combo("Enter");
         assert_eq!(plain.text, "\r");
-    }
-
-    #[test]
-    fn screenshots_try_the_composited_surface_then_the_view() {
-        // 窗口不可见时合成器可能不出帧，`fromSurface: true` 会一直等不到回调 ——
-        // 所以顺序里必须留一条视图面的退路，而不是只有一条通道。
-        assert_eq!(screenshot_channels(), [true, false]);
-
-        let jpeg = screenshot_params("jpeg", true);
-        assert_eq!(jpeg["format"], "jpeg");
-        assert_eq!(jpeg["fromSurface"], true);
-        assert_eq!(jpeg["quality"], json!(SCREENSHOT_JPEG_QUALITY));
-
-        // png 不带 quality：那是 jpeg 专属字段
-        let png = screenshot_params("png", false);
-        assert_eq!(png["format"], "png");
-        assert_eq!(png["fromSurface"], false);
-        assert!(png.get("quality").is_none());
     }
 }
