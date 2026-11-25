@@ -40,6 +40,9 @@ const PRAGMAS: [(&str, &str); 6] = [
 ];
 /// `index_meta` 里记录上次增量刷新的毫秒时间戳
 pub const META_LAST_REFRESH: &str = "lastRefresh";
+/// `index_meta` 里记录当前条目总数：`COUNT(*)` 在百万行上是 2–3 秒的全表扫描，
+/// 不该出现在每次启动 / 每轮刷新里
+const META_TOTAL: &str = "total";
 /// 启动时距上次刷新超过这个间隔就增量刷一轮（全量重建只由用户手动触发）
 const REFRESH_INTERVAL_MS: i64 = 6 * 60 * 60 * 1000;
 /// 建表 / 触发器 / 索引（幂等）
@@ -206,7 +209,8 @@ async fn write_rows<C: ConnectionTrait>(
     conn: &C,
     rows: &[FileRow],
     incremental: bool,
-) -> CommandResult<()> {
+) -> CommandResult<u64> {
+    let mut affected = 0u64;
     const COLUMNS: &str = "(path, name, name_fold, dir, ext, size, mtime, is_dir)";
     const UPDATES: &str = "ON CONFLICT(path) DO UPDATE SET
           name = excluded.name,
@@ -244,15 +248,17 @@ async fn write_rows<C: ConnectionTrait>(
         if incremental {
             sql.push_str(SKIP_UNCHANGED);
         }
-        conn.execute(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            sql,
-            values,
-        ))
-        .await
-        .map_err(db_error)?;
+        let result = conn
+            .execute(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                sql,
+                values,
+            ))
+            .await
+            .map_err(db_error)?;
+        affected += result.rows_affected();
     }
-    Ok(())
+    Ok(affected)
 }
 
 /// 标记「本轮见过这些路径」（`seen_path` 无触发器，纯 insert 很快）
@@ -283,30 +289,37 @@ pub(super) async fn commit_batch(
     db: &DatabaseConnection,
     rows: &[FileRow],
     incremental: bool,
-) -> CommandResult<()> {
+) -> CommandResult<u64> {
     let txn = db.begin().await.map_err(db_error)?;
-    write_rows(&txn, rows, incremental).await?;
+    let affected = write_rows(&txn, rows, incremental).await?;
     if incremental {
         mark_seen(&txn, rows).await?;
     }
-    txn.commit().await.map_err(db_error)
+    txn.commit().await.map_err(db_error)?;
+    Ok(affected)
 }
 
-/// 删掉本轮没见到的路径（只在本轮完整跑完时调）
-async fn prune(db: &DatabaseConnection) -> CommandResult<()> {
-    db.execute(Statement::from_string(
-        DbBackend::Sqlite,
-        "DELETE FROM file_entry WHERE path NOT IN (SELECT path FROM seen_path)".to_string(),
-    ))
-    .await
-    .map_err(db_error)?;
+/// 删掉本轮没见到的路径（只在本轮完整跑完时调），返回删除行数。
+///
+/// `NOT EXISTS` 能逐行走 `seen_path` 的主键索引；`NOT IN (子查询)` 会被优化器
+/// 物化成数百万行的临时索引，实测 3–7 秒。
+async fn prune(db: &DatabaseConnection) -> CommandResult<i64> {
+    let result = db
+        .execute(Statement::from_string(
+            DbBackend::Sqlite,
+            "DELETE FROM file_entry WHERE NOT EXISTS (\n                SELECT 1 FROM seen_path WHERE seen_path.path = file_entry.path\n             )"
+                .to_string(),
+        ))
+        .await
+        .map_err(db_error)?;
+    let deleted = result.rows_affected() as i64;
     db.execute(Statement::from_string(
         DbBackend::Sqlite,
         "DELETE FROM seen_path".to_string(),
     ))
     .await
     .map_err(db_error)?;
-    Ok(())
+    Ok(deleted)
 }
 
 /// 读取 `index_meta` 里的时间戳类字段
@@ -435,6 +448,10 @@ async fn sync(inner: Arc<Inner>, mode: Mode) -> CommandResult<()> {
             let mut status = inner.status.lock().expect("index status poisoned");
             status.state = FileIndexStatus::READY.to_string();
             status.started_at = None;
+            // 被用户停掉的扫描：索引能查，但可能不完整，别让它看起来「已就绪」
+            if inner.is_cancelled() {
+                status.message = Some("扫描已停止，索引可能不完整".to_string());
+            }
         }
         Err(error) => {
             let mut status = inner.status.lock().expect("index status poisoned");
@@ -457,6 +474,12 @@ async fn sync_inner(inner: Arc<Inner>, mode: Mode) -> CommandResult<()> {
     inner.reset_cancel();
 
     let db = inner.connection().await?;
+    // 条目总数在扫描**之前**读：增量刷新只需要「旧总数 + 新增 - 删除」。
+    // 老库没有这份元数据时退回一次全表 COUNT（只发生一次，之后就有记录了）。
+    let previous_total = match read_meta(&db, META_TOTAL).await? {
+        Some(value) => value,
+        None => count_rows(&db).await.unwrap_or(0),
+    };
     // 上轮被打断时 seen_path 会留半份路径，先清干净
     let _ = db
         .execute(Statement::from_string(
@@ -480,27 +503,32 @@ async fn sync_inner(inner: Arc<Inner>, mode: Mode) -> CommandResult<()> {
     let writer_db = db.clone();
     let writer = tauri::async_runtime::spawn(async move {
         let mut written = 0i64;
+        let mut affected = 0u64;
         while let Some(batch) = receiver.recv().await {
-            if let Err(error) = commit_batch(&writer_db, &batch, incremental).await {
-                eprintln!("[file-index] 写入失败：{error}");
-                break;
+            let rows = batch.len() as i64;
+            match commit_batch(&writer_db, &batch, incremental).await {
+                Ok(count) => affected += count,
+                Err(error) => {
+                    eprintln!("[file-index] 写入失败：{error}");
+                    break;
+                }
             }
-            written += batch.len() as i64;
+            written += rows;
             writer_inner.set_indexed(written);
         }
-        written
+        (written, affected)
     });
 
     let walk_inner = inner.clone();
     let completed = tauri::async_runtime::spawn_blocking(move || walk(&walk_inner, sender))
         .await
         .map_err(|error| cogito_core::Exception::Internal(format!("扫描线程异常：{error}")))?;
-    let written = writer
+    let (written, affected) = writer
         .await
         .map_err(|error| cogito_core::Exception::Internal(format!("索引写入线程异常：{error}")))?;
 
-    if incremental && completed {
-        prune(&db).await?;
+    let deleted = if incremental && completed {
+        prune(&db).await?
     } else {
         let _ = db
             .execute(Statement::from_string(
@@ -508,11 +536,18 @@ async fn sync_inner(inner: Arc<Inner>, mode: Mode) -> CommandResult<()> {
                 "DELETE FROM seen_path".to_string(),
             ))
             .await;
-    }
+        0
+    };
 
-    let total = count_rows(&db).await.unwrap_or(written);
+    // 全量重建刚清过表，写入行数就是总数；增量刷新按「旧总数 + 实际写入 - 删除」推算
+    let total = if mode == Mode::Full {
+        written
+    } else {
+        (previous_total + affected as i64 - deleted).max(0)
+    };
     inner.set_indexed(total);
     inner.set_progress(total);
+    write_meta(&db, META_TOTAL, &total.to_string()).await;
     write_meta(
         &db,
         META_LAST_REFRESH,
@@ -530,26 +565,31 @@ pub fn spawn_initial_scan(index: FileIndex) {
         if index.is_scanning() {
             return;
         }
-        match index.count().await {
-            Ok(count) if count > 0 => {
-                let stale = match index.last_refresh_ms().await {
-                    Ok(Some(value)) => crate::file_index::now_ms() - value > REFRESH_INTERVAL_MS,
-                    // 没记录过（老版本建的库）也算过期
-                    _ => true,
-                };
-                if stale {
-                    if let Err(error) = index.refresh().await {
-                        eprintln!("[file-index] 增量刷新失败：{error}");
-                    }
+        // 优先读元数据里的总数：老库没这份记录时才退回一次 COUNT(*)
+        let cached_total = match index.inner.connection().await {
+            Ok(db) => read_meta(&db, META_TOTAL).await.ok().flatten(),
+            Err(_) => None,
+        };
+        let count = match cached_total {
+            Some(value) => value,
+            None => index.count().await.unwrap_or(0),
+        };
+        if count > 0 {
+            let stale = match index.last_refresh_ms().await {
+                Ok(Some(value)) => crate::file_index::now_ms() - value > REFRESH_INTERVAL_MS,
+                // 没记录过（老版本建的库）也算过期
+                _ => true,
+            };
+            if stale {
+                if let Err(error) = index.refresh().await {
+                    eprintln!("[file-index] 增量刷新失败：{error}");
                 }
             }
-            Ok(_) => {
-                // 空库：先亮状态再扫，UI 轮询就能看到「正在建立索引」
-                if let Err(error) = index.rebuild().await {
-                    eprintln!("[file-index] 首次扫描失败：{error}");
-                }
+        } else {
+            // 空库：先亮状态再扫，UI 轮询就能看到「正在建立索引」
+            if let Err(error) = index.rebuild().await {
+                eprintln!("[file-index] 首次扫描失败：{error}");
             }
-            Err(error) => eprintln!("[file-index] 读取条目数失败：{error}"),
         }
     });
 }

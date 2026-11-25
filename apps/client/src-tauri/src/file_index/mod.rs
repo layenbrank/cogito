@@ -143,6 +143,14 @@ impl FileIndex {
         scan::spawn_initial_scan(self.clone());
     }
 
+    /// 请求停止当前扫描。
+    ///
+    /// 遍历线程每处理一个条目检查一次，通常一秒内退出；已写入的批次保留（下一轮增量
+    /// 刷新会补齐），所以取消不会把索引清空。
+    pub fn cancel(&self) {
+        self.inner.cancel.store(true, Ordering::SeqCst);
+    }
+
     pub fn is_scanning(&self) -> bool {
         self.inner.is_scanning.load(Ordering::Relaxed)
     }
@@ -516,6 +524,13 @@ pub fn search_file_index_rebuild(state: State<'_, FileIndex>) -> CommandResult<(
             eprintln!("[file-index] 重建失败：{error}");
         }
     });
+    Ok(())
+}
+
+/// 停止正在进行的扫描（全盘扫描对低配机是很重的 IO，必须能中途收手）。
+#[tauri::command(rename = "search:fileIndexCancel")]
+pub fn search_file_index_cancel(state: State<'_, FileIndex>) -> CommandResult<()> {
+    state.cancel();
     Ok(())
 }
 
