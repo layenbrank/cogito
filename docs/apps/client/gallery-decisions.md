@@ -355,6 +355,52 @@
 - **窗口级拖拽导入**：需要接 Tauri 的 `onDragDropEvent` 并处理文件 vs 目录、权限与进度，
   与 `media:pick` 是两条授权路径，单独评估。
 
+## D27 播放视频闪退：原图通道必须分块 + 渲染必须限流
+
+现象：在图库/灯箱里播放视频，程序卡死后直接退出（无 panic 日志）。
+
+### 根因
+
+`thumb://` 的 `/o/` 原图通道原来是「按需整份读」：客户端不带 `Range` 就 `fs::read` 整个文件；
+带了 `Range: bytes=0-`（播放器探测用的就是它）也会因为 `parse_range` 把 `end` 算成 `len-1`
+而**读入整个文件**。Tauri 的自定义协议**不支持流式响应**
+（`UriSchemeResponder::respond<T: Into<Cow<'static, [u8]>>>`，body 必须已在内存），
+于是：一段 830 MB 的录屏 → Rust 侧 830 MB 的 `Vec` → 交给 WebView 再拷一份 → 1.6 GB+，
+多来几个并发请求就直接被 OOM 杀掉。**内存与文件大小成正比**是这套实现的原罪。
+
+### 修法（不是打补丁，是把契约改成 HTTP Range 语义）
+
+- `plan_original(len, is_streamable, range) -> { start, end, total, is_partial }` 纯函数：
+  - 客户端给了合法范围 → 照给，但 `end` **截到 `MAX_CHUNK_BYTES`（2 MiB）**；
+  - 没给 / 给了多段这类认不出的 → 小图片整份 200，大文件同样只回第一块 206；
+  - 请求范围正好覆盖整份 → 回 200（不必 206）。
+- 只读计划里的那一段（`read_slice`），**任何时候都不再 `fs::read` 整个文件**。
+- 两个通道都补 `Content-Length`，206 补 `Content-Range`，并支持 `HEAD`（只回头不回体）。
+- 内存上界从此与媒体大小无关：单请求 ≤ 2 MiB，总峰值 = 2 MiB × 并发数。
+
+### 同源的另外两个“无上限并发”
+
+- **解码闸门**：`spawn_blocking` 默认能起上百线程，网格里 30 个格子同时解 48MP 原图 ≈ 数 GB。
+  加 `Semaphore(2)`，多余请求排队（它们本来就只是等缓存文件）。
+- **FFmpeg 抽帧闸门**：同一个信号量。否则 30 个视频格子 = 30 个 `ffmpeg.exe` 进程同时解码。
+- **源路径小缓存**：视频按 2 MiB 拉，2 GB 就是上千次请求；每块都回库查 `asset` 行，
+  而连接只有一条（`max_connections(1)`），会把界面请求挤在后面。
+  `ThumbService` 里加 `assetID → (version, filePath)` 缓存（上限 4096，超了整表清空），
+  version 对不上就重查（文件改名/覆盖后 URL 的 mtime 会变）。
+
+### 顺带修掉的越界
+
+`bytes=-0`（尾部 0 字节）会让 `start = len`、`end = len-1`，随后 `end - start + 1` 无符号下溢，
+debug 直接 panic、release 变成天文数字的 `vec![0; n]`。现在 `parse_range` 直接判为非法。
+
+### 备选（已否决）
+
+- A. 给 `assetProtocol.scope` 加 `**` 让 WebView 自己发 Range 请求：一行改完，但等于把整个磁盘
+  交给渲染进程，且原图路径会暴露给前端。
+- B. 把视频复制到应用缓存再播：多一份磁盘占用，且必须自己做生命周期与失效。
+- C. 用 range 请求但把整段放进 `Cache-Control: immutable` 的本地缓存文件：仍需整段读盘，
+  只是把 OOM 推迟到「缓存未命中」那一刻。
+
 ## 至此仍开放的事项
 
 | 事项 | 状态 |

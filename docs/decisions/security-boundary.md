@@ -100,8 +100,11 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   授权回收靠下次启动重建（`security/grants.rs` 的 `rebuild` 注释里写了为什么）。
 - `https://**` 仍是通配（理由见上）。要收它的前置条件是：预签名上传改成「先换 ticket 再上传」，
   以及远端素材下载走 Rust 侧代取。
-- 渲染进程仍残留 15 处 `'__TAURI_INTERNALS__' in window || '__TAURI__' in window` 的**能力判断**（不解引用），
-  `withGlobalTauri: false` 后等价于只判 internals；门禁禁止 `window.__TAURI__.` 解引用。
+- **已收口**：渲染进程不再有任何 `'__TAURI_INTERNALS__' in window || '__TAURI__' in window`
+  式环境探测（`isTauri()` / `hasTauriRuntime()` 全部删除）——客户端只跑在 Tauri 里，
+  非 Tauri 分支是死代码。剩下的只有 `canUseTauriIpc()` 这一处**能力判断**（`!isBrowserChildWebview() && !isEmbeddedShell()`，
+  看 ACL 不看运行时），失败一律在 `src/apis/*` 内部 try/catch 兜底；
+  `withGlobalTauri: false` 后 `window.__TAURI__` 本就不存在，门禁禁止解引用。
 - S3 只收口了**文件写**：`cogito_terminal_run` 仍能跑任意命令（这是产品承诺的可见终端），
   真正的执行隔离要等 S10 的子 agent 沙箱。
 - S5 的边界是「git 不会被仓库配置牵着跑外部程序」，**不是**「git 干不了坏事」：
